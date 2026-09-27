@@ -328,10 +328,8 @@ async function loadCarriers() {
         }
         starsHtml += `</div>`;
 
-        // 3. Заметки — обрезаем длинный текст, полный текст показываем при наведении
+        // 3. Заметки — показуємо повний текст одразу, з переносом рядків у межах стовпця
         const notesFull = item.notes || "";
-        const notesShort =
-            notesFull.length > 60 ? notesFull.slice(0, 60) + "…" : notesFull;
 
         // 4. Аватар та посилання на профіль
         const avatarHtml = renderAvatar(item.logo_url);
@@ -373,7 +371,7 @@ async function loadCarriers() {
           <span style="color: #0284c7;">${item.additional || ""}</span>
         </td>
         <td>${starsHtml}</td>
-        <td style="max-width: 180px;" title="${escapeHtml(notesFull)}">${notesShort || "—"}</td>
+        <td style="max-width: 220px; white-space: normal; word-break: break-word;">${escapeHtml(notesFull) || "—"}</td>
         <td>
           <button class="btn-icon" onclick="editCarrier('${item.id}')" title="Редактировать"><i class='bx bx-edit'></i></button>
           <button class="btn-icon text-danger" onclick="deleteCarrier('${item.id}')" title="Удалить"><i class='bx bx-trash'></i></button>

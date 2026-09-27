@@ -677,6 +677,19 @@ code {
     background: #14532d;
 }
 
+/* Звужуємо стовпці "Тип причепу" та "Параметри / доп.", щоб таблиця не була занадто широкою */
+table th:nth-child(8),
+table td:nth-child(8) {
+    max-width: 110px;
+    white-space: normal;
+}
+
+table th:nth-child(9),
+table td:nth-child(9) {
+    max-width: 140px;
+    white-space: normal;
+}
+
 /* Звёздный рейтинг в таблице */
 .star-rating {
     display: inline-flex;
