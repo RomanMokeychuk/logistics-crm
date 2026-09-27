@@ -1,0 +1,729 @@
+/* Общие стили и сброс */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+        sans-serif;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    background-color: #f8fafc;
+    color: #0f172a;
+    line-height: 1.5;
+    display: flex;
+    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden; /* страница целиком больше не скроллится */
+}
+
+/* ===================== Layout: sidebar + main ===================== */
+
+.sidebar {
+    width: 220px;
+    flex-shrink: 0;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 20px 16px;
+    height: 100vh;
+    overflow-y: auto;
+}
+
+.sidebar .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 24px;
+}
+
+.sidebar .logo i {
+    font-size: 22px;
+    color: #3b82f6;
+}
+
+.sidebar .menu a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: #cbd5e1;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    transition: background 0.15s ease;
+}
+
+.sidebar .menu a:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar .menu a.active {
+    background: #2563eb;
+    color: #ffffff;
+}
+
+.main-content {
+    flex: 1;
+    padding: 24px 32px;
+    min-width: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* сам контейнер не скроллится, скроллится только table-card */
+    position: relative; /* точка отсчёта для кнопки "наверх" */
+}
+
+.top-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    flex-shrink: 0; /* шапка не сжимается и не скроллится */
+}
+
+.filters-bar {
+    margin-bottom: 20px;
+    flex-shrink: 0; /* строка поиска остаётся на месте */
+}
+
+.container {
+    max-width: 1280px;
+    margin: 0 auto;
+}
+
+.badge-country {
+    display: inline-block;
+    background-color: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    border: 1px solid #bfdbfe;
+    margin-right: 4px;
+    margin-bottom: 2px;
+}
+
+/* Шапка и заголовки */
+h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+/* Поиск */
+.search-input {
+    flex: 1;
+    min-width: 280px;
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 14px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    outline: none;
+    transition: all 0.2s ease;
+    background-color: #ffffff;
+}
+
+.search-input:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Кнопки */
+.btn {
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-primary {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background-color: #1d4ed8;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+
+.btn-secondary {
+    background-color: #e2e8f0;
+    color: #475569;
+}
+
+.btn-secondary:hover {
+    background-color: #cbd5e1;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background 0.2s;
+}
+
+.btn-icon:hover {
+    background-color: #fee2e2;
+}
+
+.text-danger {
+    color: #ef4444;
+    font-size: 18px;
+}
+
+.close-btn {
+    background: transparent;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    color: #64748b;
+    padding: 4px 8px;
+    border-radius: 6px;
+}
+
+.close-btn:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+/* Таблица — теперь это единственная скроллящаяся область */
+.table-card {
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    flex: 1;
+    min-height: 0; /* обязательно, иначе flex-контейнер не даст скроллу сработать */
+    overflow-x: auto;
+    overflow-y: auto;
+    position: relative;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 14px;
+}
+
+thead {
+    background-color: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+th {
+    padding: 12px 16px;
+    font-weight: 600;
+    color: #475569;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+td {
+    padding: 14px 16px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+
+/* Чередование фона строк — "зебра", чтобы данные не сливались */
+tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+}
+
+tbody tr:hover {
+    background-color: #eef2ff;
+}
+
+tbody tr:last-child td {
+    border-bottom: none;
+}
+
+/* Более заметные разделители между столбцами (вертикальные линии) */
+td,
+th {
+    border-right: 1px solid #eef0f4;
+}
+
+td:last-child,
+th:last-child {
+    border-right: none;
+}
+
+/* Иконка-ссылка на Viber рядом с номером телефона */
+.viber-link {
+    display: inline-flex;
+    vertical-align: middle;
+    color: #7360f2;
+    font-size: 15px;
+    text-decoration: none;
+    margin-left: 2px;
+}
+
+.viber-link:hover {
+    color: #5847c9;
+}
+
+code {
+    font-family: monospace;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #334155;
+    font-size: 12px;
+}
+
+/* Метки (Badges) */
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 6px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #b45309;
+}
+
+.badge-success {
+    background-color: #dcfce7;
+    color: #15803d;
+}
+
+/* Аватар перевізника (фото або заглушка) */
+.carrier-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+}
+
+.carrier-avatar-placeholder {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    font-size: 18px;
+}
+
+/* Іконка-посилання на зовнішній профіль (Lardi-Trans тощо) */
+.profile-link-icon {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 6px;
+    color: #2563eb;
+    font-size: 15px;
+    text-decoration: none;
+    vertical-align: middle;
+}
+
+.profile-link-icon:hover {
+    color: #1d4ed8;
+}
+
+/* Плаваюча кнопка "Наверх" — з'являється при прокрутці списку вниз */
+.scroll-top-btn {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    transition:
+        background 0.2s ease,
+        transform 0.15s ease;
+    z-index: 500;
+}
+
+.scroll-top-btn.visible {
+    display: flex;
+}
+
+.scroll-top-btn:hover {
+    background: #1d4ed8;
+}
+
+.scroll-top-btn:active {
+    transform: scale(0.94);
+}
+
+/* Модальное окно (скрыто по умолчанию) */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.5);
+    backdrop-filter: blur(4px);
+    display: none; /* ← Прячем окно */
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    padding: 24px;
+}
+
+/* Показываем модальное окно только при наличии класса active */
+.modal-overlay.active {
+    display: flex !important;
+}
+
+.modal {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-header h2 {
+    font-size: 20px;
+    color: #0f172a;
+}
+
+/* Форма в модальном окне */
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-group.full-width {
+    grid-column: span 2;
+}
+
+.form-group label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 9px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.modal-footer {
+    margin-top: 24px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.country-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.btn-chip {
+    background-color: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-chip:hover {
+    background-color: #2563eb;
+    border-color: #2563eb;
+    color: #ffffff;
+}
+
+.btn-chip:active {
+    transform: scale(0.96);
+}
+
+/* Заголовки таблицы: подпись + иконка фильтра */
+.th-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.th-label:hover {
+    color: #2563eb;
+}
+
+.filter-icon {
+    cursor: pointer;
+    color: #10b981;
+    font-size: 16px;
+    padding: 2px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.filter-icon:hover {
+    background: rgba(16, 185, 129, 0.1);
+}
+
+/* Выпадающее окно фильтра по колонке */
+.column-filter-dropdown {
+    position: absolute;
+    background: #ffffff;
+    border: 1px solid #dcdcdc;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+    width: 280px;
+    padding: 12px;
+    z-index: 2000;
+    font-size: 13px;
+    font-family: inherit;
+}
+
+.column-filter-header-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.column-filter-header-info a {
+    color: #1a73e8;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.column-filter-header-info a:hover {
+    text-decoration: underline;
+}
+
+.column-filter-search-box {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.column-filter-search {
+    width: 100%;
+    padding: 6px 8px 6px 28px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    font-size: 13px;
+}
+
+.column-filter-search:focus {
+    border-color: #3b82f6;
+}
+
+.search-icon-inside {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #888;
+}
+
+.column-filter-options {
+    max-height: 180px;
+    overflow-y: auto;
+    border-top: 1px solid #f1f5f9;
+    border-bottom: 1px solid #f1f5f9;
+    padding: 6px 0;
+    margin-bottom: 8px;
+}
+
+.filter-option-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    cursor: pointer;
+    border-radius: 3px;
+    color: #1e293b;
+}
+
+.filter-option-item:hover {
+    background-color: #f8fafc;
+}
+
+.filter-option-item input[type="checkbox"] {
+    accent-color: #10b981;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.filter-count-text {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 4px;
+}
+
+.column-filter-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.btn-cancel-custom {
+    flex: 1;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    color: #1e293b;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-cancel-custom:hover {
+    background: #f1f5f9;
+}
+
+.btn-ok-custom {
+    flex: 1;
+    background: #166534;
+    border: none;
+    color: #ffffff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-ok-custom:hover {
+    background: #14532d;
+}
+
+/* Звёздный рейтинг в таблице */
+.star-rating {
+    display: inline-flex;
+    gap: 2px;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.star-rating i {
+    font-size: 16px;
+    color: #cbd5e1;
+    transition: color 0.2s;
+}
+
+.star-rating i.active {
+    color: #f59e0b;
+}
+
+@media (max-width: 900px) {
+    html,
+    body {
+        height: auto;
+        overflow: auto;
+    }
+
+    body {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        overflow-y: visible;
+    }
+
+    .main-content {
+        padding: 16px;
+        height: auto;
+        overflow: visible;
+    }
+
+    .table-card {
+        flex: none;
+        max-height: 65vh;
+    }
+
+    .scroll-top-btn {
+        position: fixed;
+    }
+}

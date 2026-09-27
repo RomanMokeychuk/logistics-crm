@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Logistics CRM — База перевозчиков</title>
+        <link rel="stylesheet" href="style.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="bx bx-truck"></i>
+                <span>LogiCRM</span>
+            </div>
+            <nav class="menu">
+                <a href="#" class="active"
+                    ><i class="bx bx-group"></i> Перевізники</a
+                >
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Реєстр перевізників</h1>
+                <button class="btn btn-primary" id="openModalBtn">
+                    <i class="bx bx-plus"></i> Додати перевізника
+                </button>
+            </header>
+
+            <div class="filters-bar">
+                <input
+                    type="text"
+                    id="searchInput"
+                    class="search-input"
+                    placeholder="🔍 Пошук" />
+            </div>
+
+            <section class="table-card" id="tableScrollArea">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 56px"></th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('destinations')"
+                                        >НАПРАВЛЕННЯ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'destinations',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('quadrant')"
+                                        >КВАДРАТ / ВОЄВОДСТВО</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'quadrant')
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span>
+                                        <span
+                                            class="th-label"
+                                            style="cursor: pointer"
+                                            onclick="toggleSort('name')"
+                                            title="Сортувати за назвою"
+                                            >ПЕРЕВІЗНИК</span
+                                        >
+                                        <span style="color: #94a3b8"> / </span>
+                                        <span
+                                            class="th-label"
+                                            style="cursor: pointer"
+                                            onclick="toggleSort('edrpou')"
+                                            title="Сортувати за ЕДРПОУ"
+                                            >ЕДРПОУ</span
+                                        >
+                                    </span>
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'carrier_col',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('region_ukr')"
+                                        >ОБЛАСТЬ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'region_ukr',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('city')"
+                                        >МІСТО</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'city')
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('contacts_col')"
+                                        >КОНТАКТИ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'contacts_col',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('trailer_type')"
+                                        >ТИП ПРИЦЕПУ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'trailer_type',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('additional')"
+                                        >ПАРАМЕТРИ / ДОП.</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'additional',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('rating')"
+                                        >ОЦІНКА</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'rating')
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('notes')"
+                                        >ЗАМІТКИ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'notes')
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>ДІЇ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="carriersTableBody">
+                        <!-- Даные загружаются через JS -->
+                    </tbody>
+                </table>
+            </section>
+
+            <button
+                type="button"
+                id="scrollTopBtn"
+                class="scroll-top-btn"
+                title="Повернутись наверх">
+                <i class="bx bx-chevron-up"></i>
+            </button>
+        </main>
+
+        <!-- Модальное окно добавления/редактирования -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal" style="max-width: 700px">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Додати перевізника</h2>
+                    <button type="button" class="close-btn" id="closeModalBtn">
+                        &times;
+                    </button>
+                </div>
+                <form id="addCarrierForm">
+                    <input
+                        type="hidden"
+                        id="carrierId"
+                        name="carrierId"
+                        value="" />
+                    <div
+                        class="modal-body"
+                        style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 12px;
+                        ">
+                        <div class="form-group" style="grid-column: span 2">
+                            <label>Назва компанії / ФОП *</label>
+                            <input
+                                type="text"
+                                id="company_name"
+                                required
+                                placeholder="например: ГРАНД ТРАНС ВОЛИНЬ, ПП" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Код ЄДРПОУ / ІПН</label>
+                            <input
+                                type="text"
+                                id="edrpou"
+                                name="edrpou"
+                                placeholder="Введіть код..." />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Область України</label>
+                            <select id="region_ukr">
+                                <option value="">Оберіть область...</option>
+                                <option value="ВІННИЦЬКА ОБЛ.">
+                                    Вінницька обл.
+                                </option>
+                                <option value="ВОЛИНСЬКА ОБЛ.">
+                                    Волинська обл.
+                                </option>
+                                <option value="ДНІПРОПЕТРОВСЬКА ОБЛ.">
+                                    Дніпропетровська обл.
+                                </option>
+                                <option value="ДОНЕЦЬКА ОБЛ.">
+                                    Донецька обл.
+                                </option>
+                                <option value="ЖИТОМИРСЬКА ОБЛ.">
+                                    Житомирська обл.
+                                </option>
+                                <option value="ЗАКАРПАТСЬКА ОБЛ.">
+                                    Закарпатська обл.
+                                </option>
+                                <option value="ЗАПОРІЗЬКА ОБЛ.">
+                                    Запорізька обл.
+                                </option>
+                                <option value="ІВАНО-ФРАНКІВСЬКА ОБЛ.">
+                                    Івано-Франківська обл.
+                                </option>
+                                <option value="КИЇВСЬКА ОБЛ.">
+                                    Київська обл.
+                                </option>
+                                <option value="КІРОВОГРАДСЬКА ОБЛ.">
+                                    Кіровоградська обл.
+                                </option>
+                                <option value="ЛУГАНСЬКА ОБЛ.">
+                                    Луганська обл.
+                                </option>
+                                <option value="ЛЬВІВСЬКА ОБЛ.">
+                                    Львівська обл.
+                                </option>
+                                <option value="МИКОЛАЇВСЬКА ОБЛ.">
+                                    Миколаївська обл.
+                                </option>
+                                <option value="ОДЕСЬКА ОБЛ.">
+                                    Одеська обл.
+                                </option>
+                                <option value="ПОЛТАВСЬКА ОБЛ.">
+                                    Полтавська обл.
+                                </option>
+                                <option value="РІВНЕНСЬКА ОБЛ.">
+                                    Рівненська обл.
+                                </option>
+                                <option value="СУМСЬКА ОБЛ.">
+                                    Сумська обл.
+                                </option>
+                                <option value="ТЕРНОПІЛЬСЬКА ОБЛ.">
+                                    Тернопільська обл.
+                                </option>
+                                <option value="ХАРКІВСЬКА ОБЛ.">
+                                    Харківська обл.
+                                </option>
+                                <option value="ХЕРСОНСЬКА ОБЛ.">
+                                    Херсонська обл.
+                                </option>
+                                <option value="ХМЕЛЬНИЦЬКА ОБЛ.">
+                                    Хмельницька обл.
+                                </option>
+                                <option value="ЧЕРКАСЬКА ОБЛ.">
+                                    Черкаська обл.
+                                </option>
+                                <option value="ЧЕРНІВЕЦЬКА ОБЛ.">
+                                    Чернівецька обл.
+                                </option>
+                                <option value="ЧЕРНІГІВСЬКА ОБЛ.">
+                                    Чернігівська обл.
+                                </option>
+                                <option value="М. КИЇВ">м. Київ</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Посилання на фото (URL)</label>
+                            <input
+                                type="text"
+                                id="logo_url"
+                                placeholder="https://..." />
+                        </div>
+
+                        <div class="form-group">
+                            <label
+                                >Посилання на профіль (Lardi-Trans тощо)</label
+                            >
+                            <input
+                                type="text"
+                                id="profile_url"
+                                placeholder="https://lardi-trans.com/..." />
+                        </div>
+
+                        <div class="form-group" style="grid-column: span 2">
+                            <label
+                                >Напрями та регіони (Воєводства /
+                                Квадрати)</label
+                            >
+
+                            <div
+                                class="country-chips"
+                                style="margin-bottom: 10px">
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ПОЛЬША')">
+                                    + ПОЛЬША
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('НІМЕЧЧИНА')">
+                                    + НІМЕЧЧИНА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ЛИТВА')">
+                                    + ЛИТВА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ЛАТВІЯ')">
+                                    + ЛАТВІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ІСПАНІЯ')">
+                                    + ІСПАНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ІТАЛІЯ')">
+                                    + ІТАЛІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('РУМУНІЯ')">
+                                    + РУМУНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ЧЕХІЯ')">
+                                    + ЧЕХІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('АВСТРІЯ')">
+                                    + АВСТРІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('АЗЕРБАЙДЖАН')">
+                                    + АЗЕРБАЙДЖАН
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ВІРМЕНІЯ')">
+                                    + ВІРМЕНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('БЕЛЬГІЯ')">
+                                    + БЕЛЬГІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('БОЛГАРІЯ')">
+                                    + БОЛГАРІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ВЕЛИКОБРИТАНІЯ')">
+                                    + ВЕЛИКОБРИТАНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('УГОРЩИНА')">
+                                    + УГОРЩИНА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ФРАНЦІЯ')">
+                                    + ФРАНЦІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ДАНІЯ')">
+                                    + ДАНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('МОЛДОВА')">
+                                    + МОЛДОВА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('НІДЕРЛАНДИ')">
+                                    + НІДЕРЛАНДИ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('СЛОВАЧЧИНА')">
+                                    + СЛОВАЧЧИНА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('СЛОВЕНІЯ')">
+                                    + СЛОВЕНІЯ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ТУРЕЧЧИНА')">
+                                    + ТУРЕЧЧИНА
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addCountryRow('ГРУЗІЯ')">
+                                    + ГРУЗІЯ
+                                </button>
+                            </div>
+
+                            <div
+                                id="destinationsContainer"
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    gap: 6px;
+                                "></div>
+
+                            <input
+                                type="hidden"
+                                id="destinations"
+                                name="destinations" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Квадрат / Воєводство</label>
+                            <input
+                                type="text"
+                                id="quadrant"
+                                placeholder="Мазовецьке" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Місто / Адреса</label>
+                            <input type="text" id="city" placeholder="Луцьк" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>ПІБ Контакту 1</label>
+                            <input
+                                type="text"
+                                id="contact_person_1"
+                                placeholder="Катерина" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Телефон 1</label>
+                            <input
+                                type="text"
+                                id="phone_1"
+                                placeholder="380000000000" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>ПІБ Контакту 2</label>
+                            <input
+                                type="text"
+                                id="contact_person_2"
+                                placeholder="Любов" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Телефон 2</label>
+                            <input
+                                type="text"
+                                id="phone_2"
+                                placeholder="380000000000" />
+                        </div>
+
+                        <div class="form-group" style="grid-column: span 2">
+                            <label>Типи причепів, об'єм та тоннаж</label>
+
+                            <div
+                                class="trailer-chips"
+                                style="
+                                    margin-bottom: 10px;
+                                    display: flex;
+                                    gap: 8px;
+                                    flex-wrap: wrap;
+                                ">
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('ТЕНТ')">
+                                    + ТЕНТ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('РЕФ')">
+                                    + РЕФ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('ІЗОТЕРМ')">
+                                    + ІЗОТЕРМ
+                                </button>
+                            </div>
+
+                            <div
+                                id="trailersContainer"
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    gap: 6px;
+                                "></div>
+
+                            <input
+                                type="hidden"
+                                id="trailer_type"
+                                name="trailer_type" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Об'єм (m3) / Тонаж (Т)</label>
+                            <div style="display: flex; gap: 5px">
+                                <input
+                                    type="text"
+                                    id="volume"
+                                    placeholder="Об'єм (86)" />
+                                <input
+                                    type="text"
+                                    id="tonnage"
+                                    placeholder="Тонаж (24)" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Доп. свойства (ЕКМТ/ADR)</label>
+                            <input
+                                type="text"
+                                id="additional"
+                                name="additional"
+                                placeholder="ЕКМТ, ADR, LTL" />
+                        </div>
+
+                        <div class="form-group" style="grid-column: span 2">
+                            <label>Нотатки</label>
+                            <textarea
+                                id="notes"
+                                rows="3"
+                                placeholder="Додаткова інформація про перевізника..."
+                                style="
+                                    padding: 9px 12px;
+                                    border: 1px solid #cbd5e1;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    resize: vertical;
+                                    font-family: inherit;
+                                "></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label>ОЦІНКА</label>
+                            <select
+                                id="carrierRating"
+                                style="
+                                    padding: 9px 12px;
+                                    border: 1px solid #cbd5e1;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    font-family: inherit;
+                                ">
+                                <option value="0">Без оцінки</option>
+                                <option value="1">★</option>
+                                <option value="2">★★</option>
+                                <option value="3">★★★</option>
+                                <option value="4">★★★★</option>
+                                <option value="5">★★★★★</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="cancelBtn">
+                            Відміна
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Зберегти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Единое выпадающее окно фильтра по колонке -->
+        <div
+            class="column-filter-dropdown"
+            id="columnFilterDropdown"
+            style="display: none"
+            onclick="event.stopPropagation()">
+            <div class="column-filter-header-info">
+                <a id="selectAllLink" onclick="selectAllFilterOptions(true)"
+                    >Вибрати всі (0)</a
+                >
+                <a onclick="selectAllFilterOptions(false)">Очистити</a>
+            </div>
+            <div class="column-filter-search-box">
+                <i class="bx bx-search search-icon-inside"></i>
+                <input
+                    type="text"
+                    id="columnFilterSearch"
+                    class="column-filter-search"
+                    placeholder="Пошук..."
+                    oninput="filterDropdownList()" />
+            </div>
+            <div class="column-filter-options" id="columnFilterOptions"></div>
+            <div class="filter-count-text" id="filterShownCount"></div>
+            <div class="column-filter-footer" style="margin-top: 8px">
+                <button
+                    type="button"
+                    class="btn-cancel-custom"
+                    onclick="closeColumnFilter()">
+                    Скасувати
+                </button>
+                <button
+                    type="button"
+                    class="btn-ok-custom"
+                    onclick="applyColumnFilter()">
+                    Застосувати
+                </button>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="script.js"></script>
+    </body>
+</html>
