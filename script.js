@@ -15,6 +15,36 @@ let allCarriersCache = []; // Кеш даних для фільтрів стов
 let activeFilterColumn = null;
 let activeFiltersState = {}; // Стан активних фільтрів по колонках
 
+// Список областей України — використовується і для генерації кнопок-чипів
+// "Напрямки в Україні", і має ті самі назви, що й у селекті "Область України".
+const UKRAINE_OBLASTS = [
+    "ВІННИЦЬКА ОБЛ.",
+    "ВОЛИНСЬКА ОБЛ.",
+    "ДНІПРОПЕТРОВСЬКА ОБЛ.",
+    "ДОНЕЦЬКА ОБЛ.",
+    "ЖИТОМИРСЬКА ОБЛ.",
+    "ЗАКАРПАТСЬКА ОБЛ.",
+    "ЗАПОРІЗЬКА ОБЛ.",
+    "ІВАНО-ФРАНКІВСЬКА ОБЛ.",
+    "КИЇВСЬКА ОБЛ.",
+    "КІРОВОГРАДСЬКА ОБЛ.",
+    "ЛУГАНСЬКА ОБЛ.",
+    "ЛЬВІВСЬКА ОБЛ.",
+    "МИКОЛАЇВСЬКА ОБЛ.",
+    "ОДЕСЬКА ОБЛ.",
+    "ПОЛТАВСЬКА ОБЛ.",
+    "РІВНЕНСЬКА ОБЛ.",
+    "СУМСЬКА ОБЛ.",
+    "ТЕРНОПІЛЬСЬКА ОБЛ.",
+    "ХАРКІВСЬКА ОБЛ.",
+    "ХЕРСОНСЬКА ОБЛ.",
+    "ХМЕЛЬНИЦЬКА ОБЛ.",
+    "ЧЕРКАСЬКА ОБЛ.",
+    "ЧЕРНІВЕЦЬКА ОБЛ.",
+    "ЧЕРНІГІВСЬКА ОБЛ.",
+    "М. КИЇВ",
+];
+
 const modalOverlay = document.getElementById("modalOverlay");
 const openModalBtn = document.getElementById("openModalBtn");
 const closeModalBtn = document.getElementById("closeModalBtn");
@@ -66,6 +96,7 @@ document.addEventListener("click", () => {
 document.addEventListener("DOMContentLoaded", () => {
     loadCarriers();
     setupScrollTopButton();
+    renderUkraineDirectionChips();
 });
 
 /* ================================================================= *
@@ -215,7 +246,7 @@ async function loadCarriers() {
     carriersTableBody.innerHTML = "";
 
     if (!data || data.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
         return;
     }
 
@@ -230,6 +261,7 @@ async function loadCarriers() {
         const regionUkr = (item.region_ukr || "").toLowerCase();
         const additional = (item.additional || "").toLowerCase();
         const notes = (item.notes || "").toLowerCase();
+        const ukraineDirections = (item.ukraine_directions || "").toLowerCase();
 
         // Пошук за загальним рядком
         if (searchQuery) {
@@ -241,7 +273,8 @@ async function loadCarriers() {
                 city.includes(query) ||
                 fleet.includes(query) ||
                 trailerType.includes(query) ||
-                notes.includes(query);
+                notes.includes(query) ||
+                ukraineDirections.includes(query);
             if (!matchesSearch) return false;
         }
 
@@ -330,14 +363,14 @@ async function loadCarriers() {
     }
 
     if (filteredData.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="12" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
         return;
     }
 
     filteredData.forEach((item) => {
         const row = document.createElement("tr");
 
-        // 1. Напрямки
+        // 1. Напрямки (закордон)
         let destBadges = "—";
         if (item.destinations) {
             destBadges = item.destinations
@@ -366,6 +399,20 @@ async function loadCarriers() {
                         </div>`;
                     }
                     return "";
+                })
+                .join("");
+        }
+
+        // 1.1 Напрямки в Україні (області)
+        let ukraineBadges = "—";
+        if (item.ukraine_directions) {
+            ukraineBadges = item.ukraine_directions
+                .split(";")
+                .map((oblast) => {
+                    const trimmed = oblast.trim();
+                    return trimmed
+                        ? `<div style="margin-bottom: 4px;"><span class="badge-country">${trimmed}</span></div>`
+                        : "";
                 })
                 .join("");
         }
@@ -421,6 +468,7 @@ async function loadCarriers() {
           <small><strong>Тоннаж:</strong> ${item.tonnage || "—"} т</small><br>
           <span style="color: #0284c7;">${item.additional || ""}</span>
         </td>
+        <td>${ukraineBadges}</td>
         <td>${starsHtml}</td>
         <td style="max-width: 220px; white-space: normal; word-break: break-word;">${escapeHtml(notesFull) || "—"}</td>
         <td>
@@ -503,7 +551,7 @@ function parseAndFillTrailers(trailersStr) {
 }
 
 /* ================================================================= *
- * 4. КРАЇНИ ТА НАПРЯМКИ                                             *
+ * 4. КРАЇНИ ТА НАПРЯМКИ (закордон)                                  *
  * ================================================================= */
 
 function addCountryRow(countryName = "") {
@@ -556,6 +604,74 @@ function parseAndFillDestinations(destinationsStr) {
 }
 
 /* ================================================================= *
+ * 4.1 НАПРЯМКИ В УКРАЇНІ (мультивибір областей)                     *
+ * ================================================================= */
+
+// Генерує кнопки-чипи для всіх областей України один раз при завантаженні
+// сторінки (список береться з UKRAINE_OBLASTS вище).
+function renderUkraineDirectionChips() {
+    const chipsContainer = document.getElementById("ukraineDirectionsChips");
+    if (!chipsContainer) return;
+
+    chipsContainer.innerHTML = UKRAINE_OBLASTS.map(
+        (oblast) =>
+            `<button type="button" class="btn-chip" onclick="addUkraineDirectionRow('${oblast}')">+ ${oblast}</button>`,
+    ).join("");
+}
+
+// Додає область до списку обраних напрямків у формі. Якщо ця область вже
+// додана раніше — повторно не додає (щоб не було дублів при подвійному кліку).
+function addUkraineDirectionRow(oblastName = "") {
+    const container = document.getElementById("ukraineDirectionsContainer");
+    if (!container || !oblastName) return;
+
+    const alreadyAdded = Array.from(
+        container.querySelectorAll(".input-ukraine-oblast"),
+    ).some((input) => input.value.trim() === oblastName);
+    if (alreadyAdded) return;
+
+    const rowDiv = document.createElement("div");
+    rowDiv.className = "ukraine-direction-row";
+    rowDiv.style.cssText =
+        "display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px 3px 10px;";
+
+    rowDiv.innerHTML = `
+    <input type="text" class="input-ukraine-oblast" value="${oblastName}" readonly style="width: 150px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px; cursor: default;" />
+    <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
+      <i class='bx bx-trash' style="font-size: 15px;"></i>
+    </button>
+  `;
+    container.appendChild(rowDiv);
+}
+
+function serializeUkraineDirections() {
+    const container = document.getElementById("ukraineDirectionsContainer");
+    if (!container) return "";
+
+    const inputs = container.querySelectorAll(".input-ukraine-oblast");
+    const result = [];
+    inputs.forEach((input) => {
+        const val = input.value.trim();
+        if (val) result.push(val);
+    });
+
+    return result.join("; ");
+}
+
+function parseAndFillUkraineDirections(str) {
+    const container = document.getElementById("ukraineDirectionsContainer");
+    if (!container) return;
+    container.innerHTML = "";
+
+    if (!str) return;
+
+    str.split(";").forEach((oblast) => {
+        const trimmed = oblast.trim();
+        if (trimmed) addUkraineDirectionRow(trimmed);
+    });
+}
+
+/* ================================================================= *
  * 5. CRUD ОПЕРАЦІЇ                                                  *
  * ================================================================= */
 
@@ -596,6 +712,10 @@ if (addCarrierForm) {
         const trailerInput = document.getElementById("trailer_type");
         if (trailerInput) trailerInput.value = serializeTrailers();
 
+        const ukraineDirInput = document.getElementById("ukraine_directions");
+        if (ukraineDirInput)
+            ukraineDirInput.value = serializeUkraineDirections();
+
         const getValue = (id) => {
             const el = document.getElementById(id);
             return el && el.value.trim() !== "" ? el.value.trim() : null;
@@ -606,6 +726,7 @@ if (addCarrierForm) {
             edrpou: getValue("edrpou"),
             region_ukr: getValue("region_ukr"),
             destinations: getValue("destinations"),
+            ukraine_directions: getValue("ukraine_directions"),
             quadrant: getValue("quadrant"),
             city: getValue("city"),
             contact_person_1: getValue("contact_person_1"),
@@ -673,6 +794,11 @@ function resetForm() {
     );
     if (destinationsContainer) destinationsContainer.innerHTML = "";
 
+    const ukraineDirContainer = document.getElementById(
+        "ukraineDirectionsContainer",
+    );
+    if (ukraineDirContainer) ukraineDirContainer.innerHTML = "";
+
     const ratingEl = document.getElementById("carrierRating");
     if (ratingEl) ratingEl.value = "0";
 }
@@ -721,6 +847,7 @@ async function editCarrier(id) {
 
     parseAndFillTrailers(data.trailer_type);
     parseAndFillDestinations(data.destinations);
+    parseAndFillUkraineDirections(data.ukraine_directions);
 
     document.getElementById("modalTitle").textContent =
         "Редагувати перевізника";
