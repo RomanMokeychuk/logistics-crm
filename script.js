@@ -492,6 +492,33 @@ function parseAndFillDestinations(destinationsStr) {
  * 5. CRUD ОПЕРАЦІЇ                                                  *
  * ================================================================= */
 
+// Шукає в уже завантажених перевізниках (allCarriersCache) запис, який
+// співпадає з поточною формою за ЄДРПОУ або за назвою компанії.
+// excludeId — id перевізника, якого редагують зараз (щоб не порівнювати сам із собою).
+function findDuplicateCarrier(payload, excludeId) {
+    const normalizedName = (payload.name || "").trim().toLowerCase();
+    const normalizedEdrpou = (payload.edrpou || "").trim().toLowerCase();
+
+    return allCarriersCache.find((item) => {
+        if (excludeId && String(item.id) === String(excludeId)) return false;
+
+        const itemName = (item.name || item.company || "").trim().toLowerCase();
+        const itemEdrpou = (item.edrpou || "").trim().toLowerCase();
+
+        // Співпадіння по ЄДРПОУ — найнадійніша ознака дубля, якщо код вказаний в обох записах
+        if (normalizedEdrpou && itemEdrpou && normalizedEdrpou === itemEdrpou) {
+            return true;
+        }
+
+        // Або співпадіння по назві компанії (якщо ЄДРПОУ не вказаний)
+        if (normalizedName && itemName && normalizedName === itemName) {
+            return true;
+        }
+
+        return false;
+    });
+}
+
 if (addCarrierForm) {
     addCarrierForm.addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -531,6 +558,15 @@ if (addCarrierForm) {
         };
 
         const carrierId = document.getElementById("carrierId")?.value;
+
+        // Перевірка на дубль: шукаємо збіг за ЄДРПОУ або назвою серед уже доданих
+        const duplicate = findDuplicateCarrier(payload, carrierId);
+        if (duplicate) {
+            const proceed = confirm(
+                `Перевізник "${duplicate.name || duplicate.company}" (ЄДРПОУ: ${duplicate.edrpou || "—"}) вже є в базі.\n\nВсе одно зберегти цей запис?`,
+            );
+            if (!proceed) return;
+        }
 
         let error;
         if (carrierId) {
