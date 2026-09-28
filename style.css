@@ -827,4 +827,66 @@ table td:nth-child(9) {
     .scroll-top-btn {
         position: fixed;
     }
+
+    /* ---- БАГ: стрелочка сворачивания сайдбара была рассчитана на
+       десктопную ширину сайдбара (left: 208px). На телефоне сайдбар
+       занимает всю ширину экрана, и кнопка улетала в случайное место.
+       Переносим её в стабильный угол экрана и делаем крупнее под палец. */
+    .sidebar-toggle-btn {
+        top: 12px;
+        left: auto;
+        right: 12px;
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+
+    body.sidebar-collapsed .sidebar-toggle-btn {
+        left: auto;
+        right: 12px;
+    }
+
+    /* ---- Увеличиваем зоны нажатия мелких иконок под палец (десктопные
+       6-15px иконки на телефоне легко промахнуть). Сам символ остаётся
+       того же размера, просто добавляем "воздух" вокруг него. */
+    .filter-icon,
+    .carrier-toggle-icon,
+    .btn-icon,
+    .viber-link,
+    .profile-link-icon {
+        padding: 8px;
+        min-width: 36px;
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .star-rating i {
+        font-size: 22px; /* звёзды рейтинга крупнее — легче попасть пальцем */
+        padding: 2px;
+    }
+
+    /* ---- БАГ: модалка "Шлях" имела iframe с жёстко заданной высотой
+       520px, которая на телефоне не помещалась на экран вместе с шапкой
+       окна. Делаем высоту "резиновой" под реальный размер экрана. */
+    .modal-overlay {
+        padding: 8px;
+    }
+
+    .modal {
+        max-height: 95vh;
+        padding: 16px;
+        border-radius: 12px;
+    }
+
+    #shlyahIframe {
+        height: min(520px, 60vh) !important;
+    }
+
+    /* Виджет фильтра по колонке — не даём ему вылезать за край
+       узкого экрана и занимать он должен почти всю ширину. */
+    .column-filter-dropdown {
+        width: min(280px, calc(100vw - 24px));
+    }
 }
