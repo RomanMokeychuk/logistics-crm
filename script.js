@@ -126,6 +126,21 @@ function renderAvatar(logoUrl) {
                 onerror="this.onerror=null; this.outerHTML='<div class=\\'carrier-avatar-placeholder\\' title=\\'Фото не завантажилось\\'><i class=\\'bx bx-image-alt\\'></i></div>';">`;
 }
 
+// Форматує ISO-дату у зручний вигляд "28.09.2026, 15:42" для відображення
+// часу останньої зміни заміток.
+function formatDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("uk-UA", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
 // Формує іконку-посилання на зовнішній профіль перевізника (Lardi-Trans тощо).
 function renderProfileLink(profileUrl) {
     if (!profileUrl) return "";
@@ -426,8 +441,13 @@ async function loadCarriers() {
         }
         starsHtml += `</div>`;
 
-        // 3. Заметки — показуємо повний текст одразу, з переносом рядків у межах стовпця
+        // 3. Заметки — показуємо повний текст одразу, з переносом рядків у межах стовпця,
+        // а під ним, якщо є, — дату/час останньої зміни цієї заміти.
         const notesFull = item.notes || "";
+        const notesTimestampHtml =
+            notesFull && item.notes_updated_at
+                ? `<br><small style="color:#94a3b8; font-size:11px;">${formatDateTime(item.notes_updated_at)}</small>`
+                : "";
 
         // 4. Аватар та посилання на профіль
         const avatarHtml = renderAvatar(item.logo_url);
@@ -470,7 +490,7 @@ async function loadCarriers() {
         </td>
         <td>${ukraineBadges}</td>
         <td>${starsHtml}</td>
-        <td style="max-width: 220px; white-space: normal; word-break: break-word;">${escapeHtml(notesFull) || "—"}</td>
+        <td style="max-width: 220px; white-space: normal; word-break: break-word;">${escapeHtml(notesFull) || "—"}${notesTimestampHtml}</td>
         <td>
           <button class="btn-icon" onclick="editCarrier('${item.id}')" title="Редактировать"><i class='bx bx-edit'></i></button>
           <button class="btn-icon text-danger" onclick="deleteCarrier('${item.id}')" title="Удалить"><i class='bx bx-trash'></i></button>
@@ -747,6 +767,19 @@ if (addCarrierForm) {
 
         const carrierId = document.getElementById("carrierId")?.value;
 
+        // Дата/час заміти оновлюється ТІЛЬКИ якщо текст заміти реально змінився.
+        // Порівнюємо з тим, що вже збережено в кеші (для нового перевізника
+        // "старого" тексту немає — там просто null).
+        const existingCarrier = carrierId
+            ? allCarriersCache.find((c) => String(c.id) === String(carrierId))
+            : null;
+        const previousNotes = existingCarrier
+            ? existingCarrier.notes || null
+            : null;
+        if (payload.notes !== previousNotes) {
+            payload.notes_updated_at = new Date().toISOString();
+        }
+
         // Перевірка на дубль: шукаємо збіг за ЄДРПОУ або назвою серед уже доданих
         const duplicate = findDuplicateCarrier(payload, carrierId);
         if (duplicate) {
@@ -801,6 +834,9 @@ function resetForm() {
 
     const ratingEl = document.getElementById("carrierRating");
     if (ratingEl) ratingEl.value = "0";
+
+    const notesUpdatedEl = document.getElementById("notesUpdatedAtDisplay");
+    if (notesUpdatedEl) notesUpdatedEl.textContent = "";
 }
 
 async function editCarrier(id) {
@@ -841,6 +877,13 @@ async function editCarrier(id) {
 
     const notesEl = document.getElementById("notes");
     if (notesEl) notesEl.value = data.notes || "";
+
+    const notesUpdatedEl = document.getElementById("notesUpdatedAtDisplay");
+    if (notesUpdatedEl) {
+        notesUpdatedEl.textContent = data.notes_updated_at
+            ? `Востаннє змінено: ${formatDateTime(data.notes_updated_at)}`
+            : "";
+    }
 
     const ratingEl = document.getElementById("carrierRating");
     if (ratingEl) ratingEl.value = String(data.rating || 0);
