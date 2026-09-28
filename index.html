@@ -19,8 +19,25 @@
                 <a href="#" class="active"
                     ><i class="bx bx-group"></i> Перевізники</a
                 >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
             </nav>
         </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
 
         <main class="main-content">
             <header class="top-bar">
@@ -79,6 +96,11 @@
                             <th>
                                 <div class="th-content">
                                     <span>
+                                        <i
+                                            class="bx bx-user carrier-toggle-icon"
+                                            id="carrierToggleIcon"
+                                            onclick="toggleCarrierColumn()"
+                                            title="Показати/сховати повну назву та ЄДРПОУ"></i>
                                         <span
                                             class="th-label"
                                             style="cursor: pointer"
@@ -753,6 +775,54 @@
                     onclick="applyColumnFilter()">
                     Застосувати
                 </button>
+            </div>
+        </div>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="https://shlyah.dsbt.gov.ua/lc.html"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
             </div>
         </div>
 

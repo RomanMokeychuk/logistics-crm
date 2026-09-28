@@ -73,6 +73,52 @@ body {
     color: #ffffff;
 }
 
+/* Плавне згортання бічної панелі */
+.sidebar {
+    transition:
+        width 0.2s ease,
+        padding 0.2s ease,
+        opacity 0.15s ease;
+}
+
+body.sidebar-collapsed .sidebar {
+    width: 0;
+    padding: 20px 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* Кнопка-стрілка для згортання/розгортання бічної панелі.
+   Розташована поза сайдбаром (position: fixed), тому не обрізається
+   overflow:hidden сайдбара, коли той схований. */
+.sidebar-toggle-btn {
+    position: fixed;
+    top: 24px;
+    left: 208px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #2563eb;
+    color: #ffffff;
+    border: none;
+    cursor: pointer;
+    z-index: 1500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    transition: left 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+    background: #1d4ed8;
+}
+
+body.sidebar-collapsed .sidebar-toggle-btn {
+    left: 8px;
+}
+
 .main-content {
     flex: 1;
     padding: 24px 32px;
@@ -543,6 +589,48 @@ code {
 
 .filter-icon:hover {
     background: rgba(16, 185, 129, 0.1);
+}
+
+/* Іконка-людина для згортання/розгортання колонки "Перевізник / ЕДРПОУ" */
+.carrier-toggle-icon {
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 16px;
+    padding: 2px;
+    border-radius: 4px;
+    margin-right: 4px;
+    vertical-align: middle;
+    transition:
+        background 0.2s,
+        color 0.2s;
+}
+
+.carrier-toggle-icon:hover {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.1);
+}
+
+.carrier-toggle-icon.active {
+    color: #2563eb;
+    background: rgba(37, 99, 235, 0.12);
+}
+
+/* Стовпець "Перевізник / ЕДРПОУ" — за замовчуванням показує повну назву
+   та ЄДРПОУ. Клік на іконку людини звужує колонку, щоб не заважала
+   роботі зі списком. */
+table.carrier-collapsed td:nth-child(4) .carrier-name-line {
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+table.carrier-collapsed td:nth-child(4) .carrier-edrpou-line {
+    display: none;
+}
+
+table.carrier-collapsed th:nth-child(4) {
+    width: 160px;
 }
 
 /* Выпадающее окно фильтра по колонке */

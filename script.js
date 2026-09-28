@@ -125,6 +125,57 @@ function setupScrollTopButton() {
 }
 
 /* ================================================================= *
+ * 1.3 ЗГОРТАННЯ/РОЗГОРТАННЯ ЛІВОЇ БІЧНОЇ ПАНЕЛІ                     *
+ * ================================================================= */
+
+// Ховає/показує синю бічну панель зліва. Коли панель схована, список
+// перевізників розтягується на всю ширину сторінки. Стрілка на кнопці
+// міняє напрямок залежно від поточного стану.
+function toggleSidebar() {
+    document.body.classList.toggle("sidebar-collapsed");
+
+    const icon = document.querySelector("#sidebarToggleBtn i");
+    if (icon) {
+        icon.classList.toggle("bx-chevron-left");
+        icon.classList.toggle("bx-chevron-right");
+    }
+}
+
+/* ================================================================= *
+ * 1.4 МОДАЛЬНЕ ВІКНО "ШЛЯХ" — ПЕРЕВІРКА ТРАНСПОРТНИХ ЗАСОБІВ         *
+ * ================================================================= */
+
+const shlyahModalOverlay = document.getElementById("shlyahModalOverlay");
+const closeShlyahModalBtn = document.getElementById("closeShlyahModalBtn");
+const shlyahIframe = document.getElementById("shlyahIframe");
+const shlyahBackBtn = document.getElementById("shlyahBackBtn");
+const SHLYAH_URL = "https://shlyah.dsbt.gov.ua/lc.html";
+
+function resetShlyahIframe() {
+    if (shlyahIframe) shlyahIframe.src = SHLYAH_URL;
+}
+
+function openShlyahModal() {
+    if (shlyahModalOverlay) shlyahModalOverlay.classList.add("active");
+    resetShlyahIframe(); // щоразу відкриваємо чисту форму пошуку
+}
+
+function closeShlyahModal() {
+    if (shlyahModalOverlay) shlyahModalOverlay.classList.remove("active");
+}
+
+if (shlyahBackBtn) shlyahBackBtn.addEventListener("click", resetShlyahIframe);
+
+if (closeShlyahModalBtn)
+    closeShlyahModalBtn.addEventListener("click", closeShlyahModal);
+
+if (shlyahModalOverlay) {
+    shlyahModalOverlay.addEventListener("click", (e) => {
+        if (e.target === shlyahModalOverlay) closeShlyahModal();
+    });
+}
+
+/* ================================================================= *
  * 2. ЗАВАНТАЖЕННЯ ТА ВІДОБРАЖЕННЯ ПЕРЕВІЗНИКІВ У ТАБЛИЦІ              *
  * ================================================================= */
 
@@ -340,8 +391,8 @@ async function loadCarriers() {
         <td>${destBadges}</td>
         <td>${item.quadrant || "—"}</td>
         <td>
-          <strong>${item.name || item.company || "—"}</strong>${profileLinkHtml}<br>
-          <code>${item.edrpou || "—"}</code>
+          <div class="carrier-name-line"><strong>${item.name || item.company || "—"}</strong>${profileLinkHtml}</div>
+          <div class="carrier-edrpou-line"><code>${item.edrpou || "—"}</code></div>
         </td>
         <td>${item.region_ukr || "—"}</td>
         <td>${item.city || "—"}</td>
@@ -380,6 +431,22 @@ async function loadCarriers() {
 
         carriersTableBody.appendChild(row);
     });
+}
+
+/* ================================================================= *
+ * 2.1 ЗГОРНУТИЙ/РОЗГОРНУТИЙ ВИГЛЯД КОЛОНКИ "ПЕРЕВІЗНИК / ЕДРПОУ"     *
+ * ================================================================= */
+
+// За замовчуванням колонка з назвою перевізника вузька (щоб не заважати
+// роботі зі списком). Клік на іконку людини в заголовку — показує повну
+// назву та ЄДРПОУ, повторний клік — знову згортає.
+function toggleCarrierColumn() {
+    const table = document.querySelector("#tableScrollArea table");
+    if (!table) return;
+    table.classList.toggle("carrier-collapsed");
+
+    const icon = document.getElementById("carrierToggleIcon");
+    if (icon) icon.classList.toggle("active");
 }
 
 /* ================================================================= *
