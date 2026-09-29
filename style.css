@@ -411,6 +411,15 @@ code {
     color: #1d4ed8;
 }
 
+/* Рядок-лічильник кількості перевізників, внизу зліва під таблицею */
+.carriers-count-bar {
+    flex-shrink: 0;
+    padding-top: 10px;
+    font-size: 13px;
+    color: #64748b;
+    font-weight: 500;
+}
+
 /* Плаваюча кнопка "Наверх" — з'являється при прокрутці списку вниз */
 .scroll-top-btn {
     position: absolute;
@@ -618,18 +627,18 @@ code {
 /* Стовпець "Перевізник / ЕДРПОУ" — за замовчуванням показує повну назву
    та ЄДРПОУ. Клік на іконку людини звужує колонку, щоб не заважала
    роботі зі списком. */
-table.carrier-collapsed td:nth-child(4) .carrier-name-line {
+table.carrier-collapsed td:nth-child(5) .carrier-name-line {
     max-width: 130px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-table.carrier-collapsed td:nth-child(4) .carrier-edrpou-line {
+table.carrier-collapsed td:nth-child(5) .carrier-edrpou-line {
     display: none;
 }
 
-table.carrier-collapsed th:nth-child(4) {
+table.carrier-collapsed th:nth-child(5) {
     width: 160px;
 }
 
@@ -766,16 +775,28 @@ table.carrier-collapsed th:nth-child(4) {
 }
 
 /* Звужуємо стовпці "Тип причепу" та "Параметри / доп.", щоб таблиця не була занадто широкою */
-table th:nth-child(8),
-table td:nth-child(8) {
-    max-width: 110px;
+table th:nth-child(9),
+table td:nth-child(9) {
+    max-width: 210px;
     white-space: normal;
 }
 
-table th:nth-child(9),
-table td:nth-child(9) {
+table th:nth-child(10),
+table td:nth-child(10) {
     max-width: 140px;
     white-space: normal;
+}
+
+/* Оцінка (12-та колонка) — рівно під ширину 5 зірочок, без зайвого простору */
+table th:nth-child(12),
+table td:nth-child(12) {
+    max-width: 110px;
+    white-space: nowrap;
+}
+
+/* Сама плашка типу причепа не повинна переноситись посередині слова */
+.badge {
+    white-space: nowrap;
 }
 
 /* Звёздный рейтинг в таблице */

@@ -261,7 +261,8 @@ async function loadCarriers() {
     carriersTableBody.innerHTML = "";
 
     if (!data || data.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
+        updateCarriersCountBar(0, 0);
         return;
     }
 
@@ -377,13 +378,16 @@ async function loadCarriers() {
         });
     }
 
+    updateCarriersCountBar(filteredData.length, allCarriersCache.length);
+
     if (filteredData.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
         return;
     }
 
-    filteredData.forEach((item) => {
+    filteredData.forEach((item, index) => {
         const row = document.createElement("tr");
+        const rowNumber = index + 1; // порядковий номер у поточному (відфільтрованому/відсортованому) списку
 
         // 1. Напрямки (закордон)
         let destBadges = "—";
@@ -454,6 +458,7 @@ async function loadCarriers() {
         const profileLinkHtml = renderProfileLink(item.profile_url);
 
         row.innerHTML = `
+        <td style="text-align: center; color: #94a3b8; font-size: 13px;">${rowNumber}</td>
         <td>${avatarHtml}</td>
         <td>${destBadges}</td>
         <td>${item.quadrant || "—"}</td>
@@ -499,6 +504,22 @@ async function loadCarriers() {
 
         carriersTableBody.appendChild(row);
     });
+}
+
+// Оновлює текст лічильника внизу зліва під таблицею. Якщо застосовані
+// фільтри/пошук і показано менше записів, ніж всього в базі — показуємо
+// обидва числа ("Показано: X з Y"), інакше просто загальну кількість.
+function updateCarriersCountBar(shownCount, totalCount) {
+    const bar = document.getElementById("carriersCountBar");
+    if (!bar) return;
+
+    if (totalCount === 0) {
+        bar.textContent = "Перевізників немає";
+    } else if (shownCount === totalCount) {
+        bar.textContent = `Перевізників: ${totalCount}`;
+    } else {
+        bar.textContent = `Показано: ${shownCount} з ${totalCount}`;
+    }
 }
 
 /* ================================================================= *
