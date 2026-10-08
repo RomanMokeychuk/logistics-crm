@@ -1171,39 +1171,40 @@ async function editCarrier(id) {
         .select("*")
         .eq("id", id)
         .single();
+
     if (error) {
         console.error("Помилка завантаження для редагування:", error);
         return;
     }
     if (!data) return;
 
-    document.getElementById("carrierId").value = data.id;
-    document.getElementById("company_name").value =
-        data.name || data.company || "";
-    document.getElementById("edrpou").value = data.edrpou || "";
+    // Основные обязательные поля
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || "";
+    };
 
-    document.getElementById("region_ukr").value = data.region_ukr || "";
-    document.getElementById("quadrant").value = data.quadrant || "";
-    document.getElementById("city").value = data.city || "";
-    document.getElementById("contact_person_1").value =
-        data.contact_person_1 || "";
-    document.getElementById("phone_1").value = data.phone_1 || "";
-    document.getElementById("contact_person_2").value =
-        data.contact_person_2 || "";
-    document.getElementById("phone_2").value = data.phone_2 || "";
-    document.getElementById("volume").value = data.volume || "";
-    document.getElementById("tonnage").value = data.tonnage || "";
-    document.getElementById("additional").value = data.additional || "";
+    setVal("carrierId", data.id);
+    setVal("company_name", data.name || data.company || "");
+    setVal("edrpou", data.edrpou || "");
+    setVal("region_ukr", data.region_ukr || "");
 
-    const logoUrlEl = document.getElementById("logo_url");
-    if (logoUrlEl) logoUrlEl.value = data.logo_url || "";
+    // Безопасная установка значения для quadrant (не вызывает ошибку, если инпута нет в HTML)
+    setVal("quadrant", data.quadrant || "");
 
-    const profileUrlEl = document.getElementById("profile_url");
-    if (profileUrlEl) profileUrlEl.value = data.profile_url || "";
+    setVal("city", data.city || "");
+    setVal("contact_person_1", data.contact_person_1 || "");
+    setVal("phone_1", data.phone_1 || "");
+    setVal("contact_person_2", data.contact_person_2 || "");
+    setVal("phone_2", data.phone_2 || "");
+    setVal("volume", data.volume || "");
+    setVal("tonnage", data.tonnage || "");
+    setVal("additional", data.additional || "");
+    setVal("logo_url", data.logo_url || "");
+    setVal("profile_url", data.profile_url || "");
+    setVal("notes", data.notes || "");
 
-    const notesEl = document.getElementById("notes");
-    if (notesEl) notesEl.value = data.notes || "";
-
+    // Отображение даты редактирования заметок
     const notesUpdatedEl = document.getElementById("notesUpdatedAtDisplay");
     if (notesUpdatedEl) {
         notesUpdatedEl.textContent = data.notes_updated_at
@@ -1211,16 +1212,20 @@ async function editCarrier(id) {
             : "";
     }
 
+    // Рейтинг
     const ratingEl = document.getElementById("carrierRating");
     if (ratingEl) ratingEl.value = String(data.rating || 0);
 
+    // Заполнение динамических блоков (прицепы, страны с воеводствами, направления по Украине)
     parseAndFillTrailers(data.trailer_type);
     parseAndFillDestinations(data.destinations);
     parseAndFillUkraineDirections(data.ukraine_directions);
 
-    document.getElementById("modalTitle").textContent =
-        "Редагувати перевізника";
-    modalOverlay.classList.add("active");
+    // Изменение заголовка и открытие модального окна
+    const modalTitle = document.getElementById("modalTitle");
+    if (modalTitle) modalTitle.textContent = "Редагувати перевізника";
+
+    if (modalOverlay) modalOverlay.classList.add("active");
 }
 
 async function deleteCarrier(id) {
