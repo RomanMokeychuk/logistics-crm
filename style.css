@@ -88,9 +88,7 @@ body.sidebar-collapsed .sidebar {
     overflow: hidden;
 }
 
-/* Кнопка-стрілка для згортання/розгортання бічної панелі.
-   Розташована поза сайдбаром (position: fixed), тому не обрізається
-   overflow:hidden сайдбара, коли той схований. */
+/* Кнопка-стрілка для згортання/розгортання бічної панелі. */
 .sidebar-toggle-btn {
     position: fixed;
     top: 24px;
@@ -311,6 +309,11 @@ tbody tr:nth-child(odd) {
 
 tbody tr:hover {
     background-color: #eef2ff;
+}
+
+/* Строка таблицы кликабельна — открывает карточку перевозчика */
+tbody tr.clickable-row {
+    cursor: pointer;
 }
 
 tbody tr:last-child td {
@@ -624,21 +627,19 @@ code {
     background: rgba(37, 99, 235, 0.12);
 }
 
-/* Стовпець "Перевізник / ЕДРПОУ" — за замовчуванням показує повну назву
-   та ЄДРПОУ. Клік на іконку людини звужує колонку, щоб не заважала
-   роботі зі списком. */
-table.carrier-collapsed td:nth-child(5) .carrier-name-line {
+/* Стовпець "Перевізник / ЕДРПОУ" (тепер 4-й, після видалення "Квадрат / Воєводство") */
+table.carrier-collapsed td:nth-child(4) .carrier-name-line {
     max-width: 130px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-table.carrier-collapsed td:nth-child(5) .carrier-edrpou-line {
+table.carrier-collapsed td:nth-child(4) .carrier-edrpou-line {
     display: none;
 }
 
-table.carrier-collapsed th:nth-child(5) {
+table.carrier-collapsed th:nth-child(4) {
     width: 160px;
 }
 
@@ -774,22 +775,22 @@ table.carrier-collapsed th:nth-child(5) {
     background: #14532d;
 }
 
-/* Звужуємо стовпці "Тип причепу" та "Параметри / доп.", щоб таблиця не була занадто широкою */
-table th:nth-child(9),
-table td:nth-child(9) {
+/* Звужуємо стовпці "Тип причепу" (8) та "Параметри / доп." (9) */
+table th:nth-child(8),
+table td:nth-child(8) {
     max-width: 210px;
     white-space: normal;
 }
 
-table th:nth-child(10),
-table td:nth-child(10) {
+table th:nth-child(9),
+table td:nth-child(9) {
     max-width: 140px;
     white-space: normal;
 }
 
-/* Оцінка (12-та колонка) — рівно під ширину 5 зірочок, без зайвого простору */
-table th:nth-child(12),
-table td:nth-child(12) {
+/* Оцінка (11-та колонка) — рівно під ширину 5 зірочок */
+table th:nth-child(11),
+table td:nth-child(11) {
     max-width: 110px;
     white-space: nowrap;
 }
@@ -815,6 +816,204 @@ table td:nth-child(12) {
 
 .star-rating i.active {
     color: #f59e0b;
+}
+
+/* ===================== Картка перевізника ===================== */
+
+.carrier-card-modal {
+    max-width: 1000px;
+    padding: 0;
+    background: #f4f6f6;
+}
+
+.carrier-card-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #d6dbdc;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.carrier-card-topbar h2 {
+    font-size: 15px;
+    font-weight: 700;
+    color: #475569;
+}
+
+.carrier-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-card-edit {
+    background: #fbbf24;
+    color: #1e293b;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-card-edit:hover {
+    background: #f59e0b;
+}
+
+#carrierCardBody {
+    padding: 16px 20px 24px;
+}
+
+.card-header-block {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+}
+
+.card-avatar-wrap .carrier-avatar,
+.card-avatar-wrap .carrier-avatar-placeholder {
+    width: 84px;
+    height: 84px;
+    border-radius: 12px;
+    font-size: 36px;
+}
+
+.card-header-info {
+    min-width: 0;
+}
+
+.card-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a73e8;
+    line-height: 1.25;
+    word-break: break-word;
+}
+
+.card-title .profile-link-icon {
+    font-size: 20px;
+}
+
+.card-subtitle {
+    margin-top: 4px;
+    font-size: 15px;
+    color: #475569;
+}
+
+.card-header-badges {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.card-rating-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #fbbf24;
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 6px 12px;
+    border-radius: 6px;
+}
+
+.card-stars {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.card-stars i {
+    font-size: 18px;
+    color: #cbd5e1;
+}
+
+.card-stars i.active {
+    color: #f59e0b;
+}
+
+.card-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+}
+
+.card-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.card-section {
+    background: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-section-title {
+    background: #d6dbdc;
+    color: #334155;
+    font-weight: 700;
+    font-size: 15px;
+    padding: 12px 18px;
+}
+
+.card-row {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 12px;
+    padding: 10px 18px;
+    font-size: 14px;
+}
+
+.card-row:nth-child(even) {
+    background: #eef1f1;
+}
+
+.card-row-label {
+    color: #64748b;
+}
+
+.card-row-value {
+    color: #1e293b;
+    font-weight: 500;
+    word-break: break-word;
+    min-width: 0;
+}
+
+.card-block-text {
+    padding: 14px 18px;
+    font-size: 14px;
+    color: #1e293b;
+}
+
+.card-badge-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.card-badge-region {
+    font-size: 13px;
+    color: #475569;
+    font-weight: 500;
 }
 
 @media (max-width: 900px) {
@@ -849,10 +1048,6 @@ table td:nth-child(12) {
         position: fixed;
     }
 
-    /* ---- БАГ: стрелочка сворачивания сайдбара была рассчитана на
-       десктопную ширину сайдбара (left: 208px). На телефоне сайдбар
-       занимает всю ширину экрана, и кнопка улетала в случайное место.
-       Переносим её в стабильный угол экрана и делаем крупнее под палец. */
     .sidebar-toggle-btn {
         top: 12px;
         left: auto;
@@ -867,9 +1062,6 @@ table td:nth-child(12) {
         right: 12px;
     }
 
-    /* ---- Увеличиваем зоны нажатия мелких иконок под палец (десктопные
-       6-15px иконки на телефоне легко промахнуть). Сам символ остаётся
-       того же размера, просто добавляем "воздух" вокруг него. */
     .filter-icon,
     .carrier-toggle-icon,
     .btn-icon,
@@ -884,13 +1076,10 @@ table td:nth-child(12) {
     }
 
     .star-rating i {
-        font-size: 22px; /* звёзды рейтинга крупнее — легче попасть пальцем */
+        font-size: 22px;
         padding: 2px;
     }
 
-    /* ---- БАГ: модалка "Шлях" имела iframe с жёстко заданной высотой
-       520px, которая на телефоне не помещалась на экран вместе с шапкой
-       окна. Делаем высоту "резиновой" под реальный размер экрана. */
     .modal-overlay {
         padding: 8px;
     }
@@ -901,12 +1090,28 @@ table td:nth-child(12) {
         border-radius: 12px;
     }
 
+    .carrier-card-modal {
+        padding: 0;
+    }
+
+    /* Картка: одна колонка на телефоні */
+    .card-columns {
+        grid-template-columns: 1fr;
+    }
+
+    .card-row {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+
+    .card-header-block {
+        flex-direction: column;
+    }
+
     #shlyahIframe {
         height: min(520px, 60vh) !important;
     }
 
-    /* Виджет фильтра по колонке — не даём ему вылезать за край
-       узкого экрана и занимать он должен почти всю ширину. */
     .column-filter-dropdown {
         width: min(280px, calc(100vw - 24px));
     }

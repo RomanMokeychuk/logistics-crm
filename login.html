@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Авторизация — LogiCRM</title>
+        <link rel="stylesheet" href="style.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+        <style>
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                background: #f8fafc;
+            }
+            .auth-card {
+                background: #ffffff;
+                padding: 32px;
+                border-radius: 16px;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+                width: 100%;
+                max-width: 400px;
+                border: 1px solid #e2e8f0;
+            }
+            .auth-card h2 {
+                margin-bottom: 20px;
+                font-size: 22px;
+                color: #0f172a;
+                text-align: center;
+            }
+            .auth-card form {
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+            }
+            .error-message {
+                color: #ef4444;
+                font-size: 13px;
+                margin-top: 10px;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="auth-card">
+            <div
+                class="logo"
+                style="
+                    justify-content: center;
+                    margin-bottom: 16px;
+                    font-size: 22px;
+                    font-weight: bold;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                ">
+                <i
+                    class="bx bx-truck"
+                    style="color: #2563eb; font-size: 28px"></i>
+                <span>LogiCRM</span>
+            </div>
+            <h2>Вход в систему</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input
+                        type="email"
+                        id="authEmail"
+                        required
+                        placeholder="example@mail.com" />
+                </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input
+                        type="password"
+                        id="authPassword"
+                        required
+                        placeholder="••••••••" />
+                </div>
+                <button
+                    type="submit"
+                    id="loginBtn"
+                    class="btn btn-primary"
+                    style="
+                        width: 100%;
+                        justify-content: center;
+                        margin-top: 10px;
+                    ">
+                    Войти
+                </button>
+            </form>
+            <div id="authError" class="error-message"></div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script>
+            const SUPABASE_URL = "https://prbfscwmemshwigiftha.supabase.co";
+            const SUPABASE_KEY =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByYmZzY3dtZW1zaHdpZ2lmdGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjA4MzEsImV4cCI6MjEwNTk5NjgzMX0.3o4STZHL9hpamTCNofPemPTDWyWfR3xOK6TZnUXlWyE";
+            const sbClient = window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_KEY,
+            );
+
+            const loginForm = document.getElementById("loginForm");
+            const authEmail = document.getElementById("authEmail");
+            const authPassword = document.getElementById("authPassword");
+            const authError = document.getElementById("authError");
+
+            loginForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                authError.textContent = "";
+
+                const { data, error } = await sbClient.auth.signInWithPassword({
+                    email: authEmail.value,
+                    password: authPassword.value,
+                });
+
+                if (error) {
+                    authError.textContent = "Ошибка входа: " + error.message;
+                } else {
+                    window.location.href = "index.html";
+                }
+            });
+        </script>
+    </body>
+</html>

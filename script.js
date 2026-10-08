@@ -8,6 +8,12 @@ const SUPABASE_KEY =
 
 var sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Функція для виходу з акаунта
+async function logout() {
+    await sbClient.auth.signOut();
+    window.location.href = "login.html";
+}
+
 // Глобальні змінні для сортування та кешування
 let currentSortColumn = null;
 let currentSortAscending = true;
@@ -15,8 +21,8 @@ let allCarriersCache = []; // Кеш даних для фільтрів стов
 let activeFilterColumn = null;
 let activeFiltersState = {}; // Стан активних фільтрів по колонках
 
-// Список областей України — використовується і для генерації кнопок-чипів
-// "Напрямки в Україні", і має ті самі назви, що й у селекті "Область України".
+// Список областей України — використовується для випадаючого меню
+// "Напрямки в Україні" (і має ті самі назви, що й "Область України").
 const UKRAINE_OBLASTS = [
     "ВІННИЦЬКА ОБЛ.",
     "ВОЛИНСЬКА ОБЛ.",
@@ -43,6 +49,35 @@ const UKRAINE_OBLASTS = [
     "ЧЕРНІВЕЦЬКА ОБЛ.",
     "ЧЕРНІГІВСЬКА ОБЛ.",
     "М. КИЇВ",
+];
+
+// Список країн (закордонні напрямки) — для випадаючого меню.
+const COUNTRIES = [
+    "ПОЛЬША",
+    "НІМЕЧЧИНА",
+    "ЛИТВА",
+    "ЛАТВІЯ",
+    "ІСПАНІЯ",
+    "ІТАЛІЯ",
+    "РУМУНІЯ",
+    "ЧЕХІЯ",
+    "АВСТРІЯ",
+    "АЗЕРБАЙДЖАН",
+    "ВІРМЕНІЯ",
+    "БЕЛЬГІЯ",
+    "БОЛГАРІЯ",
+    "ВЕЛИКОБРИТАНІЯ",
+    "УГОРЩИНА",
+    "ФРАНЦІЯ",
+    "ДАНІЯ",
+    "МОЛДОВА",
+    "НІДЕРЛАНДИ",
+    "СЛОВАЧЧИНА",
+    "СЛОВЕНІЯ",
+    "ТУРЕЧЧИНА",
+    "ГРУЗІЯ",
+    "ФІНЛЯНДІЯ",
+    "ЕСТОНІЯ",
 ];
 
 const modalOverlay = document.getElementById("modalOverlay");
@@ -92,11 +127,33 @@ document.addEventListener("click", () => {
     }
 });
 
-// Завантажуємо дані при відкритті сторінки
+// Esc закриває картку перевізника
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeCarrierCard();
+});
+
+/*/ Завантажуємо дані при відкритті сторінки
 document.addEventListener("DOMContentLoaded", () => {
     loadCarriers();
     setupScrollTopButton();
-    renderUkraineDirectionChips();
+    renderDirectionSelects();
+});*/
+
+// Завантажуємо дані при відкритті сторінки + Перевірка авторизації
+document.addEventListener("DOMContentLoaded", async () => {
+    const {
+        data: { session },
+    } = await sbClient.auth.getSession();
+
+    // Якщо користувач не залогінений — перенаправляємо на login.html
+    if (!session) {
+        window.location.href = "login.html";
+        return;
+    }
+
+    loadCarriers();
+    setupScrollTopButton();
+    renderDirectionSelects();
 });
 
 /* ================================================================= *
@@ -112,7 +169,7 @@ function renderContactLine(person, phone) {
     const viberIcon = digitsOnly
         ? `<a href="viber://chat?number=%2B${digitsOnly}" target="_blank" class="viber-link" title="Відкрити чат у Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
         : "";
-    return `<strong>${person}:</strong> ${phone || ""} ${viberIcon}`;
+    return `<strong>${escapeHtml(person)}:</strong> ${escapeHtml(phone || "")} ${viberIcon}`;
 }
 
 // Формує HTML для круглого аватара перевізника. Якщо URL фото не вказаний
@@ -174,9 +231,6 @@ function setupScrollTopButton() {
  * 1.3 ЗГОРТАННЯ/РОЗГОРТАННЯ ЛІВОЇ БІЧНОЇ ПАНЕЛІ                     *
  * ================================================================= */
 
-// Ховає/показує синю бічну панель зліва. Коли панель схована, список
-// перевізників розтягується на всю ширину сторінки. Стрілка на кнопці
-// міняє напрямок залежно від поточного стану.
 function toggleSidebar() {
     document.body.classList.toggle("sidebar-collapsed");
 
@@ -222,6 +276,189 @@ if (shlyahModalOverlay) {
 }
 
 /* ================================================================= *
+ * 1.5 КАРТКА ПЕРЕВІЗНИКА (відкривається кліком по рядку в таблиці)   *
+ * ================================================================= */
+
+const carrierCardOverlay = document.getElementById("carrierCardOverlay");
+let currentCardCarrierId = null;
+
+if (carrierCardOverlay) {
+    carrierCardOverlay.addEventListener("click", (e) => {
+        if (e.target === carrierCardOverlay) closeCarrierCard();
+    });
+}
+
+function closeCarrierCard() {
+    if (carrierCardOverlay) carrierCardOverlay.classList.remove("active");
+    currentCardCarrierId = null;
+}
+
+// Редагувати з картки: закриваємо картку і відкриваємо форму редагування
+function editFromCard() {
+    const id = currentCardCarrierId;
+    closeCarrierCard();
+    if (id) editCarrier(id);
+}
+
+// Один рядок "підпис — значення" в картці
+function cardRow(label, valueHtml) {
+    return `
+        <div class="card-row">
+            <div class="card-row-label">${label}</div>
+            <div class="card-row-value">${valueHtml || "—"}</div>
+        </div>`;
+}
+
+// Закордонні напрямки у вигляді плашок "КРАЇНА — регіон"
+function renderDestinationsHtml(str) {
+    if (!str) return "";
+    return str
+        .split(";")
+        .map((pair) => {
+            const dashIndex = pair.indexOf("-");
+            const country = escapeHtml(
+                dashIndex !== -1
+                    ? pair.substring(0, dashIndex).trim()
+                    : pair.trim(),
+            );
+            const region = escapeHtml(
+                dashIndex !== -1 ? pair.substring(dashIndex + 1).trim() : "",
+            );
+            if (country && region) {
+                return `<div class="card-badge-line"><span class="badge-country">${country}</span><span class="card-badge-region">— ${region}</span></div>`;
+            } else if (country) {
+                return `<div class="card-badge-line"><span class="badge-country">${country}</span></div>`;
+            }
+            return "";
+        })
+        .join("");
+}
+
+function renderListBadges(str, badgeClass) {
+    if (!str) return "";
+    return str
+        .split(";")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map(
+            (s) =>
+                `<div class="card-badge-line"><span class="${badgeClass}">${escapeHtml(s)}</span></div>`,
+        )
+        .join("");
+}
+
+function openCarrierCard(id) {
+    const item = allCarriersCache.find((c) => String(c.id) === String(id));
+    if (!item || !carrierCardOverlay) return;
+
+    currentCardCarrierId = item.id;
+
+    const name = escapeHtml(item.name || item.company || "—");
+    const locationText = [item.city, item.region_ukr]
+        .filter(Boolean)
+        .map(escapeHtml)
+        .join(", ");
+
+    // Зірочки рейтингу (тільки для перегляду)
+    const rating = item.rating || 0;
+    let starsHtml = `<div class="card-stars">`;
+    for (let i = 1; i <= 5; i++) {
+        starsHtml += `<i class='bx bxs-star ${i <= rating ? "active" : ""}'></i>`;
+    }
+    starsHtml += `</div>`;
+
+    // Контакти
+    let contactsHtml = "";
+    if (item.contact_person_1) {
+        contactsHtml += `<div style="margin-bottom:6px;">${renderContactLine(item.contact_person_1, item.phone_1)}</div>`;
+    }
+    if (item.contact_person_2) {
+        contactsHtml += `<div>${renderContactLine(item.contact_person_2, item.phone_2)}</div>`;
+    }
+
+    // Нотатки
+    const notesHtml = item.notes
+        ? `<div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(item.notes)}</div>` +
+          (item.notes_updated_at
+              ? `<small style="color:#94a3b8; font-size:11px;">Востаннє змінено: ${formatDateTime(item.notes_updated_at)}</small>`
+              : "")
+        : "";
+
+    const trailersHtml = item.trailer_type
+        ? item.trailer_type
+              .split(";")
+              .map((t) => t.trim())
+              .filter(Boolean)
+              .map(
+                  (t) =>
+                      `<span class="badge badge-warning" style="margin-right:4px;">${escapeHtml(t)}</span>`,
+              )
+              .join("")
+        : "";
+
+    const body = document.getElementById("carrierCardBody");
+    if (!body) return;
+
+    body.innerHTML = `
+        <div class="card-header-block">
+            <div class="card-avatar-wrap">${renderAvatar(item.logo_url)}</div>
+            <div class="card-header-info">
+                <div class="card-title">
+                    ${name}
+                    ${renderProfileLink(item.profile_url)}
+                </div>
+                <div class="card-subtitle">${locationText || "Місцезнаходження не вказано"}</div>
+                <div class="card-header-badges">
+                    <span class="card-rating-badge"><i class='bx bxs-star'></i> ${rating ? rating : "—"}</span>
+                    ${starsHtml}
+                </div>
+            </div>
+        </div>
+
+        <div class="card-columns">
+            <div class="card-col">
+                <div class="card-section">
+                    <div class="card-section-title">Реєстраційні дані</div>
+                    ${cardRow("Найменування:", name)}
+                    ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "")}
+                    ${cardRow("Область:", escapeHtml(item.region_ukr || ""))}
+                    ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""))}
+                    ${cardRow("Квадрат / Воєводство:", escapeHtml(item.quadrant || ""))}
+                </div>
+
+                <div class="card-section">
+                    <div class="card-section-title">Контакти</div>
+                    <div class="card-block-text">${contactsHtml || "—"}</div>
+                </div>
+
+                <div class="card-section">
+                    <div class="card-section-title">Замітки</div>
+                    <div class="card-block-text">${notesHtml || "—"}</div>
+                </div>
+            </div>
+
+            <div class="card-col">
+                <div class="card-section">
+                    <div class="card-section-title">Автопарк</div>
+                    ${cardRow("Тип причепу:", trailersHtml)}
+                    ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "")}
+                    ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "")}
+                    ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "")}
+                </div>
+
+                <div class="card-section">
+                    <div class="card-section-title">Напрямки діяльності</div>
+                    ${cardRow("Закордон:", renderDestinationsHtml(item.destinations))}
+                    ${cardRow("В Україні:", renderListBadges(item.ukraine_directions, "badge-country"))}
+                </div>
+            </div>
+        </div>
+    `;
+
+    carrierCardOverlay.classList.add("active");
+}
+
+/* ================================================================= *
  * 2. ЗАВАНТАЖЕННЯ ТА ВІДОБРАЖЕННЯ ПЕРЕВІЗНИКІВ У ТАБЛИЦІ              *
  * ================================================================= */
 
@@ -254,14 +491,14 @@ async function loadCarriers() {
         return;
     }
 
-    // Зберігаємо в кеш для роботи випадаючих фільтрів по стовпцях
+    // Зберігаємо в кеш для роботи випадаючих фільтрів по стовпцях і для картки
     allCarriersCache = data || [];
 
     if (!carriersTableBody) return;
     carriersTableBody.innerHTML = "";
 
     if (!data || data.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені</td></tr>`;
         updateCarriersCountBar(0, 0);
         return;
     }
@@ -275,7 +512,7 @@ async function loadCarriers() {
         const fleet = (item.fleet_params || "").toLowerCase();
         const trailerType = (item.trailer_type || "").toLowerCase();
         const regionUkr = (item.region_ukr || "").toLowerCase();
-        const additional = (item.additional || "").toLowerCase();
+        const quadrant = (item.quadrant || "").toLowerCase();
         const notes = (item.notes || "").toLowerCase();
         const ukraineDirections = (item.ukraine_directions || "").toLowerCase();
 
@@ -289,6 +526,7 @@ async function loadCarriers() {
                 city.includes(query) ||
                 fleet.includes(query) ||
                 trailerType.includes(query) ||
+                quadrant.includes(query) ||
                 notes.includes(query) ||
                 ukraineDirections.includes(query);
             if (!matchesSearch) return false;
@@ -318,7 +556,12 @@ async function loadCarriers() {
             } else if (colKey === "location_col") {
                 itemVal = `${city} ${regionUkr}`;
             } else if (colKey === "contacts_col") {
-                itemVal = `${item.contact_person_1 || ""} ${item.phone_1 || ""} ${item.contact_person_2 || ""} ${item.phone_2 || ""}`;
+                itemVal =
+                    `${item.contact_person_1 || ""} ${item.phone_1 || ""} ${item.contact_person_2 || ""} ${item.phone_2 || ""}`.toLowerCase();
+            } else if (colKey === "rating") {
+                itemVal = item.rating
+                    ? `${item.rating} ★`.toLowerCase()
+                    : "без оцінки";
             } else if (!itemVal && colKey === "company" && item.name) {
                 itemVal = String(item.name).toLowerCase();
             }
@@ -381,13 +624,26 @@ async function loadCarriers() {
     updateCarriersCountBar(filteredData.length, allCarriersCache.length);
 
     if (filteredData.length === 0) {
-        carriersTableBody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
+        carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
         return;
     }
 
     filteredData.forEach((item, index) => {
         const row = document.createElement("tr");
+        row.classList.add("clickable-row");
+        row.title = "Натисніть, щоб відкрити картку перевізника";
         const rowNumber = index + 1; // порядковий номер у поточному (відфільтрованому/відсортованому) списку
+
+        // Клік по рядку відкриває картку (крім кліків по кнопках, посиланнях, зірочках)
+        row.addEventListener("click", (e) => {
+            if (
+                e.target.closest(
+                    "a, button, .star-rating, input, select, textarea",
+                )
+            )
+                return;
+            openCarrierCard(item.id);
+        });
 
         // 1. Напрямки (закордон)
         let destBadges = "—";
@@ -461,10 +717,9 @@ async function loadCarriers() {
         <td style="text-align: center; color: #94a3b8; font-size: 13px;">${rowNumber}</td>
         <td>${avatarHtml}</td>
         <td>${destBadges}</td>
-        <td>${item.quadrant || "—"}</td>
         <td>
-          <div class="carrier-name-line"><strong>${item.name || item.company || "—"}</strong>${profileLinkHtml}</div>
-          <div class="carrier-edrpou-line"><code>${item.edrpou || "—"}</code></div>
+          <div class="carrier-name-line"><strong>${escapeHtml(item.name || item.company || "—")}</strong>${profileLinkHtml}</div>
+          <div class="carrier-edrpou-line"><code>${escapeHtml(item.edrpou || "—")}</code></div>
         </td>
         <td>${item.region_ukr || "—"}</td>
         <td>${item.city || "—"}</td>
@@ -526,9 +781,6 @@ function updateCarriersCountBar(shownCount, totalCount) {
  * 2.1 ЗГОРНУТИЙ/РОЗГОРНУТИЙ ВИГЛЯД КОЛОНКИ "ПЕРЕВІЗНИК / ЕДРПОУ"     *
  * ================================================================= */
 
-// За замовчуванням колонка з назвою перевізника вузька (щоб не заважати
-// роботі зі списком). Клік на іконку людини в заголовку — показує повну
-// назву та ЄДРПОУ, повторний клік — знову згортає.
 function toggleCarrierColumn() {
     const table = document.querySelector("#tableScrollArea table");
     if (!table) return;
@@ -552,7 +804,7 @@ function addTrailerRow(type = "") {
         "display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px 3px 10px;";
 
     rowDiv.innerHTML = `
-    <input type="text" class="input-trailer-type" value="${type}" placeholder="Тип причепа" style="width: 100px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px;" />
+    <input type="text" class="input-trailer-type" value="${escapeHtml(type)}" placeholder="Тип причепа" style="width: 100px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px;" />
     <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
       <i class='bx bx-trash' style="font-size: 15px;"></i>
     </button>
@@ -592,12 +844,58 @@ function parseAndFillTrailers(trailersStr) {
 }
 
 /* ================================================================= *
- * 4. КРАЇНИ ТА НАПРЯМКИ (закордон)                                  *
+ * 4. КРАЇНИ ТА НАПРЯМКИ (закордон) — випадаюче меню                  *
  * ================================================================= */
+
+// Наповнює обидва випадаючі меню (країни і області) варіантами
+function renderDirectionSelects() {
+    const countrySelect = document.getElementById("countrySelect");
+    if (countrySelect) {
+        const sorted = [...COUNTRIES].sort((a, b) => a.localeCompare(b, "uk"));
+        countrySelect.innerHTML =
+            `<option value="">Оберіть країну...</option>` +
+            sorted
+                .map(
+                    (c) =>
+                        `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`,
+                )
+                .join("");
+    }
+
+    const oblastSelect = document.getElementById("ukraineOblastSelect");
+    if (oblastSelect) {
+        oblastSelect.innerHTML =
+            `<option value="">Оберіть область...</option>` +
+            UKRAINE_OBLASTS.map(
+                (o) =>
+                    `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`,
+            ).join("");
+    }
+}
+
+// Обробник вибору країни у випадаючому меню
+function onCountrySelectChange(selectEl) {
+    if (selectEl.value) addCountryRow(selectEl.value);
+    selectEl.value = ""; // повертаємо меню в початковий стан
+}
+
+// Обробник вибору області у випадаючому меню
+function onUkraineOblastSelectChange(selectEl) {
+    if (selectEl.value) addUkraineDirectionRow(selectEl.value);
+    selectEl.value = "";
+}
 
 function addCountryRow(countryName = "") {
     const container = document.getElementById("destinationsContainer");
     if (!container) return;
+
+    // Не додаємо дублікати
+    if (countryName) {
+        const alreadyAdded = Array.from(
+            container.querySelectorAll(".input-country"),
+        ).some((input) => input.value.trim() === countryName);
+        if (alreadyAdded) return;
+    }
 
     const rowDiv = document.createElement("div");
     rowDiv.className = "country-row";
@@ -605,7 +903,7 @@ function addCountryRow(countryName = "") {
         "display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px 3px 10px;";
 
     rowDiv.innerHTML = `
-    <input type="text" class="input-country" value="${countryName}" placeholder="Країна" style="width: 130px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px;" />
+    <input type="text" class="input-country" value="${escapeHtml(countryName)}" placeholder="Країна" style="width: 130px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px;" />
     <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
       <i class='bx bx-trash' style="font-size: 15px;"></i>
     </button>
@@ -645,23 +943,11 @@ function parseAndFillDestinations(destinationsStr) {
 }
 
 /* ================================================================= *
- * 4.1 НАПРЯМКИ В УКРАЇНІ (мультивибір областей)                     *
+ * 4.1 НАПРЯМКИ В УКРАЇНІ (мультивибір областей через випадаюче меню) *
  * ================================================================= */
 
-// Генерує кнопки-чипи для всіх областей України один раз при завантаженні
-// сторінки (список береться з UKRAINE_OBLASTS вище).
-function renderUkraineDirectionChips() {
-    const chipsContainer = document.getElementById("ukraineDirectionsChips");
-    if (!chipsContainer) return;
-
-    chipsContainer.innerHTML = UKRAINE_OBLASTS.map(
-        (oblast) =>
-            `<button type="button" class="btn-chip" onclick="addUkraineDirectionRow('${oblast}')">+ ${oblast}</button>`,
-    ).join("");
-}
-
 // Додає область до списку обраних напрямків у формі. Якщо ця область вже
-// додана раніше — повторно не додає (щоб не було дублів при подвійному кліку).
+// додана раніше — повторно не додає.
 function addUkraineDirectionRow(oblastName = "") {
     const container = document.getElementById("ukraineDirectionsContainer");
     if (!container || !oblastName) return;
@@ -677,7 +963,7 @@ function addUkraineDirectionRow(oblastName = "") {
         "display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px 3px 10px;";
 
     rowDiv.innerHTML = `
-    <input type="text" class="input-ukraine-oblast" value="${oblastName}" readonly style="width: 150px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px; cursor: default;" />
+    <input type="text" class="input-ukraine-oblast" value="${escapeHtml(oblastName)}" readonly style="width: 150px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px; cursor: default;" />
     <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
       <i class='bx bx-trash' style="font-size: 15px;"></i>
     </button>
@@ -789,8 +1075,6 @@ if (addCarrierForm) {
         const carrierId = document.getElementById("carrierId")?.value;
 
         // Дата/час заміти оновлюється ТІЛЬКИ якщо текст заміти реально змінився.
-        // Порівнюємо з тим, що вже збережено в кеші (для нового перевізника
-        // "старого" тексту немає — там просто null).
         const existingCarrier = carrierId
             ? allCarriersCache.find((c) => String(c.id) === String(carrierId))
             : null;
@@ -1019,7 +1303,6 @@ function openColumnFilter(event, columnKey) {
 
     sortedValues.forEach((val) => {
         // Якщо фільтр для цього стовпця ще не застосовувався (currentSelected === undefined) -> ставимо галочки скрізь.
-        // Якщо він існує, то ставимо галочку тільки якщо значення є в масиві обраних.
         const isChecked =
             currentSelected === undefined || currentSelected.includes(val)
                 ? "checked"
@@ -1132,10 +1415,7 @@ function applyColumnFilter() {
         }
     });
 
-    // Якщо вибрані АБСОЛЮТНО ВСІ варіанти — це рівнозначно "без фільтра",
-    // прибираємо фільтр стовпця (показуємо все).
-    // Якщо ж не вибрано жодного варіанту — це свідомий вибір користувача
-    // показати порожній список, і фільтр застосовується як є (з порожнім масивом).
+    // Якщо вибрані АБСОЛЮТНО ВСІ варіанти — це рівнозначно "без фільтра".
     if (selected.length === allCheckboxesCount) {
         delete activeFiltersState[activeFilterColumn];
     } else {

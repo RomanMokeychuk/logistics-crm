@@ -45,6 +45,12 @@
                 <button class="btn btn-primary" id="openModalBtn">
                     <i class="bx bx-plus"></i> Додати перевізника
                 </button>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
             </header>
 
             <div class="filters-bar">
@@ -76,21 +82,6 @@
                                                 event,
                                                 'destinations',
                                             )
-                                        "></i>
-                                </div>
-                            </th>
-                            <th>
-                                <div class="th-content">
-                                    <span
-                                        class="th-label"
-                                        style="cursor: pointer"
-                                        onclick="toggleSort('quadrant')"
-                                        >КВАДРАТ / ВОЄВОДСТВО</span
-                                    >
-                                    <i
-                                        class="bx bx-filter-alt filter-icon"
-                                        onclick="
-                                            openColumnFilter(event, 'quadrant')
                                         "></i>
                                 </div>
                             </th>
@@ -423,166 +414,19 @@
                                 placeholder="https://lardi-trans.com/..." />
                         </div>
 
+                        <!-- Напрями та регіони (закордон) — випадаюче меню -->
                         <div class="form-group" style="grid-column: span 2">
                             <label
                                 >Напрями та регіони (Воєводства /
                                 Квадрати)</label
                             >
 
-                            <div
-                                class="country-chips"
-                                style="margin-bottom: 10px">
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ПОЛЬША')">
-                                    + ПОЛЬША
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('НІМЕЧЧИНА')">
-                                    + НІМЕЧЧИНА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ЛИТВА')">
-                                    + ЛИТВА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ЛАТВІЯ')">
-                                    + ЛАТВІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ІСПАНІЯ')">
-                                    + ІСПАНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ІТАЛІЯ')">
-                                    + ІТАЛІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('РУМУНІЯ')">
-                                    + РУМУНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ЧЕХІЯ')">
-                                    + ЧЕХІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('АВСТРІЯ')">
-                                    + АВСТРІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('АЗЕРБАЙДЖАН')">
-                                    + АЗЕРБАЙДЖАН
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ВІРМЕНІЯ')">
-                                    + ВІРМЕНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('БЕЛЬГІЯ')">
-                                    + БЕЛЬГІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('БОЛГАРІЯ')">
-                                    + БОЛГАРІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ВЕЛИКОБРИТАНІЯ')">
-                                    + ВЕЛИКОБРИТАНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('УГОРЩИНА')">
-                                    + УГОРЩИНА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ФРАНЦІЯ')">
-                                    + ФРАНЦІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ДАНІЯ')">
-                                    + ДАНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('МОЛДОВА')">
-                                    + МОЛДОВА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('НІДЕРЛАНДИ')">
-                                    + НІДЕРЛАНДИ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('СЛОВАЧЧИНА')">
-                                    + СЛОВАЧЧИНА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('СЛОВЕНІЯ')">
-                                    + СЛОВЕНІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ТУРЕЧЧИНА')">
-                                    + ТУРЕЧЧИНА
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ГРУЗІЯ')">
-                                    + ГРУЗІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ФІНЛЯНДІЯ')">
-                                    + ФІНЛЯНДІЯ
-                                </button>
-                                <button
-                                    type="button"
-                                    class="btn-chip"
-                                    onclick="addCountryRow('ЕСТОНІЯ')">
-                                    + ЕСТОНІЯ
-                                </button>
-                            </div>
+                            <select
+                                id="countrySelect"
+                                onchange="onCountrySelectChange(this)">
+                                <option value="">Оберіть країну...</option>
+                                <!-- Варіанти генеруються через JS зі списку COUNTRIES -->
+                            </select>
 
                             <div
                                 id="destinationsContainer"
@@ -590,6 +434,7 @@
                                     display: flex;
                                     flex-wrap: wrap;
                                     gap: 6px;
+                                    margin-top: 4px;
                                 "></div>
 
                             <input
@@ -598,18 +443,19 @@
                                 name="destinations" />
                         </div>
 
+                        <!-- Напрямки в Україні — випадаюче меню -->
                         <div class="form-group" style="grid-column: span 2">
                             <label
                                 >Напрямки в Україні (області, куди/звідки
                                 їздить)</label
                             >
 
-                            <div
-                                id="ukraineDirectionsChips"
-                                class="country-chips"
-                                style="margin-bottom: 10px">
-                                <!-- Кнопки областей генеруються через JS зі списку UKRAINE_OBLASTS -->
-                            </div>
+                            <select
+                                id="ukraineOblastSelect"
+                                onchange="onUkraineOblastSelectChange(this)">
+                                <option value="">Оберіть область...</option>
+                                <!-- Варіанти генеруються через JS зі списку UKRAINE_OBLASTS -->
+                            </select>
 
                             <div
                                 id="ukraineDirectionsContainer"
@@ -617,6 +463,7 @@
                                     display: flex;
                                     flex-wrap: wrap;
                                     gap: 6px;
+                                    margin-top: 4px;
                                 "></div>
 
                             <input
@@ -801,6 +648,30 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Картка перевізника (відкривається кліком по рядку в таблиці) -->
+        <div class="modal-overlay" id="carrierCardOverlay">
+            <div class="modal carrier-card-modal">
+                <div class="carrier-card-topbar">
+                    <h2>Інформація про перевізника</h2>
+                    <div class="carrier-card-actions">
+                        <button
+                            type="button"
+                            class="btn-card-edit"
+                            onclick="editFromCard()">
+                            <i class="bx bx-edit"></i> Редагувати
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            onclick="closeCarrierCard()">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <div id="carrierCardBody"></div>
             </div>
         </div>
 
