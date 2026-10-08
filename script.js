@@ -309,9 +309,9 @@ function cardRow(label, valueHtml) {
         </div>`;
 }
 
-// Закордонні напрямки у вигляді плашок "КРАЇНА — регіон"
+// Формує відображення країн та їхніх квадратиків/воєводств у картці перевізника
 function renderDestinationsHtml(str) {
-    if (!str) return "";
+    if (!str) return "—";
     return str
         .split(";")
         .map((pair) => {
@@ -324,10 +324,20 @@ function renderDestinationsHtml(str) {
             const region = escapeHtml(
                 dashIndex !== -1 ? pair.substring(dashIndex + 1).trim() : "",
             );
+
             if (country && region) {
-                return `<div class="card-badge-line"><span class="badge-country">${country}</span><span class="card-badge-region">— ${region}</span></div>`;
+                return `
+                <div style="margin-bottom: 8px;">
+                    <div><span class="badge-country">${country}</span></div>
+                    <div style="font-size: 13px; color: #475569; margin-top: 2px; padding-left: 2px;">
+                        <strong>Квадрат / Воєводство:</strong> ${region}
+                    </div>
+                </div>`;
             } else if (country) {
-                return `<div class="card-badge-line"><span class="badge-country">${country}</span></div>`;
+                return `
+                <div style="margin-bottom: 8px;">
+                    <span class="badge-country">${country}</span>
+                </div>`;
             }
             return "";
         })
@@ -423,7 +433,7 @@ function openCarrierCard(id) {
                     ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "")}
                     ${cardRow("Область:", escapeHtml(item.region_ukr || ""))}
                     ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""))}
-                    ${cardRow("Квадрат / Воєводство:", escapeHtml(item.quadrant || ""))}
+                    
                 </div>
 
                 <div class="card-section">
@@ -885,11 +895,12 @@ function onUkraineOblastSelectChange(selectEl) {
     selectEl.value = "";
 }
 
-function addCountryRow(countryName = "") {
+// Додає плашку країни та поле для Квадрата / Воєводства
+function addCountryRow(countryName = "", regionName = "") {
     const container = document.getElementById("destinationsContainer");
     if (!container) return;
 
-    // Не додаємо дублікати
+    // Не додаємо дублікати країни
     if (countryName) {
         const alreadyAdded = Array.from(
             container.querySelectorAll(".input-country"),
@@ -900,17 +911,20 @@ function addCountryRow(countryName = "") {
     const rowDiv = document.createElement("div");
     rowDiv.className = "country-row";
     rowDiv.style.cssText =
-        "display: inline-flex; align-items: center; gap: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 3px 4px 3px 10px;";
+        "display: flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 10px; width: 100%; margin-top: 4px;";
 
     rowDiv.innerHTML = `
-    <input type="text" class="input-country" value="${escapeHtml(countryName)}" placeholder="Країна" style="width: 130px; border: none; background: transparent; outline: none; font-size: 13px; font-weight: 600; padding: 4px 2px;" />
-    <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
-      <i class='bx bx-trash' style="font-size: 15px;"></i>
-    </button>
-  `;
+        <span class="badge-country" style="margin: 0; font-size: 13px; white-space: nowrap;">${escapeHtml(countryName)}</span>
+        <input type="hidden" class="input-country" value="${escapeHtml(countryName)}" />
+        <input type="text" class="input-country-region" value="${escapeHtml(regionName)}" placeholder="Введіть Квадрат / Воєводство (наприклад: Поморське, Мазовецьке)" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: 13px; background: #ffffff; outline: none;" />
+        <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
+          <i class='bx bx-trash' style="font-size: 18px;"></i>
+        </button>
+    `;
     container.appendChild(rowDiv);
 }
 
+// Серіалізація даних у формат: "ПОЛЬША - Поморське воєв., Мазовецьке воєв.; БЕЛЬГІЯ - Фландрія"
 function serializeDestinations() {
     const container = document.getElementById("destinationsContainer");
     if (!container) return "";
@@ -919,13 +933,17 @@ function serializeDestinations() {
     const result = [];
 
     rows.forEach((row) => {
-        const country = row.querySelector(".input-country").value.trim();
-        if (country) result.push(country);
+        const country = row.querySelector(".input-country")?.value.trim();
+        const region = row.querySelector(".input-country-region")?.value.trim();
+        if (country) {
+            result.push(region ? `${country} - ${region}` : country);
+        }
     });
 
     return result.join("; ");
 }
 
+// Розпаршує рядок та заповнює форму при редагуванні
 function parseAndFillDestinations(destinationsStr) {
     const container = document.getElementById("destinationsContainer");
     if (!container) return;
@@ -935,13 +953,16 @@ function parseAndFillDestinations(destinationsStr) {
 
     const items = destinationsStr.split(";");
     items.forEach((item) => {
-        // Підтримка старих записів виду "ПОЛЬША - Поморське воєв." —
-        // беремо тільки назву країни, деталі регіону більше не редагуються тут.
-        const country = item.split("-")[0].trim();
-        if (country) addCountryRow(country);
+        const dashIndex = item.indexOf("-");
+        const country =
+            dashIndex !== -1
+                ? item.substring(0, dashIndex).trim()
+                : item.trim();
+        const region =
+            dashIndex !== -1 ? item.substring(dashIndex + 1).trim() : "";
+        if (country) addCountryRow(country, region);
     });
 }
-
 /* ================================================================= *
  * 4.1 НАПРЯМКИ В УКРАЇНІ (мультивибір областей через випадаюче меню) *
  * ================================================================= */
