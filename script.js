@@ -1064,9 +1064,12 @@ if (addCarrierForm) {
         if (ukraineDirInput)
             ukraineDirInput.value = serializeUkraineDirections();
 
+        // Безопасное получение значения без ошибок для отсутствующих элементов
         const getValue = (id) => {
             const el = document.getElementById(id);
-            return el && el.value.trim() !== "" ? el.value.trim() : null;
+            return el && el.value && el.value.trim() !== ""
+                ? el.value.trim()
+                : null;
         };
 
         const payload = {
@@ -1075,7 +1078,7 @@ if (addCarrierForm) {
             region_ukr: getValue("region_ukr"),
             destinations: getValue("destinations"),
             ukraine_directions: getValue("ukraine_directions"),
-            quadrant: getValue("quadrant"),
+            quadrant: getValue("quadrant"), // Вернет null, если поля нет на странице
             city: getValue("city"),
             contact_person_1: getValue("contact_person_1"),
             phone_1: getValue("phone_1"),
@@ -1095,7 +1098,7 @@ if (addCarrierForm) {
 
         const carrierId = document.getElementById("carrierId")?.value;
 
-        // Дата/час заміти оновлюється ТІЛЬКИ якщо текст заміти реально змінився.
+        // Дата/время заметки обновляется ТОЛЬКО если текст заметки действительно изменился
         const existingCarrier = carrierId
             ? allCarriersCache.find((c) => String(c.id) === String(carrierId))
             : null;
@@ -1106,7 +1109,7 @@ if (addCarrierForm) {
             payload.notes_updated_at = new Date().toISOString();
         }
 
-        // Перевірка на дубль: шукаємо збіг за ЄДРПОУ або назвою серед уже доданих
+        // Проверка на дубликат
         const duplicate = findDuplicateCarrier(payload, carrierId);
         if (duplicate) {
             const proceed = confirm(
