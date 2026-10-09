@@ -305,3 +305,79 @@ details summary .section-title {
     font-weight: 700;
     cursor: pointer;
 }
+
+/* Вибір логістів — "таблетки" з галочками */
+.chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--field);
+    font-size: 15px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.chip input {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    accent-color: var(--accent);
+    -webkit-appearance: auto;
+    appearance: auto;
+}
+
+.chip:has(input:checked) {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.hint {
+    font-size: 13px;
+    color: var(--hint);
+}
+
+/* Тип запиту — три кнопки в ряд */
+.segmented {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.seg {
+    cursor: pointer;
+}
+
+.seg input {
+    display: none;
+}
+
+.seg span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    min-height: 44px;
+    padding: 6px 4px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--field);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.seg input:checked + span {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-text);
+}

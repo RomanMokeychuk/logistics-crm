@@ -22,14 +22,17 @@
             /* ============ Форма нового запиту (для Sales) ============ */
 
             function renderForm(boot) {
-                const logistOptions =
-                    `<option value="">— не вибрано —</option>` +
-                    boot.logists
-                        .map(
-                            (s) =>
-                                `<option value="${escapeHtml(s.id)}">${escapeHtml(s.full_name)}</option>`,
-                        )
-                        .join("");
+                const logistChips = boot.logists.length
+                    ? boot.logists
+                          .map(
+                              (s) => `
+                        <label class="chip">
+                            <input type="checkbox" class="js-logist" value="${escapeHtml(s.id)}" />
+                            <span>${escapeHtml(s.full_name)}</span>
+                        </label>`,
+                          )
+                          .join("")
+                    : `<div class="hint">Логістів ще немає — додайте їх у CRM на сторінці «Співробітники».</div>`;
 
                 document.getElementById("app").innerHTML = `
                     <div class="app-header">
@@ -47,6 +50,18 @@
                         <div class="field">
                             <label>Клієнт *</label>
                             <input id="f_client" type="text" placeholder="наприклад: ТОВ МЕД ОК" />
+                        </div>
+                        <div class="field">
+                            <label>Тип запиту *</label>
+                            <div class="segmented">
+                                ${REQUEST_TYPES.map(
+                                    (t) => `
+                                <label class="seg">
+                                    <input type="radio" name="f_type" value="${escapeHtml(t.value)}" />
+                                    <span>${t.icon} ${escapeHtml(t.value)}</span>
+                                </label>`,
+                                ).join("")}
+                            </div>
                         </div>
                         <div class="field">
                             <label>Вантаж</label>
@@ -105,11 +120,16 @@
                     </details>
 
                     <div class="section">
-                        <div class="section-title">Дата і логіст</div>
+                        <div class="section-title">Дата і логісти</div>
                         ${periodFieldHtml("Бажана дата")}
                         <div class="field">
-                            <label>Логіст</label>
-                            <select id="f_logist">${logistOptions}</select>
+                            <div class="label-row">
+                                <label>Кому надіслати</label>
+                                <label class="toggle">
+                                    <input type="checkbox" id="f_logist_all" /> всім
+                                </label>
+                            </div>
+                            <div class="chips">${logistChips}</div>
                         </div>
                         <div class="field">
                             <label>Нотатки</label>
@@ -122,6 +142,23 @@
                 `;
 
                 setupPeriod(document.querySelector(".js-period-root"));
+
+                // "Всім" ставить / знімає всі галочки
+                const all = document.getElementById("f_logist_all");
+                const boxes = () => [
+                    ...document.querySelectorAll(".js-logist"),
+                ];
+                all.addEventListener("change", () =>
+                    boxes().forEach((b) => (b.checked = all.checked)),
+                );
+                document.addEventListener("change", (e) => {
+                    if (e.target.classList.contains("js-logist")) {
+                        all.checked =
+                            boxes().length > 0 &&
+                            boxes().every((b) => b.checked);
+                    }
+                });
+
                 setupMainButton("Надіслати запит", submit);
             }
 
@@ -131,9 +168,19 @@
                     document.querySelector(".js-period-root"),
                 );
 
+                const requestType = document.querySelector(
+                    "input[name='f_type']:checked",
+                )?.value;
+
                 if (!val("f_client")) {
                     showError("Вкажіть клієнта.");
                     document.getElementById("f_client").focus();
+                    return;
+                }
+                if (!requestType) {
+                    showError(
+                        "Оберіть тип запиту: Прорахунок, Пошук авто чи Завантаження.",
+                    );
                     return;
                 }
                 if (period.to && period.from && period.to < period.from) {
@@ -145,6 +192,7 @@
                     await furaApi("create_request", {
                         fields: {
                             client: val("f_client"),
+                            request_type: requestType,
                             cargo: val("f_cargo"),
                             transport_type: val("f_transport"),
                             weight: val("f_weight"),
@@ -157,13 +205,21 @@
                             customs_import: val("f_customs_import"),
                             desired_date: period.from,
                             desired_date_to: period.to,
-                            logistician_id: val("f_logist"),
+                            logistician_ids: [
+                                ...document.querySelectorAll(
+                                    ".js-logist:checked",
+                                ),
+                            ].map((b) => b.value),
                             notes: val("f_notes"),
                         },
                     });
+                    const n =
+                        document.querySelectorAll(".js-logist:checked").length;
                     successAndClose(
                         "Запит створено",
-                        "Логіст отримає його в Telegram.",
+                        n
+                            ? `Надіслано логістам: ${n}`
+                            : "Логіста можна буде призначити в CRM.",
                     );
                 } catch (e) {
                     showError(e.message);

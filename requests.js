@@ -19,13 +19,33 @@ async function logout() {
 
 // Порядок у списку = порядок сортування за статусом
 const REQUEST_STATUSES = [
-    { value: "Запит", cls: "status-request" },
-    { value: "Котирування", cls: "status-quote" },
-    { value: "Комерційна пропозиція", cls: "status-offer" },
-    { value: "В роботі", cls: "status-progress" },
-    { value: "Підтверджено", cls: "status-confirmed" },
+    { value: "Запит", cls: "status-request" }, // новий, чекає логіста
+    { value: "Відповідь", cls: "status-offer" }, // логіст дав ціни
+    { value: "В роботі", cls: "status-progress" }, // Sales обрав логіста
+    { value: "Виконано", cls: "status-confirmed" },
     { value: "Відмова", cls: "status-rejected" },
 ];
+const STATUS_NEW = "Запит";
+const STATUS_QUOTE = "Відповідь";
+const STATUS_CHOSEN = "В роботі";
+
+// Тип запиту — обирає Sales
+const REQUEST_TYPES = [
+    { value: "Прорахунок", cls: "type-calc", icon: "bx-calculator" },
+    { value: "Пошук авто", cls: "type-search", icon: "bx-search-alt" },
+    { value: "Завантаження", cls: "type-load", icon: "bx-package" },
+];
+
+function typeBadge(type) {
+    if (!type) return "—";
+    const t = REQUEST_TYPES.find((x) => x.value === type);
+    return `<span class="type-badge ${t ? t.cls : ""}">${escapeHtml(type)}</span>`;
+}
+
+function typeOrder(type) {
+    const i = REQUEST_TYPES.findIndex((x) => x.value === type);
+    return i === -1 ? REQUEST_TYPES.length : i;
+}
 
 // Ті самі країни, що й у перевізниках, + Україна
 const REQUEST_COUNTRIES = [
@@ -325,6 +345,126 @@ function readStaffSelect(selectId) {
 }
 
 /* ================================================================= *
+ * 4.3 КІЛЬКА ЛОГІСТІВ НА ЗАПИТ                                       *
+ * ================================================================= */
+
+// Усі логісти, кому надіслано запит
+function logistIdsOf(r) {
+    if (!r) return [];
+    if (Array.isArray(r.logistician_ids) && r.logistician_ids.length) {
+        return r.logistician_ids.map(String);
+    }
+    return r.logistician_id ? [String(r.logistician_id)] : [];
+}
+
+// Запит уже "обрано" — Sales підтвердив пропозицію конкретного логіста
+function isChosen(r) {
+    return (
+        Boolean(r?.logistician_id) &&
+        ![STATUS_NEW, STATUS_QUOTE].includes(r.status)
+    );
+}
+
+function fillLogistPicker(selectedIds, legacyName) {
+    const box = document.getElementById("req_logisticians");
+    const selected = new Set((selectedIds || []).map(String));
+    const list = staffCache.filter(
+        (s) =>
+            ["logist", "head"].includes(s.role) &&
+            (s.active || selected.has(String(s.id))),
+    );
+
+    let html = list
+        .map(
+            (s) => `
+            <label class="logist-chip">
+                <input type="checkbox" value="${s.id}" ${selected.has(String(s.id)) ? "checked" : ""} />
+                <span>${escapeHtml(s.full_name)}${s.active ? "" : " (неактивний)"}</span>
+            </label>`,
+        )
+        .join("");
+
+    if (legacyName) {
+        html += `
+            <label class="logist-chip">
+                <input type="checkbox" value="${LEGACY_OPTION}" data-name="${escapeHtml(legacyName)}" checked />
+                <span>${escapeHtml(legacyName)}</span>
+            </label>`;
+    }
+    if (!list.length && !legacyName) {
+        html = `<div class="logist-empty">Додайте логістів на сторінці «Співробітники»</div>`;
+    }
+
+    box.innerHTML = html;
+    syncLogistAll();
+}
+
+function syncLogistAll() {
+    const boxes = document.querySelectorAll(
+        "#req_logisticians input[type='checkbox']",
+    );
+    const all = document.getElementById("req_logist_all");
+    all.checked = boxes.length > 0 && [...boxes].every((b) => b.checked);
+}
+
+document.getElementById("req_logist_all").addEventListener("change", (e) => {
+    document
+        .querySelectorAll("#req_logisticians input[type='checkbox']")
+        .forEach((b) => (b.checked = e.target.checked));
+});
+document
+    .getElementById("req_logisticians")
+    .addEventListener("change", syncLogistAll);
+
+// { ids: [...], names: [...] } відмічених логістів
+function readLogistPicker() {
+    const ids = [];
+    const names = [];
+    document
+        .querySelectorAll("#req_logisticians input[type='checkbox']:checked")
+        .forEach((b) => {
+            if (b.value === LEGACY_OPTION) {
+                names.push(b.dataset.name);
+            } else {
+                ids.push(b.value);
+                names.push(staffById(b.value)?.full_name || "");
+            }
+        });
+    return { ids, names: names.filter(Boolean) };
+}
+
+// Поля для збереження. Якщо Sales уже обрав логіста — він лишається головним
+function logistFieldsFor(existing, pick) {
+    if (
+        existing &&
+        isChosen(existing) &&
+        pick.ids.includes(String(existing.logistician_id))
+    ) {
+        return {
+            logistician_ids: pick.ids,
+            logistician_id: existing.logistician_id,
+            logistician: existing.logistician,
+        };
+    }
+    return {
+        logistician_ids: pick.ids,
+        logistician_id: pick.ids[0] || null,
+        logistician: pick.names.join(", ") || null,
+    };
+}
+
+// Три кнопки "Тип запиту" у формі
+function renderTypePicker(selected) {
+    document.getElementById("req_type_picker").innerHTML = REQUEST_TYPES.map(
+        (t) => `
+        <label class="type-option ${t.cls}">
+            <input type="radio" name="req_type" value="${escapeHtml(t.value)}" ${t.value === selected ? "checked" : ""} />
+            <i class='bx ${t.icon}'></i> ${escapeHtml(t.value)}
+        </label>`,
+    ).join("");
+}
+
+/* ================================================================= *
  * 5. ЗАВАНТАЖЕННЯ ТА ВІДОБРАЖЕННЯ                                    *
  * ================================================================= */
 
@@ -336,7 +476,7 @@ async function loadRequests() {
 
     if (error) {
         console.error("Помилка завантаження запитів:", error);
-        tableBody.innerHTML = `<tr><td colspan="10" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}</td></tr>`;
         return;
     }
 
@@ -351,6 +491,7 @@ function renderRequests() {
         if (!query) return true;
         const haystack = [
             r.client,
+            r.request_type,
             r.cargo,
             r.transport_type,
             r.weight,
@@ -386,6 +527,8 @@ function renderRequests() {
         let result;
         if (sortColumn === "status") {
             result = statusOrder(a.status) - statusOrder(b.status);
+        } else if (sortColumn === "request_type") {
+            result = typeOrder(a.request_type) - typeOrder(b.request_type);
         } else if (
             sortColumn === "created_at" ||
             sortColumn === "desired_date"
@@ -410,7 +553,7 @@ function renderRequests() {
     updateCountBar(rows.length, requestsCache.length);
 
     if (rows.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="10" class="empty-row">${
+        tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">${
             requestsCache.length
                 ? "Записи не знайдені за заданими критеріями"
                 : "Запитів ще немає"
@@ -431,6 +574,7 @@ function renderRequests() {
         tr.innerHTML = `
             <td class="cell-num">${index + 1}</td>
             <td class="cell-client">${newBadge}<strong>${escapeHtml(r.client) || "—"}</strong></td>
+            <td>${typeBadge(r.request_type)}</td>
             <td class="cell-country">${countryBadge(r.load_country)}</td>
             <td class="cell-country">${countryBadge(r.unload_country)}</td>
             <td>${statusBadge(r.status)}</td>
@@ -559,6 +703,8 @@ function filterValue(r, col) {
 function filterSortKey(r, col) {
     if (col === "desired_date" || col === "created_at") return r[col] || "";
     if (col === "status") return String(statusOrder(r.status)).padStart(3, "0");
+    if (col === "request_type")
+        return String(typeOrder(r.request_type)).padStart(3, "0");
     return filterValue(r, col);
 }
 
@@ -808,6 +954,7 @@ function openRequestModal(request = null) {
 
     setVal("requestId", request ? request.id : "");
     setVal("req_client", request?.client);
+    renderTypePicker(request?.request_type || "");
     setVal("req_cargo", request?.cargo);
     setVal("req_transport_type", request?.transport_type);
     setVal("req_weight", request?.weight);
@@ -832,11 +979,9 @@ function openRequestModal(request = null) {
         request ? request.sales_id : defaultSalesId,
         request && !request.sales_id ? request.sales : null,
     );
-    fillStaffSelect(
-        "req_logistician",
-        ["logist", "head"],
-        request?.logistician_id,
-        request && !request.logistician_id ? request.logistician : null,
+    fillLogistPicker(
+        logistIdsOf(request),
+        request && !logistIdsOf(request).length ? request.logistician : null,
     );
     setVal("req_notes", request?.notes);
 
@@ -898,11 +1043,27 @@ requestForm.addEventListener("submit", async (e) => {
     }
     if (dateTo === dateFrom) dateTo = null;
 
+    const requestType =
+        document.querySelector("input[name='req_type']:checked")?.value || null;
+    if (!requestType) {
+        alert("Оберіть тип запиту: Прорахунок, Пошук авто чи Завантаження.");
+        return;
+    }
+
     const salesPick = readStaffSelect("req_sales");
-    const logistPick = readStaffSelect("req_logistician");
+    const logistPick = readLogistPicker();
+    const existing = document.getElementById("requestId").value
+        ? requestsCache.find(
+              (x) =>
+                  String(x.id) ===
+                  String(document.getElementById("requestId").value),
+          )
+        : null;
+    const logistFields = logistFieldsFor(existing, logistPick);
 
     const payload = {
         client: getValue("req_client"),
+        request_type: requestType,
         cargo: getValue("req_cargo"),
         transport_type: getValue("req_transport_type"),
         weight: getValue("req_weight"),
@@ -918,8 +1079,7 @@ requestForm.addEventListener("submit", async (e) => {
         desired_date_to: dateTo,
         sales: salesPick.name,
         sales_id: salesPick.id,
-        logistician: logistPick.name,
-        logistician_id: logistPick.id,
+        ...logistFields,
         notes: getValue("req_notes"),
     };
 
@@ -986,6 +1146,7 @@ function openRequestCard(id) {
             <div class="card-header-info">
                 <div class="card-title">${escapeHtml(r.client) || "—"}</div>
                 <div class="card-subtitle">${routeText || "Маршрут не вказано"}</div>
+                <div class="card-type">${typeBadge(r.request_type)}</div>
                 <div class="card-header-badges">
                     ${statusBadge(r.status)}
                     <span class="request-card-created">Запит від Sales: ${formatDateTime(r.created_at) || "—"}</span>
@@ -1038,6 +1199,14 @@ function openRequestCard(id) {
     `;
 
     document
+        .querySelectorAll("#requestCardBody [data-choose]")
+        .forEach((btn) =>
+            btn.addEventListener("click", () =>
+                chooseAnswer(r.id, btn.dataset.choose),
+            ),
+        );
+
+    document
         .getElementById("openAnswerFromCardBtn")
         ?.addEventListener("click", () => {
             const id = currentCardRequestId;
@@ -1086,6 +1255,23 @@ function getOffers(r) {
     return Array.isArray(r?.offers) ? r.offers : [];
 }
 
+// Відповіді по логістах: [{ logist_id, logist, offers, notes, at }]
+// Для старих запитів — збираємо з offers / logist_notes
+function getAnswers(r) {
+    if (Array.isArray(r?.answers) && r.answers.length) return r.answers;
+    const offers = getOffers(r);
+    if (!offers.length && !r?.logist_notes) return [];
+    return [
+        {
+            logist_id: r.logistician_id || null,
+            logist: r.logistician || "",
+            offers,
+            notes: r.logist_notes || null,
+            at: r.answered_at || null,
+        },
+    ];
+}
+
 // "1200" → "1 200", "1200.5" → "1 200,5"; інший текст лишаємо як є
 function formatPrice(price) {
     const s = String(price || "").trim();
@@ -1095,40 +1281,99 @@ function formatPrice(price) {
     return s;
 }
 
-// Блок "Відповідь логіста" в картці запиту
-function answerSectionHtml(r) {
-    const offers = getOffers(r);
-    const hasAnswer = offers.length > 0 || r.logist_notes;
-
-    const offersHtml = offers.length
-        ? offers
-              .map(
-                  (o, i) => `
+function offerRowsHtml(offers) {
+    return offers
+        .map(
+            (o, i) => `
             <div class="offer-row">
                 <span class="offer-num">${i + 1}</span>
                 <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}` : "—"}</div>
                 <div class="offer-date">${offerDateHtml(o)}</div>
                 <div class="offer-comment">${escapeHtml(o.comment || "")}</div>
             </div>`,
-              )
-              .join("")
-        : `<div class="card-block-text offer-muted">Логіст ще не дав варіантів ціни</div>`;
+        )
+        .join("");
+}
 
-    const notesHtml = r.logist_notes
-        ? `<div class="answer-notes"><div class="answer-notes-label">Нотатки логіста</div><div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(r.logist_notes)}</div></div>`
-        : "";
+// Блок "Відповіді логістів" в картці запиту
+function answerSectionHtml(r) {
+    const answers = getAnswers(r);
+    const mine = currentStaff
+        ? answers.find((a) => String(a.logist_id) === String(currentStaff.id))
+        : null;
+    const canChoose = !isChosen(r) && r.status !== "Відмова";
+
+    const blocksHtml = answers.length
+        ? answers
+              .map((a) => {
+                  const chosen =
+                      isChosen(r) &&
+                      String(r.logistician_id) === String(a.logist_id);
+                  const chooseBtn =
+                      canChoose && a.logist_id && answers.length
+                          ? `<button type="button" class="btn-choose" data-choose="${escapeHtml(a.logist_id)}"><i class='bx bx-check'></i> Обрати</button>`
+                          : "";
+                  return `
+                <div class="answer-block ${chosen ? "answer-chosen" : ""}">
+                    <div class="answer-block-head">
+                        <span class="answer-logist"><i class='bx bx-user'></i> ${escapeHtml(a.logist || "Логіст")}</span>
+                        ${a.at ? `<span class="answer-time">${formatDateTime(a.at)}</span>` : ""}
+                        ${chosen ? `<span class="chosen-badge"><i class='bx bx-check-circle'></i> обрано</span>` : ""}
+                        ${chooseBtn}
+                    </div>
+                    ${(a.offers || []).length ? offerRowsHtml(a.offers) : ""}
+                    ${a.notes ? `<div class="answer-notes"><div class="answer-notes-label">Нотатки</div><div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(a.notes)}</div></div>` : ""}
+                </div>`;
+              })
+              .join("")
+        : `<div class="card-block-text offer-muted">Логісти ще не дали варіантів ціни</div>`;
+
+    const title =
+        answers.length > 1
+            ? `Відповіді логістів (${answers.length})`
+            : "Відповідь логіста";
 
     return `
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
-                <span><i class='bx bx-dollar-circle'></i> Відповідь логіста</span>
+                <span><i class='bx bx-dollar-circle'></i> ${title}</span>
                 <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
-                    <i class='bx ${hasAnswer ? "bx-edit" : "bx-plus"}'></i> ${hasAnswer ? "Змінити відповідь" : "Дати відповідь"}
+                    <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
                 </button>
             </div>
-            ${offersHtml}
-            ${notesHtml}
+            ${blocksHtml}
         </div>`;
+}
+
+// Sales обирає пропозицію логіста → статус "Пошук авто"
+async function chooseAnswer(requestId, logistId) {
+    const r = requestsCache.find((x) => String(x.id) === String(requestId));
+    if (!r) return;
+    const a = getAnswers(r).find(
+        (x) => String(x.logist_id) === String(logistId),
+    );
+    if (!a) return;
+    if (
+        !confirm(
+            `Обрати пропозицію логіста «${a.logist}»?\nСтатус зміниться на «${STATUS_CHOSEN}».`,
+        )
+    )
+        return;
+
+    const { error } = await sbClient
+        .from("requests")
+        .update({
+            status: STATUS_CHOSEN,
+            logistician_id: a.logist_id,
+            logistician: a.logist,
+        })
+        .eq("id", r.id);
+    if (error) {
+        alert("Помилка Supabase: " + error.message);
+        return;
+    }
+    await loadRequests();
+    openRequestCard(r.id);
 }
 
 // Дата авто у картці: одна дата / період / не вказана
@@ -1215,6 +1460,13 @@ function openAnswerModal(id) {
     const r = requestsCache.find((x) => String(x.id) === String(id));
     if (!r) return;
 
+    if (!currentStaff) {
+        alert(
+            "Додайте себе на сторінці «Співробітники» (з поштою, з якою входите), щоб давати відповіді.",
+        );
+        return;
+    }
+
     document.getElementById("answerRequestId").value = r.id;
 
     const route = [r.load_country, r.unload_country]
@@ -1227,7 +1479,12 @@ function openAnswerModal(id) {
         .filter(Boolean)
         .join(" · ");
 
-    const offers = getOffers(r);
+    // Кожен логіст редагує тільки свою відповідь
+    const mine =
+        getAnswers(r).find(
+            (a) => String(a.logist_id) === String(currentStaff.id),
+        ) || {};
+    const offers = mine.offers || [];
     let rowsHtml = "";
     for (let i = 1; i <= OFFERS_COUNT; i++) {
         rowsHtml += offerFormRowHtml(i, offers[i - 1]);
@@ -1236,13 +1493,13 @@ function openAnswerModal(id) {
     document
         .querySelectorAll("#answerOptions .answer-option")
         .forEach(syncOfferDateUI);
-    document.getElementById("ans_notes").value = r.logist_notes || "";
+    document.getElementById("ans_notes").value = mine.notes || "";
 
     // Підказка: що станеться зі статусом після збереження
     const hint = document.getElementById("answerStatusHint");
     hint.innerHTML =
-        r.status === REQUEST_STATUSES[0].value
-            ? `<i class='bx bx-info-circle'></i> Після збереження статус зміниться на «Котирування», і запит стане зеленим.`
+        r.status === STATUS_NEW
+            ? `<i class='bx bx-info-circle'></i> Після збереження статус зміниться на «${STATUS_QUOTE}», і запит стане зеленим.`
             : "";
 
     answerModalOverlay.classList.add("active");
@@ -1297,17 +1554,51 @@ answerForm.addEventListener("submit", async (e) => {
 
     const logistNotes = document.getElementById("ans_notes").value.trim();
 
+    // Моя відповідь замінює тільки мою, відповіді інших логістів лишаються
+    const others = getAnswers(r).filter(
+        (a) => String(a.logist_id) !== String(currentStaff.id),
+    );
+    const answers =
+        offers.length || logistNotes
+            ? [
+                  ...others,
+                  {
+                      logist_id: currentStaff.id,
+                      logist: currentStaff.full_name,
+                      offers,
+                      notes: logistNotes || null,
+                      at: new Date().toISOString(),
+                  },
+              ]
+            : others;
+
     const payload = {
-        offers,
-        logist_notes: logistNotes || null,
+        answers,
+        // Загальний список усіх варіантів — для пошуку і старих екранів
+        offers: answers.flatMap((a) =>
+            (a.offers || []).map((o) => ({ ...o, logist: a.logist })),
+        ),
+        logist_notes:
+            answers
+                .filter((a) => a.notes)
+                .map((a) =>
+                    answers.length > 1 ? `${a.logist}: ${a.notes}` : a.notes,
+                )
+                .join("\n") || null,
     };
 
-    // Перша відповідь на новий запит — статус "Котирування"
-    if (
-        r.status === REQUEST_STATUSES[0].value &&
-        (offers.length || logistNotes)
-    ) {
-        payload.status = "Котирування";
+    // Перша відповідь на новий запит — статус "Прорахунок"
+    if (r.status === STATUS_NEW && answers.length) {
+        payload.status = STATUS_QUOTE;
+    }
+
+    // Логіста ще не було в запиті — додаємо
+    if (!logistIdsOf(r).includes(String(currentStaff.id))) {
+        payload.logistician_ids = [...logistIdsOf(r), currentStaff.id];
+        if (!r.logistician_id) {
+            payload.logistician_id = currentStaff.id;
+            payload.logistician = currentStaff.full_name;
+        }
     }
 
     const { error } = await sbClient

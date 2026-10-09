@@ -94,6 +94,13 @@
                             <th>
                                 <span
                                     class="th-label sortable"
+                                    data-sort="request_type"
+                                    >ТИП <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
                                     data-sort="load_country"
                                     >ЗВІДКИ <i class="bx sort-icon"></i
                                 ></span>
@@ -183,6 +190,13 @@
                                 id="req_client"
                                 required
                                 placeholder="наприклад: ТОВ МЕД ОК" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Тип запиту *</label>
+                            <div class="type-picker" id="req_type_picker">
+                                <!-- Варіанти генеруються через JS -->
+                            </div>
                         </div>
 
                         <div class="form-group span-2">
@@ -316,18 +330,31 @@
                             </select>
                         </div>
 
-                        <div class="form-group">
+                        <div class="form-group span-2">
                             <label>Sales</label>
                             <select id="req_sales">
                                 <!-- Список співробітників генерується через JS -->
                             </select>
                         </div>
 
-                        <div class="form-group">
-                            <label>Logistician</label>
-                            <select id="req_logistician">
-                                <!-- Список співробітників генерується через JS -->
-                            </select>
+                        <div class="form-group span-2">
+                            <div class="date-label-row">
+                                <label
+                                    >Логісти
+                                    <span class="logist-hint"
+                                        >— кому надіслати (можна кілька)</span
+                                    ></label
+                                >
+                                <label class="date-range-toggle">
+                                    <input
+                                        type="checkbox"
+                                        id="req_logist_all" />
+                                    всім
+                                </label>
+                            </div>
+                            <div class="logist-picker" id="req_logisticians">
+                                <!-- Галочки з логістами генеруються через JS -->
+                            </div>
                         </div>
 
                         <div class="form-group span-2">

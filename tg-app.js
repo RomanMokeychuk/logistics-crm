@@ -66,6 +66,12 @@ const BORDER_CROSSINGS = [
 
 const CURRENCIES = ["EUR", "USD", "UAH"];
 
+const REQUEST_TYPES = [
+    { value: "Прорахунок", icon: "🧮" },
+    { value: "Пошук авто", icon: "🔎" },
+    { value: "Завантаження", icon: "📦" },
+];
+
 function escapeHtml(str) {
     if (str === null || str === undefined) return "";
     return String(str)

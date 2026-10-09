@@ -631,3 +631,199 @@
         grid-column: span 1;
     }
 }
+
+/* ===================== Кілька логістів ===================== */
+
+.logist-hint {
+    font-weight: 500;
+    color: #94a3b8;
+}
+
+.logist-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.form-group .logist-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+}
+
+.form-group .logist-chip input {
+    width: 15px;
+    height: 15px;
+    padding: 0;
+    accent-color: #2563eb;
+    cursor: pointer;
+}
+
+.form-group .logist-chip:has(input:checked) {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.logist-empty {
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+/* Відповідь кожного логіста в картці */
+.answer-block {
+    border-top: 1px solid #e2e8f0;
+}
+
+.answer-block:first-of-type {
+    border-top: none;
+}
+
+.answer-block-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 18px 0;
+}
+
+.answer-logist {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.answer-time {
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.chosen-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: #dcfce7;
+    color: #15803d;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.answer-chosen {
+    background: #f0fdf4;
+}
+
+.btn-choose {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 5px 12px;
+    border: 1px solid #10b981;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #15803d;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-choose:hover {
+    background: #10b981;
+    color: #ffffff;
+}
+
+/* ===================== Тип запиту ===================== */
+
+.type-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 999px;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.type-calc {
+    background: #fff7ed;
+    color: #c2410c;
+    border-color: #fed7aa;
+}
+
+.type-search {
+    background: #ecfeff;
+    color: #0e7490;
+    border-color: #a5f3fc;
+}
+
+.type-load {
+    background: #eef2ff;
+    color: #4338ca;
+    border-color: #c7d2fe;
+}
+
+.card-type {
+    margin-top: 6px;
+}
+
+/* Три кнопки у формі */
+.type-picker {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.form-group .type-option {
+    flex: 1;
+    min-width: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 2px solid #e2e8f0;
+    background: #ffffff;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.type-option input {
+    display: none;
+}
+
+.form-group .type-option:has(input:checked) {
+    border-color: currentColor;
+}
+
+.form-group .type-option.type-calc:has(input:checked) {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.form-group .type-option.type-search:has(input:checked) {
+    background: #ecfeff;
+    color: #0e7490;
+}
+
+.form-group .type-option.type-load:has(input:checked) {
+    background: #eef2ff;
+    color: #4338ca;
+}
