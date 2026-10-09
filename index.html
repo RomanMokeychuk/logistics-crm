@@ -3,7 +3,15 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Logistics CRM — База перевозчиков</title>
+        <title>FURA</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
         <link rel="stylesheet" href="style.css" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
@@ -12,13 +20,20 @@
     <body>
         <aside class="sidebar">
             <div class="logo">
-                <i class="bx bx-truck"></i>
-                <span>LogiCRM</span>
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
             </div>
             <nav class="menu">
                 <a href="#" class="active"
                     ><i class="bx bx-group"></i> Перевізники</a
                 >
+
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a
                     href="#"
                     onclick="
@@ -194,7 +209,7 @@
                                         class="th-label"
                                         style="cursor: pointer"
                                         onclick="toggleSort('additional')"
-                                        >ПАРАМЕТРИ / ДОП.</span
+                                        >ПАРАМЕТРИ</span
                                     >
                                     <i
                                         class="bx bx-filter-alt filter-icon"
@@ -480,17 +495,9 @@
                                 placeholder="Мазовецьке" />
                         </div> -->
 
-                        <div class="form-group">
+                        <div class="form-group" style="grid-column: span 2">
                             <label>Місто / Адреса</label>
                             <input type="text" id="city" placeholder="Луцьк" />
-                        </div>
-
-                        <div class="form-group">
-                            <label>ПІБ Контакту 1</label>
-                            <input
-                                type="text"
-                                id="contact_person_1"
-                                placeholder="Катерина" />
                         </div>
 
                         <div class="form-group">
@@ -502,11 +509,11 @@
                         </div>
 
                         <div class="form-group">
-                            <label>ПІБ Контакту 2</label>
+                            <label>ПІБ Контакту 1</label>
                             <input
                                 type="text"
-                                id="contact_person_2"
-                                placeholder="Любов" />
+                                id="contact_person_1"
+                                placeholder="Катерина" />
                         </div>
 
                         <div class="form-group">
@@ -515,6 +522,14 @@
                                 type="text"
                                 id="phone_2"
                                 placeholder="380000000000" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>ПІБ Контакту 2</label>
+                            <input
+                                type="text"
+                                id="contact_person_2"
+                                placeholder="Любов" />
                         </div>
 
                         <div class="form-group" style="grid-column: span 2">

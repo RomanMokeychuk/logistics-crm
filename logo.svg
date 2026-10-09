@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Logo</title>
+  <!-- Фон: синій квадрат із заокругленням, колір як у CRM -->
+  <rect width="64" height="64" rx="14" fill="#2563eb"/>
+  <!-- Лінії швидкості -->
+  <path d="M5 22h6M3 29h8M6 36h5" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <!-- Причіп -->
+  <rect x="14" y="16" width="27" height="22" rx="3" fill="#ffffff"/>
+  <!-- Кабіна -->
+  <path d="M43 22h7.6a2 2 0 0 1 1.6 .8l5.3 7a2 2 0 0 1 .5 1.3V36a2 2 0 0 1-2 2H43z" fill="#ffffff"/>
+  <!-- Вікно кабіни -->
+  <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#2563eb"/>
+  <!-- Колеса -->
+  <circle cx="21" cy="41" r="4.6" fill="#2563eb" stroke="#ffffff" stroke-width="3"/>
+  <circle cx="34" cy="41" r="4.6" fill="#2563eb" stroke="#ffffff" stroke-width="3"/>
+  <circle cx="50" cy="41" r="4.6" fill="#2563eb" stroke="#ffffff" stroke-width="3"/>
+  <!-- Дорога -->
+  <path d="M12 52h40" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+</svg>

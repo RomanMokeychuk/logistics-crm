@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Запити</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="requests.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <div class="logo">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </div>
+            <nav class="menu">
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="requests.html" class="active"
+                    ><i class="bx bx-list-ul"></i> Запити</a
+                >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Запити</h1>
+                <button class="btn btn-primary" id="openRequestModalBtn">
+                    <i class="bx bx-plus"></i> Додати запит
+                </button>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <div class="filters-bar">
+                <input
+                    type="text"
+                    id="requestsSearch"
+                    class="search-input"
+                    placeholder="🔍 Пошук" />
+            </div>
+
+            <section class="table-card" id="tableScrollArea">
+                <table class="requests-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center">№</th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="client"
+                                    >КЛІЄНТ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="load_country"
+                                    >ЗВІДКИ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="unload_country"
+                                    >КУДИ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="status"
+                                    >СТАТУС <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="desired_date"
+                                    >БАЖАНА ДАТА <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="sales"
+                                    >SALES <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="logistician"
+                                    >LOGISTICIAN <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="created_at"
+                                    >ДАТА СТВОРЕННЯ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>ДІЇ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestsTableBody">
+                        <!-- Дані завантажуються через JS -->
+                    </tbody>
+                </table>
+            </section>
+
+            <div id="requestsCountBar" class="carriers-count-bar"></div>
+
+            <button
+                type="button"
+                id="scrollTopBtn"
+                class="scroll-top-btn"
+                title="Повернутись наверх">
+                <i class="bx bx-chevron-up"></i>
+            </button>
+        </main>
+
+        <!-- Модальне вікно додавання/редагування запиту -->
+        <div class="modal-overlay" id="requestModalOverlay">
+            <div class="modal" style="max-width: 760px">
+                <div class="modal-header">
+                    <h2 id="requestModalTitle">Додати запит</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="closeRequestModalBtn">
+                        &times;
+                    </button>
+                </div>
+                <form id="requestForm">
+                    <input type="hidden" id="requestId" value="" />
+                    <div class="modal-body request-form-grid">
+                        <!-- Клієнт і вантаж -->
+                        <div class="form-group span-2">
+                            <label>Клієнт *</label>
+                            <input
+                                type="text"
+                                id="req_client"
+                                required
+                                placeholder="наприклад: ТОВ МЕД ОК" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Вантаж</label>
+                            <input
+                                type="text"
+                                id="req_cargo"
+                                placeholder="наприклад: медичне обладнання на палетах, 33 пал." />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Тип транспорту</label>
+                            <input
+                                type="text"
+                                id="req_transport_type"
+                                list="transportTypesList"
+                                placeholder="Оберіть або введіть..." />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Вага</label>
+                            <input
+                                type="text"
+                                id="req_weight"
+                                placeholder="наприклад: 20 т" />
+                        </div>
+
+                        <!-- Відвантаження -->
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-upload"></i> Відвантаження
+                        </div>
+
+                        <div class="form-group">
+                            <label>Країна відвантаження</label>
+                            <select id="req_load_country">
+                                <!-- Варіанти генеруються через JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Місто / адреса завантаження</label>
+                            <input
+                                type="text"
+                                id="req_load_address"
+                                placeholder="наприклад: Луцьк, вул. Рівненська 76" />
+                        </div>
+
+                        <!-- Розвантаження -->
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-download"></i> Розвантаження
+                        </div>
+
+                        <div class="form-group">
+                            <label>Країна розвантаження</label>
+                            <select id="req_unload_country">
+                                <!-- Варіанти генеруються через JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Місто / адреса розвантаження</label>
+                            <input
+                                type="text"
+                                id="req_unload_address"
+                                placeholder="наприклад: Варшава, ul. Przemysłowa 12" />
+                        </div>
+
+                        <!-- Митниця та кордон -->
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-shield-quarter"></i> Митниця та
+                            кордон
+                        </div>
+
+                        <div class="span-2 customs-row">
+                            <div class="form-group">
+                                <label>Замитнення</label>
+                                <input
+                                    type="text"
+                                    id="req_customs_export"
+                                    placeholder="де / митниця" />
+                            </div>
+
+                            <div class="form-group">
+                                <label>Погран перехід</label>
+                                <input
+                                    type="text"
+                                    id="req_border_crossing"
+                                    list="borderCrossingsList"
+                                    placeholder="Оберіть або введіть..." />
+                            </div>
+
+                            <div class="form-group">
+                                <label>Розмитнення</label>
+                                <input
+                                    type="text"
+                                    id="req_customs_import"
+                                    placeholder="де / митниця" />
+                            </div>
+                        </div>
+
+                        <!-- Дата, статус, відповідальні -->
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-calendar"></i> Дата та відповідальні
+                        </div>
+
+                        <div class="form-group">
+                            <div class="date-label-row">
+                                <label for="req_desired_date"
+                                    >Бажана дата</label
+                                >
+                                <label class="date-range-toggle">
+                                    <input
+                                        type="checkbox"
+                                        id="req_date_range" />
+                                    період
+                                </label>
+                            </div>
+                            <div class="date-inputs">
+                                <input type="date" id="req_desired_date" />
+                                <span class="date-dash" id="dateRangeDash"
+                                    >—</span
+                                >
+                                <input type="date" id="req_desired_date_to" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Статус</label>
+                            <select id="req_status">
+                                <!-- Варіанти генеруються через JS -->
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Sales</label>
+                            <input
+                                type="text"
+                                id="req_sales"
+                                placeholder="Роман Мокейчук" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Logistician</label>
+                            <input
+                                type="text"
+                                id="req_logistician"
+                                placeholder="Роман Мокейчук" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Нотатки</label>
+                            <textarea
+                                id="req_notes"
+                                rows="3"
+                                placeholder="Додаткова інформація по запиту..."></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Підказки для полів (можна обрати або ввести своє) -->
+                    <datalist id="transportTypesList"></datalist>
+                    <datalist id="borderCrossingsList"></datalist>
+
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="cancelRequestBtn">
+                            Відміна
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Зберегти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Випадаюче вікно фільтра по колонці (стилі — зі style.css) -->
+        <div
+            class="column-filter-dropdown"
+            id="columnFilterDropdown"
+            style="display: none"
+            onclick="event.stopPropagation()">
+            <div class="column-filter-header-info">
+                <a id="selectAllLink">Вибрати всі (0)</a>
+                <a id="clearAllLink">Очистити</a>
+            </div>
+            <div class="column-filter-search-box">
+                <i class="bx bx-search search-icon-inside"></i>
+                <input
+                    type="text"
+                    id="columnFilterSearch"
+                    class="column-filter-search"
+                    placeholder="Пошук..." />
+            </div>
+            <div class="column-filter-options" id="columnFilterOptions"></div>
+            <div class="filter-count-text" id="filterShownCount"></div>
+            <div class="column-filter-footer" style="margin-top: 8px">
+                <button
+                    type="button"
+                    class="btn-cancel-custom"
+                    id="cancelColumnFilterBtn">
+                    Скасувати
+                </button>
+                <button
+                    type="button"
+                    class="btn-ok-custom"
+                    id="applyColumnFilterBtn">
+                    Застосувати
+                </button>
+            </div>
+        </div>
+
+        <!-- Картка запиту (відкривається кліком по рядку в таблиці) -->
+        <div class="modal-overlay" id="requestCardOverlay">
+            <div class="modal carrier-card-modal">
+                <div class="carrier-card-topbar">
+                    <h2>Інформація про запит</h2>
+                    <div class="carrier-card-actions">
+                        <button
+                            type="button"
+                            class="btn-card-edit"
+                            id="editFromRequestCardBtn">
+                            <i class="bx bx-edit"></i> Редагувати
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeRequestCardBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <div id="requestCardBody"></div>
+            </div>
+        </div>
+
+        <!-- Відповідь логіста: 3 варіанти ціни + нотатки -->
+        <div class="modal-overlay" id="answerModalOverlay">
+            <div class="modal" style="max-width: 760px">
+                <div class="modal-header">
+                    <div>
+                        <h2>Відповідь логіста</h2>
+                        <div
+                            class="answer-modal-subtitle"
+                            id="answerModalSubtitle"></div>
+                    </div>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="closeAnswerModalBtn">
+                        &times;
+                    </button>
+                </div>
+                <form id="answerForm">
+                    <input type="hidden" id="answerRequestId" value="" />
+
+                    <!-- Варіанти ціни генеруються через JS -->
+                    <div class="answer-options" id="answerOptions"></div>
+
+                    <div class="form-group" style="margin-top: 14px">
+                        <label>Нотатки логіста</label>
+                        <textarea
+                            id="ans_notes"
+                            rows="4"
+                            style="resize: vertical; font-family: inherit"
+                            placeholder="наприклад: ціна дійсна до п'ятниці, можна дешевше якщо гнучка дата..."></textarea>
+                    </div>
+
+                    <div class="answer-status-hint" id="answerStatusHint"></div>
+
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="cancelAnswerBtn">
+                            Відміна
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bx bx-check"></i> Зберегти відповідь
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="about:blank"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="requests.js"></script>
+    </body>
+</html>

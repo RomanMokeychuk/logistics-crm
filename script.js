@@ -151,6 +151,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
+    // Користувач залогінений — показуємо сторінку
+    document.body.style.visibility = "visible";
+
+    // Якщо сесія закінчилась або вийшли в іншій вкладці — на вхід
+    sbClient.auth.onAuthStateChange((event) => {
+        if (event === "SIGNED_OUT") window.location.href = "login.html";
+    });
+
     loadCarriers();
     setupScrollTopButton();
     renderDirectionSelects();
@@ -655,31 +663,35 @@ async function loadCarriers() {
             openCarrierCard(item.id);
         });
 
-        // 1. Напрямки (закордон)
+        // 1. Напрямки (закордон): країна, а під нею — Квадрат / Воєводство
         let destBadges = "—";
         if (item.destinations) {
             destBadges = item.destinations
                 .split(";")
                 .map((pair) => {
                     const dashIndex = pair.indexOf("-");
-                    const country =
+                    const country = escapeHtml(
                         dashIndex !== -1
                             ? pair.substring(0, dashIndex).trim()
-                            : pair.trim();
-                    const region =
+                            : pair.trim(),
+                    );
+                    const region = escapeHtml(
                         dashIndex !== -1
                             ? pair.substring(dashIndex + 1).trim()
-                            : "";
+                            : "",
+                    );
 
                     if (country && region) {
                         return `
-                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <div class="dest-item">
                           <span class="badge-country">${country}</span>
-                          <span style="font-size: 13px; color: #475569; font-weight: 500;">— ${region}</span>
+                          <div class="dest-region">
+                            <span class="dest-region-label"></span> ${region}
+                          </div>
                         </div>`;
                     } else if (country) {
                         return `
-                        <div style="margin-bottom: 4px;">
+                        <div class="dest-item">
                           <span class="badge-country">${country}</span>
                         </div>`;
                     }
