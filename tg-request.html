@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+        <title>FURA — Новий запит</title>
+        <link rel="stylesheet" href="tg-app.css" />
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    </head>
+    <body>
+        <div id="app">
+            <div class="screen">
+                <div class="icon">⏳</div>
+                <p>Завантаження…</p>
+            </div>
+        </div>
+
+        <script src="tg-app.js"></script>
+        <script>
+            /* ============ Форма нового запиту (для Sales) ============ */
+
+            function renderForm(boot) {
+                const logistOptions =
+                    `<option value="">— не вибрано —</option>` +
+                    boot.logists
+                        .map(
+                            (s) =>
+                                `<option value="${escapeHtml(s.id)}">${escapeHtml(s.full_name)}</option>`,
+                        )
+                        .join("");
+
+                document.getElementById("app").innerHTML = `
+                    <div class="app-header">
+                        <img src="logo.svg" alt="" />
+                        <div>
+                            <h1>Новий запит</h1>
+                            <div class="sub">Sales: ${escapeHtml(boot.me.full_name)}</div>
+                        </div>
+                    </div>
+
+                    <div class="error-text" id="formError" hidden></div>
+
+                    <div class="section">
+                        <div class="section-title">Клієнт і вантаж</div>
+                        <div class="field">
+                            <label>Клієнт *</label>
+                            <input id="f_client" type="text" placeholder="наприклад: ТОВ МЕД ОК" />
+                        </div>
+                        <div class="field">
+                            <label>Вантаж</label>
+                            <input id="f_cargo" type="text" placeholder="наприклад: обладнання, 33 пал." />
+                        </div>
+                        <div class="row">
+                            <div class="field">
+                                <label>Тип транспорту</label>
+                                <input id="f_transport" type="text" list="transportList" placeholder="ТЕНТ" />
+                            </div>
+                            <div class="field">
+                                <label>Вага</label>
+                                <input id="f_weight" type="text" placeholder="20 т" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="section-title">Маршрут</div>
+                        <div class="row">
+                            <div class="field">
+                                <label>Звідки</label>
+                                <select id="f_load_country">${optionsHtml(COUNTRIES, "", "Країна…")}</select>
+                            </div>
+                            <div class="field">
+                                <label>Місто / адреса</label>
+                                <input id="f_load_address" type="text" placeholder="Луцьк" />
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="field">
+                                <label>Куди</label>
+                                <select id="f_unload_country">${optionsHtml(COUNTRIES, "", "Країна…")}</select>
+                            </div>
+                            <div class="field">
+                                <label>Місто / адреса</label>
+                                <input id="f_unload_address" type="text" placeholder="Варшава" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <details class="section">
+                        <summary><span class="section-title">Митниця та кордон</span></summary>
+                        <div class="field">
+                            <label>Замитнення</label>
+                            <input id="f_customs_export" type="text" placeholder="де / митниця" />
+                        </div>
+                        <div class="field">
+                            <label>Погран перехід</label>
+                            <input id="f_border" type="text" list="borderList" placeholder="Ягодин – Дорогуськ (PL)" />
+                        </div>
+                        <div class="field">
+                            <label>Розмитнення</label>
+                            <input id="f_customs_import" type="text" placeholder="де / митниця" />
+                        </div>
+                    </details>
+
+                    <div class="section">
+                        <div class="section-title">Дата і логіст</div>
+                        ${periodFieldHtml("Бажана дата")}
+                        <div class="field">
+                            <label>Логіст</label>
+                            <select id="f_logist">${logistOptions}</select>
+                        </div>
+                        <div class="field">
+                            <label>Нотатки</label>
+                            <textarea id="f_notes" rows="3" placeholder="Додаткова інформація…"></textarea>
+                        </div>
+                    </div>
+
+                    <datalist id="transportList">${TRANSPORT_TYPES.map((t) => `<option value="${escapeHtml(t)}"></option>`).join("")}</datalist>
+                    <datalist id="borderList">${BORDER_CROSSINGS.map((b) => `<option value="${escapeHtml(b)}"></option>`).join("")}</datalist>
+                `;
+
+                setupPeriod(document.querySelector(".js-period-root"));
+                setupMainButton("Надіслати запит", submit);
+            }
+
+            async function submit() {
+                const val = (id) => document.getElementById(id).value.trim();
+                const period = readPeriod(
+                    document.querySelector(".js-period-root"),
+                );
+
+                if (!val("f_client")) {
+                    showError("Вкажіть клієнта.");
+                    document.getElementById("f_client").focus();
+                    return;
+                }
+                if (period.to && period.from && period.to < period.from) {
+                    showError("Кінцева дата не може бути раніше за початкову.");
+                    return;
+                }
+
+                try {
+                    await furaApi("create_request", {
+                        fields: {
+                            client: val("f_client"),
+                            cargo: val("f_cargo"),
+                            transport_type: val("f_transport"),
+                            weight: val("f_weight"),
+                            load_country: val("f_load_country"),
+                            load_address: val("f_load_address"),
+                            unload_country: val("f_unload_country"),
+                            unload_address: val("f_unload_address"),
+                            customs_export: val("f_customs_export"),
+                            border_crossing: val("f_border"),
+                            customs_import: val("f_customs_import"),
+                            desired_date: period.from,
+                            desired_date_to: period.to,
+                            logistician_id: val("f_logist"),
+                            notes: val("f_notes"),
+                        },
+                    });
+                    successAndClose(
+                        "Запит створено",
+                        "Логіст отримає його в Telegram.",
+                    );
+                } catch (e) {
+                    showError(e.message);
+                }
+            }
+
+            (async () => {
+                if (!initTelegram()) return;
+                try {
+                    renderForm(await furaApi("bootstrap"));
+                } catch (e) {
+                    showScreen("⚠️", "Не вдалося відкрити форму", e.message);
+                }
+            })();
+        </script>
+    </body>
+</html>

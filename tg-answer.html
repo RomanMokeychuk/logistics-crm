@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+        <title>FURA — Відповідь на запит</title>
+        <link rel="stylesheet" href="tg-app.css" />
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    </head>
+    <body>
+        <div id="app">
+            <div class="screen">
+                <div class="icon">⏳</div>
+                <p>Завантаження…</p>
+            </div>
+        </div>
+
+        <script src="tg-app.js"></script>
+        <script>
+            /* ============ Форма відповіді логіста ============ */
+
+            const OFFERS_COUNT = 3;
+            const requestId =
+                new URLSearchParams(location.search).get("id") || "";
+
+            function summaryLine(label, value) {
+                return value
+                    ? `<div class="summary-line"><b>${label}:</b> ${escapeHtml(value)}</div>`
+                    : "";
+            }
+
+            function place(country, address) {
+                return [country, address].filter(Boolean).join(", ") || "—";
+            }
+
+            function offerHtml(i, o = {}) {
+                return `
+                    <div class="offer js-offer">
+                        <div class="offer-title">Варіант ${i}</div>
+                        <div class="field">
+                            <label>Ціна</label>
+                            <div class="price">
+                                <input type="text" inputmode="decimal" class="js-price" value="${escapeHtml(o.price || "")}" placeholder="1200" />
+                                <select class="js-currency">${optionsHtml(CURRENCIES, o.currency || "EUR")}</select>
+                            </div>
+                        </div>
+                        ${periodFieldHtml("Коли буде авто", o.date || "", o.date_to || "")}
+                        <div class="field">
+                            <label>Коментар</label>
+                            <input type="text" class="js-comment" value="${escapeHtml(o.comment || "")}" placeholder="ТЕНТ 92 м³, ЕКМТ" />
+                        </div>
+                    </div>`;
+            }
+
+            function renderForm(r) {
+                const offers = Array.isArray(r.offers) ? r.offers : [];
+                const cargo = [r.cargo, r.transport_type, r.weight]
+                    .filter(Boolean)
+                    .join(" · ");
+                const customs = [
+                    r.customs_export && `замитнення: ${r.customs_export}`,
+                    r.border_crossing && `кордон: ${r.border_crossing}`,
+                    r.customs_import && `розмитнення: ${r.customs_import}`,
+                ]
+                    .filter(Boolean)
+                    .join(" · ");
+
+                let offersHtml = "";
+                for (let i = 1; i <= OFFERS_COUNT; i++)
+                    offersHtml += offerHtml(i, offers[i - 1]);
+
+                document.getElementById("app").innerHTML = `
+                    <div class="app-header">
+                        <img src="logo.svg" alt="" />
+                        <div>
+                            <h1>Відповідь на запит</h1>
+                            <div class="sub">${escapeHtml(r.load_country || "—")} → ${escapeHtml(r.unload_country || "—")}</div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <div class="client-name">${escapeHtml(r.client)}</div>
+                        ${summaryLine("Звідки", place(r.load_country, r.load_address))}
+                        ${summaryLine("Куди", place(r.unload_country, r.unload_address))}
+                        ${summaryLine("Вантаж", cargo)}
+                        ${summaryLine("Бажана дата", fmtPeriod(r.desired_date, r.desired_date_to))}
+                        ${summaryLine("Митниця", customs)}
+                        ${summaryLine("Sales", r.sales)}
+                        ${summaryLine("Нотатки", r.notes)}
+                        ${offers.length || r.logist_notes ? `<div class="warn">⚠️ На запит уже є відповідь — нова її замінить.</div>` : ""}
+                    </div>
+
+                    <div class="error-text" id="formError" hidden></div>
+
+                    <div class="section">
+                        <div class="section-title">Варіанти ціни</div>
+                        ${offersHtml}
+                    </div>
+
+                    <div class="section">
+                        <div class="field">
+                            <label>Нотатки для Sales</label>
+                            <textarea id="f_notes" rows="3" placeholder="наприклад: ціна дійсна до п'ятниці">${escapeHtml(r.logist_notes || "")}</textarea>
+                        </div>
+                    </div>
+                `;
+
+                document
+                    .querySelectorAll(".js-period-root")
+                    .forEach(setupPeriod);
+                setupMainButton("Надіслати відповідь", submit);
+            }
+
+            async function submit() {
+                const offers = [];
+                let dateError = "";
+
+                document.querySelectorAll(".js-offer").forEach((row, idx) => {
+                    const period = readPeriod(row);
+                    const price = row.querySelector(".js-price").value.trim();
+                    const comment = row
+                        .querySelector(".js-comment")
+                        .value.trim();
+
+                    if (period.to && period.from && period.to < period.from) {
+                        dateError = `Варіант ${idx + 1}: кінцева дата раніше за початкову.`;
+                    }
+                    if (price || period.from || comment) {
+                        offers.push({
+                            price,
+                            currency: row.querySelector(".js-currency").value,
+                            date: period.from,
+                            date_to: period.to,
+                            comment,
+                        });
+                    }
+                });
+
+                const notes = document.getElementById("f_notes").value.trim();
+
+                if (dateError) return showError(dateError);
+                if (!offers.length && !notes) {
+                    return showError("Вкажіть хоча б одну ціну або нотатку.");
+                }
+
+                try {
+                    await furaApi("save_answer", {
+                        id: requestId,
+                        offers,
+                        notes,
+                    });
+                    successAndClose(
+                        "Відповідь надіслано",
+                        "Sales отримає її в Telegram.",
+                    );
+                } catch (e) {
+                    showError(e.message);
+                }
+            }
+
+            (async () => {
+                if (!initTelegram()) return;
+                if (!requestId) {
+                    showScreen("⚠️", "Запит не вказано");
+                    return;
+                }
+                try {
+                    const data = await furaApi("get_request", {
+                        id: requestId,
+                    });
+                    if (!data.can_answer) {
+                        showScreen("⛔", "Цей запит призначено іншому логісту");
+                        return;
+                    }
+                    renderForm(data.request);
+                } catch (e) {
+                    showScreen("⚠️", "Не вдалося відкрити запит", e.message);
+                }
+            })();
+        </script>
+    </body>
+</html>

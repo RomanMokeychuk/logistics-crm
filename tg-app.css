@@ -1,0 +1,307 @@
+/* ===================== FURA — форми в Telegram ===================== */
+/* Кольори беруться з теми Telegram (світла / темна), запасні — з CRM */
+
+:root {
+    --bg: var(--tg-theme-secondary-bg-color, #f1f5f9);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --text: var(--tg-theme-text-color, #0f172a);
+    --hint: var(--tg-theme-hint-color, #64748b);
+    --accent: var(--tg-theme-button-color, #2563eb);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --field: var(--tg-theme-bg-color, #ffffff);
+    --border: color-mix(in srgb, var(--hint) 35%, transparent);
+    --danger: var(--tg-theme-destructive-text-color, #ef4444);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+        sans-serif;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 12px 12px 24px;
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 4px 4px 14px;
+}
+
+.app-header img {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+}
+
+.app-header h1 {
+    font-size: 19px;
+    font-weight: 700;
+}
+
+.app-header .sub {
+    font-size: 13px;
+    color: var(--hint);
+}
+
+/* Блоки форми */
+.section {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+    margin-bottom: 10px;
+}
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 10px;
+    min-width: 0;
+}
+
+.field:last-child {
+    margin-bottom: 0;
+}
+
+.field > label,
+.label-row > label:first-child {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--hint);
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.row .field {
+    margin-bottom: 10px;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    min-width: 0;
+    padding: 10px 12px;
+    font-size: 16px; /* щоб iPhone не збільшував сторінку */
+    color: var(--text);
+    background: var(--field);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+select {
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--hint) 50%),
+        linear-gradient(135deg, var(--hint) 50%, transparent 50%);
+    background-position:
+        calc(100% - 18px) 55%,
+        calc(100% - 13px) 55%;
+    background-size: 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 32px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 70px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--accent);
+}
+
+/* Підпис + галочка "період" в одному рядку */
+.label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+.toggle input {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    accent-color: var(--accent);
+    -webkit-appearance: auto;
+    appearance: auto;
+}
+
+.dates {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dates input {
+    flex: 1;
+}
+
+.dates .dash {
+    color: var(--hint);
+}
+
+[hidden] {
+    display: none !important;
+}
+
+/* Ціна + валюта */
+.price {
+    display: flex;
+    gap: 6px;
+}
+
+.price input {
+    flex: 1;
+}
+
+.price select {
+    width: 92px;
+    flex-shrink: 0;
+}
+
+/* Варіант ціни */
+.offer {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+}
+
+.offer:last-child {
+    margin-bottom: 0;
+}
+
+.offer-title {
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+/* Розгортання "Митниця" */
+details summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+details summary::-webkit-details-marker {
+    display: none;
+}
+
+details summary::after {
+    content: "＋";
+    color: var(--accent);
+    font-weight: 700;
+}
+
+details[open] summary::after {
+    content: "－";
+}
+
+details[open] summary {
+    margin-bottom: 10px;
+}
+
+details summary .section-title {
+    margin-bottom: 0;
+}
+
+/* Картка запиту у формі відповіді */
+.summary-line {
+    margin-bottom: 6px;
+}
+
+.summary-line b {
+    color: var(--hint);
+    font-weight: 600;
+}
+
+.client-name {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.warn {
+    font-size: 13px;
+    color: var(--hint);
+    margin-top: 8px;
+}
+
+/* Екрани: завантаження / помилка / готово */
+.screen {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.screen .icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.screen h2 {
+    font-size: 18px;
+    margin-bottom: 6px;
+}
+
+.screen p {
+    color: var(--hint);
+}
+
+.error-text {
+    color: var(--danger);
+    font-size: 14px;
+    margin: 0 4px 12px;
+}
+
+/* Запасна кнопка (якщо форму відкрито не в Telegram) */
+.fallback-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
