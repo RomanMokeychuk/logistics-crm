@@ -251,6 +251,80 @@ function timerHtml(r, state) {
 }
 
 /* ================================================================= *
+ * 4.2 СПІВРОБІТНИКИ: вибір Sales / Logistician зі списку             *
+ * ================================================================= */
+
+let staffCache = [];
+let currentStaff = null; // співробітник, який зараз увійшов (за поштою)
+const LEGACY_OPTION = "__legacy__"; // старі запити, де ім'я вписане вручну
+
+async function loadStaff(session) {
+    const { data, error } = await sbClient
+        .from("staff")
+        .select("*")
+        .order("full_name", { ascending: true });
+
+    if (error) {
+        console.error("Помилка завантаження співробітників:", error);
+        staffCache = [];
+        return;
+    }
+    staffCache = data || [];
+
+    const myEmail = (session?.user?.email || "").toLowerCase();
+    currentStaff =
+        staffCache.find((s) => (s.email || "").toLowerCase() === myEmail) ||
+        null;
+}
+
+function staffById(id) {
+    return staffCache.find((s) => String(s.id) === String(id)) || null;
+}
+
+// Наповнює <select> людьми потрібних ролей. Неактивних показуємо тільки
+// якщо вони вже вибрані в цьому запиті. Старе ім'я без id — окремим пунктом.
+function fillStaffSelect(selectId, roles, selectedId, legacyName) {
+    const select = document.getElementById(selectId);
+    const list = staffCache.filter(
+        (s) =>
+            roles.includes(s.role) &&
+            (s.active || String(s.id) === String(selectedId)),
+    );
+
+    let html = `<option value="">— не вибрано —</option>`;
+    html += list
+        .map(
+            (s) =>
+                `<option value="${s.id}" ${String(s.id) === String(selectedId) ? "selected" : ""}>${escapeHtml(s.full_name)}${s.active ? "" : " (неактивний)"}</option>`,
+        )
+        .join("");
+
+    if (!selectedId && legacyName) {
+        html += `<option value="${LEGACY_OPTION}" data-name="${escapeHtml(legacyName)}" selected>${escapeHtml(legacyName)}</option>`;
+    }
+
+    if (!list.length && !legacyName) {
+        html += `<option value="" disabled>Додайте людей на сторінці «Співробітники»</option>`;
+    }
+
+    select.innerHTML = html;
+}
+
+// Повертає { id, name } вибраного співробітника для збереження
+function readStaffSelect(selectId) {
+    const select = document.getElementById(selectId);
+    const value = select.value;
+    if (!value) return { id: null, name: null };
+    if (value === LEGACY_OPTION) {
+        return {
+            id: null,
+            name: select.selectedOptions[0]?.dataset.name || null,
+        };
+    }
+    return { id: value, name: staffById(value)?.full_name || null };
+}
+
+/* ================================================================= *
  * 5. ЗАВАНТАЖЕННЯ ТА ВІДОБРАЖЕННЯ                                    *
  * ================================================================= */
 
@@ -745,8 +819,25 @@ function openRequestModal(request = null) {
     setVal("req_border_crossing", request?.border_crossing);
     setVal("req_customs_import", request?.customs_import);
     setVal("req_status", request?.status || REQUEST_STATUSES[0].value);
-    setVal("req_sales", request?.sales);
-    setVal("req_logistician", request?.logistician);
+    // Sales: для нового запиту — той, хто зараз увійшов (якщо він Sales/Керівник)
+    const defaultSalesId =
+        !request &&
+        currentStaff &&
+        ["sales", "head"].includes(currentStaff.role)
+            ? currentStaff.id
+            : null;
+    fillStaffSelect(
+        "req_sales",
+        ["sales", "head"],
+        request ? request.sales_id : defaultSalesId,
+        request && !request.sales_id ? request.sales : null,
+    );
+    fillStaffSelect(
+        "req_logistician",
+        ["logist", "head"],
+        request?.logistician_id,
+        request && !request.logistician_id ? request.logistician : null,
+    );
     setVal("req_notes", request?.notes);
 
     const from = request?.desired_date
@@ -807,6 +898,9 @@ requestForm.addEventListener("submit", async (e) => {
     }
     if (dateTo === dateFrom) dateTo = null;
 
+    const salesPick = readStaffSelect("req_sales");
+    const logistPick = readStaffSelect("req_logistician");
+
     const payload = {
         client: getValue("req_client"),
         cargo: getValue("req_cargo"),
@@ -822,8 +916,10 @@ requestForm.addEventListener("submit", async (e) => {
         status: getValue("req_status") || REQUEST_STATUSES[0].value,
         desired_date: dateFrom,
         desired_date_to: dateTo,
-        sales: getValue("req_sales"),
-        logistician: getValue("req_logistician"),
+        sales: salesPick.name,
+        sales_id: salesPick.id,
+        logistician: logistPick.name,
+        logistician_id: logistPick.id,
         notes: getValue("req_notes"),
     };
 
@@ -1321,6 +1417,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
 
+    await loadStaff(session);
     fillSelects();
     buildFilterIcons();
     updateDateRangeUI();
