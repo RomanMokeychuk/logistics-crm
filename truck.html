@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Truck / Grandar</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+        <style>
+            .truck-page .main-content {
+                padding: 14px 18px 12px;
+            }
+            .sheet-top {
+                margin-bottom: 10px;
+                padding-left: 18px; /* місце під кнопку згортання панелі */
+            }
+            .sheet-top h1 {
+                font-size: 22px;
+            }
+            .sheet-actions {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .sheet-actions .btn {
+                padding: 8px 14px;
+                font-size: 13px;
+                text-decoration: none;
+            }
+            .sheet-frame-wrap {
+                flex: 1;
+                min-height: 0;
+                background: #fff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                overflow: hidden;
+                position: relative;
+            }
+            .sheet-frame-wrap iframe {
+                width: 100%;
+                height: 100%;
+                border: 0;
+                display: block;
+            }
+            .sheet-hint {
+                font-size: 12px;
+                color: #64748b;
+                padding: 6px 4px 0;
+            }
+        </style>
+    </head>
+    <body class="truck-page">
+        <aside class="sidebar">
+            <div class="logo">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </div>
+            <nav class="menu">
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="truck.html" class="active"
+                    ><i class="bx bx-table"></i> Truck / Grandar</a
+                >
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content">
+            <header class="top-bar sheet-top">
+                <h1>Truck / Grandar</h1>
+                <div class="sheet-actions">
+                    <button
+                        class="btn btn-secondary"
+                        onclick="reloadSheet()"
+                        title="Перезавантажити таблицю">
+                        <i class="bx bx-refresh"></i> Оновити
+                    </button>
+                    <a
+                        class="btn btn-primary"
+                        id="openSheetBtn"
+                        target="_blank"
+                        rel="noopener"
+                        title="Відкрити в окремій вкладці Google Таблиць">
+                        <i class="bx bx-link-external"></i> Відкрити окремо
+                    </a>
+                    <button
+                        class="btn btn-secondary"
+                        onclick="logout()"
+                        title="Вийти">
+                        <i class="bx bx-log-out"></i> Вийти
+                    </button>
+                </div>
+            </header>
+
+            <div class="sheet-frame-wrap">
+                <iframe
+                    id="sheetFrame"
+                    title="Truck / Grandar"
+                    allow="clipboard-read; clipboard-write"></iframe>
+            </div>
+            <p class="sheet-hint">
+                Це та сама Google Таблиця — всі зміни зберігаються в ній. Якщо
+                замість таблиці просить увійти в Google — увійдіть або натисніть
+                «Відкрити окремо».
+            </p>
+        </main>
+
+        <!-- Модалка "Шлях" (як на інших сторінках) -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="
+                    max-width: 1100px;
+                    height: 90vh;
+                    display: flex;
+                    flex-direction: column;
+                    padding: 0;
+                    overflow: hidden;
+                ">
+                <div class="modal-header" style="margin: 0; padding: 14px 18px">
+                    <h2>Шлях</h2>
+                    <div style="display: flex; gap: 6px">
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="shlyahBackBtn"
+                            title="На початок">
+                            <i class="bx bx-home"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    title="Шлях"
+                    style="flex: 1; border: 0; width: 100%"></iframe>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script>
+            const SUPABASE_URL = "https://prbfscwmemshwigiftha.supabase.co";
+            const SUPABASE_KEY =
+                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByYmZzY3dtZW1zaHdpZ2lmdGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjA4MzEsImV4cCI6MjEwNTk5NjgzMX0.3o4STZHL9hpamTCNofPemPTDWyWfR3xOK6TZnUXlWyE";
+            const sbClient = window.supabase.createClient(
+                SUPABASE_URL,
+                SUPABASE_KEY,
+            );
+
+            // Google Таблиця "Truck / Grandar" (аркуш «В работе»)
+            const SHEET_URL =
+                "https://docs.google.com/spreadsheets/d/17gXZcZJGQAH0Xl69UE6epzqNHOe4mnBzh5i1cIWyTko/edit?gid=1981704308#gid=1981704308";
+
+            const sheetFrame = document.getElementById("sheetFrame");
+            document.getElementById("openSheetBtn").href = SHEET_URL;
+
+            function reloadSheet() {
+                sheetFrame.src = "about:blank";
+                setTimeout(() => (sheetFrame.src = SHEET_URL), 50);
+            }
+
+            async function logout() {
+                await sbClient.auth.signOut();
+                window.location.href = "login.html";
+            }
+
+            function toggleSidebar() {
+                document.body.classList.toggle("sidebar-collapsed");
+                const icon = document.querySelector("#sidebarToggleBtn i");
+                if (icon) {
+                    icon.classList.toggle("bx-chevron-left");
+                    icon.classList.toggle("bx-chevron-right");
+                }
+            }
+
+            const SHLYAH_URL = "https://shlyah.dsbt.gov.ua/lc.html";
+            const shlyahOverlay = document.getElementById("shlyahModalOverlay");
+            const shlyahIframe = document.getElementById("shlyahIframe");
+            function openShlyahModal() {
+                shlyahOverlay.classList.add("active");
+                shlyahIframe.src = SHLYAH_URL;
+            }
+            function closeShlyahModal() {
+                shlyahOverlay.classList.remove("active");
+            }
+            document
+                .getElementById("shlyahBackBtn")
+                .addEventListener(
+                    "click",
+                    () => (shlyahIframe.src = SHLYAH_URL),
+                );
+            document
+                .getElementById("closeShlyahModalBtn")
+                .addEventListener("click", closeShlyahModal);
+            shlyahOverlay.addEventListener("click", (e) => {
+                if (e.target === shlyahOverlay) closeShlyahModal();
+            });
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape") closeShlyahModal();
+            });
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                const {
+                    data: { session },
+                } = await sbClient.auth.getSession();
+                if (!session) {
+                    window.location.href = "login.html";
+                    return;
+                }
+                document.body.style.visibility = "visible";
+                sbClient.auth.onAuthStateChange((event) => {
+                    if (event === "SIGNED_OUT")
+                        window.location.href = "login.html";
+                });
+                sheetFrame.src = SHEET_URL;
+            });
+        </script>
+    </body>
+</html>
