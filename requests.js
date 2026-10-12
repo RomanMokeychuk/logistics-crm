@@ -1444,6 +1444,8 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
+        <div id="routeMapBox"></div>
+
         <div class="card-columns">
             <div class="card-col">
                 <div class="card-section">
@@ -1503,6 +1505,9 @@ function openRequestCard(id) {
         });
 
     requestCardOverlay.classList.add("active");
+
+    // Карта маршруту (route-map.js)
+    window.furaRouteMap?.render(document.getElementById("routeMapBox"), r);
 }
 
 function closeRequestCard() {

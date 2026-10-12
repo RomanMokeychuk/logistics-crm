@@ -352,6 +352,8 @@
     }
 
     window.furaAddressSuggest = attach;
+    window.furaCountryCode = (name) =>
+        COUNTRY_CODES[String(name || "").toUpperCase()] || "";
     if (document.readyState === "loading")
         document.addEventListener("DOMContentLoaded", init);
     else init();
