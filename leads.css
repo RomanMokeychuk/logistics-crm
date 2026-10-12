@@ -299,3 +299,149 @@
 .lead-request-route {
     font-weight: 600;
 }
+
+/* ===================== Шкала прогресу клієнта ===================== */
+
+.pg {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4px;
+}
+
+.pg-seg {
+    position: relative;
+    height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.3s ease;
+}
+
+.pg-label {
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 6px;
+}
+
+.pg-todo {
+    background: #e2e8f0;
+    color: #94a3b8;
+}
+
+.pg-done {
+    background: var(--pg);
+    color: #ffffff;
+}
+
+.pg-green {
+    background: #10b981;
+    color: #ffffff;
+}
+
+/* Поточний етап: смугастий у кольорі етапу + пульсація */
+.pg-current {
+    background: repeating-linear-gradient(
+        -45deg,
+        color-mix(in srgb, var(--pg) 22%, #ffffff),
+        color-mix(in srgb, var(--pg) 22%, #ffffff) 8px,
+        color-mix(in srgb, var(--pg) 10%, #ffffff) 8px,
+        color-mix(in srgb, var(--pg) 10%, #ffffff) 16px
+    );
+    color: var(--pg);
+    box-shadow: inset 0 0 0 2px var(--pg);
+    animation: pg-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes pg-pulse {
+    50% {
+        box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--pg) 40%, #ffffff);
+    }
+}
+
+.pg-refused {
+    background: #fecaca;
+    color: #b91c1c;
+}
+
+.pg-box {
+    padding: 14px 18px;
+}
+
+.pg-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-bottom: 10px;
+}
+
+.pg-head-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.pg-head-done {
+    color: #059669;
+}
+
+.pg-head-refused {
+    color: #b91c1c;
+}
+
+.pg-head-hint {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.pg-count {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.pg-card {
+    margin-bottom: 16px;
+}
+
+.pg-form {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+
+.pg-form .pg-box {
+    padding: 10px 12px;
+}
+
+/* Маленька смужка в таблиці */
+.pg-mini {
+    margin-top: 6px;
+    gap: 2px;
+    width: 110px;
+}
+
+.pg-mini .pg-seg {
+    height: 6px;
+    border-radius: 3px;
+}
+
+.pg-mini .pg-current {
+    background: color-mix(in srgb, var(--pg) 35%, #ffffff);
+    box-shadow: none;
+    animation: none;
+}
+
+@media (max-width: 700px) {
+    .pg-label {
+        font-size: 10px;
+        padding: 0 2px;
+    }
+}

@@ -359,7 +359,7 @@ const LEAD_STATUS_CLS = {
     Новий: "status-quote",
     Контакт: "status-offer",
     Переговори: "status-progress",
-    Клієнт: "status-confirmed",
+    Працюємо: "status-confirmed",
     Відмова: "status-rejected",
 };
 

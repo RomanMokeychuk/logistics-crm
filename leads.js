@@ -20,7 +20,7 @@ const LEAD_STATUSES = [
     { value: "Новий", cls: "status-quote", icon: "bx-star" },
     { value: "Контакт", cls: "status-offer", icon: "bx-phone" },
     { value: "Переговори", cls: "status-progress", icon: "bx-conversation" },
-    { value: "Клієнт", cls: "status-confirmed", icon: "bx-check-circle" },
+    { value: "Працюємо", cls: "status-confirmed", icon: "bx-check-circle" },
     { value: "Відмова", cls: "status-rejected", icon: "bx-x-circle" },
 ];
 
@@ -71,7 +71,7 @@ const COUNTRIES = [
 let leadsCache = [];
 let staffCache = [];
 let currentStaff = null;
-let requestsByLead = new Map(); // id ліда → кількість запитів
+let requestsByLead = new Map(); // id ліда → { count, answered, working }
 let activeStatus = ""; // "" = всі
 let sortColumn = "created_at";
 let sortAscending = false;
@@ -142,7 +142,7 @@ function nextContactHtml(lead) {
     if (!lead.next_contact) return "—";
     const d = String(lead.next_contact).slice(0, 10);
     const today = todayIso();
-    const closed = ["Клієнт", "Відмова"].includes(lead.status);
+    const closed = ["Працюємо", "Відмова"].includes(lead.status);
     let cls = "";
     let hint = "";
     if (!closed && d < today) {
@@ -158,7 +158,7 @@ function nextContactHtml(lead) {
 const needsContact = (l) =>
     l.next_contact &&
     String(l.next_contact).slice(0, 10) <= todayIso() &&
-    !["Клієнт", "Відмова"].includes(l.status);
+    !["Працюємо", "Відмова"].includes(l.status);
 
 function phoneLink(phone) {
     if (!phone) return "";
@@ -167,6 +167,104 @@ function phoneLink(phone) {
         ? `<a href="viber://chat?number=%2B${digits}" class="viber-link" title="Відкрити чат у Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
         : "";
     return `${escapeHtml(phone)} ${viber}`;
+}
+
+/* ================================================================= *
+ * ШКАЛА ПРОГРЕСУ КЛІЄНТА (заповнюється сама)                         *
+ * ================================================================= */
+
+const PROGRESS_STEPS = [
+    { key: "data", label: "Дані клієнта", color: "#3b82f6" },
+    { key: "contact", label: "Контакт", color: "#06b6d4" },
+    { key: "request", label: "Запит", color: "#8b5cf6" },
+    { key: "offer", label: "Прорахунок", color: "#f59e0b" },
+    { key: "work", label: "Працюємо", color: "#10b981" },
+];
+
+// l — лід (або значення з форми), stats — його запити
+function leadProgress(l, statsOverride) {
+    const stats = statsOverride ||
+        requestsByLead.get(String(l.id)) || {
+            count: 0,
+            answered: false,
+            working: false,
+        };
+    const history = Array.isArray(l.history) ? l.history : [];
+
+    const missing = [];
+    if (!l.contact_person) missing.push("контактна особа");
+    if (!l.phone) missing.push("телефон");
+    if (!l.edrpou) missing.push("ЄДРПОУ");
+
+    const done = {
+        data: missing.length === 0,
+        contact:
+            history.some((h) => !h.auto) ||
+            ["Контакт", "Переговори", "Працюємо"].includes(l.status),
+        request: stats.count > 0,
+        offer: stats.answered,
+        work: stats.working || l.status === "Працюємо",
+    };
+    const hints = {
+        data: `Не заповнено: ${missing.join(", ")}`,
+        contact: "Зателефонуйте й додайте запис в історію спілкування",
+        request: "Створіть перший запит для клієнта",
+        offer: "Чекаємо ціну від логіста",
+        work: "Клієнт погоджує ціну — оберіть пропозицію в запиті",
+    };
+
+    const steps = PROGRESS_STEPS.map((st) => ({
+        ...st,
+        done: done[st.key],
+        hint: hints[st.key],
+    }));
+    const current = steps.find((st) => !st.done) || null;
+    return {
+        steps,
+        current,
+        doneCount: steps.filter((st) => st.done).length,
+        allDone: !current || done.work,
+        refused: l.status === "Відмова",
+    };
+}
+
+// mini = маленька смужка в таблиці
+function progressHtml(p, mini = false) {
+    const segs = p.steps
+        .map((st) => {
+            let cls = "pg-todo";
+            let style = "";
+            if (p.refused) cls = "pg-refused";
+            else if (p.allDone) cls = "pg-done pg-green";
+            else if (st.done) {
+                cls = "pg-done";
+                style = `--pg:${st.color}`;
+            } else if (p.current && st.key === p.current.key) {
+                cls = "pg-current";
+                style = `--pg:${st.color}`;
+            }
+            return `<div class="pg-seg ${cls}" style="${style}" title="${escapeHtml(st.label + (st.done ? " ✓" : " — " + st.hint))}">
+                ${mini ? "" : `<span class="pg-label">${st.done && !p.refused ? "✓ " : ""}${escapeHtml(st.label)}</span>`}
+            </div>`;
+        })
+        .join("");
+
+    if (mini) return `<div class="pg pg-mini">${segs}</div>`;
+
+    let head;
+    if (p.refused)
+        head = `<span class="pg-head-text pg-head-refused"><i class='bx bx-x-circle'></i> Клієнт відмовився</span>`;
+    else if (p.allDone)
+        head = `<span class="pg-head-text pg-head-done"><i class='bx bx-check-circle'></i> Працюємо з клієнтом</span>`;
+    else
+        head = `<span class="pg-head-text" style="color:${p.current.color}"><i class='bx bx-right-arrow-circle'></i> Зараз: ${escapeHtml(p.current.label)}</span>
+                <span class="pg-head-hint">${escapeHtml(p.current.hint)}</span>`;
+
+    return `
+        <div class="pg-box">
+            <div class="pg-head">${head}<span class="pg-count">${p.allDone && !p.refused ? 5 : p.doneCount} / 5</span></div>
+            <div class="pg">${segs}</div>
+        </div>`;
 }
 
 /* ================================================================= *
@@ -203,7 +301,7 @@ async function loadLeads() {
             .from("leads")
             .select("*")
             .order("created_at", { ascending: false }),
-        sbClient.from("requests").select("lead_id"),
+        sbClient.from("requests").select("lead_id, status"),
     ]);
 
     if (error) {
@@ -213,11 +311,17 @@ async function loadLeads() {
 
     requestsByLead = new Map();
     (reqs || []).forEach((r) => {
-        if (r.lead_id)
-            requestsByLead.set(
-                String(r.lead_id),
-                (requestsByLead.get(String(r.lead_id)) || 0) + 1,
-            );
+        if (!r.lead_id) return;
+        const st = requestsByLead.get(String(r.lead_id)) || {
+            count: 0,
+            answered: false,
+            working: false,
+        };
+        st.count++;
+        if (["Відповідь", "В роботі", "Виконано"].includes(r.status))
+            st.answered = true;
+        if (["В роботі", "Виконано"].includes(r.status)) st.working = true;
+        requestsByLead.set(String(r.lead_id), st);
     });
 
     leadsCache = data || [];
@@ -341,7 +445,7 @@ function renderLeads() {
         tr.className =
             "clickable-row" + (needsContact(l) ? " lead-attention" : "");
         tr.title = "Натисніть, щоб відкрити картку клієнта";
-        const reqCount = requestsByLead.get(String(l.id)) || 0;
+        const reqCount = requestsByLead.get(String(l.id))?.count || 0;
 
         tr.innerHTML = `
             <td class="cell-num">${i + 1}</td>
@@ -357,7 +461,7 @@ function renderLeads() {
             </td>
             <td>${[l.city, l.country].filter(Boolean).map(escapeHtml).join(", ") || "—"}</td>
             <td class="lead-wrap">${escapeHtml(l.directions) || "—"}</td>
-            <td>${statusBadge(l.status)}</td>
+            <td>${statusBadge(l.status)}${progressHtml(leadProgress(l), true)}</td>
             <td class="cell-person">${escapeHtml(l.sales) || "—"}</td>
             <td class="cell-date">${nextContactHtml(l)}</td>
             <td class="cell-date">${formatDateOnly(l.created_at)}</td>
@@ -445,8 +549,41 @@ const setVal = (id, v) => {
     if (el) el.value = v || "";
 };
 
+let editingLead = null;
+
+// Шкала у формі — перераховується при кожній зміні полів
+function updateFormProgress() {
+    const box = document.getElementById("leadProgressForm");
+    if (!box) return;
+    const v = (id) => document.getElementById(id).value.trim();
+    const draft = {
+        ...(editingLead || {}),
+        contact_person: v("lead_contact_person"),
+        phone: v("lead_phone"),
+        edrpou: v("lead_edrpou"),
+        status:
+            document.querySelector("input[name='lead_status']:checked")
+                ?.value || "Новий",
+    };
+    box.innerHTML = progressHtml(
+        leadProgress(
+            draft,
+            editingLead ? null : { count: 0, answered: false, working: false },
+        ),
+    );
+}
+
 function openLeadModal(lead = null) {
     leadForm.reset();
+    editingLead = lead;
+    if (!document.getElementById("leadProgressForm")) {
+        const box = document.createElement("div");
+        box.id = "leadProgressForm";
+        box.className = "span-2 pg-form";
+        leadForm.querySelector(".modal-body").prepend(box);
+        leadForm.addEventListener("input", updateFormProgress);
+        leadForm.addEventListener("change", updateFormProgress);
+    }
     setVal("leadId", lead?.id);
     setVal("lead_name", lead?.name);
     setVal("lead_edrpou", lead?.edrpou);
@@ -478,6 +615,7 @@ function openLeadModal(lead = null) {
     document.getElementById("leadModalTitle").textContent = lead
         ? "Редагувати ліда"
         : "Додати ліда";
+    updateFormProgress();
     modalOverlay.classList.add("active");
     setTimeout(() => document.getElementById("lead_name").focus(), 50);
 }
@@ -653,6 +791,8 @@ async function openLeadCard(id) {
                 </div>
             </div>
         </div>
+
+        <div class="card-section pg-card">${progressHtml(leadProgress(l))}</div>
 
         <div class="card-columns">
             <div class="card-col">
