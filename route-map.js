@@ -43,6 +43,11 @@
         .route-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 18px; }
         .route-plan-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: #475569; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
         .route-plan-row b { color: #0f172a; white-space: nowrap; }
+        .route-delivery-total { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #dcfce7; color: #166534;
+            font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .route-delivery-total i { font-size: 20px; }
+        .route-delivery-total b { font-size: 17px; }
+        .route-delivery-total span { font-size: 12px; color: #15803d; }
         .route-plan-note { margin-top: 8px; font-size: 12px; color: #64748b; line-height: 1.45; }
         .route-list-title { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
         .route-li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
@@ -219,6 +224,62 @@
         return `${d} ${plural(d, "доба", "доби", "діб")}${h ? ` ${h} год` : ""}`;
     }
 
+    /* ---------------- Термін доставки (орієнтовно) ----------------
+     * Рух за нормами водія + завантаження 48 год + черга на кордоні + розвантаження/розмитнення 48 год.
+     * Кордони всередині ЄС — без черги. */
+    const EU = new Set([
+        "Польща",
+        "Німеччина",
+        "Литва",
+        "Латвія",
+        "Естонія",
+        "Чехія",
+        "Словаччина",
+        "Угорщина",
+        "Румунія",
+        "Болгарія",
+        "Австрія",
+        "Італія",
+        "Іспанія",
+        "Франція",
+        "Бельгія",
+        "Нідерланди",
+        "Данія",
+        "Фінляндія",
+        "Словенія",
+        "Люксембург",
+        "Хорватія",
+        "Швеція",
+        "Греція",
+        "Португалія",
+    ]);
+    const LOADING = 48 * 60; // завантаження — 48 год (практика компанії)
+    const UNLOADING = 48 * 60; // розвантаження + розмитнення — 48 год (практика компанії)
+    function deliveryEstimate(transitMin, borders) {
+        let bMin = 0,
+            bMax = 0,
+            outsideEU = false;
+        const items = [];
+        for (const b of borders) {
+            if (EU.has(b.from) && EU.has(b.to)) continue; // всередині ЄС
+            outsideEU = true;
+            const ua = b.from === "Україна" || b.to === "Україна";
+            const [lo, hi] = ua ? [360, 2160] : [180, 720];
+            bMin += lo;
+            bMax += hi;
+            items.push({ name: b.name || `${b.from} → ${b.to}`, lo, hi });
+        }
+        const min = transitMin + LOADING + UNLOADING + bMin;
+        const max = transitMin + LOADING + UNLOADING + bMax;
+        const dMin = Math.max(1, Math.ceil(min / 1440));
+        const dMax = Math.max(dMin, Math.ceil(max / 1440));
+        return { min, max, dMin, dMax, items, outsideEU };
+    }
+    const daysRange = (a, b) =>
+        a === b
+            ? `${a} ${plural(a, "день", "дні", "днів")}`
+            : `${a}–${b} ${plural(b, "день", "дні", "днів")}`;
+
     const crossingsList = () =>
         typeof BORDER_CROSSINGS !== "undefined" ? BORDER_CROSSINGS : [];
 
@@ -326,6 +387,7 @@
         const delayMin = Math.round((data.delaySec || 0) / 60);
         const uaBorder = data.borders.find((b) => b.ukraine);
         stats.innerHTML = [
+            `<span class="route-chip ok route-delivery-chip" title="Орієнтовно: завантаження 48 год + рух за нормами водія + черга на кордоні + розвантаження/розмитнення 48 год"><i class='bx bx-package'></i><span class="route-delivery"></span></span>`,
             `<span class="route-chip" title="Чистий час за кермом з урахуванням поточного трафіку"><i class='bx bx-time-five'></i>${fmtDur(data.timeSec)} за кермом</span>`,
             `<span class="route-chip route-days-chip" title="З перервами і відпочинком за нормами ЄС/ЄУТР. Без черги на кордоні."><i class='bx bx-trip'></i><span class="route-days"></span></span>`,
             delayMin >= 1
@@ -382,6 +444,11 @@
         const planBox = details.querySelector(".route-plan");
         const updatePlan = () => {
             const p = driverPlan(data.timeSec / 60, 1); // завжди 1 водій (2 водії — рідкість)
+            const dl = deliveryEstimate(p.total, data.borders);
+            const fmtRange = (lo, hi) =>
+                `${fmtDur(lo * 60)} – ${fmtDur(hi * 60)}`;
+            stats.querySelector(".route-delivery").textContent =
+                `Доставка ≈ ${daysRange(dl.dMin, dl.dMax)}`;
             const arrive = new Date(Date.now() + p.total * 60000);
             const arriveTxt = arrive.toLocaleString("uk-UA", {
                 weekday: "short",
@@ -406,10 +473,24 @@
                     ${row("Разом у дорозі", `≈ ${fmtDays(p.total)}`)}
                     ${row("Прибуття, якщо виїхати зараз", arriveTxt)}
                 </div>
+                <div class="route-plan-head" style="margin-top:12px">
+                    <div class="route-list-title">Термін доставки вантажу (орієнтовно)</div>
+                </div>
+                <div class="route-plan-grid">
+                    ${row("Рух з відпочинком водія", `≈ ${fmtDays(p.total)}`)}
+                    ${row("Завантаження", fmtDur(LOADING * 60))}
+                    ${dl.items.map((it) => row(`Черга: ${esc(it.name)}`, fmtRange(it.lo, it.hi))).join("")}
+                    ${row(dl.outsideEU ? "Розвантаження + розмитнення" : "Розвантаження", fmtDur(UNLOADING * 60))}
+                </div>
+                <div class="route-delivery-total">
+                    <i class='bx bx-package'></i> Термін доставки: <b>${daysRange(dl.dMin, dl.dMax)}</b>
+                    <span>(${fmtDays(dl.min)} – ${fmtDays(dl.max)})</span>
+                </div>
                 <div class="route-plan-note">
                     Перерва 45 хв кожні 4,5 год; до 9 год за кермом на добу (двічі на тиждень — 10);
                     відпочинок 11 год (тричі на тиждень — 9); до 56 год на тиждень; тижневий відпочинок 45 год.
-                    Черга на кордоні, митниця і завантаження не враховані.
+                    Черга на кордоні з Україною взята 6–36 год, на інших кордонах поза ЄС — 3–12 год; кордони всередині ЄС — без черги.
+                    Актуальну чергу перевіряйте в єЧерзі.
                 </div>`;
         };
         updatePlan();
