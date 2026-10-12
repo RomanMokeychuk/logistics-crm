@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="uk">
+<html lang="ru">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>FURA — Ліди</title>
+        <title>FURA</title>
         <style>
             body {
                 visibility: hidden;
@@ -13,8 +13,6 @@
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
         <link rel="stylesheet" href="style.css" />
-        <link rel="stylesheet" href="requests.css" />
-        <link rel="stylesheet" href="leads.css" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
@@ -32,13 +30,15 @@
             </a>
             <nav class="menu">
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
-                <a href="leads.html" class="active"
+                <a href="leads.html"
                     ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
                 >
                 <a href="reports.html"
                     ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
                 >
-                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="index.html" class="active"
+                    ><i class="bx bx-group"></i> Перевізники</a
+                >
                 <a
                     href="#"
                     onclick="
@@ -64,9 +64,9 @@
 
         <main class="main-content">
             <header class="top-bar">
-                <h1>Ліди</h1>
-                <button class="btn btn-primary" id="openLeadModalBtn">
-                    <i class="bx bx-plus"></i> Додати ліда
+                <h1>Реєстр перевізників</h1>
+                <button class="btn btn-primary" id="openModalBtn">
+                    <i class="bx bx-plus"></i> Додати перевізника
                 </button>
                 <button
                     class="btn btn-secondary"
@@ -76,218 +76,594 @@
                 </button>
             </header>
 
-            <!-- Етапи: Всі / Новий / Контакт / ... з лічильниками -->
-            <div class="lead-tabs" id="leadTabs"></div>
-
-            <div class="filters-bar lead-filters">
+            <div class="filters-bar">
                 <input
                     type="text"
-                    id="leadsSearch"
+                    id="searchInput"
                     class="search-input"
-                    placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, місто, напрямок..." />
-                <select id="leadsSalesFilter" class="lead-select"></select>
-                <label class="lead-toggle">
-                    <input type="checkbox" id="leadsTodayOnly" />
-                    Зв'язатися сьогодні / прострочено
-                </label>
+                    placeholder="🔍 Пошук" />
             </div>
 
             <section class="table-card" id="tableScrollArea">
-                <table class="requests-table leads-table">
+                <table>
                     <thead>
                         <tr>
                             <th style="width: 40px; text-align: center">№</th>
+                            <th style="width: 56px"></th>
                             <th>
-                                <span class="th-label sortable" data-sort="name"
-                                    >КЛІЄНТ <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('destinations')"
+                                        >НАПРАВЛЕННЯ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'destinations',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="contact_person"
-                                    >КОНТАКТ <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span>
+                                        <i
+                                            class="bx bx-user carrier-toggle-icon"
+                                            id="carrierToggleIcon"
+                                            onclick="toggleCarrierColumn()"
+                                            title="Показати/сховати повну назву та ЄДРПОУ"></i>
+                                        <span
+                                            class="th-label"
+                                            style="cursor: pointer"
+                                            onclick="toggleSort('name')"
+                                            title="Сортувати за назвою"
+                                            >ПЕРЕВІЗНИК</span
+                                        >
+                                        <span style="color: #94a3b8"> / </span>
+                                        <span
+                                            class="th-label"
+                                            style="cursor: pointer"
+                                            onclick="toggleSort('edrpou')"
+                                            title="Сортувати за ЕДРПОУ"
+                                            >ЕДРПОУ</span
+                                        >
+                                    </span>
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'carrier_col',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span class="th-label sortable" data-sort="city"
-                                    >МІСТО <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('region_ukr')"
+                                        >ОБЛАСТЬ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'region_ukr',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="directions"
-                                    >НАПРЯМКИ <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('city')"
+                                        >МІСТО</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'city')
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="status"
-                                    >ЕТАП <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('contacts_col')"
+                                        >КОНТАКТИ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'contacts_col',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="sales"
-                                    >SALES <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('trailer_type')"
+                                        >ТИП ПРИЦЕПУ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'trailer_type',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="next_contact"
-                                    >НАСТУПНИЙ КОНТАКТ
-                                    <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('additional')"
+                                        >ПАРАМЕТРИ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'additional',
+                                            )
+                                        "></i>
+                                </div>
                             </th>
                             <th>
-                                <span
-                                    class="th-label sortable"
-                                    data-sort="created_at"
-                                    >ДОДАНО <i class="bx sort-icon"></i
-                                ></span>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="
+                                            toggleSort('ukraine_directions')
+                                        "
+                                        >НАПРЯМКИ В УКРАЇНІ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(
+                                                event,
+                                                'ukraine_directions',
+                                            )
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('rating')"
+                                        >ОЦІНКА</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'rating')
+                                        "></i>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="th-content">
+                                    <span
+                                        class="th-label"
+                                        style="cursor: pointer"
+                                        onclick="toggleSort('notes')"
+                                        >ЗАМІТКИ</span
+                                    >
+                                    <i
+                                        class="bx bx-filter-alt filter-icon"
+                                        onclick="
+                                            openColumnFilter(event, 'notes')
+                                        "></i>
+                                </div>
                             </th>
                             <th>ДІЇ</th>
                         </tr>
                     </thead>
-                    <tbody id="leadsTableBody"></tbody>
+                    <tbody id="carriersTableBody">
+                        <!-- Даные загружаются через JS -->
+                    </tbody>
                 </table>
             </section>
 
-            <div id="leadsCountBar" class="carriers-count-bar"></div>
+            <div id="carriersCountBar" class="carriers-count-bar"></div>
+
+            <button
+                type="button"
+                id="scrollTopBtn"
+                class="scroll-top-btn"
+                title="Повернутись наверх">
+                <i class="bx bx-chevron-up"></i>
+            </button>
         </main>
 
-        <!-- Додати / редагувати ліда -->
-        <div class="modal-overlay" id="leadModalOverlay">
-            <div class="modal" style="max-width: 760px">
+        <!-- Модальное окно добавления/редактирования -->
+        <div class="modal-overlay" id="modalOverlay">
+            <div class="modal" style="max-width: 700px">
                 <div class="modal-header">
-                    <h2 id="leadModalTitle">Додати ліда</h2>
-                    <button
-                        type="button"
-                        class="close-btn"
-                        id="closeLeadModalBtn">
+                    <h2 id="modalTitle">Додати перевізника</h2>
+                    <button type="button" class="close-btn" id="closeModalBtn">
                         &times;
                     </button>
                 </div>
-                <form id="leadForm">
-                    <input type="hidden" id="leadId" value="" />
-                    <div class="modal-body request-form-grid">
-                        <div class="form-group span-2">
+                <form id="addCarrierForm">
+                    <input
+                        type="hidden"
+                        id="carrierId"
+                        name="carrierId"
+                        value="" />
+                    <div
+                        class="modal-body"
+                        style="
+                            display: grid;
+                            grid-template-columns: 1fr 1fr;
+                            gap: 12px;
+                        ">
+                        <div class="form-group" style="grid-column: span 2">
                             <label>Назва компанії / ФОП *</label>
                             <input
                                 type="text"
-                                id="lead_name"
+                                id="company_name"
                                 required
-                                placeholder="наприклад: ТОВ МЕД ОК" />
+                                placeholder="например: ГРАНД ТРАНС ВОЛИНЬ, ПП" />
                         </div>
 
                         <div class="form-group">
                             <label>Код ЄДРПОУ / ІПН</label>
                             <input
                                 type="text"
-                                id="lead_edrpou"
-                                placeholder="12345678" />
-                        </div>
-                        <div class="form-group">
-                            <label>Звідки прийшов</label>
-                            <input
-                                type="text"
-                                id="lead_source"
-                                list="leadSourcesList"
-                                placeholder="Оберіть або введіть..." />
-                        </div>
-
-                        <div class="form-section-title span-2">
-                            <i class="bx bx-user"></i> Контакти
+                                id="edrpou"
+                                name="edrpou"
+                                placeholder="Введіть код..." />
                         </div>
 
                         <div class="form-group">
-                            <label>Контактна особа</label>
-                            <input
-                                type="text"
-                                id="lead_contact_person"
-                                placeholder="Ім'я, посада" />
+                            <label>Область України</label>
+                            <select id="region_ukr">
+                                <option value="">Оберіть область...</option>
+                                <option value="ВІННИЦЬКА ОБЛ.">
+                                    Вінницька обл.
+                                </option>
+                                <option value="ВОЛИНСЬКА ОБЛ.">
+                                    Волинська обл.
+                                </option>
+                                <option value="ДНІПРОПЕТРОВСЬКА ОБЛ.">
+                                    Дніпропетровська обл.
+                                </option>
+                                <option value="ДОНЕЦЬКА ОБЛ.">
+                                    Донецька обл.
+                                </option>
+                                <option value="ЖИТОМИРСЬКА ОБЛ.">
+                                    Житомирська обл.
+                                </option>
+                                <option value="ЗАКАРПАТСЬКА ОБЛ.">
+                                    Закарпатська обл.
+                                </option>
+                                <option value="ЗАПОРІЗЬКА ОБЛ.">
+                                    Запорізька обл.
+                                </option>
+                                <option value="ІВАНО-ФРАНКІВСЬКА ОБЛ.">
+                                    Івано-Франківська обл.
+                                </option>
+                                <option value="КИЇВСЬКА ОБЛ.">
+                                    Київська обл.
+                                </option>
+                                <option value="КІРОВОГРАДСЬКА ОБЛ.">
+                                    Кіровоградська обл.
+                                </option>
+                                <option value="ЛУГАНСЬКА ОБЛ.">
+                                    Луганська обл.
+                                </option>
+                                <option value="ЛЬВІВСЬКА ОБЛ.">
+                                    Львівська обл.
+                                </option>
+                                <option value="МИКОЛАЇВСЬКА ОБЛ.">
+                                    Миколаївська обл.
+                                </option>
+                                <option value="ОДЕСЬКА ОБЛ.">
+                                    Одеська обл.
+                                </option>
+                                <option value="ПОЛТАВСЬКА ОБЛ.">
+                                    Полтавська обл.
+                                </option>
+                                <option value="РІВНЕНСЬКА ОБЛ.">
+                                    Рівненська обл.
+                                </option>
+                                <option value="СУМСЬКА ОБЛ.">
+                                    Сумська обл.
+                                </option>
+                                <option value="ТЕРНОПІЛЬСЬКА ОБЛ.">
+                                    Тернопільська обл.
+                                </option>
+                                <option value="ХАРКІВСЬКА ОБЛ.">
+                                    Харківська обл.
+                                </option>
+                                <option value="ХЕРСОНСЬКА ОБЛ.">
+                                    Херсонська обл.
+                                </option>
+                                <option value="ХМЕЛЬНИЦЬКА ОБЛ.">
+                                    Хмельницька обл.
+                                </option>
+                                <option value="ЧЕРКАСЬКА ОБЛ.">
+                                    Черкаська обл.
+                                </option>
+                                <option value="ЧЕРНІВЕЦЬКА ОБЛ.">
+                                    Чернівецька обл.
+                                </option>
+                                <option value="ЧЕРНІГІВСЬКА ОБЛ.">
+                                    Чернігівська обл.
+                                </option>
+                                <option value="М. КИЇВ">м. Київ</option>
+                            </select>
                         </div>
+
                         <div class="form-group">
-                            <label>Телефон</label>
+                            <label>Посилання на фото (URL)</label>
                             <input
                                 type="text"
-                                id="lead_phone"
+                                id="logo_url"
+                                placeholder="https://..." />
+                        </div>
+
+                        <div class="form-group">
+                            <label
+                                >Посилання на профіль (Lardi-Trans тощо)</label
+                            >
+                            <input
+                                type="text"
+                                id="profile_url"
+                                placeholder="https://lardi-trans.com/..." />
+                        </div>
+
+                        <!-- Напрями та регіони (закордон) — випадаюче меню -->
+                        <div class="form-group" style="grid-column: span 2">
+                            <label
+                                >Напрями та регіони (Воєводства /
+                                Квадрати)</label
+                            >
+
+                            <select
+                                id="countrySelect"
+                                onchange="onCountrySelectChange(this)">
+                                <option value="">Оберіть країну...</option>
+                                <!-- Варіанти генеруються через JS зі списку COUNTRIES -->
+                            </select>
+
+                            <div
+                                id="destinationsContainer"
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    gap: 6px;
+                                    margin-top: 4px;
+                                "></div>
+
+                            <input
+                                type="hidden"
+                                id="destinations"
+                                name="destinations" />
+                        </div>
+
+                        <!-- Напрямки в Україні — випадаюче меню -->
+                        <div class="form-group" style="grid-column: span 2">
+                            <label
+                                >Напрямки в Україні (області, куди/звідки
+                                їздить)</label
+                            >
+
+                            <select
+                                id="ukraineOblastSelect"
+                                onchange="onUkraineOblastSelectChange(this)">
+                                <option value="">Оберіть область...</option>
+                                <!-- Варіанти генеруються через JS зі списку UKRAINE_OBLASTS -->
+                            </select>
+
+                            <div
+                                id="ukraineDirectionsContainer"
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    gap: 6px;
+                                    margin-top: 4px;
+                                "></div>
+
+                            <input
+                                type="hidden"
+                                id="ukraine_directions"
+                                name="ukraine_directions" />
+                        </div>
+
+                        <!-- <div class="form-group">
+                            <label>Квадрат / Воєводство</label>
+                            <input
+                                type="text"
+                                id="quadrant"
+                                placeholder="Мазовецьке" />
+                        </div> -->
+
+                        <div class="form-group" style="grid-column: span 2">
+                            <label>Місто / Адреса</label>
+                            <input type="text" id="city" placeholder="Луцьк" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Телефон 1</label>
+                            <input
+                                type="text"
+                                id="phone_1"
                                 placeholder="380000000000" />
                         </div>
+
                         <div class="form-group">
-                            <label>Email</label>
+                            <label>ПІБ Контакту 1</label>
                             <input
-                                type="email"
-                                id="lead_email"
-                                placeholder="name@company.com" />
+                                type="text"
+                                id="contact_person_1"
+                                placeholder="Катерина" />
                         </div>
+
                         <div class="form-group">
-                            <label>Країна / Місто</label>
-                            <div class="lead-two">
-                                <select id="lead_country"></select>
+                            <label>Телефон 2</label>
+                            <input
+                                type="text"
+                                id="phone_2"
+                                placeholder="380000000000" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>ПІБ Контакту 2</label>
+                            <input
+                                type="text"
+                                id="contact_person_2"
+                                placeholder="Любов" />
+                        </div>
+
+                        <div class="form-group" style="grid-column: span 2">
+                            <label>Типи причепів, об'єм та тоннаж</label>
+
+                            <div
+                                class="trailer-chips"
+                                style="
+                                    margin-bottom: 10px;
+                                    display: flex;
+                                    gap: 8px;
+                                    flex-wrap: wrap;
+                                ">
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('ТЕНТ')">
+                                    + ТЕНТ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('РЕФ')">
+                                    + РЕФ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('ЦІЛЬНОМЕТ')">
+                                    + ЦІЛЬНОМЕТ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('КОНТЕЙНЕРОВОЗ')">
+                                    + КОНТЕЙНЕРОВОЗ
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn-chip"
+                                    onclick="addTrailerRow('ІЗОТЕРМ')">
+                                    + ІЗОТЕРМ
+                                </button>
+                            </div>
+
+                            <div
+                                id="trailersContainer"
+                                style="
+                                    display: flex;
+                                    flex-wrap: wrap;
+                                    gap: 6px;
+                                "></div>
+
+                            <input
+                                type="hidden"
+                                id="trailer_type"
+                                name="trailer_type" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Об'єм (m3) / Тонаж (Т)</label>
+                            <div style="display: flex; gap: 5px">
                                 <input
                                     type="text"
-                                    id="lead_city"
-                                    placeholder="Луцьк" />
+                                    id="volume"
+                                    placeholder="Об'єм (86)" />
+                                <input
+                                    type="text"
+                                    id="tonnage"
+                                    placeholder="Тонаж (24)" />
                             </div>
                         </div>
 
-                        <div class="form-section-title span-2">
-                            <i class="bx bx-package"></i> Що возить
-                        </div>
-
-                        <div class="form-group span-2">
-                            <label>Напрямки перевезень</label>
+                        <div class="form-group">
+                            <label>Доп. свойства (ЕКМТ/ADR)</label>
                             <input
                                 type="text"
-                                id="lead_directions"
-                                placeholder="наприклад: Польща → Україна, Литва → Україна" />
-                        </div>
-                        <div class="form-group span-2">
-                            <label>Вантаж, тип авто, обсяги</label>
-                            <input
-                                type="text"
-                                id="lead_cargo"
-                                placeholder="наприклад: палети, ТЕНТ 92 м³, 4–5 авто на місяць" />
+                                id="additional"
+                                name="additional"
+                                placeholder="ЕКМТ, ADR, LTL" />
                         </div>
 
-                        <div class="form-section-title span-2">
-                            <i class="bx bx-target-lock"></i> Робота з клієнтом
-                        </div>
-
-                        <div class="form-group span-2">
-                            <label>Етап</label>
-                            <div
-                                class="type-picker"
-                                id="lead_status_picker"></div>
-                        </div>
-                        <div class="form-group">
-                            <label>Відповідальний Sales</label>
-                            <select id="lead_sales"></select>
-                        </div>
-                        <div class="form-group">
-                            <label>Наступний контакт</label>
-                            <input type="date" id="lead_next_contact" />
-                        </div>
-
-                        <div class="form-group span-2">
+                        <div class="form-group" style="grid-column: span 2">
                             <label>Нотатки</label>
                             <textarea
-                                id="lead_notes"
+                                id="notes"
                                 rows="3"
-                                placeholder="Що важливо знати про клієнта..."></textarea>
+                                placeholder="Додаткова інформація про перевізника..."
+                                style="
+                                    padding: 9px 12px;
+                                    border: 1px solid #cbd5e1;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    resize: vertical;
+                                    font-family: inherit;
+                                "></textarea>
+                            <small
+                                id="notesUpdatedAtDisplay"
+                                style="color: #94a3b8; font-size: 11px"></small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>ОЦІНКА</label>
+                            <select
+                                id="carrierRating"
+                                style="
+                                    padding: 9px 12px;
+                                    border: 1px solid #cbd5e1;
+                                    border-radius: 8px;
+                                    font-size: 14px;
+                                    font-family: inherit;
+                                ">
+                                <option value="0">Без оцінки</option>
+                                <option value="1">★</option>
+                                <option value="2">★★</option>
+                                <option value="3">★★★</option>
+                                <option value="4">★★★★</option>
+                                <option value="5">★★★★★</option>
+                            </select>
                         </div>
                     </div>
-                    <datalist id="leadSourcesList"></datalist>
                     <div class="modal-footer">
                         <button
                             type="button"
                             class="btn btn-secondary"
-                            id="cancelLeadBtn">
+                            id="cancelBtn">
                             Відміна
                         </button>
                         <button type="submit" class="btn btn-primary">
@@ -298,27 +674,66 @@
             </div>
         </div>
 
-        <!-- Картка ліда -->
-        <div class="modal-overlay" id="leadCardOverlay">
+        <!-- Картка перевізника (відкривається кліком по рядку в таблиці) -->
+        <div class="modal-overlay" id="carrierCardOverlay">
             <div class="modal carrier-card-modal">
                 <div class="carrier-card-topbar">
-                    <h2>Інформація про клієнта</h2>
+                    <h2>Інформація про перевізника</h2>
                     <div class="carrier-card-actions">
                         <button
                             type="button"
                             class="btn-card-edit"
-                            id="editFromLeadCardBtn">
+                            onclick="editFromCard()">
                             <i class="bx bx-edit"></i> Редагувати
                         </button>
                         <button
                             type="button"
                             class="close-btn"
-                            id="closeLeadCardBtn">
+                            onclick="closeCarrierCard()">
                             &times;
                         </button>
                     </div>
                 </div>
-                <div id="leadCardBody"></div>
+                <div id="carrierCardBody"></div>
+            </div>
+        </div>
+
+        <!-- Единое выпадающее окно фильтра по колонке -->
+        <div
+            class="column-filter-dropdown"
+            id="columnFilterDropdown"
+            style="display: none"
+            onclick="event.stopPropagation()">
+            <div class="column-filter-header-info">
+                <a id="selectAllLink" onclick="selectAllFilterOptions(true)"
+                    >Вибрати всі (0)</a
+                >
+                <a onclick="selectAllFilterOptions(false)">Очистити</a>
+            </div>
+            <div class="column-filter-search-box">
+                <i class="bx bx-search search-icon-inside"></i>
+                <input
+                    type="text"
+                    id="columnFilterSearch"
+                    class="column-filter-search"
+                    placeholder="Пошук..."
+                    oninput="filterDropdownList()" />
+            </div>
+            <div class="column-filter-options" id="columnFilterOptions"></div>
+            <div class="filter-count-text" id="filterShownCount"></div>
+            <div class="column-filter-footer" style="margin-top: 8px">
+                <button
+                    type="button"
+                    class="btn-cancel-custom"
+                    onclick="closeColumnFilter()">
+                    Скасувати
+                </button>
+                <button
+                    type="button"
+                    class="btn-ok-custom"
+                    onclick="applyColumnFilter()">
+                    Застосувати
+                </button>
             </div>
         </div>
 
@@ -349,7 +764,7 @@
                 </div>
                 <iframe
                     id="shlyahIframe"
-                    src="about:blank"
+                    src="https://shlyah.dsbt.gov.ua/lc.html"
                     style="
                         width: 100%;
                         height: 520px;
@@ -371,7 +786,8 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="leads.js"></script>
+        <script src="script.js"></script>
+        <script src="address-suggest.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>
