@@ -21,7 +21,7 @@
     </head>
     <body>
         <aside class="sidebar">
-            <div class="logo">
+            <a href="home.html" class="logo" title="Головна сторінка">
                 <img
                     src="logo.svg"
                     alt=""
@@ -29,12 +29,15 @@
                     height="28"
                     style="border-radius: 7px" />
                 <span>FURA</span>
-            </div>
+            </a>
             <nav class="menu">
                 <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="leads.html"
                     ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="reports.html"
+                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
                 >
                 <a href="staff.html" class="active"
                     ><i class="bx bx-id-card"></i> Співробітники</a
@@ -235,5 +238,6 @@
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="staff.js"></script>
         <script src="notify.js"></script>
+        <script src="lock.js"></script>
     </body>
 </html>

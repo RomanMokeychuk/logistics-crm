@@ -1,0 +1,419 @@
+/* ===================== Підсумки ===================== */
+
+.reports-page {
+    --series-1: #2a78d6; /* запити */
+    --series-2: #eb6834; /* типи / логісти */
+    --series-3: #1baf7a; /* ліди */
+    --grid: #e2e8f0;
+    --muted: #64748b;
+}
+
+.month-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+    margin-right: 8px;
+}
+
+.month-title {
+    min-width: 150px;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.reports-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 24px;
+}
+
+.rep-scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* Головні цифри */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px 16px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+.kpi-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.2;
+}
+
+.kpi-trend {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.kpi-trend.up {
+    color: #15803d;
+}
+
+.kpi-trend.down {
+    color: #b91c1c;
+}
+
+/* Картки з графіками */
+.rep-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+}
+
+.rep-card-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.rep-card-head h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.rep-sub {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.rep-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.rep-two .rep-card {
+    margin-bottom: 16px;
+}
+
+.rep-empty {
+    padding: 18px 0;
+    color: #94a3b8;
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Горизонтальні смуги */
+.hbar {
+    display: grid;
+    grid-template-columns: 120px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    cursor: default;
+}
+
+.hbar-label {
+    font-size: 13px;
+    color: #334155;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hbar-track {
+    height: 14px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.hbar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+    transition: width 0.4s ease;
+}
+
+.hbar:hover .hbar-track {
+    background: #e2e8f0;
+}
+
+.hbar-value {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    text-align: right;
+}
+
+/* Стовпчики по днях */
+.dc-plot {
+    position: relative;
+    height: 180px;
+    margin-left: 26px;
+}
+
+.dc-grid {
+    position: absolute;
+    inset: 0;
+}
+
+.dc-gridline {
+    position: absolute;
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--grid);
+}
+
+.dc-gridline span {
+    position: absolute;
+    left: -26px;
+    top: -8px;
+    width: 20px;
+    text-align: right;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.dc-cols {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+}
+
+.dc-col {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    cursor: default;
+}
+
+.dc-col:hover {
+    background: #f1f5f9;
+}
+
+.dc-weekend {
+    background: #f8fafc;
+}
+
+.dc-bar {
+    width: 100%;
+    background: var(--series-1);
+    border-radius: 4px 4px 0 0;
+    transition: height 0.4s ease;
+}
+
+.dc-today .dc-bar {
+    background: #1d4ed8;
+}
+
+.dc-axis {
+    display: flex;
+    gap: 2px;
+    margin-left: 26px;
+    margin-top: 4px;
+}
+
+.dc-axis span {
+    flex: 1;
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* Таблиці по людях і архів */
+.rep-table-wrap {
+    overflow-x: auto;
+}
+
+.rep-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.rep-table th {
+    position: static;
+    background: #f8fafc;
+    font-size: 12px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--muted);
+    padding: 8px 12px;
+    border-right: none;
+}
+
+.rep-table td {
+    padding: 9px 12px;
+    border-right: none;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.rep-table tbody tr:nth-child(even) {
+    background: #ffffff;
+}
+
+.rep-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.rep-table .num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.cell-with-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 160px;
+}
+
+.cell-with-bar > span:last-child {
+    font-weight: 700;
+    min-width: 24px;
+}
+
+.cell-bar {
+    flex: 1;
+    height: 10px;
+    background: #f1f5f9;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.cell-bar > span {
+    display: block;
+    height: 100%;
+    border-radius: 0 4px 4px 0;
+}
+
+.conv {
+    font-weight: 700;
+    color: #334155;
+}
+
+.conv-good {
+    color: #15803d;
+}
+
+.conv-mid {
+    color: #b45309;
+}
+
+.conv-bad {
+    color: #b91c1c;
+}
+
+.arch-current {
+    background: #eff6ff !important;
+}
+
+.arch-open {
+    font-size: 12px;
+    color: #2563eb;
+    font-weight: 600;
+}
+
+.btn-more {
+    padding: 5px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-more:hover {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+
+/* Підказка */
+.rep-tip {
+    position: fixed;
+    z-index: 3000;
+    pointer-events: none;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: #0f172a;
+    color: #f8fafc;
+    font-size: 12px;
+    line-height: 1.4;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+@media (max-width: 900px) {
+    .rep-two {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Моя робота */
+.my-card {
+    border-color: #bfdbfe;
+    background: linear-gradient(180deg, #f5f9ff 0%, #ffffff 120px);
+}
+
+.my-card .kpi-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    margin-bottom: 12px;
+}
+
+.my-role {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 4px 0 10px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e3a8a;
+}
+
+.my-role .rep-sub {
+    font-weight: 400;
+}
+
+.team-h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 12px;
+    font-size: 18px;
+    color: #0f172a;
+}
+
+[hidden] {
+    display: none !important;
+}

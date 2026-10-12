@@ -1193,3 +1193,14 @@ body,
 .table-card {
     overscroll-behavior-x: none;
 }
+
+/* Логотип у бічній панелі — посилання на головну */
+.sidebar a.logo {
+    text-decoration: none;
+    border-radius: 8px;
+    transition: opacity 0.15s ease;
+}
+
+.sidebar a.logo:hover {
+    opacity: 0.85;
+}

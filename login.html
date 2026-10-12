@@ -128,7 +128,12 @@
                 if (error) {
                     authError.textContent = "Ошибка входа: " + error.message;
                 } else {
-                    window.location.href = "index.html";
+                    // Щойно ввели пароль — PIN зараз не питаємо
+                    try {
+                        sessionStorage.setItem("fura_unlocked", "1");
+                        sessionStorage.setItem("fura_tick", String(Date.now()));
+                    } catch (_) {}
+                    window.location.href = "home.html";
                 }
             });
         </script>

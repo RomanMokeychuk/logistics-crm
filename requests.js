@@ -2011,6 +2011,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const params = new URLSearchParams(location.search);
     const newLead = leadById(params.get("new_lead"));
     const newClient = params.get("new_client");
+    if (params.get("new") === "1" && !newLead && !newClient) {
+        openRequestModal();
+        history.replaceState(null, "", location.pathname);
+    }
     if (newLead || newClient) {
         openRequestModal();
         if (newLead) pickLead(newLead);

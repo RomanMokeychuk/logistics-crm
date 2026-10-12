@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Головна</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="requests.css" />
+        <link rel="stylesheet" href="home.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="leads.html"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="reports.html"
+                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
+                >
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content home-page">
+            <header class="top-bar home-hero">
+                <div class="home-hero-left">
+                    <img
+                        class="home-company-logo"
+                        src="company-logo.svg"
+                        alt="Логотип компанії" />
+                    <div>
+                        <h1 id="homeGreeting">Вітаємо у FURA</h1>
+                        <div class="home-date" id="homeDate"></div>
+                    </div>
+                </div>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <div class="home-scroll">
+                <section class="home-block">
+                    <h2 class="home-h2">
+                        <i class="bx bx-bolt-circle"></i> Швидкі команди
+                    </h2>
+                    <div class="quick-grid" id="quickGrid"></div>
+                </section>
+
+                <div class="home-sections">
+                    <section class="home-section">
+                        <h2 class="home-h2 hs-blue">
+                            <i class="bx bx-buildings"></i> Базис
+                        </h2>
+                        <a href="index.html">Перевізники</a>
+                        <a href="leads.html">Ліди (клієнти)</a>
+                        <a href="staff.html">Співробітники</a>
+                    </section>
+                    <section class="home-section">
+                        <h2 class="home-h2 hs-green">
+                            <i class="bx bx-filter-alt"></i> Продажі
+                        </h2>
+                        <a href="requests.html">Запити</a>
+                        <a href="requests.html?new=1">Новий запит</a>
+                        <a href="leads.html?new=1">Новий лід</a>
+                        <a href="leads.html?today=1"
+                            >Кому подзвонити сьогодні</a
+                        >
+                    </section>
+                    <section class="home-section">
+                        <h2 class="home-h2 hs-cyan">
+                            <i class="bx bx-bar-chart-alt-2"></i> Аналітика
+                        </h2>
+                        <a href="reports.html">Підсумки місяця</a>
+                        <a href="reports.html#archive">Архів по місяцях</a>
+                    </section>
+                    <section class="home-section">
+                        <h2 class="home-h2 hs-violet">
+                            <i class="bx bx-wrench"></i> Інструменти
+                        </h2>
+                        <a
+                            href="#"
+                            onclick="
+                                openShlyahModal();
+                                return false;
+                            "
+                            >Шлях — перевірка ТЗ</a
+                        >
+                        <a
+                            href="https://t.me/fura_crm_bot"
+                            target="_blank"
+                            rel="noopener"
+                            >Telegram-бот FURA</a
+                        >
+                    </section>
+                </div>
+            </div>
+        </main>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="about:blank"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="home.js"></script>
+        <script src="notify.js"></script>
+        <script src="lock.js"></script>
+    </body>
+</html>

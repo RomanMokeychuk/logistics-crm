@@ -181,6 +181,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadCarriers();
     setupScrollTopButton();
     renderDirectionSelects();
+
+    // З головної сторінки: index.html?new=1 — одразу форма нового перевізника
+    if (new URLSearchParams(location.search).get("new") === "1") {
+        resetForm();
+        modalOverlay.classList.add("active");
+        history.replaceState(null, "", location.pathname);
+    }
 });
 
 /* ================================================================= *

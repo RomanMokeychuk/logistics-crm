@@ -1017,9 +1017,24 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadLeads();
 
     // Перехід із картки запиту: leads.html?open=ID
-    const openId = new URLSearchParams(location.search).get("open");
-    if (openId) {
-        openLeadCard(openId);
-        history.replaceState(null, "", location.pathname);
+    const params = new URLSearchParams(location.search);
+    const openId = params.get("open");
+    if (openId) openLeadCard(openId);
+    if (params.get("new") === "1") openLeadModal();
+    if (params.get("today") === "1") {
+        todayOnly.checked = true;
+        if (
+            currentStaff &&
+            [...salesFilter.options].some((o) => o.value === "__me")
+        ) {
+            const roles = Array.isArray(currentStaff.roles)
+                ? currentStaff.roles
+                : [currentStaff.role];
+            if (!roles.some((r) => ["admin", "head"].includes(r)))
+                salesFilter.value = "__me";
+        }
+        renderLeads();
     }
+    if ([...params.keys()].length)
+        history.replaceState(null, "", location.pathname);
 });

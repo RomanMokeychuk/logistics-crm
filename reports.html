@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Підсумки</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="requests.css" />
+        <link rel="stylesheet" href="reports.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="leads.html"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="reports.html" class="active"
+                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
+                >
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content reports-page">
+            <header class="top-bar">
+                <h1>Підсумки</h1>
+                <div class="month-nav">
+                    <button
+                        type="button"
+                        class="pager-btn"
+                        id="prevMonthBtn"
+                        title="Попередній місяць">
+                        <i class="bx bx-chevron-left"></i>
+                    </button>
+                    <span class="month-title" id="monthTitle">—</span>
+                    <button
+                        type="button"
+                        class="pager-btn"
+                        id="nextMonthBtn"
+                        title="Наступний місяць">
+                        <i class="bx bx-chevron-right"></i>
+                    </button>
+                </div>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <div class="reports-scroll" id="reportsRoot">
+                <div class="rep-scope" id="repScope"></div>
+
+                <section class="rep-card my-card" id="myCard">
+                    <div class="rep-card-head">
+                        <h2 id="myTitle">Моя робота</h2>
+                        <span class="rep-sub" id="mySub"></span>
+                    </div>
+                    <div id="myBody"></div>
+                </section>
+
+                <div class="team-only" id="teamHead">
+                    <h2 class="team-h2">
+                        <i class="bx bx-group"></i> Уся команда
+                    </h2>
+                </div>
+                <div class="kpi-grid team-only" id="kpiGrid"></div>
+
+                <section class="rep-card">
+                    <div class="rep-card-head">
+                        <h2>Запити по днях</h2>
+                        <span class="rep-sub" id="daysSub"></span>
+                    </div>
+                    <div class="daychart" id="dayChart"></div>
+                </section>
+
+                <div class="rep-two">
+                    <section class="rep-card">
+                        <div class="rep-card-head">
+                            <h2>Запити за статусами</h2>
+                            <span class="rep-sub">створені цього місяця</span>
+                        </div>
+                        <div id="statusChart"></div>
+                    </section>
+                    <section class="rep-card">
+                        <div class="rep-card-head">
+                            <h2>Запити за типами</h2>
+                            <span class="rep-sub">створені цього місяця</span>
+                        </div>
+                        <div id="typeChart"></div>
+                    </section>
+                </div>
+
+                <div class="rep-two">
+                    <section class="rep-card">
+                        <div class="rep-card-head">
+                            <h2>Ліди за етапами</h2>
+                            <span class="rep-sub">зараз, усі клієнти</span>
+                        </div>
+                        <div id="leadStageChart"></div>
+                    </section>
+                    <section class="rep-card team-only">
+                        <div class="rep-card-head">
+                            <h2>Нові ліди за місяць</h2>
+                            <span class="rep-sub">хто скільки додав</span>
+                        </div>
+                        <div id="newLeadsChart"></div>
+                    </section>
+                </div>
+
+                <section class="rep-card team-only">
+                    <div class="rep-card-head">
+                        <h2>Як працюють Sales</h2>
+                        <span class="rep-sub">за місяць</span>
+                    </div>
+                    <div class="rep-table-wrap">
+                        <table class="rep-table" id="salesTable"></table>
+                    </div>
+                </section>
+
+                <section class="rep-card team-only">
+                    <div class="rep-card-head">
+                        <h2>Як працюють логісти</h2>
+                        <span class="rep-sub">за місяць</span>
+                    </div>
+                    <div class="rep-table-wrap">
+                        <table class="rep-table" id="logistTable"></table>
+                    </div>
+                </section>
+
+                <section class="rep-card" id="archive">
+                    <div class="rep-card-head">
+                        <h2>Архів по місяцях</h2>
+                        <span class="rep-sub"
+                            >натисніть «Докладніше», щоб відкрити місяць</span
+                        >
+                    </div>
+                    <div class="rep-table-wrap">
+                        <table class="rep-table" id="archiveTable"></table>
+                    </div>
+                </section>
+            </div>
+            <div class="rep-tip" id="repTip" hidden></div>
+        </main>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="about:blank"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="reports.js"></script>
+        <script src="notify.js"></script>
+        <script src="lock.js"></script>
+    </body>
+</html>
