@@ -33,7 +33,7 @@ const STATUS_CHOSEN = "В роботі";
 const REQUEST_TYPES = [
     { value: "Прорахунок", cls: "type-calc", icon: "bx-calculator" },
     { value: "Пошук авто", cls: "type-search", icon: "bx-search-alt" },
-    { value: "Завантаження", cls: "type-load", icon: "bx-package" },
+    { value: "Завантаження", cls: "type-load", icon: "bx-package", old: true }, // більше не обирається, лишається для старих запитів
 ];
 
 function typeBadge(type) {
@@ -88,6 +88,55 @@ const TRANSPORT_TYPES = [
     "СЦЕПКА",
     "БУС",
 ];
+
+// Пакування — групи як на біржах вантажів
+const PACKAGING_GROUPS = [
+    {
+        group: "Палети",
+        items: [
+            "EURO 1,2×0,8 м",
+            "FIN 1,2×1 м",
+            "1×1 м",
+            "1,1×1,1 м",
+            "1,2×1,2 м",
+            "Нестандартна палета",
+        ],
+    },
+    {
+        group: "Тверда",
+        items: [
+            "Блок",
+            "Бочка",
+            "Чушка",
+            "Ящик",
+            "Коробка",
+            "Пачка",
+            "Упаковка",
+        ],
+    },
+    {
+        group: "Контейнери",
+        items: ["Swap body", "Контейнер 45'", "Контейнер 40'", "Контейнер 20'"],
+    },
+    { group: "Гнучка", items: ["Біг-бег", "Мішок", "Зв'язка", "Сітка", "Тюк"] },
+    { group: "Рідка", items: ["Барабан", "Балон", "Каністра", "Відро"] },
+    { group: "Рулони або лист", items: ["Бухта", "Рулон"] },
+    { group: "Сипуча форма", items: ["Навалом", "Насипом"] },
+    { group: "Інше", items: ["Без упаковки"] },
+];
+
+// Як можуть вантажити
+const LOADING_TYPES = [
+    "Задня",
+    "Бокова",
+    "Верхня",
+    "Повне розтентування",
+    "Зняття поперечин",
+    "Зняття стійок",
+    "Гідроборт",
+];
+
+const isRef = (t) => /РЕФ/i.test(String(t || ""));
 
 // Підказки для "Погран перехід" (можна ввести і свій)
 const BORDER_CROSSINGS = [
@@ -721,13 +770,17 @@ function logistFieldsFor(existing, pick) {
 
 // Три кнопки "Тип запиту" у формі
 function renderTypePicker(selected) {
-    document.getElementById("req_type_picker").innerHTML = REQUEST_TYPES.map(
-        (t) => `
+    document.getElementById("req_type_picker").innerHTML = REQUEST_TYPES.filter(
+        (t) => !t.old || t.value === selected,
+    )
+        .map(
+            (t) => `
         <label class="type-option ${t.cls}">
             <input type="radio" name="req_type" value="${escapeHtml(t.value)}" ${t.value === selected ? "checked" : ""} />
             <i class='bx ${t.icon}'></i> ${escapeHtml(t.value)}
         </label>`,
-    ).join("");
+        )
+        .join("");
 }
 
 /* ================================================================= *
@@ -766,6 +819,9 @@ function renderRequests() {
             r.unload_country,
             r.unload_address,
             r.customs_export,
+            r.customs_export_country,
+            r.customs_import_country,
+            (r.packaging || []).map((p) => p.type).join(" "),
             r.border_crossing,
             r.customs_import,
             r.status,
@@ -1193,6 +1249,10 @@ function fillSelects() {
 
     document.getElementById("req_load_country").innerHTML = countryOptions;
     document.getElementById("req_unload_country").innerHTML = countryOptions;
+    document.getElementById("req_customs_export_country").innerHTML =
+        countryOptions;
+    document.getElementById("req_customs_import_country").innerHTML =
+        countryOptions;
 
     document.getElementById("req_status").innerHTML = REQUEST_STATUSES.map(
         (s) =>
@@ -1212,7 +1272,122 @@ function fillSelects() {
 
 function setVal(id, val) {
     const el = document.getElementById(id);
-    if (el) el.value = val || "";
+    if (el) el.value = val === 0 ? "0" : val || "";
+}
+
+/* ---------- Пакування (кілька рядків) ---------- */
+const packRowsBox = document.getElementById("req_pack_rows");
+
+function packSelectHtml(selected) {
+    const known = PACKAGING_GROUPS.some((g) => g.items.includes(selected));
+    return `<select class="pack-type">
+        <option value="">Виберіть...</option>
+        ${PACKAGING_GROUPS.map(
+            (g) =>
+                `<optgroup label="${escapeHtml(g.group)}">${g.items
+                    .map(
+                        (i) =>
+                            `<option value="${escapeHtml(i)}"${i === selected ? " selected" : ""}>${escapeHtml(i)}</option>`,
+                    )
+                    .join("")}</optgroup>`,
+        ).join("")}
+        ${selected && !known ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : ""}
+    </select>`;
+}
+
+function addPackRow(type = "", qty = "") {
+    const row = document.createElement("div");
+    row.className = "pack-row";
+    row.innerHTML = `
+        ${packSelectHtml(type)}
+        <input type="number" class="pack-qty" min="1" step="1" placeholder="1" value="${escapeHtml(qty)}" />
+        <span class="pack-unit">шт</span>
+        <button type="button" class="pack-del" title="Прибрати"><i class='bx bx-x'></i></button>`;
+    row.querySelector(".pack-del").addEventListener("click", () => {
+        row.remove();
+        if (!packRowsBox.children.length) addPackRow();
+    });
+    packRowsBox.appendChild(row);
+}
+
+function renderPackRows(list) {
+    packRowsBox.innerHTML = "";
+    (Array.isArray(list) && list.length ? list : [{}]).forEach((p) =>
+        addPackRow(p.type || "", p.qty ?? ""),
+    );
+}
+
+function readPackRows() {
+    return [...packRowsBox.querySelectorAll(".pack-row")]
+        .map((row) => ({
+            type: row.querySelector(".pack-type").value,
+            qty: Number(row.querySelector(".pack-qty").value) || null,
+        }))
+        .filter((p) => p.type);
+}
+
+document
+    .getElementById("reqPackAddBtn")
+    .addEventListener("click", () => addPackRow());
+
+/* ---------- Як можуть вантажити ---------- */
+function renderLoadingChips(selected) {
+    const sel = new Set(selected || []);
+    document.getElementById("req_loading_types").innerHTML = LOADING_TYPES.map(
+        (t) =>
+            `<label class="loading-chip"><input type="checkbox" value="${escapeHtml(t)}"${sel.has(t) ? " checked" : ""} /> ${escapeHtml(t)}</label>`,
+    ).join("");
+}
+const readLoadingChips = () =>
+    [...document.querySelectorAll("#req_loading_types input:checked")].map(
+        (i) => i.value,
+    );
+
+/* ---------- Температура для РЕФ ---------- */
+function updateTempVisibility() {
+    document.getElementById("reqTempGroup").hidden = !isRef(
+        document.getElementById("req_transport_type").value,
+    );
+}
+document
+    .getElementById("req_transport_type")
+    .addEventListener("input", updateTempVisibility);
+document
+    .getElementById("req_transport_type")
+    .addEventListener("change", updateTempVisibility);
+
+/* ---------- Замитнення / розмитнення "по місцю" ---------- */
+function updateCustomsHere(kind) {
+    const here = document.getElementById(`req_customs_${kind}_here`).checked;
+    ["_country", ""].forEach((suf) => {
+        const el = document.getElementById(`req_customs_${kind}${suf}`);
+        el.disabled = here;
+        if (here) el.value = "";
+    });
+}
+["export", "import"].forEach((kind) =>
+    document
+        .getElementById(`req_customs_${kind}_here`)
+        .addEventListener("change", () => updateCustomsHere(kind)),
+);
+
+const CUSTOMS_HERE = "По місцю";
+
+function setCustoms(kind, country, place) {
+    const here = place === CUSTOMS_HERE;
+    document.getElementById(`req_customs_${kind}_here`).checked = here;
+    setVal(`req_customs_${kind}_country`, here ? "" : country);
+    setVal(`req_customs_${kind}`, here ? "" : place);
+    updateCustomsHere(kind);
+}
+
+function customsText(country, place, kind) {
+    if (place === CUSTOMS_HERE)
+        return kind === "export"
+            ? "По місцю завантаження"
+            : "По місцю розвантаження";
+    if (!country && !place) return "";
+    return locationCell(country, place);
 }
 
 function openRequestModal(request = null) {
@@ -1235,10 +1410,27 @@ function openRequestModal(request = null) {
     setVal("req_load_address", request?.load_address);
     setVal("req_unload_country", request?.unload_country);
     setVal("req_unload_address", request?.unload_address);
-    setVal("req_customs_export", request?.customs_export);
+    setCustoms(
+        "export",
+        request?.customs_export_country,
+        request?.customs_export,
+    );
     setVal("req_border_crossing", request?.border_crossing);
-    setVal("req_customs_import", request?.customs_import);
+    setCustoms(
+        "import",
+        request?.customs_import_country,
+        request?.customs_import,
+    );
     setVal("req_status", request?.status || REQUEST_STATUSES[0].value);
+    // Статус змінюється сам (запит → відповідь → в роботі). У формі — лише при редагуванні
+    document.getElementById("reqStatusGroup").hidden = !request;
+    renderPackRows(request?.packaging);
+    renderLoadingChips(request?.loading_types);
+    setVal("req_trucks_count", request?.trucks_count);
+    setVal("req_trucks_period", request?.trucks_period);
+    setVal("req_temp_from", request?.temp_from ?? "");
+    setVal("req_temp_to", request?.temp_to ?? "");
+    updateTempVisibility();
     // Sales: для нового запиту — той, хто зараз увійшов (якщо він Sales/Керівник)
     const defaultSalesId =
         !request && currentStaff && hasRole(currentStaff, ["sales", "head"])
@@ -1317,7 +1509,7 @@ requestForm.addEventListener("submit", async (e) => {
     const requestType =
         document.querySelector("input[name='req_type']:checked")?.value || null;
     if (!requestType) {
-        alert("Оберіть тип запиту: Прорахунок, Пошук авто чи Завантаження.");
+        alert("Оберіть тип запиту: Прорахунок чи Пошук авто.");
         return;
     }
 
@@ -1357,10 +1549,34 @@ requestForm.addEventListener("submit", async (e) => {
         load_address: getValue("req_load_address"),
         unload_country: getValue("req_unload_country"),
         unload_address: getValue("req_unload_address"),
-        customs_export: getValue("req_customs_export"),
+        customs_export: document.getElementById("req_customs_export_here")
+            .checked
+            ? CUSTOMS_HERE
+            : getValue("req_customs_export"),
+        customs_export_country: getValue("req_customs_export_country"),
         border_crossing: getValue("req_border_crossing"),
-        customs_import: getValue("req_customs_import"),
-        status: getValue("req_status") || REQUEST_STATUSES[0].value,
+        customs_import: document.getElementById("req_customs_import_here")
+            .checked
+            ? CUSTOMS_HERE
+            : getValue("req_customs_import"),
+        customs_import_country: getValue("req_customs_import_country"),
+        status: existing
+            ? getValue("req_status") || existing.status
+            : STATUS_NEW,
+        packaging: readPackRows(),
+        loading_types: readLoadingChips(),
+        trucks_count: Number(getValue("req_trucks_count")) || null,
+        trucks_period: getValue("req_trucks_period"),
+        temp_from:
+            isRef(getValue("req_transport_type")) &&
+            getValue("req_temp_from") !== null
+                ? Number(getValue("req_temp_from"))
+                : null,
+        temp_to:
+            isRef(getValue("req_transport_type")) &&
+            getValue("req_temp_to") !== null
+                ? Number(getValue("req_temp_to"))
+                : null,
         desired_date: dateFrom,
         desired_date_to: dateTo,
         sales: salesPick.name,
@@ -1402,6 +1618,27 @@ async function deleteRequest(id) {
 
 const requestCardOverlay = document.getElementById("requestCardOverlay");
 let currentCardRequestId = null;
+
+function packagingText(list) {
+    if (!Array.isArray(list) || !list.length) return "";
+    return list
+        .map((p) =>
+            escapeHtml(`${p.type}${p.qty ? " — " + p.qty + " шт" : ""}`),
+        )
+        .join("<br>");
+}
+
+function tempText(r) {
+    const f = (v) =>
+        v === null || v === undefined || v === ""
+            ? null
+            : `${Number(v) > 0 ? "+" : ""}${v}`;
+    const a = f(r.temp_from),
+        b = f(r.temp_to);
+    if (a === null && b === null) return "";
+    if (a !== null && b !== null) return `від ${a} до ${b} °C`;
+    return a !== null ? `від ${a} °C` : `до ${b} °C`;
+}
 
 // Один рядок "підпис — значення" (класи картки перевізника зі style.css)
 function cardRow(label, valueHtml) {
@@ -1453,6 +1690,10 @@ function openRequestCard(id) {
                     ${cardRow("Вантаж:", escapeHtml(r.cargo))}
                     ${cardRow("Тип транспорту:", r.transport_type ? `<span class="badge badge-warning">${escapeHtml(r.transport_type)}</span>` : "")}
                     ${cardRow("Вага:", escapeHtml(r.weight))}
+                    ${cardRow("Пакування:", packagingText(r.packaging))}
+                    ${isRef(r.transport_type) || r.temp_from !== null || r.temp_to !== null ? cardRow("Температура:", tempText(r)) : ""}
+                    ${cardRow("Кількість авто:", r.trucks_count ? escapeHtml(`${r.trucks_count} авто${r.trucks_period ? " " + r.trucks_period : " (разово)"}`) : "")}
+                    ${cardRow("Як вантажити:", (r.loading_types || []).length ? escapeHtml(r.loading_types.join(", ")) : "")}
                 </div>
 
                 <div class="card-section">
@@ -1470,9 +1711,9 @@ function openRequestCard(id) {
             <div class="card-col">
                 <div class="card-section">
                     <div class="card-section-title">Митниця та кордон</div>
-                    ${cardRow("Замитнення:", escapeHtml(r.customs_export))}
+                    ${cardRow("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export"))}
                     ${cardRow("Погран перехід:", escapeHtml(r.border_crossing))}
-                    ${cardRow("Розмитнення:", escapeHtml(r.customs_import))}
+                    ${cardRow("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import"))}
                 </div>
 
                 <div class="card-section">

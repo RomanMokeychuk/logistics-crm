@@ -974,3 +974,137 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ---------- Пакування, температура, авто, як вантажити, митниця ---------- */
+.pack-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.pack-row {
+    display: grid;
+    grid-template-columns: 1fr 90px auto 36px;
+    gap: 8px;
+    align-items: center;
+}
+
+.pack-unit {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.pack-del {
+    width: 36px;
+    height: 36px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    color: #94a3b8;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.pack-del:hover {
+    color: #dc2626;
+    border-color: #fecaca;
+    background: #fef2f2;
+}
+
+.pack-add {
+    align-self: flex-start;
+    margin-top: 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    border: 1px dashed #93c5fd;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.temp-inputs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #ecfeff;
+    border: 1px solid #a5f3fc;
+    border-radius: 10px;
+    color: #0e7490;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.temp-inputs input {
+    width: 110px;
+}
+
+.trucks-inputs {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 8px;
+}
+
+.loading-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.form-group .loading-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    cursor: pointer;
+    user-select: none;
+}
+
+.loading-chip input {
+    accent-color: #2563eb;
+    margin: 0;
+}
+
+.form-group .loading-chip:has(input:checked) {
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.customs-inputs {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 8px;
+}
+
+.customs-inputs :disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+@media (max-width: 700px) {
+    .customs-inputs,
+    .trucks-inputs {
+        grid-template-columns: 1fr;
+    }
+    .pack-row {
+        grid-template-columns: 1fr 70px auto 36px;
+    }
+}
+
+/* Сховані поля (Статус для нового запиту, температура не для РЕФ) */
+.request-form-grid [hidden] {
+    display: none !important;
+}

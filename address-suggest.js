@@ -331,6 +331,14 @@
             countrySelect: $("req_unload_country"),
             mode: "full",
         });
+        attach($("req_customs_export"), {
+            countrySelect: $("req_customs_export_country"),
+            mode: "full",
+        });
+        attach($("req_customs_import"), {
+            countrySelect: $("req_customs_import_country"),
+            mode: "full",
+        });
 
         // Ліди: місто клієнта
         attach($("lead_city"), {

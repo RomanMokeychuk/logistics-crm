@@ -178,9 +178,7 @@
                     return;
                 }
                 if (!requestType) {
-                    showError(
-                        "Оберіть тип запиту: Прорахунок, Пошук авто чи Завантаження.",
-                    );
+                    showError("Оберіть тип запиту: Прорахунок чи Пошук авто.");
                     return;
                 }
                 if (period.to && period.from && period.to < period.from) {
