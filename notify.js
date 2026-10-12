@@ -12,7 +12,12 @@
 (function () {
     // sbClient вже створений основним скриптом сторінки
     const client = typeof sbClient !== "undefined" ? sbClient : null;
-    if (!client) return;
+    if (!client) {
+        console.warn(
+            "FURA сповіщення: не знайдено sbClient — notify.js має стояти ПІСЛЯ основного скрипта сторінки",
+        );
+        return;
+    }
 
     const STATUS_CHOSEN = "В роботі";
     let me = null; // запис зі staff для поточного користувача
@@ -289,7 +294,13 @@
             (staff || []).find(
                 (s) => (s.email || "").toLowerCase() === email,
             ) || null;
-        if (!me) return; // людини немає серед співробітників — сповіщення не потрібні
+        if (!me) {
+            console.warn(
+                `FURA сповіщення: пошти ${email} немає серед активних співробітників`,
+            );
+            return;
+        }
+        console.log(`FURA сповіщення: ви — ${me.full_name}`);
 
         // Запам'ятовуємо поточний стан свіжих запитів, щоб помічати зміни
         const since = new Date(Date.now() - 30 * 86400000).toISOString();
@@ -314,7 +325,13 @@
                     handleChange(p.eventType, p.new);
                 },
             )
-            .subscribe();
+            .subscribe((status, err) => {
+                console.log(
+                    "FURA сповіщення (зв'язок з базою):",
+                    status,
+                    err || "",
+                );
+            });
 
         // Перехід з іншої сторінки по кліку на сповіщення: requests.html?open=ID
         const openId = new URLSearchParams(location.search).get("open");
@@ -332,6 +349,16 @@
             }, 250);
         }
     }
+
+    // Перевірка вручну: у консолі браузера набрати furaNotifyTest()
+    window.furaNotifyTest = () =>
+        notify({
+            kind: "new",
+            icon: "🟡",
+            title: "Тестове сповіщення",
+            text: "Якщо ви це бачите і чуєте звук — сповіщення працюють.",
+            requestId: "",
+        });
 
     document.addEventListener("visibilitychange", () => {
         if (!document.hidden && !document.querySelector(".fura-toast")) {
