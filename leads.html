@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Ліди</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="requests.css" />
+        <link rel="stylesheet" href="leads.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <div class="logo">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </div>
+            <nav class="menu">
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="leads.html" class="active"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Ліди</h1>
+                <button class="btn btn-primary" id="openLeadModalBtn">
+                    <i class="bx bx-plus"></i> Додати ліда
+                </button>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <!-- Етапи: Всі / Новий / Контакт / ... з лічильниками -->
+            <div class="lead-tabs" id="leadTabs"></div>
+
+            <div class="filters-bar lead-filters">
+                <input
+                    type="text"
+                    id="leadsSearch"
+                    class="search-input"
+                    placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, місто, напрямок..." />
+                <select id="leadsSalesFilter" class="lead-select"></select>
+                <label class="lead-toggle">
+                    <input type="checkbox" id="leadsTodayOnly" />
+                    Зв'язатися сьогодні / прострочено
+                </label>
+            </div>
+
+            <section class="table-card" id="tableScrollArea">
+                <table class="requests-table leads-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 40px; text-align: center">№</th>
+                            <th>
+                                <span class="th-label sortable" data-sort="name"
+                                    >КЛІЄНТ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="contact_person"
+                                    >КОНТАКТ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span class="th-label sortable" data-sort="city"
+                                    >МІСТО <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="directions"
+                                    >НАПРЯМКИ <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="status"
+                                    >ЕТАП <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="sales"
+                                    >SALES <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="next_contact"
+                                    >НАСТУПНИЙ КОНТАКТ
+                                    <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>
+                                <span
+                                    class="th-label sortable"
+                                    data-sort="created_at"
+                                    >ДОДАНО <i class="bx sort-icon"></i
+                                ></span>
+                            </th>
+                            <th>ДІЇ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leadsTableBody"></tbody>
+                </table>
+            </section>
+
+            <div id="leadsCountBar" class="carriers-count-bar"></div>
+        </main>
+
+        <!-- Додати / редагувати ліда -->
+        <div class="modal-overlay" id="leadModalOverlay">
+            <div class="modal" style="max-width: 760px">
+                <div class="modal-header">
+                    <h2 id="leadModalTitle">Додати ліда</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="closeLeadModalBtn">
+                        &times;
+                    </button>
+                </div>
+                <form id="leadForm">
+                    <input type="hidden" id="leadId" value="" />
+                    <div class="modal-body request-form-grid">
+                        <div class="form-group span-2">
+                            <label>Назва компанії / ФОП *</label>
+                            <input
+                                type="text"
+                                id="lead_name"
+                                required
+                                placeholder="наприклад: ТОВ МЕД ОК" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Код ЄДРПОУ / ІПН</label>
+                            <input
+                                type="text"
+                                id="lead_edrpou"
+                                placeholder="12345678" />
+                        </div>
+                        <div class="form-group">
+                            <label>Звідки прийшов</label>
+                            <input
+                                type="text"
+                                id="lead_source"
+                                list="leadSourcesList"
+                                placeholder="Оберіть або введіть..." />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-user"></i> Контакти
+                        </div>
+
+                        <div class="form-group">
+                            <label>Контактна особа</label>
+                            <input
+                                type="text"
+                                id="lead_contact_person"
+                                placeholder="Ім'я, посада" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input
+                                type="text"
+                                id="lead_phone"
+                                placeholder="380000000000" />
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                id="lead_email"
+                                placeholder="name@company.com" />
+                        </div>
+                        <div class="form-group">
+                            <label>Країна / Місто</label>
+                            <div class="lead-two">
+                                <select id="lead_country"></select>
+                                <input
+                                    type="text"
+                                    id="lead_city"
+                                    placeholder="Луцьк" />
+                            </div>
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-package"></i> Що возить
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Напрямки перевезень</label>
+                            <input
+                                type="text"
+                                id="lead_directions"
+                                placeholder="наприклад: Польща → Україна, Литва → Україна" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Вантаж, тип авто, обсяги</label>
+                            <input
+                                type="text"
+                                id="lead_cargo"
+                                placeholder="наприклад: палети, ТЕНТ 92 м³, 4–5 авто на місяць" />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-target-lock"></i> Робота з клієнтом
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Етап</label>
+                            <div
+                                class="type-picker"
+                                id="lead_status_picker"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Відповідальний Sales</label>
+                            <select id="lead_sales"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Наступний контакт</label>
+                            <input type="date" id="lead_next_contact" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Нотатки</label>
+                            <textarea
+                                id="lead_notes"
+                                rows="3"
+                                placeholder="Що важливо знати про клієнта..."></textarea>
+                        </div>
+                    </div>
+                    <datalist id="leadSourcesList"></datalist>
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="cancelLeadBtn">
+                            Відміна
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Зберегти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Картка ліда -->
+        <div class="modal-overlay" id="leadCardOverlay">
+            <div class="modal carrier-card-modal">
+                <div class="carrier-card-topbar">
+                    <h2>Інформація про клієнта</h2>
+                    <div class="carrier-card-actions">
+                        <button
+                            type="button"
+                            class="btn-card-edit"
+                            id="editFromLeadCardBtn">
+                            <i class="bx bx-edit"></i> Редагувати
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeLeadCardBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <div id="leadCardBody"></div>
+            </div>
+        </div>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="about:blank"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="leads.js"></script>
+        <script src="notify.js"></script>
+    </body>
+</html>

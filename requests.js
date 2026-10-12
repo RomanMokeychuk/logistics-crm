@@ -1723,4 +1723,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Кожну хвилину підтягуємо нові запити від Sales і оновлюємо таймери
     setInterval(loadRequests, 60 * 1000);
+
+    // Перехід з картки ліда: requests.html?new_client=Назва — одразу форма нового запиту
+    const newClient = new URLSearchParams(location.search).get("new_client");
+    if (newClient) {
+        openRequestModal();
+        setVal("req_client", newClient);
+        history.replaceState(null, "", location.pathname);
+    }
 });
