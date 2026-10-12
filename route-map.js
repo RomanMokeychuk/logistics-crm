@@ -37,6 +37,13 @@
         .route-map { height: 360px; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; background: #f8fafc; }
         .route-details { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
         @media (max-width: 800px) { .route-details { grid-template-columns: 1fr; } .route-map { height: 280px; } }
+        .route-plan { grid-column: 1 / -1; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; }
+        .route-plan-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+        .route-plan-head .route-list-title { margin: 0; }
+        .route-plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 18px; }
+        .route-plan-row { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: #475569; padding: 4px 0; border-bottom: 1px dashed #e2e8f0; }
+        .route-plan-row b { color: #0f172a; white-space: nowrap; }
+        .route-plan-note { margin-top: 8px; font-size: 12px; color: #64748b; line-height: 1.45; }
         .route-list-title { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 6px; }
         .route-li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
         .route-li:last-child { border-bottom: none; }
@@ -44,7 +51,8 @@
         .route-km { flex-shrink: 0; min-width: 58px; color: #64748b; font-variant-numeric: tabular-nums; }
         .route-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
         .route-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border: 1px solid #cbd5e1;
-            border-radius: 8px; color: #1d4ed8; font-size: 13px; font-weight: 600; text-decoration: none; background: #fff; }
+            border-radius: 8px; color: #1d4ed8; font-size: 13px; font-weight: 600; text-decoration: none; background: #fff;
+            cursor: pointer; font-family: inherit; }
         .route-link:hover { border-color: #2563eb; background: #eff6ff; }
         .route-pin { width: 26px; height: 26px; border-radius: 50%; color: #fff; font: 700 13px/26px sans-serif;
             text-align: center; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
@@ -126,6 +134,90 @@
         return mm ? `${h} год ${mm} хв` : `${h} год`;
     }
     const fmtKm = (km) => `${Number(km || 0).toLocaleString("uk-UA")} км`;
+
+    /* ---------------- Норми праці водіїв (Регламент ЄС 561/2006 / ЄУТР-AETR) ----------------
+     * 1 водій: перерва 45 хв після 4,5 год керування; до 9 год на добу (двічі на тиждень — 10 год);
+     *          щоденний відпочинок 11 год (тричі між тижневими — 9 год); до 56 год на тиждень,
+     *          до 90 год за 2 тижні; тижневий відпочинок 45 год після 6 робочих діб.
+     * 2 водії: машина їде до 18 год (двічі на тиждень — 20 год), потім 9 год відпочинку
+     *          (у межах 30 год); перерви не потрібні — другий водій відпочиває в дорозі.
+     * Усе в хвилинах. Черга на кордоні й митниця не враховуються. */
+    function driverPlan(driveMin, crew) {
+        const two = crew === 2;
+        const DAY = two ? 1080 : 540,
+            DAY_EXT = two ? 1200 : 600;
+        const WEEK = two ? 112 * 60 : 56 * 60,
+            FORTNIGHT = two ? 180 * 60 : 90 * 60;
+        let rem = Math.round(driveMin),
+            total = 0,
+            breaks = 0,
+            daily = 0,
+            weekly = 0;
+        let week = 0,
+            prevWeek = 0,
+            ext = 2,
+            reduced = 3,
+            days = 0,
+            shifts = 0;
+        const weeklyRest = () => {
+            weekly += 2700;
+            total += 2700;
+            prevWeek = week;
+            week = 0;
+            ext = 2;
+            reduced = 3;
+            days = 0;
+        };
+        let guard = 0;
+        while (rem > 0 && guard++ < 200) {
+            const cap = Math.min(WEEK, FORTNIGHT - prevWeek) - week;
+            if (cap <= 0) {
+                weeklyRest();
+                continue;
+            }
+            const lim = rem > DAY && ext > 0 ? DAY_EXT : DAY;
+            const d = Math.min(rem, lim, cap);
+            if (d > DAY) ext--;
+            const b = two ? 0 : Math.floor((d - 1) / 270) * 45;
+            total += d + b;
+            breaks += b;
+            rem -= d;
+            week += d;
+            days++;
+            shifts++;
+            if (rem <= 0) break;
+            if (days >= 6 || Math.min(WEEK, FORTNIGHT - prevWeek) - week <= 0)
+                weeklyRest();
+            else {
+                const r = two ? 540 : reduced > 0 ? 540 : 660;
+                if (!two && reduced > 0) reduced--;
+                daily += r;
+                total += r;
+            }
+        }
+        return {
+            total,
+            drive: Math.round(driveMin),
+            breaks,
+            daily,
+            weekly,
+            shifts,
+        };
+    }
+
+    const plural = (n, one, few, many) => {
+        const m10 = n % 10,
+            m100 = n % 100;
+        if (m10 === 1 && m100 !== 11) return one;
+        if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
+        return many;
+    };
+    function fmtDays(min) {
+        const d = Math.floor(min / 1440);
+        const h = Math.round((min % 1440) / 60);
+        if (!d) return `${h} год`;
+        return `${d} ${plural(d, "доба", "доби", "діб")}${h ? ` ${h} год` : ""}`;
+    }
 
     const crossingsList = () =>
         typeof BORDER_CROSSINGS !== "undefined" ? BORDER_CROSSINGS : [];
@@ -231,14 +323,11 @@
         mapEl.style.display = "";
 
         /* --- Цифри --- */
-        const driveH = data.timeSec / 3600;
-        const days = Math.max(1, Math.ceil(driveH / 9)); // 9 год керування на добу
         const delayMin = Math.round((data.delaySec || 0) / 60);
         const uaBorder = data.borders.find((b) => b.ukraine);
         stats.innerHTML = [
-            `<span class="route-chip"><i class='bx bx-trip'></i>${fmtKm(data.km)}</span>`,
             `<span class="route-chip" title="Чистий час за кермом з урахуванням поточного трафіку"><i class='bx bx-time-five'></i>${fmtDur(data.timeSec)} за кермом</span>`,
-            `<span class="route-chip" title="Якщо водій їде до 9 год на добу (норми відпочинку). Без черги на кордоні."><i class='bx bx-calendar'></i>≈ ${days} ${days === 1 ? "доба" : days < 5 ? "доби" : "діб"} в дорозі</span>`,
+            `<span class="route-chip route-days-chip" title="З перервами і відпочинком за нормами ЄС/ЄУТР. Без черги на кордоні."><i class='bx bx-trip'></i><span class="route-days"></span></span>`,
             delayMin >= 1
                 ? `<span class="route-chip ${delayMin >= 30 ? "bad" : "warn"}"><i class='bx bx-traffic-cone'></i>Затори: +${fmtDur(data.delaySec)}</span>`
                 : `<span class="route-chip ok"><i class='bx bx-check-circle'></i>Без заторів зараз</span>`,
@@ -285,8 +374,45 @@
             : `<div class="route-li">Заторів на маршруті зараз немає</div>`;
 
         details.innerHTML = `
+            <div class="route-plan"></div>
             <div><div class="route-list-title">Кордони</div>${bordersHtml}</div>
             <div><div class="route-list-title">Затори і ремонти зараз</div>${jamsHtml}</div>`;
+
+        /* --- Час у дорозі за нормами праці водіїв --- */
+        const planBox = details.querySelector(".route-plan");
+        const updatePlan = () => {
+            const p = driverPlan(data.timeSec / 60, 1); // завжди 1 водій (2 водії — рідкість)
+            const arrive = new Date(Date.now() + p.total * 60000);
+            const arriveTxt = arrive.toLocaleString("uk-UA", {
+                weekday: "short",
+                day: "2-digit",
+                month: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+            stats.querySelector(".route-days").textContent =
+                `≈ ${fmtDays(p.total)} в дорозі = ${fmtKm(data.km)}`;
+            const row = (label, val) =>
+                `<div class="route-plan-row"><span>${label}</span><b>${val}</b></div>`;
+            planBox.innerHTML = `
+                <div class="route-plan-head">
+                    <div class="route-list-title">Час у дорозі за нормами праці водія (ЄС 561/2006 / ЄУТР)</div>
+                </div>
+                <div class="route-plan-grid">
+                    ${row("За кермом", fmtDur(p.drive * 60))}
+                    ${row("Перерви по 45 хв", p.breaks ? fmtDur(p.breaks * 60) : "—")}
+                    ${row("Щоденний відпочинок", p.daily ? fmtDur(p.daily * 60) : "—")}
+                    ${p.weekly ? row("Тижневий відпочинок", fmtDur(p.weekly * 60)) : ""}
+                    ${row("Разом у дорозі", `≈ ${fmtDays(p.total)}`)}
+                    ${row("Прибуття, якщо виїхати зараз", arriveTxt)}
+                </div>
+                <div class="route-plan-note">
+                    Перерва 45 хв кожні 4,5 год; до 9 год за кермом на добу (двічі на тиждень — 10);
+                    відпочинок 11 год (тричі на тиждень — 9); до 56 год на тиждень; тижневий відпочинок 45 год.
+                    Черга на кордоні, митниця і завантаження не враховані.
+                </div>`;
+        };
+        updatePlan();
 
         /* --- Посилання --- */
         const ll = (p) => `${p.lat},${p.lon}`;
@@ -297,6 +423,7 @@
         if (uaBorder) gm.searchParams.set("waypoints", ll(uaBorder));
         gm.searchParams.set("travelmode", "driving");
         links.innerHTML = `
+            <button type="button" class="route-link route-full-btn"><i class='bx bx-fullscreen'></i> Карта на весь екран</button>
             <a class="route-link" href="${esc(gm.toString())}" target="_blank" rel="noopener"><i class='bx bx-map'></i> Відкрити в Google Maps</a>
             ${uaBorder ? `<a class="route-link" href="https://echerha.gov.ua/" target="_blank" rel="noopener"><i class='bx bx-time'></i> Черга на кордоні (єЧерга)</a>` : ""}`;
 
@@ -328,6 +455,7 @@
             new gl.NavigationControl({ showCompass: false }),
             "top-right",
         );
+        map.addControl(new gl.FullscreenControl(), "top-right");
         map.on("styleimagemissing", () => {}); // тихо пропускаємо відсутні значки стилю
 
         map.on("load", () => {
@@ -430,6 +558,27 @@
                 `${b.name || "Кордон"}: ${b.from} → ${b.to}`,
             );
         }
+
+        // Велика карта: на весь екран (Esc — назад). У великій карті колесо мишки масштабує.
+        links
+            .querySelector(".route-full-btn")
+            ?.addEventListener("click", () => {
+                const el = map.getContainer();
+                (el.requestFullscreen || el.webkitRequestFullscreen)?.call(el);
+            });
+        const onFs = () => {
+            const full = document.fullscreenElement === map.getContainer();
+            if (full) map.scrollZoom.enable();
+            else map.scrollZoom.disable();
+            setTimeout(() => {
+                map.resize();
+                map.fitBounds(bounds, { padding: full ? 80 : 40, duration: 0 });
+            }, 150);
+        };
+        document.addEventListener("fullscreenchange", onFs);
+        map.on("remove", () =>
+            document.removeEventListener("fullscreenchange", onFs),
+        );
 
         // Картка відкривається з анімацією — підганяємо розмір карти
         setTimeout(() => {
