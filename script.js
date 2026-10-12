@@ -502,7 +502,19 @@ async function loadCarriers() {
         request = request.order("created_at", { ascending: false });
     }
 
-    const { data, error } = await request;
+    // Supabase віддає максимум 1000 рядків за раз — забираємо всі частинами
+    const PAGE = 1000;
+    let data = [];
+    let error = null;
+    for (let from = 0; ; from += PAGE) {
+        const res = await request.range(from, from + PAGE - 1);
+        if (res.error) {
+            error = res.error;
+            break;
+        }
+        data = data.concat(res.data || []);
+        if (!res.data || res.data.length < PAGE) break;
+    }
 
     if (error) {
         console.error("Помилка завантаження:", error);
