@@ -201,6 +201,12 @@
         chosen: r.logistician_id ? String(r.logistician_id) : null,
     });
 
+    const sameSnapshot = (a, b) =>
+        a.status === b.status &&
+        a.chosen === b.chosen &&
+        a.logists.join() === b.logists.join() &&
+        JSON.stringify([...a.answers]) === JSON.stringify([...b.answers]);
+
     const route = (r) =>
         [r.load_country, r.unload_country].filter(Boolean).join(" → ") ||
         "маршрут не вказано";
@@ -216,8 +222,11 @@
         const before = known.get(String(r.id));
         known.set(String(r.id), snapshot(r));
 
-        // Оновлення, а ми цей запит раніше не бачили — просто запам'ятовуємо
-        if (type === "UPDATE" && !before) return;
+        // Оновлення, а ми цей запит раніше не бачили — запам'ятовуємо і оновлюємо сторінку
+        if (type === "UPDATE" && !before) {
+            refreshPage();
+            return;
+        }
 
         const head = `<b>${esc(r.client || "—")}</b>${r.request_type ? ` · ${esc(r.request_type)}` : ""}<br>${esc(route(r))}`;
 
@@ -274,8 +283,23 @@
             });
         }
 
-        // На сторінці запитів — одразу оновлюємо таблицю
-        if (typeof loadRequests === "function") loadRequests();
+        refreshPage();
+    }
+
+    // Оновити дані на поточній сторінці (з невеликою затримкою, щоб
+    // кілька змін підряд дали одне оновлення)
+    let refreshTimer = null;
+    function refreshPage() {
+        clearTimeout(refreshTimer);
+        refreshTimer = setTimeout(() => {
+            try {
+                if (typeof loadRequests === "function") loadRequests(); // Запити
+                if (typeof window.furaOnRequestsChanged === "function")
+                    window.furaOnRequestsChanged(); // Головна, Ліди
+            } catch (e) {
+                console.warn("FURA оновлення сторінки:", e);
+            }
+        }, 400);
     }
 
     /* ---------------- Старт ---------------- */
@@ -312,6 +336,13 @@
             .gte("created_at", since);
         (recent || []).forEach((r) => known.set(String(r.id), snapshot(r)));
 
+        // Живий канал. Явно передаємо токен входу, щоб база віддавала
+        // зміни саме цьому користувачу (з урахуванням RLS).
+        try {
+            if (client.realtime?.setAuth)
+                client.realtime.setAuth(session.access_token);
+        } catch (_) {}
+
         client
             .channel("fura-requests")
             .on(
@@ -320,6 +351,7 @@
                 (p) => {
                     if (p.eventType === "DELETE") {
                         known.delete(String(p.old?.id));
+                        refreshPage();
                         return;
                     }
                     handleChange(p.eventType, p.new);
@@ -332,6 +364,45 @@
                     err || "",
                 );
             });
+
+        // Запасний варіант: кожні 20 секунд самі перевіряємо свіжі запити.
+        // Якщо живий канал уже показав зміну — повтору не буде.
+        setInterval(async () => {
+            const { data } = await client
+                .from("requests")
+                .select(
+                    "id, client, request_type, load_country, unload_country, sales, sales_id, status, logistician_id, logistician_ids, answers",
+                )
+                .gte(
+                    "created_at",
+                    new Date(Date.now() - 30 * 86400000).toISOString(),
+                );
+            const seen = new Set();
+            (data || []).forEach((r) => {
+                seen.add(String(r.id));
+                const before = known.get(String(r.id));
+                if (!before) handleChange("INSERT", r);
+                else if (!sameSnapshot(before, snapshot(r)))
+                    handleChange("UPDATE", r);
+            });
+            // Запит видалили — прибираємо з пам'яті й оновлюємо сторінку
+            let removed = false;
+            for (const id of [...known.keys()]) {
+                if (!seen.has(id)) {
+                    known.delete(id);
+                    removed = true;
+                }
+            }
+            if (removed) refreshPage();
+        }, 15000);
+
+        // Повернулися на вкладку після перерви — одразу оновлюємо
+        // (Chrome "присипляє" фонові вкладки, і живий канал може відстати)
+        let hiddenAt = 0;
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) hiddenAt = Date.now();
+            else if (hiddenAt && Date.now() - hiddenAt > 30000) refreshPage();
+        });
 
         // Перехід з іншої сторінки по кліку на сповіщення: requests.html?open=ID
         const openId = new URLSearchParams(location.search).get("open");

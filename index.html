@@ -4,6 +4,12 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>FURA</title>
+        <script>
+            // Адреса сайту без назви сторінки (…/logistics-crm/) → Головна.
+            // Перевізники відкриваються з меню як index.html.
+            if (location.pathname.endsWith("/"))
+                location.replace("home.html" + location.search + location.hash);
+        </script>
         <style>
             body {
                 visibility: hidden;
@@ -787,6 +793,7 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="script.js"></script>
+        <script src="address-suggest.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

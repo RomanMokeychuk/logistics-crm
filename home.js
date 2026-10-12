@@ -199,15 +199,16 @@ async function renderHome(session) {
         }),
     );
 
-    const grid = document.getElementById("quickGrid");
-    grid.innerHTML = cards.join("");
-    grid.addEventListener("click", (e) => {
-        const a = e.target.closest("[data-action]");
-        if (!a) return;
-        e.preventDefault();
-        if (a.dataset.action === "shlyah") openShlyahModal();
-    });
+    document.getElementById("quickGrid").innerHTML = cards.join("");
 }
+
+// Клік по плитці "Шлях" (вішаємо один раз — плитки перемальовуються)
+document.getElementById("quickGrid").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-action]");
+    if (!a) return;
+    e.preventDefault();
+    if (a.dataset.action === "shlyah") openShlyahModal();
+});
 
 /* ---------------- Бічна панель і "Шлях" ---------------- */
 
@@ -258,4 +259,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
     renderHome(session);
+    // Новий запит / відповідь логіста — лічильники оновлюються самі (notify.js)
+    window.furaOnRequestsChanged = () => renderHome(session);
 });

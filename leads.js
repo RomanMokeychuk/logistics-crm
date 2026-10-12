@@ -1015,6 +1015,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await loadStaff(session);
     await loadLeads();
+    // Новий запит / відповідь — етапи і лічильники запитів оновлюються самі (notify.js)
+    window.furaOnRequestsChanged = () => loadLeads();
 
     // Перехід із картки запиту: leads.html?open=ID
     const params = new URLSearchParams(location.search);
