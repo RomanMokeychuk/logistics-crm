@@ -1140,3 +1140,56 @@ table td:nth-child(11) {
         width: min(280px, calc(100vw - 24px));
     }
 }
+
+/* ===== Сторінки в таблиці перевізників ===== */
+.carriers-count-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.pager {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.pager-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #334155;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+.pager-btn:hover:not(:disabled) {
+    border-color: #2563eb;
+    color: #2563eb;
+}
+
+.pager-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.pager-info {
+    padding: 0 8px;
+    color: #334155;
+    font-weight: 600;
+}
+
+/* ===== Свайп двома пальцями на трекпаді не повертає сторінку назад ===== */
+html,
+body,
+.main-content,
+.table-card {
+    overscroll-behavior-x: none;
+}

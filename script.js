@@ -21,6 +21,11 @@ let allCarriersCache = []; // Кеш даних для фільтрів стов
 let activeFilterColumn = null;
 let activeFiltersState = {}; // Стан активних фільтрів по колонках
 
+// Сторінки таблиці: показуємо по 100 перевізників, щоб сторінка не гальмувала
+const PAGE_SIZE = 100;
+let currentPage = 1;
+let searchTimer = null;
+
 // Список областей України — використовується для випадаючого меню
 // "Напрямки в Україні" (і має ті самі назви, що й "Область України").
 const UKRAINE_OBLASTS = [
@@ -109,14 +114,28 @@ if (modalOverlay) {
 }
 
 // ПРИВ'ЯЗКА ФІЛЬТРІВ І ПОШУКУ
+// Пошук фільтрує вже завантажений список (без нового запиту до бази)
+// і чекає 250 мс після останньої літери, щоб не перемальовувати на кожну.
 if (searchInput) {
-    searchInput.addEventListener("input", () => loadCarriers());
+    searchInput.addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+            currentPage = 1;
+            renderCarriers();
+        }, 250);
+    });
 }
 if (filterTrailer) {
-    filterTrailer.addEventListener("change", () => loadCarriers());
+    filterTrailer.addEventListener("change", () => {
+        currentPage = 1;
+        renderCarriers();
+    });
 }
 if (filterRegion) {
-    filterRegion.addEventListener("change", () => loadCarriers());
+    filterRegion.addEventListener("change", () => {
+        currentPage = 1;
+        renderCarriers();
+    });
 }
 
 // Закриваємо випадаюче вікно фільтра по кліку будь-де поза ним
@@ -480,49 +499,80 @@ function openCarrierCard(id) {
  * 2. ЗАВАНТАЖЕННЯ ТА ВІДОБРАЖЕННЯ ПЕРЕВІЗНИКІВ У ТАБЛИЦІ              *
  * ================================================================= */
 
+// Завантажує ВСІХ перевізників з бази (частинами по 1000, паралельно)
+// і кладе в кеш. Викликається тільки при відкритті сторінки та після
+// додавання / зміни / видалення. Пошук, фільтри, сортування і сторінки
+// працюють з кешем — миттєво, без звернень до бази.
 async function loadCarriers() {
-    const searchQuery = searchInput?.value.trim() || "";
-    const trailerFilterVal = filterTrailer?.value || "";
-    const regionFilterVal = filterRegion?.value || "";
+    const CHUNK = 1000;
+    const base = () =>
+        sbClient
+            .from("carriers")
+            .select("*")
+            .order("created_at", { ascending: false });
 
-    let request = sbClient.from("carriers").select("*");
+    const first = await sbClient
+        .from("carriers")
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(0, CHUNK - 1);
 
-    // Деякі колонки в таблиці — "віртуальні" (склеєні з кількох полів на льоту:
-    // назва+ЄДРПОУ, місто+область, контакт+телефон). Такого поля немає в базі,
-    // тому просити Supabase відсортувати по ньому — помилка. Для них сортуємо
-    // вручну в JS нижче, а тут просто лишаємо звичайний порядок.
-    const virtualSortColumns = ["carrier_col", "location_col", "contacts_col"];
-
-    // Застосовуємо сортування через Supabase (тільки для реальних колонок)
-    if (currentSortColumn && !virtualSortColumns.includes(currentSortColumn)) {
-        request = request.order(currentSortColumn, {
-            ascending: currentSortAscending,
-        });
-    } else {
-        request = request.order("created_at", { ascending: false });
-    }
-
-    // Supabase віддає максимум 1000 рядків за раз — забираємо всі частинами
-    const PAGE = 1000;
-    let data = [];
-    let error = null;
-    for (let from = 0; ; from += PAGE) {
-        const res = await request.range(from, from + PAGE - 1);
-        if (res.error) {
-            error = res.error;
-            break;
-        }
-        data = data.concat(res.data || []);
-        if (!res.data || res.data.length < PAGE) break;
-    }
-
-    if (error) {
-        console.error("Помилка завантаження:", error);
+    if (first.error) {
+        console.error("Помилка завантаження:", first.error);
         return;
     }
 
-    // Зберігаємо в кеш для роботи випадаючих фільтрів по стовпцях і для картки
-    allCarriersCache = data || [];
+    let data = first.data || [];
+    const total = first.count || data.length;
+    if (total > CHUNK) {
+        const rest = [];
+        for (let from = CHUNK; from < total; from += CHUNK) {
+            rest.push(base().range(from, from + CHUNK - 1));
+        }
+        const results = await Promise.all(rest);
+        for (const res of results) {
+            if (res.error) {
+                console.error("Помилка завантаження:", res.error);
+                continue;
+            }
+            data = data.concat(res.data || []);
+        }
+    }
+
+    // Один раз готуємо текст для пошуку, щоб не збирати його на кожну літеру
+    data.forEach((item) => {
+        item._search = [
+            item.name,
+            item.company,
+            item.edrpou,
+            item.destinations,
+            item.city,
+            item.fleet_params,
+            item.trailer_type,
+            item.quadrant,
+            item.notes,
+            item.ukraine_directions,
+            item.region_ukr,
+            item.phone_1,
+            item.phone_2,
+            item.contact_person_1,
+            item.contact_person_2,
+        ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+    });
+
+    allCarriersCache = data;
+    renderCarriers();
+}
+
+// Фільтрує, сортує і малює ОДНУ сторінку таблиці з кешу
+function renderCarriers() {
+    const searchQuery = searchInput?.value.trim() || "";
+    const trailerFilterVal = filterTrailer?.value || "";
+    const regionFilterVal = filterRegion?.value || "";
+    const data = allCarriersCache;
 
     if (!carriersTableBody) return;
     carriersTableBody.innerHTML = "";
@@ -548,18 +598,8 @@ async function loadCarriers() {
 
         // Пошук за загальним рядком
         if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            const matchesSearch =
-                name.includes(query) ||
-                edrpou.includes(query) ||
-                destinations.includes(query) ||
-                city.includes(query) ||
-                fleet.includes(query) ||
-                trailerType.includes(query) ||
-                quadrant.includes(query) ||
-                notes.includes(query) ||
-                ukraineDirections.includes(query);
-            if (!matchesSearch) return false;
+            if (!(item._search || "").includes(searchQuery.toLowerCase()))
+                return false;
         }
 
         // Фільтр за типом причепа з загального селекта
@@ -651,18 +691,32 @@ async function loadCarriers() {
         });
     }
 
-    updateCarriersCountBar(filteredData.length, allCarriersCache.length);
+    // Сторінка, яку показуємо
+    const pageCount = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE));
+    if (currentPage > pageCount) currentPage = pageCount;
+    if (currentPage < 1) currentPage = 1;
+    const pageStart = (currentPage - 1) * PAGE_SIZE;
+    const pageData = filteredData.slice(pageStart, pageStart + PAGE_SIZE);
+
+    updateCarriersCountBar(
+        filteredData.length,
+        allCarriersCache.length,
+        pageStart,
+        pageData.length,
+        pageCount,
+    );
 
     if (filteredData.length === 0) {
         carriersTableBody.innerHTML = `<tr><td colspan="13" style="text-align: center; color: #94a3b8; padding: 20px;">Записи не знайдені за заданими критеріями</td></tr>`;
         return;
     }
 
-    filteredData.forEach((item, index) => {
+    const fragment = document.createDocumentFragment();
+    pageData.forEach((item, index) => {
         const row = document.createElement("tr");
         row.classList.add("clickable-row");
         row.title = "Натисніть, щоб відкрити картку перевізника";
-        const rowNumber = index + 1; // порядковий номер у поточному (відфільтрованому/відсортованому) списку
+        const rowNumber = pageStart + index + 1; // наскрізний номер з урахуванням сторінки
 
         // Клік по рядку відкриває картку (крім кліків по кнопках, посиланнях, зірочках)
         row.addEventListener("click", (e) => {
@@ -791,24 +845,54 @@ async function loadCarriers() {
         </td>
     `;
 
-        carriersTableBody.appendChild(row);
+        fragment.appendChild(row);
     });
+    carriersTableBody.appendChild(fragment);
 }
 
 // Оновлює текст лічильника внизу зліва під таблицею. Якщо застосовані
 // фільтри/пошук і показано менше записів, ніж всього в базі — показуємо
 // обидва числа ("Показано: X з Y"), інакше просто загальну кількість.
-function updateCarriersCountBar(shownCount, totalCount) {
+function updateCarriersCountBar(
+    shownCount,
+    totalCount,
+    pageStart = 0,
+    pageLen = 0,
+    pageCount = 1,
+) {
     const bar = document.getElementById("carriersCountBar");
     if (!bar) return;
 
+    let text;
     if (totalCount === 0) {
-        bar.textContent = "Перевізників немає";
+        text = "Перевізників немає";
     } else if (shownCount === totalCount) {
-        bar.textContent = `Перевізників: ${totalCount}`;
+        text = `Перевізників: ${totalCount.toLocaleString("uk-UA")}`;
     } else {
-        bar.textContent = `Показано: ${shownCount} з ${totalCount}`;
+        text = `Знайдено: ${shownCount.toLocaleString("uk-UA")} з ${totalCount.toLocaleString("uk-UA")}`;
     }
+
+    if (pageCount <= 1) {
+        bar.textContent = text;
+        return;
+    }
+
+    bar.innerHTML = `
+        <span>${text}</span>
+        <span class="pager">
+            <button type="button" class="pager-btn" onclick="goToPage(1)" ${currentPage === 1 ? "disabled" : ""} title="Перша сторінка"><i class='bx bx-chevrons-left'></i></button>
+            <button type="button" class="pager-btn" onclick="goToPage(currentPage - 1)" ${currentPage === 1 ? "disabled" : ""} title="Назад"><i class='bx bx-chevron-left'></i></button>
+            <span class="pager-info">${pageStart + 1}–${pageStart + pageLen} · стор. ${currentPage} з ${pageCount}</span>
+            <button type="button" class="pager-btn" onclick="goToPage(currentPage + 1)" ${currentPage === pageCount ? "disabled" : ""} title="Далі"><i class='bx bx-chevron-right'></i></button>
+            <button type="button" class="pager-btn" onclick="goToPage(${pageCount})" ${currentPage === pageCount ? "disabled" : ""} title="Остання сторінка"><i class='bx bx-chevrons-right'></i></button>
+        </span>`;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    renderCarriers();
+    const scrollArea = document.getElementById("tableScrollArea");
+    if (scrollArea) scrollArea.scrollTop = 0;
 }
 
 /* ================================================================= *
@@ -1269,7 +1353,8 @@ async function deleteCarrier(id) {
 function sortTable(column, ascending = true) {
     currentSortColumn = column;
     currentSortAscending = ascending;
-    loadCarriers();
+    currentPage = 1;
+    renderCarriers();
     closeColumnFilter();
 }
 
@@ -1282,7 +1367,8 @@ function toggleSort(column) {
         currentSortColumn = column;
         currentSortAscending = true;
     }
-    loadCarriers();
+    currentPage = 1;
+    renderCarriers();
 }
 
 /* ================================================================= *
@@ -1300,7 +1386,8 @@ function escapeHtml(str) {
 }
 
 function renderTableWithColumnFilters() {
-    loadCarriers();
+    currentPage = 1;
+    renderCarriers();
 }
 
 function openColumnFilter(event, columnKey) {
@@ -1488,8 +1575,10 @@ async function updateCarrierRating(id, newRating) {
     if (error) {
         alert("Помилка оновлення рейтингу: " + error.message);
     } else {
-        const carrier = allCarriersCache.find((c) => c.id === id);
+        const carrier = allCarriersCache.find(
+            (c) => String(c.id) === String(id),
+        );
         if (carrier) carrier.rating = newRating;
-        loadCarriers();
+        renderCarriers(); // залишаємось на тій самій сторінці
     }
 }
