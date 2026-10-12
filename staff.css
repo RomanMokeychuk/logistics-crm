@@ -166,3 +166,15 @@
     flex-wrap: wrap;
     gap: 4px;
 }
+
+.role-admin {
+    background: #fce7f3;
+    color: #be185d;
+    border-color: #fbcfe8;
+}
+
+.role-option:has(input:checked).role-admin {
+    border-color: #db2777;
+    background: #fce7f3;
+    color: #be185d;
+}

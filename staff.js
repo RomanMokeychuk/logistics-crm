@@ -18,9 +18,49 @@ const STAFF_ROLES = [
     { value: "sales", label: "Sales", cls: "role-sales", icon: "bx-briefcase" },
     { value: "logist", label: "Логіст", cls: "role-logist", icon: "bx-car" },
     { value: "head", label: "Керівник", cls: "role-head", icon: "bx-crown" },
+    {
+        value: "admin",
+        label: "Адмін",
+        cls: "role-admin",
+        icon: "bx-shield-quarter",
+    },
 ];
 
 let staffCache = [];
+let myEmail = "";
+
+function meInStaff() {
+    const me = staffCache.find(
+        (s) => (s.email || "").toLowerCase() === myEmail,
+    );
+    return me && me.active ? me : null;
+}
+
+// Адмін — найбільші права (може все, включно з роллю «Адмін»)
+function iAmAdmin() {
+    return rolesOf(meInStaff()).includes("admin");
+}
+
+// Змінювати співробітників може Керівник або Адмін
+function iAmHead() {
+    const roles = rolesOf(meInStaff());
+    return roles.includes("head") || roles.includes("admin");
+}
+
+// Керівник не може змінювати адміна
+function canEdit(s) {
+    return iAmAdmin() || (iAmHead() && !rolesOf(s).includes("admin"));
+}
+
+function applyHeadMode() {
+    const head = iAmHead();
+    document.getElementById("openStaffModalBtn").style.display = head
+        ? ""
+        : "none";
+    document.body.classList.toggle("staff-readonly", !head);
+    const hint = document.getElementById("staffReadonlyHint");
+    if (hint) hint.hidden = head;
+}
 
 const tableBody = document.getElementById("staffTableBody");
 const modalOverlay = document.getElementById("staffModalOverlay");
@@ -89,6 +129,7 @@ async function loadStaff() {
     }
 
     staffCache = data || [];
+    applyHeadMode();
     renderStaff();
 }
 
@@ -110,8 +151,11 @@ function renderStaff() {
     tableBody.innerHTML = "";
     staffCache.forEach((s, i) => {
         const tr = document.createElement("tr");
-        tr.className = "clickable-row" + (s.active ? "" : " staff-inactive");
-        tr.title = "Натисніть, щоб редагувати";
+        const editable = canEdit(s);
+        tr.className =
+            (editable ? "clickable-row" : "") +
+            (s.active ? "" : " staff-inactive");
+        tr.title = editable ? "Натисніть, щоб редагувати" : "";
 
         tr.innerHTML = `
             <td class="cell-num">${i + 1}</td>
@@ -125,8 +169,12 @@ function renderStaff() {
             </td>
             <td>${s.active ? `<span class="status-badge status-confirmed">Працює</span>` : `<span class="status-badge status-request">Неактивний</span>`}</td>
             <td class="cell-actions">
-                <button class="btn-icon btn-icon-edit" data-action="edit" title="Редагувати"><i class='bx bx-edit'></i></button>
-                <button class="btn-icon text-danger" data-action="delete" title="Видалити"><i class='bx bx-trash'></i></button>
+                ${
+                    canEdit(s)
+                        ? `<button class="btn-icon btn-icon-edit" data-action="edit" title="Редагувати"><i class='bx bx-edit'></i></button>
+                <button class="btn-icon text-danger" data-action="delete" title="Видалити"><i class='bx bx-trash'></i></button>`
+                        : ""
+                }
             </td>
         `;
 
@@ -137,6 +185,7 @@ function renderStaff() {
                 return;
             }
             if (e.target.closest("a")) return; // клік по посиланню Telegram
+            if (!canEdit(s)) return; // тільки Керівник / Адмін
             openStaffModal(s);
         });
 
@@ -151,16 +200,26 @@ function renderStaff() {
 // Можна обрати кілька ролей (наприклад, Логіст + Sales)
 function renderRolePicker(selected) {
     const set = new Set(selected || []);
-    document.getElementById("rolePicker").innerHTML = STAFF_ROLES.map(
-        (r) => `
+    document.getElementById("rolePicker").innerHTML = STAFF_ROLES.filter(
+        (r) => r.value !== "admin" || iAmAdmin(),
+    )
+        .map(
+            (r) => `
         <label class="role-option ${r.cls}">
             <input type="checkbox" name="staff_role" value="${r.value}" ${set.has(r.value) ? "checked" : ""} />
             <i class='bx ${r.icon}'></i> ${r.label}
         </label>`,
-    ).join("");
+        )
+        .join("");
 }
 
 function openStaffModal(s = null) {
+    if (s ? !canEdit(s) : !iAmHead()) {
+        alert(
+            "Змінювати співробітників і ролі може тільки Керівник або Адмін.",
+        );
+        return;
+    }
     staffForm.reset();
     document.getElementById("staffId").value = s ? s.id : "";
     document.getElementById("staff_full_name").value = s?.full_name || "";
@@ -197,7 +256,8 @@ staffForm.addEventListener("submit", async (e) => {
         return;
     }
     // Головна роль (для старих місць): Керівник > Логіст > Sales
-    const role = ["head", "logist", "sales"].find((r) => roles.includes(r));
+    const role =
+        ["head", "logist", "sales"].find((r) => roles.includes(r)) || "head";
     const tg = val("staff_telegram");
 
     const payload = {
@@ -216,15 +276,20 @@ staffForm.addEventListener("submit", async (e) => {
         : await sbClient.from("staff").insert([payload]);
 
     if (error) {
-        const msg = error.message.includes("staff_email_unique")
-            ? "Співробітник з такою поштою вже є."
-            : error.message;
+        const msg = error.message.includes("адміністратор")
+            ? "Змінювати адміністратора може тільки адміністратор."
+            : error.message.includes("staff_email_unique")
+              ? "Співробітник з такою поштою вже є."
+              : error.message.includes("row-level security")
+                ? "Змінювати співробітників може тільки Керівник або Адмін."
+                : error.message;
         alert("Помилка: " + msg);
         console.error(error);
         return;
     }
 
     closeStaffModal();
+    myEmail = (session.user?.email || "").toLowerCase();
     loadStaff();
 });
 
@@ -321,5 +386,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
 
+    myEmail = (session.user?.email || "").toLowerCase();
     loadStaff();
 });
