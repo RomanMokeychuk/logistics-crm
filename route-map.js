@@ -54,23 +54,67 @@
     `;
     document.head.appendChild(style);
 
-    /* ---------------- Leaflet (карта) підвантажуємо тільки коли треба ---------------- */
-    let leafletReady = null;
-    function loadLeaflet() {
-        if (window.L) return Promise.resolve();
-        if (leafletReady) return leafletReady;
-        leafletReady = new Promise((resolve, reject) => {
+    /* ---------------- MapLibre (карта) підвантажуємо тільки коли треба ---------------- */
+    const MAPLIBRE = "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl";
+    let mapLibReady = null;
+    function loadMapLib() {
+        if (window.maplibregl) return Promise.resolve();
+        if (mapLibReady) return mapLibReady;
+        mapLibReady = new Promise((resolve, reject) => {
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+            css.href = MAPLIBRE + ".css";
             document.head.appendChild(css);
             const js = document.createElement("script");
-            js.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+            js.src = MAPLIBRE + ".js";
             js.onload = resolve;
             js.onerror = reject;
             document.head.appendChild(js);
         });
-        return leafletReady;
+        return mapLibReady;
+    }
+
+    // Підписи на карті українською (де немає — латиницею)
+    function localizeMap(map, lang) {
+        const name = [
+            "coalesce",
+            ["get", `name:${lang}`],
+            ["get", "name:latin"],
+            ["get", "name"],
+        ];
+        for (const layer of map.getStyle().layers || []) {
+            const tf = layer.layout?.["text-field"];
+            if (
+                layer.type === "symbol" &&
+                tf &&
+                JSON.stringify(tf).includes("name")
+            ) {
+                try {
+                    map.setLayoutProperty(layer.id, "text-field", name);
+                } catch (e) {
+                    /* шар без підписів — пропускаємо */
+                }
+            }
+        }
+    }
+
+    function mapStyle(mapKey) {
+        if (mapKey)
+            return `https://maps.geoapify.com/v1/styles/osm-bright/style.json?apiKey=${encodeURIComponent(mapKey)}`;
+        // Запасний варіант: звичайна OpenStreetMap (підписи мовою країни)
+        return {
+            version: 8,
+            sources: {
+                osm: {
+                    type: "raster",
+                    tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+                    tileSize: 256,
+                    attribution:
+                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                },
+            },
+            layers: [{ id: "osm", type: "raster", source: "osm" }],
+        };
     }
 
     /* ---------------- Допоміжні ---------------- */
@@ -168,7 +212,7 @@
 
         let data;
         try {
-            [data] = await Promise.all([fetchRoute(r, via), loadLeaflet()]);
+            [data] = await Promise.all([fetchRoute(r, via), loadMapLib()]);
         } catch (e) {
             console.warn("route:", e);
             stats.innerHTML = `<span class="route-note">Маршрут зараз недоступний. Спробуйте пізніше.<br><small>Деталі: ${esc(e?.message || e)}</small></span>`;
@@ -261,71 +305,136 @@
             mapInstance.remove();
             mapInstance = null;
         }
-        const L = window.L;
-        const map = L.map(mapEl, {
-            scrollWheelZoom: false,
-            attributionControl: true,
+        const gl = window.maplibregl;
+        const coords = data.line.map(([lat, lon]) => [lon, lat]);
+        const bounds = coords.reduce(
+            (b, c) => b.extend(c),
+            new gl.LngLatBounds(coords[0], coords[0]),
+        );
+
+        const map = new gl.Map({
+            container: mapEl,
+            style: mapStyle(data.mapKey),
+            bounds,
+            fitBoundsOptions: { padding: 40 },
+            scrollZoom: false,
+            attributionControl: {
+                compact: true,
+                customAttribution: "Маршрут © TomTom",
+            },
         });
         mapInstance = map;
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            maxZoom: 18,
-            attribution:
-                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · маршрут © TomTom',
-        }).addTo(map);
+        map.addControl(
+            new gl.NavigationControl({ showCompass: false }),
+            "top-right",
+        );
+        map.on("styleimagemissing", () => {}); // тихо пропускаємо відсутні значки стилю
 
-        const line = L.polyline(data.line, {
-            color: "#2563eb",
-            weight: 5,
-            opacity: 0.85,
-        }).addTo(map);
-        for (const j of data.jams) {
-            const color =
-                j.level >= 4
-                    ? "#7f1d1d"
-                    : j.level >= 3
-                      ? "#dc2626"
-                      : j.level >= 2
-                        ? "#f97316"
-                        : "#eab308";
-            L.polyline(j.line, { color, weight: 7, opacity: 0.95 })
-                .addTo(map)
-                .bindTooltip(
-                    `${jamName(j)}${j.delay ? " · +" + fmtDur(j.delay) : ""}`,
-                );
-        }
+        map.on("load", () => {
+            if (data.mapKey) localizeMap(map, "uk");
 
-        const pin = (txt, bg) =>
-            L.divIcon({
-                className: "",
-                html: `<div class="route-pin" style="background:${bg}">${txt}</div>`,
-                iconSize: [26, 26],
-                iconAnchor: [13, 13],
+            map.addSource("route", {
+                type: "geojson",
+                data: {
+                    type: "Feature",
+                    geometry: { type: "LineString", coordinates: coords },
+                },
             });
-        L.marker([data.from.lat, data.from.lon], { icon: pin("A", "#16a34a") })
-            .addTo(map)
-            .bindTooltip("Завантаження: " + esc(data.from.label));
-        L.marker([data.to.lat, data.to.lon], { icon: pin("B", "#dc2626") })
-            .addTo(map)
-            .bindTooltip("Розвантаження: " + esc(data.to.label));
+            map.addLayer({
+                id: "route-casing",
+                type: "line",
+                source: "route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#ffffff", "line-width": 9 },
+            });
+            map.addLayer({
+                id: "route-line",
+                type: "line",
+                source: "route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": "#2563eb", "line-width": 5 },
+            });
+
+            const jamFeatures = data.jams
+                .filter((j) => j.line.length > 1)
+                .map((j) => ({
+                    type: "Feature",
+                    properties: {
+                        color:
+                            j.level >= 4
+                                ? "#7f1d1d"
+                                : j.level >= 3
+                                  ? "#dc2626"
+                                  : j.level >= 2
+                                    ? "#f97316"
+                                    : "#eab308",
+                        title: `${jamName(j)}${j.delay ? " · +" + fmtDur(j.delay) : ""}${j.speed ? " · " + j.speed + " км/год" : ""}`,
+                    },
+                    geometry: {
+                        type: "LineString",
+                        coordinates: j.line.map(([lat, lon]) => [lon, lat]),
+                    },
+                }));
+            map.addSource("jams", {
+                type: "geojson",
+                data: { type: "FeatureCollection", features: jamFeatures },
+            });
+            map.addLayer({
+                id: "jams-line",
+                type: "line",
+                source: "jams",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: { "line-color": ["get", "color"], "line-width": 7 },
+            });
+
+            const popup = new gl.Popup({
+                closeButton: false,
+                closeOnClick: false,
+            });
+            map.on("mousemove", "jams-line", (e) => {
+                map.getCanvas().style.cursor = "pointer";
+                popup
+                    .setLngLat(e.lngLat)
+                    .setText(e.features[0].properties.title)
+                    .addTo(map);
+            });
+            map.on("mouseleave", "jams-line", () => {
+                map.getCanvas().style.cursor = "";
+                popup.remove();
+            });
+        });
+
+        const marker = (lat, lon, html, title) => {
+            const el = document.createElement("div");
+            el.innerHTML = html;
+            el.title = title;
+            new gl.Marker({ element: el }).setLngLat([lon, lat]).addTo(map);
+        };
+        marker(
+            data.from.lat,
+            data.from.lon,
+            `<div class="route-pin" style="background:#16a34a">A</div>`,
+            "Завантаження: " + data.from.label,
+        );
+        marker(
+            data.to.lat,
+            data.to.lon,
+            `<div class="route-pin" style="background:#dc2626">B</div>`,
+            "Розвантаження: " + data.to.label,
+        );
         for (const b of data.borders) {
-            L.marker([b.lat, b.lon], {
-                icon: L.divIcon({
-                    className: "",
-                    html: `<div class="route-border-pin"><i class='bx bx-shield-quarter'></i></div>`,
-                    iconSize: [28, 28],
-                    iconAnchor: [14, 14],
-                }),
-            })
-                .addTo(map)
-                .bindTooltip(
-                    `${esc(b.name || "Кордон")}<br>${esc(b.from)} → ${esc(b.to)}`,
-                );
+            marker(
+                b.lat,
+                b.lon,
+                `<div class="route-border-pin"><i class='bx bx-shield-quarter'></i></div>`,
+                `${b.name || "Кордон"}: ${b.from} → ${b.to}`,
+            );
         }
 
-        map.fitBounds(line.getBounds(), { padding: [30, 30] });
+        // Картка відкривається з анімацією — підганяємо розмір карти
         setTimeout(() => {
-            map.invalidateSize();
-            map.fitBounds(line.getBounds(), { padding: [30, 30] });
+            map.resize();
+            map.fitBounds(bounds, { padding: 40, duration: 0 });
         }, 250);
     }
 
