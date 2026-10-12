@@ -162,6 +162,7 @@
         const links = box.querySelector(".route-links");
         const mapEl = box.querySelector(".route-map");
         stats.innerHTML = `<span class="route-note">Будую маршрут для фури…</span>`;
+        mapEl.style.display = "none";
         details.innerHTML = "";
         links.innerHTML = "";
 
@@ -170,14 +171,20 @@
             [data] = await Promise.all([fetchRoute(r, via), loadLeaflet()]);
         } catch (e) {
             console.warn("route:", e);
-            stats.innerHTML = `<span class="route-note">Маршрут зараз недоступний. Спробуйте пізніше.</span>`;
+            stats.innerHTML = `<span class="route-note">Маршрут зараз недоступний. Спробуйте пізніше.<br><small>Деталі: ${esc(e?.message || e)}</small></span>`;
             return;
         }
         if (!document.body.contains(box)) return; // картку вже закрили
         if (data?.error) {
-            stats.innerHTML = `<span class="route-note">${esc(ERRORS[data.error] || "Не вдалося побудувати маршрут.")}</span>`;
+            mapEl.style.display = "none";
+            stats.innerHTML = `<span class="route-note">${esc(ERRORS[data.error] || "Не вдалося побудувати маршрут.")}${
+                data.detail
+                    ? `<br><small>Деталі: ${esc(data.detail)}</small>`
+                    : ""
+            }</span>`;
             return;
         }
+        mapEl.style.display = "";
 
         /* --- Цифри --- */
         const driveH = data.timeSec / 3600;
@@ -193,6 +200,9 @@
                 : `<span class="route-chip ok"><i class='bx bx-check-circle'></i>Без заторів зараз</span>`,
             uaBorder
                 ? `<span class="route-chip"><i class='bx bx-shield-quarter'></i>${esc(uaBorder.name || "кордон")}</span>`
+                : "",
+            data.warning
+                ? `<span class="route-chip bad"><i class='bx bx-error'></i>${esc(data.warning)}</span>`
                 : "",
         ].join("");
 
