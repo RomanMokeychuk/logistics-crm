@@ -159,3 +159,10 @@
 .form-group .active-toggle input {
     padding: 0;
 }
+
+/* Кілька ролей в одній клітинці */
+.role-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}

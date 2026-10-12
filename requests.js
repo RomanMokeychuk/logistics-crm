@@ -297,6 +297,13 @@ async function loadStaff(session) {
         null;
 }
 
+// Чи має людина хоча б одну з ролей (roles — кілька ролей, role — стара одна)
+function hasRole(s, list) {
+    const roles =
+        Array.isArray(s?.roles) && s.roles.length ? s.roles : [s?.role];
+    return roles.some((r) => list.includes(r));
+}
+
 function staffById(id) {
     return staffCache.find((s) => String(s.id) === String(id)) || null;
 }
@@ -307,7 +314,7 @@ function fillStaffSelect(selectId, roles, selectedId, legacyName) {
     const select = document.getElementById(selectId);
     const list = staffCache.filter(
         (s) =>
-            roles.includes(s.role) &&
+            hasRole(s, roles) &&
             (s.active || String(s.id) === String(selectedId)),
     );
 
@@ -370,7 +377,7 @@ function fillLogistPicker(selectedIds, legacyName) {
     const selected = new Set((selectedIds || []).map(String));
     const list = staffCache.filter(
         (s) =>
-            ["logist", "head"].includes(s.role) &&
+            hasRole(s, ["logist", "head"]) &&
             (s.active || selected.has(String(s.id))),
     );
 
@@ -968,9 +975,7 @@ function openRequestModal(request = null) {
     setVal("req_status", request?.status || REQUEST_STATUSES[0].value);
     // Sales: для нового запиту — той, хто зараз увійшов (якщо він Sales/Керівник)
     const defaultSalesId =
-        !request &&
-        currentStaff &&
-        ["sales", "head"].includes(currentStaff.role)
+        !request && currentStaff && hasRole(currentStaff, ["sales", "head"])
             ? currentStaff.id
             : null;
     fillStaffSelect(

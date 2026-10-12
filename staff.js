@@ -36,6 +36,26 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 
+// Ролі співробітника: нова колонка roles (кілька) або стара role (одна)
+function rolesOf(s) {
+    return Array.isArray(s?.roles) && s.roles.length
+        ? s.roles
+        : s?.role
+          ? [s.role]
+          : [];
+}
+
+function roleBadges(s) {
+    const roles = rolesOf(s);
+    return roles.length
+        ? `<div class="role-badges">${STAFF_ROLES.filter((r) =>
+              roles.includes(r.value),
+          )
+              .map((r) => roleBadge(r.value))
+              .join("")}</div>`
+        : "—";
+}
+
 function roleBadge(role) {
     const r = STAFF_ROLES.find((x) => x.value === role);
     if (!r) return escapeHtml(role || "—");
@@ -96,7 +116,7 @@ function renderStaff() {
         tr.innerHTML = `
             <td class="cell-num">${i + 1}</td>
             <td><strong>${escapeHtml(s.full_name)}</strong></td>
-            <td>${roleBadge(s.role)}</td>
+            <td>${roleBadges(s)}</td>
             <td>${escapeHtml(s.email) || "—"}</td>
             <td>${escapeHtml(s.phone) || "—"}</td>
             <td>
@@ -128,11 +148,13 @@ function renderStaff() {
  * ФОРМА                                                              *
  * ================================================================= */
 
+// Можна обрати кілька ролей (наприклад, Логіст + Sales)
 function renderRolePicker(selected) {
+    const set = new Set(selected || []);
     document.getElementById("rolePicker").innerHTML = STAFF_ROLES.map(
         (r) => `
         <label class="role-option ${r.cls}">
-            <input type="radio" name="staff_role" value="${r.value}" ${r.value === selected ? "checked" : ""} />
+            <input type="checkbox" name="staff_role" value="${r.value}" ${set.has(r.value) ? "checked" : ""} />
             <i class='bx ${r.icon}'></i> ${r.label}
         </label>`,
     ).join("");
@@ -148,7 +170,7 @@ function openStaffModal(s = null) {
         ? "@" + String(s.telegram_username).replace(/^@/, "")
         : "";
     document.getElementById("staff_active").checked = s ? s.active : true;
-    renderRolePicker(s?.role || "sales");
+    renderRolePicker(s ? rolesOf(s) : ["sales"]);
 
     document.getElementById("staffModalTitle").textContent = s
         ? "Редагувати співробітника"
@@ -167,14 +189,21 @@ staffForm.addEventListener("submit", async (e) => {
         const v = document.getElementById(id).value.trim();
         return v || null;
     };
-    const role =
-        document.querySelector("input[name='staff_role']:checked")?.value ||
-        "sales";
+    const roles = [
+        ...document.querySelectorAll("input[name='staff_role']:checked"),
+    ].map((x) => x.value);
+    if (!roles.length) {
+        alert("Оберіть хоча б одну роль.");
+        return;
+    }
+    // Головна роль (для старих місць): Керівник > Логіст > Sales
+    const role = ["head", "logist", "sales"].find((r) => roles.includes(r));
     const tg = val("staff_telegram");
 
     const payload = {
         full_name: val("staff_full_name"),
         role,
+        roles,
         email: val("staff_email") ? val("staff_email").toLowerCase() : null,
         phone: val("staff_phone"),
         telegram_username: tg ? tg.replace(/^@/, "") : null,
