@@ -71,7 +71,7 @@ const COUNTRIES = [
 let leadsCache = [];
 let staffCache = [];
 let currentStaff = null;
-let requestsByClient = new Map(); // назва клієнта (малими) → кількість запитів
+let requestsByLead = new Map(); // id ліда → кількість запитів
 let activeStatus = ""; // "" = всі
 let sortColumn = "created_at";
 let sortAscending = false;
@@ -203,7 +203,7 @@ async function loadLeads() {
             .from("leads")
             .select("*")
             .order("created_at", { ascending: false }),
-        sbClient.from("requests").select("client"),
+        sbClient.from("requests").select("lead_id"),
     ]);
 
     if (error) {
@@ -211,12 +211,13 @@ async function loadLeads() {
         return;
     }
 
-    requestsByClient = new Map();
+    requestsByLead = new Map();
     (reqs || []).forEach((r) => {
-        const k = String(r.client || "")
-            .trim()
-            .toLowerCase();
-        if (k) requestsByClient.set(k, (requestsByClient.get(k) || 0) + 1);
+        if (r.lead_id)
+            requestsByLead.set(
+                String(r.lead_id),
+                (requestsByLead.get(String(r.lead_id)) || 0) + 1,
+            );
     });
 
     leadsCache = data || [];
@@ -340,12 +341,7 @@ function renderLeads() {
         tr.className =
             "clickable-row" + (needsContact(l) ? " lead-attention" : "");
         tr.title = "Натисніть, щоб відкрити картку клієнта";
-        const reqCount =
-            requestsByClient.get(
-                String(l.name || "")
-                    .trim()
-                    .toLowerCase(),
-            ) || 0;
+        const reqCount = requestsByLead.get(String(l.id)) || 0;
 
         tr.innerHTML = `
             <td class="cell-num">${i + 1}</td>
@@ -704,7 +700,7 @@ async function openLeadCard(id) {
                 <div class="card-section">
                     <div class="card-section-title lead-section-title">
                         <span><i class='bx bx-list-ul'></i> Запити цього клієнта</span>
-                        <a class="btn-answer" href="requests.html?new_client=${encodeURIComponent(l.name)}"><i class='bx bx-plus'></i> Новий запит</a>
+                        <a class="btn-answer" href="requests.html?new_lead=${encodeURIComponent(l.id)}"><i class='bx bx-plus'></i> Новий запит</a>
                     </div>
                     <div id="leadRequests"><div class="card-block-text offer-muted">Завантаження…</div></div>
                 </div>
@@ -718,17 +714,17 @@ async function openLeadCard(id) {
     loadLeadRequests(l);
 }
 
-// Запити, де клієнт має ту саму назву
+// Запити цього ліда
 async function loadLeadRequests(l) {
     const box = document.getElementById("leadRequests");
     const { data, error } = await sbClient
         .from("requests")
         .select(
-            "id, created_at, request_type, load_country, unload_country, status",
+            "id, created_at, request_type, load_country, unload_country, status, logistician",
         )
-        .ilike("client", String(l.name || "").trim())
+        .eq("lead_id", l.id)
         .order("created_at", { ascending: false })
-        .limit(30);
+        .limit(50);
     if (!box) return;
     if (error || !data?.length) {
         box.innerHTML = `<div class="card-block-text offer-muted">Запитів ще немає</div>`;
@@ -878,5 +874,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     ).join("");
 
     await loadStaff(session);
-    loadLeads();
+    await loadLeads();
+
+    // Перехід із картки запиту: leads.html?open=ID
+    const openId = new URLSearchParams(location.search).get("open");
+    if (openId) {
+        openLeadCard(openId);
+        history.replaceState(null, "", location.pathname);
+    }
 });

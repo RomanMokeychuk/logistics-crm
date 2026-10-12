@@ -352,6 +352,265 @@ function readStaffSelect(selectId) {
 }
 
 /* ================================================================= *
+ * 4.2.1 ЛІДИ: клієнт запиту обирається зі списку лідів (з пошуком)   *
+ * ================================================================= */
+
+const LEAD_STATUS_CLS = {
+    Новий: "status-quote",
+    Контакт: "status-offer",
+    Переговори: "status-progress",
+    Клієнт: "status-confirmed",
+    Відмова: "status-rejected",
+};
+
+let leadsCache = [];
+let selectedLeadId = null;
+
+const normName = (s) =>
+    String(s || "")
+        .trim()
+        .toLowerCase();
+
+async function loadLeadsList() {
+    const { data, error } = await sbClient
+        .from("leads")
+        .select(
+            "id, name, edrpou, contact_person, phone, email, city, country, status, sales, sales_id, next_contact, history",
+        )
+        .order("name");
+    if (error) {
+        console.warn(
+            "Ліди не завантажились (виконано leads.sql?):",
+            error.message,
+        );
+        return;
+    }
+    leadsCache = data || [];
+}
+
+const leadById = (id) =>
+    leadsCache.find((l) => String(l.id) === String(id)) || null;
+const findLeadByName = (name) =>
+    normName(name)
+        ? leadsCache.find((l) => normName(l.name) === normName(name)) || null
+        : null;
+
+function leadStatusBadge(status) {
+    return status
+        ? `<span class="status-badge ${LEAD_STATUS_CLS[status] || "status-request"}">${escapeHtml(status)}</span>`
+        : "";
+}
+
+// Поле "Клієнт": підказки зі списку лідів
+const clientInput = document.getElementById("req_client");
+const clientField = clientInput.parentElement;
+clientField.classList.add("client-field");
+clientInput.setAttribute("autocomplete", "off");
+clientInput.placeholder = "Почніть вводити назву клієнта або ЄДРПОУ...";
+
+const clientBox = document.createElement("div");
+clientBox.className = "client-suggest";
+clientBox.hidden = true;
+clientField.appendChild(clientBox);
+
+const clientLeadInfo = document.createElement("div");
+clientLeadInfo.className = "client-lead-info";
+clientField.appendChild(clientLeadInfo);
+
+let clientActiveIdx = -1;
+
+function setSelectedLead(lead) {
+    selectedLeadId = lead ? lead.id : null;
+    const typed = clientInput.value.trim();
+    if (lead) {
+        clientLeadInfo.className = "client-lead-info ok";
+        clientLeadInfo.innerHTML = `<i class='bx bx-check-circle'></i> Лід ${leadStatusBadge(lead.status)}
+            ${lead.sales ? `· Sales: <b>${escapeHtml(lead.sales)}</b>` : ""}
+            ${lead.contact_person || lead.phone ? `· ${escapeHtml([lead.contact_person, lead.phone].filter(Boolean).join(", "))}` : ""}`;
+    } else if (typed) {
+        clientLeadInfo.className = "client-lead-info warn";
+        clientLeadInfo.innerHTML = `<i class='bx bx-info-circle'></i> Такого клієнта немає в Лідах — оберіть зі списку або створіть нового`;
+    } else {
+        clientLeadInfo.className = "client-lead-info";
+        clientLeadInfo.innerHTML = "";
+    }
+}
+
+function renderClientSuggest() {
+    const q = normName(clientInput.value);
+    clientActiveIdx = -1;
+    if (!q) {
+        clientBox.hidden = true;
+        return;
+    }
+    const list = leadsCache
+        .filter(
+            (l) =>
+                normName(l.name).includes(q) || normName(l.edrpou).includes(q),
+        )
+        .sort(
+            (a, b) =>
+                (normName(a.name).startsWith(q) ? 0 : 1) -
+                (normName(b.name).startsWith(q) ? 0 : 1),
+        )
+        .slice(0, 8);
+    const exact = leadsCache.some((l) => normName(l.name) === q);
+
+    clientBox.innerHTML =
+        list
+            .map(
+                (l) => `
+            <div class="client-option" data-id="${l.id}">
+                <div class="client-option-main"><b>${escapeHtml(l.name)}</b> ${leadStatusBadge(l.status)}</div>
+                <div class="client-option-sub">${[l.edrpou, l.city, l.sales && `Sales: ${l.sales}`].filter(Boolean).map(escapeHtml).join(" · ")}</div>
+            </div>`,
+            )
+            .join("") +
+        (!exact
+            ? `<div class="client-option client-create" data-create="1"><i class='bx bx-plus-circle'></i> Створити нового ліда «${escapeHtml(clientInput.value.trim())}»</div>`
+            : "");
+    clientBox.hidden = false;
+}
+
+function highlightClientOption(idx) {
+    const opts = [...clientBox.querySelectorAll(".client-option")];
+    if (!opts.length) return;
+    clientActiveIdx = (idx + opts.length) % opts.length;
+    opts.forEach((o, i) => o.classList.toggle("active", i === clientActiveIdx));
+    opts[clientActiveIdx].scrollIntoView({ block: "nearest" });
+}
+
+async function chooseClientOption(opt) {
+    if (!opt) return;
+    if (opt.dataset.create) {
+        const lead = await createLeadQuick(clientInput.value.trim());
+        if (lead) pickLead(lead);
+    } else {
+        pickLead(leadById(opt.dataset.id));
+    }
+}
+
+function pickLead(lead) {
+    if (!lead) return;
+    clientInput.value = lead.name;
+    setSelectedLead(lead);
+    clientBox.hidden = true;
+    // Sales ліда підставляємо, якщо в запиті Sales ще не обраний
+    const salesSel = document.getElementById("req_sales");
+    if (
+        lead.sales_id &&
+        !salesSel.value &&
+        [...salesSel.options].some((o) => o.value === String(lead.sales_id))
+    ) {
+        salesSel.value = String(lead.sales_id);
+    }
+}
+
+// Швидко створює ліда з назвою (решту можна дописати в «Лідах»)
+async function createLeadQuick(name) {
+    if (!name) return null;
+    const me =
+        currentStaff && hasRole(currentStaff, ["sales", "head"])
+            ? currentStaff
+            : null;
+    const { data, error } = await sbClient
+        .from("leads")
+        .insert([
+            {
+                name,
+                status: "Новий",
+                sales_id: me?.id || null,
+                sales: me?.full_name || null,
+                created_by: currentStaff?.full_name || null,
+                history: [
+                    {
+                        at: new Date().toISOString(),
+                        author: currentStaff?.full_name || "",
+                        text: "Лід створено із запиту",
+                        auto: true,
+                    },
+                ],
+            },
+        ])
+        .select()
+        .single();
+    if (error) {
+        alert("Не вдалося створити ліда: " + error.message);
+        return null;
+    }
+    leadsCache.push(data);
+    return data;
+}
+
+clientInput.addEventListener("input", () => {
+    setSelectedLead(findLeadByName(clientInput.value));
+    renderClientSuggest();
+});
+clientInput.addEventListener("focus", renderClientSuggest);
+clientInput.addEventListener("blur", () =>
+    setTimeout(() => (clientBox.hidden = true), 150),
+);
+clientInput.addEventListener("keydown", (e) => {
+    if (clientBox.hidden) return;
+    if (e.key === "ArrowDown") {
+        e.preventDefault();
+        highlightClientOption(clientActiveIdx + 1);
+    } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlightClientOption(clientActiveIdx - 1);
+    } else if (e.key === "Enter") {
+        e.preventDefault(); // Enter у полі клієнта не відправляє форму
+        const opts = clientBox.querySelectorAll(".client-option");
+        chooseClientOption(opts[Math.max(clientActiveIdx, 0)]);
+    } else if (e.key === "Escape") {
+        e.stopPropagation();
+        clientBox.hidden = true;
+    }
+});
+clientBox.addEventListener("mousedown", (e) => {
+    e.preventDefault(); // щоб поле не втратило фокус до кліку
+    chooseClientOption(e.target.closest(".client-option"));
+});
+
+// Блок "Клієнт (лід)" у картці запиту
+function leadSectionHtml(r) {
+    const lead = leadById(r.lead_id) || findLeadByName(r.client);
+    if (!lead) {
+        return `
+        <div class="card-section lead-in-request">
+            <div class="card-section-title lead-in-request-title"><span><i class='bx bx-buildings'></i> Клієнт</span></div>
+            <div class="card-block-text offer-muted">Клієнта немає в Лідах. Відкрийте «Редагувати» і оберіть клієнта зі списку.</div>
+        </div>`;
+    }
+    const history = (Array.isArray(lead.history) ? lead.history : [])
+        .slice(-3)
+        .reverse();
+    return `
+        <div class="card-section lead-in-request">
+            <div class="card-section-title lead-in-request-title">
+                <span><i class='bx bx-buildings'></i> Клієнт: ${escapeHtml(lead.name)} ${leadStatusBadge(lead.status)}</span>
+                <a class="btn-answer" href="leads.html?open=${lead.id}"><i class='bx bx-link-external'></i> Картка ліда</a>
+            </div>
+            <div class="lead-in-request-grid">
+                ${cardRow("Контакт:", escapeHtml([lead.contact_person, lead.phone].filter(Boolean).join(", ")))}
+                ${cardRow("Sales ліда:", escapeHtml(lead.sales))}
+                ${cardRow("Місто:", escapeHtml([lead.city, lead.country].filter(Boolean).join(", ")))}
+                ${cardRow("Наст. контакт:", formatDateOnly(lead.next_contact))}
+            </div>
+            ${
+                history.length
+                    ? `<div class="lead-in-request-history">${history
+                          .map(
+                              (h) =>
+                                  `<div><span>${formatDateTime(h.at)}</span> ${escapeHtml(h.text)}</div>`,
+                          )
+                          .join("")}</div>`
+                    : ""
+            }
+        </div>`;
+}
+
+/* ================================================================= *
  * 4.3 КІЛЬКА ЛОГІСТІВ НА ЗАПИТ                                       *
  * ================================================================= */
 
@@ -961,6 +1220,13 @@ function openRequestModal(request = null) {
 
     setVal("requestId", request ? request.id : "");
     setVal("req_client", request?.client);
+    setSelectedLead(
+        request
+            ? leadById(request.lead_id) || findLeadByName(request.client)
+            : null,
+    );
+    clientBox.hidden = true;
+    loadLeadsList(); // свіжий список лідів (раптом хтось щойно додав)
     renderTypePicker(request?.request_type || "");
     setVal("req_cargo", request?.cargo);
     setVal("req_transport_type", request?.transport_type);
@@ -1055,6 +1321,20 @@ requestForm.addEventListener("submit", async (e) => {
         return;
     }
 
+    // Клієнт має бути в Лідах
+    const clientName = getValue("req_client");
+    let lead = leadById(selectedLeadId) || findLeadByName(clientName);
+    if (!lead) {
+        if (
+            !confirm(
+                `Клієнта «${clientName}» немає в Лідах.\n\nСтворити нового ліда і зберегти запит?\n(Контакти клієнта можна буде дописати в розділі «Ліди».)`,
+            )
+        )
+            return;
+        lead = await createLeadQuick(clientName);
+        if (!lead) return;
+    }
+
     const salesPick = readStaffSelect("req_sales");
     const logistPick = readLogistPicker();
     const existing = document.getElementById("requestId").value
@@ -1067,7 +1347,8 @@ requestForm.addEventListener("submit", async (e) => {
     const logistFields = logistFieldsFor(existing, logistPick);
 
     const payload = {
-        client: getValue("req_client"),
+        client: lead.name,
+        lead_id: lead.id,
         request_type: requestType,
         cargo: getValue("req_cargo"),
         transport_type: getValue("req_transport_type"),
@@ -1158,6 +1439,8 @@ function openRequestCard(id) {
                 </div>
             </div>
         </div>
+
+        ${leadSectionHtml(r)}
 
         ${answerSectionHtml(r)}
 
@@ -1713,7 +1996,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
 
-    await loadStaff(session);
+    await Promise.all([loadStaff(session), loadLeadsList()]);
     fillSelects();
     buildFilterIcons();
     updateDateRangeUI();
@@ -1725,10 +2008,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     setInterval(loadRequests, 60 * 1000);
 
     // Перехід з картки ліда: requests.html?new_client=Назва — одразу форма нового запиту
-    const newClient = new URLSearchParams(location.search).get("new_client");
-    if (newClient) {
+    const params = new URLSearchParams(location.search);
+    const newLead = leadById(params.get("new_lead"));
+    const newClient = params.get("new_client");
+    if (newLead || newClient) {
         openRequestModal();
-        setVal("req_client", newClient);
+        if (newLead) pickLead(newLead);
+        else {
+            setVal("req_client", newClient);
+            setSelectedLead(findLeadByName(newClient));
+        }
         history.replaceState(null, "", location.pathname);
     }
 });

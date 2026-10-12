@@ -827,3 +827,150 @@
     background: #eef2ff;
     color: #4338ca;
 }
+
+/* ===================== Клієнт = Лід (пошук у формі запиту) ===================== */
+
+.client-field {
+    position: relative;
+}
+
+.client-suggest {
+    position: absolute;
+    top: 68px;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: 320px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+    padding: 4px;
+}
+
+.client-option {
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.client-option:hover,
+.client-option.active {
+    background: #eff6ff;
+}
+
+.client-option-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: #0f172a;
+}
+
+.client-option-main .status-badge {
+    padding: 1px 7px;
+    font-size: 11px;
+}
+
+.client-option-sub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 1px;
+}
+
+.client-create {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #15803d;
+    font-weight: 600;
+    font-size: 14px;
+    border-top: 1px solid #f1f5f9;
+    margin-top: 2px;
+}
+
+.client-lead-info {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.client-lead-info:empty {
+    display: none;
+}
+
+.client-lead-info.ok {
+    color: #15803d;
+}
+
+.client-lead-info.warn {
+    color: #b45309;
+}
+
+.client-lead-info .status-badge {
+    padding: 1px 7px;
+    font-size: 11px;
+}
+
+/* Блок "Клієнт" у картці запиту */
+.lead-in-request {
+    margin-bottom: 16px;
+    border: 1px solid #bfdbfe;
+}
+
+.lead-in-request-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.lead-in-request-title > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.lead-in-request-title .btn-answer {
+    background: #2563eb;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.lead-in-request-title .btn-answer:hover {
+    background: #1d4ed8;
+}
+
+.lead-in-request-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+.lead-in-request-history {
+    padding: 8px 18px 12px;
+    border-top: 1px solid #f1f5f9;
+    font-size: 13px;
+    color: #334155;
+}
+
+.lead-in-request-history div {
+    padding: 3px 0;
+}
+
+.lead-in-request-history span {
+    color: #94a3b8;
+    font-size: 12px;
+    margin-right: 6px;
+}
+
+@media (max-width: 700px) {
+    .lead-in-request-grid {
+        grid-template-columns: 1fr;
+    }
+}
