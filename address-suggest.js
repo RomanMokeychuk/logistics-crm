@@ -152,6 +152,9 @@
         }
 
         function show(html) {
+            // Користувач уже пішов з поля (або форму закрили) — нічого не показуємо
+            if (document.activeElement !== input || input.offsetParent === null)
+                return close();
             box.innerHTML = html;
             place();
             box.classList.add("open");

@@ -1,0 +1,158 @@
+/* ===================== Угоди ===================== */
+
+.deals-table .deal-num {
+    font-weight: 800;
+    color: #0f172a;
+    white-space: nowrap;
+}
+
+.deals-table .deal-route {
+    min-width: 180px;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.deal-arrow {
+    color: #94a3b8;
+    font-size: 12px;
+}
+
+.deal-plates {
+    font-family: ui-monospace, Menlo, monospace;
+    font-weight: 700;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.deal-date-plan {
+    color: #64748b;
+    font-size: 12px;
+}
+
+.deal-date-fact {
+    color: #15803d;
+    font-weight: 600;
+    font-size: 13px;
+}
+
+/* Статус з дат */
+.deal-state {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.deal-st-plan {
+    background: #fef3c7;
+    color: #92400e;
+}
+.deal-st-late {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.deal-st-road {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+.deal-st-done {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+/* Підказки клієнта / перевізника */
+.deal-pick {
+    position: relative;
+}
+
+.deal-pick label small {
+    font-weight: 400;
+    color: #64748b;
+}
+
+.deal-suggest {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    max-height: 280px;
+    overflow-y: auto;
+    margin-top: 4px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.16);
+    padding: 4px;
+}
+
+.deal-sg-item {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px;
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.deal-sg-item:hover {
+    background: #eff6ff;
+}
+
+.deal-sg-item strong {
+    font-size: 14px;
+    color: #0f172a;
+}
+
+.deal-sg-item span {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.deal-sg-note {
+    padding: 9px 10px;
+    font-size: 13px;
+    color: #94a3b8;
+}
+
+.deal-hint {
+    margin-top: 4px;
+    font-size: 12px;
+}
+
+.deal-ok {
+    color: #15803d;
+}
+
+.deal-warn {
+    color: #b45309;
+}
+
+.deal-two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.customs-inputs {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 8px;
+}
+
+.customs-inputs :disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+}
+
+.deal-copy-btn {
+    background: #eef2ff !important;
+    color: #4338ca !important;
+}
+
+@media (max-width: 700px) {
+    .deal-two,
+    .customs-inputs {
+        grid-template-columns: 1fr;
+    }
+}

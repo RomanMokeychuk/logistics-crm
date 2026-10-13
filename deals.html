@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Угоди</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="requests.css" />
+        <link rel="stylesheet" href="leads.css" />
+        <link rel="stylesheet" href="deals.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="reports.html"
+                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
+                >
+                <a href="leads.html"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="deals.html" class="active"
+                    ><i class="bx bx-file"></i> Угоди</a
+                >
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
+                <a
+                    href="#"
+                    onclick="
+                        openShlyahModal();
+                        return false;
+                    "
+                    ><i class="bx bx-search-alt"></i> Шлях</a
+                >
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Угоди</h1>
+                <button class="btn btn-primary" id="openDealModalBtn">
+                    <i class="bx bx-plus"></i> Нова угода
+                </button>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <div class="lead-tabs" id="dealTabs"></div>
+
+            <div class="filters-bar lead-filters">
+                <input
+                    type="text"
+                    id="dealsSearch"
+                    class="search-input"
+                    placeholder="🔍 Пошук: номер, клієнт, перевізник, авто, водій, місто..." />
+            </div>
+
+            <section class="table-card" id="tableScrollArea">
+                <table class="requests-table deals-table">
+                    <thead>
+                        <tr>
+                            <th>№ УГОДИ</th>
+                            <th>СТАТУС</th>
+                            <th>КЛІЄНТ</th>
+                            <th>МАРШРУТ</th>
+                            <th>ПЕРЕВІЗНИК</th>
+                            <th>АВТО / ВОДІЙ</th>
+                            <th>ЗАВАНТАЖЕННЯ</th>
+                            <th>РОЗВАНТАЖЕННЯ</th>
+                            <th>ЛОГІСТ</th>
+                            <th>SALES</th>
+                            <th>ДІЇ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dealsTableBody"></tbody>
+                </table>
+            </section>
+            <div id="dealsCountBar" class="carriers-count-bar"></div>
+        </main>
+
+        <!-- Нова / редагувати угоду -->
+        <div class="modal-overlay" id="dealModalOverlay">
+            <div class="modal" style="max-width: 820px">
+                <div class="modal-header">
+                    <h2 id="dealModalTitle">Нова угода</h2>
+                    <button
+                        type="button"
+                        class="close-btn"
+                        id="closeDealModalBtn">
+                        &times;
+                    </button>
+                </div>
+                <form id="dealForm" autocomplete="off">
+                    <input type="hidden" id="dealId" />
+                    <input type="hidden" id="deal_copied_from" />
+                    <div class="modal-body request-form-grid">
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-user"></i> Клієнт і вантаж
+                        </div>
+                        <div class="form-group span-2 deal-pick">
+                            <label
+                                >Клієнт * <small>(з розділу Ліди)</small></label
+                            >
+                            <input
+                                type="text"
+                                id="deal_client"
+                                placeholder="Почніть вводити назву або ЄДРПОУ клієнта..." />
+                            <input type="hidden" id="deal_lead_id" />
+                            <div
+                                class="deal-suggest"
+                                id="dealClientSuggest"
+                                hidden></div>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Вантаж</label>
+                            <input
+                                type="text"
+                                id="deal_cargo"
+                                placeholder="наприклад: обладнання на палетах, 33 пал., 20 т" />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-upload"></i> Завантаження
+                        </div>
+                        <div class="form-group">
+                            <label>Країна завантаження</label>
+                            <select id="deal_load_country"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Місто / адреса завантаження</label>
+                            <input
+                                type="text"
+                                id="deal_load_address"
+                                placeholder="Місто, село, індекс" />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-shield-quarter"></i> Митниця та
+                            кордон
+                        </div>
+                        <div class="form-group span-2">
+                            <div class="date-label-row">
+                                <label>Замитнення</label>
+                                <label class="date-range-toggle"
+                                    ><input
+                                        type="checkbox"
+                                        id="deal_customs_export_here" />
+                                    по місцю завантаження</label
+                                >
+                            </div>
+                            <div class="customs-inputs">
+                                <select
+                                    id="deal_customs_export_country"></select>
+                                <input
+                                    type="text"
+                                    id="deal_customs_export"
+                                    placeholder="Місто / село / індекс митниці" />
+                            </div>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Пункт пропуску</label>
+                            <input
+                                type="text"
+                                id="deal_border_crossing"
+                                list="dealBorderList"
+                                placeholder="наприклад: Рава-Руська – Гребенне (PL)" />
+                            <datalist id="dealBorderList"></datalist>
+                        </div>
+                        <div class="form-group span-2">
+                            <div class="date-label-row">
+                                <label>Розмитнення</label>
+                                <label class="date-range-toggle"
+                                    ><input
+                                        type="checkbox"
+                                        id="deal_customs_import_here" />
+                                    по місцю розвантаження</label
+                                >
+                            </div>
+                            <div class="customs-inputs">
+                                <select
+                                    id="deal_customs_import_country"></select>
+                                <input
+                                    type="text"
+                                    id="deal_customs_import"
+                                    placeholder="Місто / село / індекс митниці" />
+                            </div>
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-download"></i> Розвантаження
+                        </div>
+                        <div class="form-group">
+                            <label>Країна розвантаження</label>
+                            <select id="deal_unload_country"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Місто / адреса розвантаження</label>
+                            <input
+                                type="text"
+                                id="deal_unload_address"
+                                placeholder="Місто, село, індекс" />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-car"></i> Перевізник і авто
+                        </div>
+                        <div class="form-group span-2 deal-pick">
+                            <label
+                                >Перевізник *
+                                <small
+                                    >(тільки з реєстру Перевізників)</small
+                                ></label
+                            >
+                            <input
+                                type="text"
+                                id="deal_carrier"
+                                placeholder="Почніть вводити назву або ЄДРПОУ перевізника..." />
+                            <input type="hidden" id="deal_carrier_id" />
+                            <input type="hidden" id="deal_carrier_edrpou" />
+                            <div
+                                class="deal-suggest"
+                                id="dealCarrierSuggest"
+                                hidden></div>
+                            <div class="deal-hint" id="dealCarrierHint"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Тип причепу</label>
+                            <input
+                                type="text"
+                                id="deal_trailer_type"
+                                list="dealTrailerList"
+                                placeholder="ТЕНТ, РЕФ..." />
+                            <datalist id="dealTrailerList"></datalist>
+                        </div>
+                        <div class="form-group">
+                            <label>Номер авто / причепа</label>
+                            <div class="deal-two">
+                                <input
+                                    type="text"
+                                    id="deal_truck_plate"
+                                    placeholder="AC1234AB" />
+                                <input
+                                    type="text"
+                                    id="deal_trailer_plate"
+                                    placeholder="AC5678XX" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>ПІБ водія</label>
+                            <input
+                                type="text"
+                                id="deal_driver_name"
+                                placeholder="Прізвище Ім'я По батькові" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон водія</label>
+                            <input
+                                type="text"
+                                id="deal_driver_phone"
+                                placeholder="380XXXXXXXXX" />
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-group"></i> Відповідальні
+                        </div>
+                        <div class="form-group">
+                            <label>Sales</label>
+                            <select id="deal_sales"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Логіст (якщо потрібно)</label>
+                            <div class="deal-two">
+                                <select id="deal_logist"></select>
+                                <input
+                                    type="text"
+                                    id="deal_logist_phone"
+                                    placeholder="Телефон логіста" />
+                            </div>
+                        </div>
+
+                        <div class="form-section-title span-2">
+                            <i class="bx bx-calendar"></i> Дати
+                        </div>
+                        <div class="form-group">
+                            <label>Планова дата завантаження</label>
+                            <input type="date" id="deal_load_date_plan" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата завантаження (факт)</label>
+                            <input type="date" id="deal_load_date" />
+                        </div>
+                        <div class="form-group">
+                            <label>Планова дата розвантаження</label>
+                            <input type="date" id="deal_unload_date_plan" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата розвантаження (факт)</label>
+                            <input type="date" id="deal_unload_date" />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label>Нотатки</label>
+                            <textarea
+                                id="deal_notes"
+                                rows="2"
+                                placeholder="Що важливо по угоді..."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            id="cancelDealBtn">
+                            Відміна
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            Зберегти
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Картка угоди -->
+        <div class="modal-overlay" id="dealCardOverlay">
+            <div class="modal carrier-card-modal">
+                <div class="carrier-card-topbar">
+                    <h2 id="dealCardTitle">Угода</h2>
+                    <div class="carrier-card-actions">
+                        <button
+                            type="button"
+                            class="btn-card-edit deal-copy-btn"
+                            id="copyFromDealCardBtn">
+                            <i class="bx bx-copy"></i> Дублювати
+                        </button>
+                        <button
+                            type="button"
+                            class="btn-card-edit"
+                            id="editFromDealCardBtn">
+                            <i class="bx bx-edit"></i> Редагувати
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeDealCardBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <div id="dealCardBody"></div>
+            </div>
+        </div>
+
+        <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
+        <div class="modal-overlay" id="shlyahModalOverlay">
+            <div
+                class="modal"
+                style="max-width: 480px; padding: 0; overflow: hidden">
+                <div
+                    class="modal-header"
+                    style="padding: 16px 20px; margin-bottom: 0">
+                    <h2 style="font-size: 16px">Шлях — перевірка ТЗ</h2>
+                    <div style="display: flex; align-items: center; gap: 4px">
+                        <button
+                            type="button"
+                            class="btn-icon"
+                            id="shlyahBackBtn"
+                            title="Новий пошук (повернутись до форми)">
+                            <i class="bx bx-left-arrow-alt"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="close-btn"
+                            id="closeShlyahModalBtn">
+                            &times;
+                        </button>
+                    </div>
+                </div>
+                <iframe
+                    id="shlyahIframe"
+                    src="about:blank"
+                    style="
+                        width: 100%;
+                        height: 520px;
+                        border: none;
+                        display: block;
+                    "
+                    title="Перевірка транспортних засобів"></iframe>
+                <div
+                    style="padding: 10px 20px; font-size: 12px; color: #64748b">
+                    Якщо сторінка не завантажилась —
+                    <a
+                        href="https://shlyah.dsbt.gov.ua/lc.html"
+                        target="_blank"
+                        rel="noopener"
+                        >відкрити в новій вкладці</a
+                    >.
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="deals.js"></script>
+        <script src="address-suggest.js"></script>
+        <script src="notify.js"></script>
+        <script src="lock.js"></script>
+    </body>
+</html>

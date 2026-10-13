@@ -134,6 +134,13 @@ async function renderHome(session) {
             sub: "Додати клієнта",
         }),
         quickCard({
+            href: "deals.html?new=1",
+            icon: "bx-file",
+            color: "#0d9488",
+            title: "Нова угода",
+            sub: "Перевізник, авто, водій, дати",
+        }),
+        quickCard({
             href: "index.html?new=1",
             icon: "bx-car",
             color: "#6250d6",

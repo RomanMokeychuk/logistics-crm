@@ -31,14 +31,16 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
-                <a href="leads.html" class="active"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
                 <a href="reports.html"
                     ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
                 >
+                <a href="leads.html" class="active"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
                 <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
                 <a
                     href="#"
                     onclick="
@@ -85,6 +87,13 @@
                     id="leadsSearch"
                     class="search-input"
                     placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, місто, напрямок..." />
+                <select id="leadsTradeFilter" class="lead-select">
+                    <option value="">Усі напрямки</option>
+                    <option value="Експорт">Експорт</option>
+                    <option value="Імпорт">Імпорт</option>
+                    <option value="По Україні">По Україні</option>
+                </select>
+                <select id="leadsCountryFilter" class="lead-select"></select>
                 <select id="leadsSalesFilter" class="lead-select"></select>
                 <label class="lead-toggle">
                     <input type="checkbox" id="leadsTodayOnly" />
@@ -102,6 +111,7 @@
                                     >КЛІЄНТ <i class="bx sort-icon"></i
                                 ></span>
                             </th>
+                            <th><span class="th-label">ТИП</span></th>
                             <th>
                                 <span
                                     class="th-label sortable"
@@ -241,6 +251,33 @@
                         </div>
 
                         <div class="form-group span-2">
+                            <label>Тип перевезень (можна кілька)</label>
+                            <div class="trade-picker" id="lead_trade_picker">
+                                <label class="trade-chip trade-export"
+                                    ><input
+                                        type="checkbox"
+                                        name="lead_trade"
+                                        value="Експорт" />
+                                    <i class="bx bx-upload"></i> Експорт</label
+                                >
+                                <label class="trade-chip trade-import"
+                                    ><input
+                                        type="checkbox"
+                                        name="lead_trade"
+                                        value="Імпорт" />
+                                    <i class="bx bx-download"></i> Імпорт</label
+                                >
+                                <label class="trade-chip trade-ua"
+                                    ><input
+                                        type="checkbox"
+                                        name="lead_trade"
+                                        value="По Україні" />
+                                    <i class="bx bx-map"></i> По Україні</label
+                                >
+                            </div>
+                        </div>
+
+                        <div class="form-group span-2">
                             <label>Напрямки перевезень</label>
                             <input
                                 type="text"
@@ -373,6 +410,21 @@
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="leads.js"></script>
         <script src="address-suggest.js"></script>
+        <script src="table-columns.js"></script>
+        <script>
+            // Ширина / приховування колонок (table-columns.js)
+            document.addEventListener("DOMContentLoaded", () => {
+                const t = document.querySelector("#tableScrollArea table");
+                const n = t
+                    ? t.querySelectorAll("thead tr:first-child > th").length
+                    : 0;
+                furaTableColumns(t, "fura_cols_leads", {
+                    fixed: [0, 10]
+                        .map((i) => (i < 0 ? n + i : i))
+                        .concat([n - 1]),
+                });
+            });
+        </script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

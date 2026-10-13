@@ -1108,3 +1108,15 @@
 .request-form-grid [hidden] {
     display: none !important;
 }
+
+/* Кілька логістів у таблиці — один під одним */
+.requests-table .cell-logists {
+    white-space: normal;
+}
+.requests-table .cell-logists .logist-line {
+    white-space: nowrap;
+    line-height: 1.35;
+}
+.requests-table .cell-logists .logist-line + .logist-line {
+    margin-top: 2px;
+}

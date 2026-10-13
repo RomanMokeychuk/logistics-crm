@@ -233,6 +233,18 @@ function countryBadge(country) {
 }
 
 // Країна + під нею місто/адреса — для картки запиту
+// Кілька логістів — кожен з нового рядка
+function logistListHtml(r) {
+    const names = String(r.logistician || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+    if (!names.length) return "—";
+    return names
+        .map((n) => `<div class="logist-line">${escapeHtml(n)}</div>`)
+        .join("");
+}
+
 function locationCell(country, address) {
     if (!country && !address) return "";
     const badge = country
@@ -902,7 +914,7 @@ function renderRequests() {
             <td>${statusBadge(r.status)}</td>
             <td class="cell-date">${formatDesiredDate(r.desired_date, r.desired_date_to) || "—"}</td>
             <td class="cell-person">${escapeHtml(r.sales) || "—"}</td>
-            <td class="cell-person">${escapeHtml(r.logistician) || "—"}</td>
+            <td class="cell-person cell-logists">${logistListHtml(r)}</td>
             <td class="cell-date">
                 <div>${formatDateTime(r.created_at) || "—"}</div>
                 ${timerHtml(r, state)}

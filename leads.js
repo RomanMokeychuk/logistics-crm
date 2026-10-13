@@ -84,6 +84,40 @@ const cardOverlay = document.getElementById("leadCardOverlay");
 const searchInput = document.getElementById("leadsSearch");
 const salesFilter = document.getElementById("leadsSalesFilter");
 const todayOnly = document.getElementById("leadsTodayOnly");
+const tradeFilter = document.getElementById("leadsTradeFilter");
+const countryFilter = document.getElementById("leadsCountryFilter");
+
+// Експорт / Імпорт / По Україні
+const TRADE_TYPES = [
+    { value: "Експорт", cls: "trade-export" },
+    { value: "Імпорт", cls: "trade-import" },
+    { value: "По Україні", cls: "trade-ua" },
+];
+function tradeBadges(l) {
+    const list = Array.isArray(l.trade_types) ? l.trade_types : [];
+    if (!list.length) return "—";
+    return list
+        .map(
+            (v) =>
+                `<span class="trade-badge ${TRADE_TYPES.find((t) => t.value === v)?.cls || ""}">${escapeHtml(v)}</span>`,
+        )
+        .join("");
+}
+function fillCountryFilter() {
+    const keep = countryFilter.value;
+    const list = [
+        ...new Set(leadsCache.map((l) => l.country).filter(Boolean)),
+    ].sort((a, b) => a.localeCompare(b, "uk"));
+    countryFilter.innerHTML =
+        `<option value="">Усі країни</option>` +
+        list
+            .map(
+                (c) =>
+                    `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`,
+            )
+            .join("");
+    if (list.includes(keep)) countryFilter.value = keep;
+}
 
 /* ---------------- Допоміжні ---------------- */
 
@@ -305,7 +339,7 @@ async function loadLeads() {
     ]);
 
     if (error) {
-        tableBody.innerHTML = `<tr><td colspan="10" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}<br>Можливо, ще не виконано leads.sql у Supabase.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}<br>Можливо, ще не виконано leads.sql у Supabase.</td></tr>`;
         return;
     }
 
@@ -325,6 +359,7 @@ async function loadLeads() {
     });
 
     leadsCache = data || [];
+    fillCountryFilter();
     renderTabs();
     renderLeads();
 }
@@ -379,6 +414,13 @@ function renderLeads() {
         if (salesVal && salesVal !== "__me" && String(l.sales_id) !== salesVal)
             return false;
         if (todayOnly.checked && !needsContact(l)) return false;
+        if (
+            tradeFilter.value &&
+            !(l.trade_types || []).includes(tradeFilter.value)
+        )
+            return false;
+        if (countryFilter.value && l.country !== countryFilter.value)
+            return false;
         if (!q) return true;
         return [
             l.name,
@@ -394,6 +436,7 @@ function renderLeads() {
             l.notes,
             l.sales,
             l.status,
+            (l.trade_types || []).join(" "),
         ]
             .join(" ")
             .toLowerCase()
@@ -431,7 +474,7 @@ function renderLeads() {
             : "");
 
     if (!rows.length) {
-        tableBody.innerHTML = `<tr><td colspan="10" class="empty-row">${
+        tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">${
             leadsCache.length
                 ? "Нічого не знайдено за цими умовами"
                 : "Лідів ще немає — натисніть «Додати ліда»"
@@ -454,6 +497,7 @@ function renderLeads() {
                 ${l.edrpou ? `<div class="lead-sub"><code>${escapeHtml(l.edrpou)}</code></div>` : ""}
                 ${reqCount ? `<div class="lead-sub lead-req-count"><i class='bx bx-list-ul'></i> запитів: ${reqCount}</div>` : ""}
             </td>
+            <td class="lead-trade-cell">${tradeBadges(l)}</td>
             <td>
                 ${l.contact_person ? `<strong>${escapeHtml(l.contact_person)}</strong>` : ""}
                 ${l.phone ? `<div class="lead-sub">${phoneLink(l.phone)}</div>` : ""}
@@ -510,6 +554,8 @@ function updateSortIcons() {
 searchInput.addEventListener("input", renderLeads);
 salesFilter.addEventListener("change", renderLeads);
 todayOnly.addEventListener("change", renderLeads);
+tradeFilter.addEventListener("change", renderLeads);
+countryFilter.addEventListener("change", renderLeads);
 
 /* ================================================================= *
  * ФОРМА: ДОДАТИ / РЕДАГУВАТИ                                         *
@@ -594,6 +640,10 @@ function openLeadModal(lead = null) {
     setVal("lead_country", lead ? lead.country : "УКРАЇНА");
     setVal("lead_city", lead?.city);
     setVal("lead_directions", lead?.directions);
+    const trades = new Set(lead?.trade_types || []);
+    document
+        .querySelectorAll("input[name='lead_trade']")
+        .forEach((c) => (c.checked = trades.has(c.value)));
     setVal("lead_cargo", lead?.cargo);
     setVal(
         "lead_next_contact",
@@ -676,6 +726,9 @@ leadForm.addEventListener("submit", async (e) => {
         country: val("lead_country"),
         city: val("lead_city"),
         directions: val("lead_directions"),
+        trade_types: [
+            ...document.querySelectorAll("input[name='lead_trade']:checked"),
+        ].map((c) => c.value),
         cargo: val("lead_cargo"),
         next_contact: val("lead_next_contact"),
         notes: val("lead_notes"),
@@ -798,6 +851,7 @@ async function openLeadCard(id) {
             <div class="card-col">
                 <div class="card-section">
                     <div class="card-section-title">Контакти</div>
+                    ${cardRow("Тип перевезень:", tradeBadges(l))}
                     ${cardRow("Контактна особа:", escapeHtml(l.contact_person))}
                     ${cardRow("Телефон:", phoneLink(l.phone))}
                     ${cardRow("Email:", l.email ? `<a href="mailto:${escapeHtml(l.email)}">${escapeHtml(l.email)}</a>` : "")}

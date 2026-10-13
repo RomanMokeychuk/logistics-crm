@@ -88,21 +88,66 @@ const STAGE_FLOW = [
 ];
 
 const COUNTRIES = [
-    "УКРАЇНА", "ПОЛЬША", "НІМЕЧЧИНА", "ЛИТВА", "ЛАТВІЯ", "ЕСТОНІЯ", "ЧЕХІЯ",
-    "СЛОВАЧЧИНА", "УГОРЩИНА", "РУМУНІЯ", "МОЛДОВА", "БОЛГАРІЯ", "АВСТРІЯ",
-    "ІТАЛІЯ", "ІСПАНІЯ", "ФРАНЦІЯ", "БЕЛЬГІЯ", "НІДЕРЛАНДИ", "ДАНІЯ",
-    "ФІНЛЯНДІЯ", "ВЕЛИКОБРИТАНІЯ", "ТУРЕЧЧИНА", "ГРУЗІЯ", "ВІРМЕНІЯ",
-    "АЗЕРБАЙДЖАН", "СЛОВЕНІЯ",
+    "УКРАЇНА",
+    "ПОЛЬША",
+    "НІМЕЧЧИНА",
+    "ЛИТВА",
+    "ЛАТВІЯ",
+    "ЕСТОНІЯ",
+    "ЧЕХІЯ",
+    "СЛОВАЧЧИНА",
+    "УГОРЩИНА",
+    "РУМУНІЯ",
+    "МОЛДОВА",
+    "БОЛГАРІЯ",
+    "АВСТРІЯ",
+    "ІТАЛІЯ",
+    "ІСПАНІЯ",
+    "ФРАНЦІЯ",
+    "БЕЛЬГІЯ",
+    "НІДЕРЛАНДИ",
+    "ДАНІЯ",
+    "ФІНЛЯНДІЯ",
+    "ВЕЛИКОБРИТАНІЯ",
+    "ТУРЕЧЧИНА",
+    "ГРУЗІЯ",
+    "ВІРМЕНІЯ",
+    "АЗЕРБАЙДЖАН",
+    "СЛОВЕНІЯ",
 ];
 
 const LIST_COLUMNS = [
-    "id", "trip_no", "created_at", "request_id", "client", "logist_name",
-    "carrier_name", "driver_name", "driver_phone", "truck_plate", "trailer_plate",
-    "load_address", "unload_address", "load_planned_at", "unload_planned_at",
-    "tracking_start_at", "tracking_deadline", "status", "invite_code",
-    "confirmed_at", "finished_at", "last_lat", "last_lon", "last_speed_kmh",
-    "last_point_at", "last_battery", "points_count", "eta_at", "eta_note",
-    "eta_remaining_km", "eta_traffic_delay_min",
+    "id",
+    "trip_no",
+    "created_at",
+    "request_id",
+    "client",
+    "logist_name",
+    "carrier_name",
+    "driver_name",
+    "driver_phone",
+    "truck_plate",
+    "trailer_plate",
+    "load_address",
+    "unload_address",
+    "load_planned_at",
+    "unload_planned_at",
+    "tracking_start_at",
+    "tracking_deadline",
+    "status",
+    "invite_code",
+    "confirmed_at",
+    "finished_at",
+    "last_lat",
+    "last_lon",
+    "last_speed_kmh",
+    "last_point_at",
+    "last_battery",
+    "points_count",
+    "eta_at",
+    "eta_note",
+    "eta_remaining_km",
+    "eta_traffic_delay_min",
 ].join(",");
 
 /* ---------------- Стан ---------------- */
@@ -183,7 +228,9 @@ function distM(a, b) {
     const dLon = toRad(b.lon - a.lon);
     const h =
         Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+        Math.cos(toRad(a.lat)) *
+            Math.cos(toRad(b.lat)) *
+            Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(h));
 }
 
@@ -194,31 +241,70 @@ function alertsFor(t, standingMin = null) {
     const now = Date.now();
     if (
         t.status === "assigned" &&
-        now > new Date(t.load_planned_at).getTime() - NOT_CONFIRMED_HOURS * 3600000
+        now >
+            new Date(t.load_planned_at).getTime() -
+                NOT_CONFIRMED_HOURS * 3600000
     ) {
-        out.push({ tone: "amber", short: "Не підтверджено", text: "Водій ще не підтвердив рейс, а завантаження вже скоро." });
+        out.push({
+            tone: "amber",
+            short: "Не підтверджено",
+            text: "Водій ще не підтвердив рейс, а завантаження вже скоро.",
+        });
     }
-    const trackingOn = ACTIVE.includes(t.status) && now > new Date(t.tracking_start_at).getTime();
+    const trackingOn =
+        ACTIVE.includes(t.status) &&
+        now > new Date(t.tracking_start_at).getTime();
     if (trackingOn) {
-        if (!t.last_point_at && now > new Date(t.tracking_start_at).getTime() + 30 * 60000) {
-            out.push({ tone: "red", short: "Немає даних", text: "Трекінг мав початися, але телефон водія не передав жодної точки. Зателефонуйте водію: застосунок відкритий, геолокація «Завжди»?" });
-        } else if (t.last_point_at && minutesSince(t.last_point_at) > NO_SIGNAL_MIN) {
+        if (
+            !t.last_point_at &&
+            now > new Date(t.tracking_start_at).getTime() + 30 * 60000
+        ) {
+            out.push({
+                tone: "red",
+                short: "Немає даних",
+                text: "Трекінг мав початися, але телефон водія не передав жодної точки. Зателефонуйте водію: застосунок відкритий, геолокація «Завжди»?",
+            });
+        } else if (
+            t.last_point_at &&
+            minutesSince(t.last_point_at) > NO_SIGNAL_MIN
+        ) {
             const m = minutesSince(t.last_point_at);
-            out.push({ tone: "red", short: `Немає сигналу ${fmtDur(m)}`, text: `Остання точка ${fmtDur(m)} тому. Можливо, немає мережі — точки прийдуть пізніше. Якщо довше 2 год — зателефонуйте водію.` });
+            out.push({
+                tone: "red",
+                short: `Немає сигналу ${fmtDur(m)}`,
+                text: `Остання точка ${fmtDur(m)} тому. Можливо, немає мережі — точки прийдуть пізніше. Якщо довше 2 год — зателефонуйте водію.`,
+            });
         }
     }
-    if (standingMin != null && standingMin > STANDING_MIN && MOVING.includes(t.status)) {
-        out.push({ tone: "amber", short: `Стоїть ${fmtDur(standingMin)}`, text: `Авто стоїть на місці ${fmtDur(standingMin)}, хоча за етапом має бути в дорозі.` });
+    if (
+        standingMin != null &&
+        standingMin > STANDING_MIN &&
+        MOVING.includes(t.status)
+    ) {
+        out.push({
+            tone: "amber",
+            short: `Стоїть ${fmtDur(standingMin)}`,
+            text: `Авто стоїть на місці ${fmtDur(standingMin)}, хоча за етапом має бути в дорозі.`,
+        });
     }
     if (t.eta_at && ACTIVE.includes(t.status)) {
-        const late = (new Date(t.eta_at) - new Date(t.unload_planned_at)) / 60000;
+        const late =
+            (new Date(t.eta_at) - new Date(t.unload_planned_at)) / 60000;
         if (late > LATE_MIN) {
-            out.push({ tone: "amber", short: `Прогноз +${fmtDur(late)}`, text: `За прогнозом прибуття ${fmtDT(t.eta_at)} — пізніше плану на ${fmtDur(late)}. Попередьте клієнта.` });
+            out.push({
+                tone: "amber",
+                short: `Прогноз +${fmtDur(late)}`,
+                text: `За прогнозом прибуття ${fmtDT(t.eta_at)} — пізніше плану на ${fmtDur(late)}. Попередьте клієнта.`,
+            });
         }
     }
     const p = recentProblems.get(t.id);
     if (p && ACTIVE.includes(t.status)) {
-        out.push({ tone: "amber", short: "Проблема", text: `Водій повідомив: «${p.note || "проблема"}» (${fmtDT(p.at)}).` });
+        out.push({
+            tone: "amber",
+            short: "Проблема",
+            text: `Водій повідомив: «${p.note || "проблема"}» (${fmtDT(p.at)}).`,
+        });
     }
     return out;
 }
@@ -228,7 +314,9 @@ function alertsFor(t, standingMin = null) {
 async function loadStaff(session) {
     const { data } = await sbClient.from("staff").select("*");
     const email = (session?.user?.email || "").toLowerCase();
-    currentStaff = (data || []).find((s) => (s.email || "").toLowerCase() === email) || null;
+    currentStaff =
+        (data || []).find((s) => (s.email || "").toLowerCase() === email) ||
+        null;
 }
 
 async function loadTrips() {
@@ -237,7 +325,9 @@ async function loadTrips() {
         sbClient
             .from("trips")
             .select(LIST_COLUMNS)
-            .or(`created_at.gte.${since},status.in.(${ACTIVE.join(",")},assigned)`)
+            .or(
+                `created_at.gte.${since},status.in.(${ACTIVE.join(",")},assigned)`,
+            )
             .order("created_at", { ascending: false })
             .limit(300),
         sbClient
@@ -262,10 +352,28 @@ async function loadTrips() {
 /* ---------------- Фільтри і список ---------------- */
 
 const FILTERS = [
-    { key: "active", label: "В дорозі", test: (t) => ACTIVE.includes(t.status) },
-    { key: "attention", label: "Увага", test: (t) => (ACTIVE.includes(t.status) || t.status === "assigned") && alertsFor(t).length > 0 },
-    { key: "assigned", label: "Очікують підтвердження", test: (t) => t.status === "assigned" },
-    { key: "finished", label: "Завершені", test: (t) => FINISHED.includes(t.status) },
+    {
+        key: "active",
+        label: "В дорозі",
+        test: (t) => ACTIVE.includes(t.status),
+    },
+    {
+        key: "attention",
+        label: "Увага",
+        test: (t) =>
+            (ACTIVE.includes(t.status) || t.status === "assigned") &&
+            alertsFor(t).length > 0,
+    },
+    {
+        key: "assigned",
+        label: "Очікують підтвердження",
+        test: (t) => t.status === "assigned",
+    },
+    {
+        key: "finished",
+        label: "Завершені",
+        test: (t) => FINISHED.includes(t.status),
+    },
     { key: "all", label: "Усі", test: () => true },
 ];
 
@@ -292,7 +400,18 @@ function renderList() {
     const f = FILTERS.find((x) => x.key === filter) || FILTERS[0];
     const list = trips.filter(f.test).filter((t) => {
         if (!q) return true;
-        return [t.trip_no, t.client, t.load_address, t.unload_address, t.driver_name, t.driver_phone, t.truck_plate, t.trailer_plate, t.carrier_name, t.invite_code]
+        return [
+            t.trip_no,
+            t.client,
+            t.load_address,
+            t.unload_address,
+            t.driver_name,
+            t.driver_phone,
+            t.truck_plate,
+            t.trailer_plate,
+            t.carrier_name,
+            t.invite_code,
+        ]
             .filter(Boolean)
             .join(" ")
             .toLowerCase()
@@ -316,7 +435,10 @@ function renderList() {
                 : t.status === "assigned"
                   ? `Код ${escapeHtml(t.invite_code)} · завантаження ${fmtDT(t.load_planned_at)}`
                   : `Завершено ${fmtDT(t.finished_at)}`;
-            const eta = t.eta_at && ACTIVE.includes(t.status) ? ` · прибуття ~${fmtDT(t.eta_at)}` : "";
+            const eta =
+                t.eta_at && ACTIVE.includes(t.status)
+                    ? ` · прибуття ~${fmtDT(t.eta_at)}`
+                    : "";
             return `
             <button type="button" class="trip-card" data-id="${t.id}" aria-current="${t.id === selectedId}">
                 <div class="trip-card-top">
@@ -350,14 +472,22 @@ async function openTrip(id) {
 
     const [tripRes, evRes, posRes, docRes] = await Promise.all([
         sbClient.from("trips").select("*").eq("id", id).single(),
-        sbClient.from("trip_events").select("*").eq("trip_id", id).order("at", { ascending: true }),
+        sbClient
+            .from("trip_events")
+            .select("*")
+            .eq("trip_id", id)
+            .order("at", { ascending: true }),
         sbClient
             .from("trip_positions")
             .select("recorded_at,lat,lon,speed_kmh")
             .eq("trip_id", id)
             .order("recorded_at", { ascending: true })
             .limit(10000),
-        sbClient.from("trip_docs").select("*").eq("trip_id", id).order("uploaded_at", { ascending: true }),
+        sbClient
+            .from("trip_docs")
+            .select("*")
+            .eq("trip_id", id)
+            .order("uploaded_at", { ascending: true }),
     ]);
     if (tripRes.error) {
         box.innerHTML = `<div class="trip-detail-empty">Не вдалося відкрити рейс: ${escapeHtml(tripRes.error.message)}</div>`;
@@ -368,7 +498,9 @@ async function openTrip(id) {
     const docs = docRes.data || [];
     await Promise.all(
         docs.map(async (d) => {
-            const { data } = await sbClient.storage.from("trip-docs").createSignedUrl(d.path, 3600);
+            const { data } = await sbClient.storage
+                .from("trip-docs")
+                .createSignedUrl(d.path, 3600);
             d.url = data?.signedUrl || null;
         }),
     );
@@ -411,14 +543,24 @@ function renderDetail(keepMap = false) {
     const hasUaBorder = (t.borders || []).some((b) => b.ukraine);
     const ahead = FINISHED.includes(t.status)
         ? []
-        : STAGE_FLOW.filter(([k]) => !done.has(k) && (hasUaBorder || !["arrived_border", "crossed_border"].includes(k)));
+        : STAGE_FLOW.filter(
+              ([k]) =>
+                  !done.has(k) &&
+                  (hasUaBorder ||
+                      !["arrived_border", "crossed_border"].includes(k)),
+          );
     const planFor = (type) =>
-        type === "arrived_loading" ? t.load_planned_at : type === "arrived_unloading" ? t.unload_planned_at : null;
+        type === "arrived_loading"
+            ? t.load_planned_at
+            : type === "arrived_unloading"
+              ? t.unload_planned_at
+              : null;
     const devFor = (type, at) => {
         const plan = planFor(type);
         if (!plan) return "";
         const d = (new Date(at) - new Date(plan)) / 60000;
-        if (Math.abs(d) < 15) return ` · <span class="tbadge tb-green">вчасно</span>`;
+        if (Math.abs(d) < 15)
+            return ` · <span class="tbadge tb-green">вчасно</span>`;
         return d > 0
             ? ` · <span class="tbadge tb-amber">+${fmtDur(d)}</span>`
             : ` · <span class="tbadge tb-green">−${fmtDur(-d)}</span>`;
@@ -517,8 +659,15 @@ document.getElementById("tripDetail").addEventListener("click", async (e) => {
     if (act === "invite") openInvite(t);
 
     if (act === "rotate") {
-        if (!confirm("Видати новий код? Старий код перестане працювати, застосунок на старому телефоні відключиться.")) return;
-        const { data, error } = await sbClient.rpc("rotate_trip_code", { p_trip: t.id });
+        if (
+            !confirm(
+                "Видати новий код? Старий код перестане працювати, застосунок на старому телефоні відключиться.",
+            )
+        )
+            return;
+        const { data, error } = await sbClient.rpc("rotate_trip_code", {
+            p_trip: t.id,
+        });
         if (error) return alert("Помилка: " + error.message);
         t.invite_code = data;
         openInvite(t);
@@ -526,7 +675,9 @@ document.getElementById("tripDetail").addEventListener("click", async (e) => {
     }
 
     if (act === "note") {
-        const note = prompt("Нотатка до рейсу (побачать співробітники в етапах):");
+        const note = prompt(
+            "Нотатка до рейсу (побачать співробітники в етапах):",
+        );
         if (!note || !note.trim()) return;
         const { error } = await sbClient.from("trip_events").insert({
             trip_id: t.id,
@@ -540,10 +691,18 @@ document.getElementById("tripDetail").addEventListener("click", async (e) => {
     }
 
     if (act === "cancel") {
-        if (!confirm(`Скасувати рейс № ${t.trip_no}? Трекінг на телефоні водія зупиниться.`)) return;
+        if (
+            !confirm(
+                `Скасувати рейс № ${t.trip_no}? Трекінг на телефоні водія зупиниться.`,
+            )
+        )
+            return;
         const { error } = await sbClient
             .from("trips")
-            .update({ status: "cancelled", finished_at: new Date().toISOString() })
+            .update({
+                status: "cancelled",
+                finished_at: new Date().toISOString(),
+            })
             .eq("id", t.id);
         if (error) return alert("Помилка: " + error.message);
         await sbClient.from("trip_events").insert({
@@ -586,7 +745,8 @@ const OSM_STYLE = {
             type: "raster",
             tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+            attribution:
+                '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         },
     },
     layers: [{ id: "osm", type: "raster", source: "osm" }],
@@ -622,7 +782,9 @@ async function drawMap() {
         truckMarker = null;
     }
 
-    const route = Array.isArray(t.route_line) ? t.route_line.map(([lat, lon]) => [lon, lat]) : [];
+    const route = Array.isArray(t.route_line)
+        ? t.route_line.map(([lat, lon]) => [lon, lat])
+        : [];
     const track = detail.positions.map((p) => [p.lon, p.lat]);
     const pts = [...route, ...track];
     if (t.load_lat != null) pts.push([t.load_lon, t.load_lat]);
@@ -632,7 +794,10 @@ async function drawMap() {
         el.innerHTML = `<div class="td-map-note">Немає координат маршруту. Позиція зʼявиться, коли водій почне рейс.</div>`;
         return;
     }
-    const bounds = pts.reduce((b, c) => b.extend(c), new gl.LngLatBounds(pts[0], pts[0]));
+    const bounds = pts.reduce(
+        (b, c) => b.extend(c),
+        new gl.LngLatBounds(pts[0], pts[0]),
+    );
 
     map = new gl.Map({
         container: el,
@@ -640,9 +805,15 @@ async function drawMap() {
         bounds,
         fitBoundsOptions: { padding: 40, maxZoom: 13 },
         scrollZoom: false,
-        attributionControl: { compact: true, customAttribution: "Маршрут © TomTom" },
+        attributionControl: {
+            compact: true,
+            customAttribution: "Маршрут © TomTom",
+        },
     });
-    map.addControl(new gl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(
+        new gl.NavigationControl({ showCompass: false }),
+        "top-right",
+    );
     map.addControl(new gl.FullscreenControl(), "top-right");
 
     // Шари додаємо, щойно завантажився стиль — не чекаючи всіх плиток карти
@@ -650,23 +821,62 @@ async function drawMap() {
         if (mapReady || !map || !map.isStyleLoaded()) return;
         mapReady = true;
         if (route.length > 1) {
-            map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: route } } });
-            map.addLayer({ id: "route", type: "line", source: "route", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#93c5fd", "line-width": 6, "line-opacity": 0.9 } });
+            map.addSource("route", {
+                type: "geojson",
+                data: {
+                    type: "Feature",
+                    geometry: { type: "LineString", coordinates: route },
+                },
+            });
+            map.addLayer({
+                id: "route",
+                type: "line",
+                source: "route",
+                layout: { "line-join": "round", "line-cap": "round" },
+                paint: {
+                    "line-color": "#93c5fd",
+                    "line-width": 6,
+                    "line-opacity": 0.9,
+                },
+            });
         }
         map.addSource("track", { type: "geojson", data: trackGeoJson() });
-        map.addLayer({ id: "track", type: "line", source: "track", layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": "#2563eb", "line-width": 4 } });
+        map.addLayer({
+            id: "track",
+            type: "line",
+            source: "track",
+            layout: { "line-join": "round", "line-cap": "round" },
+            paint: { "line-color": "#2563eb", "line-width": 4 },
+        });
 
         const pin = (lat, lon, html, title) => {
             if (lat == null || lon == null) return;
             const d = document.createElement("div");
             d.innerHTML = html;
             d.title = title;
-            new gl.Marker({ element: d.firstElementChild }).setLngLat([lon, lat]).addTo(map);
+            new gl.Marker({ element: d.firstElementChild })
+                .setLngLat([lon, lat])
+                .addTo(map);
         };
-        pin(t.load_lat, t.load_lon, `<div class="map-pin" style="background:#16a34a">A</div>`, "Завантаження: " + (t.load_address || ""));
-        pin(t.unload_lat, t.unload_lon, `<div class="map-pin" style="background:#dc2626">B</div>`, "Розвантаження: " + (t.unload_address || ""));
+        pin(
+            t.load_lat,
+            t.load_lon,
+            `<div class="map-pin" style="background:#16a34a">A</div>`,
+            "Завантаження: " + (t.load_address || ""),
+        );
+        pin(
+            t.unload_lat,
+            t.unload_lon,
+            `<div class="map-pin" style="background:#dc2626">B</div>`,
+            "Розвантаження: " + (t.unload_address || ""),
+        );
         (t.borders || []).forEach((b) =>
-            pin(b.lat, b.lon, `<div class="map-border"><i class='bx bx-shield-quarter'></i></div>`, `${b.name || "Кордон"}${b.from ? ": " + b.from + " → " + b.to : ""}`),
+            pin(
+                b.lat,
+                b.lon,
+                `<div class="map-border"><i class='bx bx-shield-quarter'></i></div>`,
+                `${b.name || "Кордон"}${b.from ? ": " + b.from + " → " + b.to : ""}`,
+            ),
         );
         placeTruck();
     };
@@ -676,7 +886,8 @@ async function drawMap() {
     const self = map;
     let tries = 0;
     const tick = setInterval(() => {
-        if (map !== self || mapReady || ++tries > 100) return clearInterval(tick);
+        if (map !== self || mapReady || ++tries > 100)
+            return clearInterval(tick);
         init();
     }, 200);
 }
@@ -688,12 +899,16 @@ function placeTruck() {
     const lat = last?.lat ?? t.last_lat;
     const lon = last?.lon ?? t.last_lon;
     if (lat == null || lon == null) return;
-    const stale = !ACTIVE.includes(t.status) || (t.last_point_at && minutesSince(t.last_point_at) > NO_SIGNAL_MIN);
+    const stale =
+        !ACTIVE.includes(t.status) ||
+        (t.last_point_at && minutesSince(t.last_point_at) > NO_SIGNAL_MIN);
     if (!truckMarker) {
         const d = document.createElement("div");
         d.className = "map-truck";
         d.innerHTML = "<i class='bx bxs-truck'></i>";
-        truckMarker = new window.maplibregl.Marker({ element: d }).setLngLat([lon, lat]).addTo(map);
+        truckMarker = new window.maplibregl.Marker({ element: d })
+            .setLngLat([lon, lat])
+            .addTo(map);
     }
     truckMarker.setLngLat([lon, lat]);
     truckMarker.getElement().classList.toggle("stale", Boolean(stale));
@@ -705,38 +920,61 @@ function placeTruck() {
 function subscribeRealtime() {
     sbClient
         .channel("fura-trips")
-        .on("postgres_changes", { event: "*", schema: "public", table: "trips" }, (payload) => {
-            const row = payload.new;
-            if (!row?.id) return;
-            const i = trips.findIndex((t) => t.id === row.id);
-            const slim = Object.fromEntries(LIST_COLUMNS.split(",").map((k) => [k, row[k]]));
-            if (i >= 0) trips[i] = { ...trips[i], ...slim };
-            else trips.unshift(slim);
-            renderChips();
-            renderList();
-            if (detail && detail.trip.id === row.id) {
-                const statusChanged = detail.trip.status !== row.status;
-                detail.trip = { ...detail.trip, ...row };
-                if (statusChanged) openTrip(row.id);
-                else placeTruck();
-            }
-        })
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "trip_positions" }, (payload) => {
-            const p = payload.new;
-            if (!detail || p.trip_id !== detail.trip.id) return;
-            detail.positions.push({ recorded_at: p.recorded_at, lat: p.lat, lon: p.lon, speed_kmh: p.speed_kmh });
-            detail.positions.sort((a, b) => new Date(a.recorded_at) - new Date(b.recorded_at));
-            if (map && mapReady && map.getSource("track")) map.getSource("track").setData(trackGeoJson());
-            placeTruck();
-        })
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "trip_events" }, (payload) => {
-            const ev = payload.new;
-            if (ev.type === "problem") {
-                recentProblems.set(ev.trip_id, ev);
+        .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "trips" },
+            (payload) => {
+                const row = payload.new;
+                if (!row?.id) return;
+                const i = trips.findIndex((t) => t.id === row.id);
+                const slim = Object.fromEntries(
+                    LIST_COLUMNS.split(",").map((k) => [k, row[k]]),
+                );
+                if (i >= 0) trips[i] = { ...trips[i], ...slim };
+                else trips.unshift(slim);
+                renderChips();
                 renderList();
-            }
-            if (detail && ev.trip_id === detail.trip.id) openTrip(ev.trip_id);
-        })
+                if (detail && detail.trip.id === row.id) {
+                    const statusChanged = detail.trip.status !== row.status;
+                    detail.trip = { ...detail.trip, ...row };
+                    if (statusChanged) openTrip(row.id);
+                    else placeTruck();
+                }
+            },
+        )
+        .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "trip_positions" },
+            (payload) => {
+                const p = payload.new;
+                if (!detail || p.trip_id !== detail.trip.id) return;
+                detail.positions.push({
+                    recorded_at: p.recorded_at,
+                    lat: p.lat,
+                    lon: p.lon,
+                    speed_kmh: p.speed_kmh,
+                });
+                detail.positions.sort(
+                    (a, b) => new Date(a.recorded_at) - new Date(b.recorded_at),
+                );
+                if (map && mapReady && map.getSource("track"))
+                    map.getSource("track").setData(trackGeoJson());
+                placeTruck();
+            },
+        )
+        .on(
+            "postgres_changes",
+            { event: "INSERT", schema: "public", table: "trip_events" },
+            (payload) => {
+                const ev = payload.new;
+                if (ev.type === "problem") {
+                    recentProblems.set(ev.trip_id, ev);
+                    renderList();
+                }
+                if (detail && ev.trip_id === detail.trip.id)
+                    openTrip(ev.trip_id);
+            },
+        )
         .subscribe();
 }
 
@@ -757,7 +995,9 @@ async function openTripModal(preselectRequestId = null) {
     base.setDate(base.getDate() + 1);
     base.setHours(8, 0, 0, 0);
     $("trip_load_at").value = toLocalInput(base);
-    $("trip_unload_at").value = toLocalInput(new Date(base.getTime() + 26 * 3600000));
+    $("trip_unload_at").value = toLocalInput(
+        new Date(base.getTime() + 26 * 3600000),
+    );
     tripModal.classList.add("active");
 
     const [reqRes, carRes] = await Promise.all([
@@ -767,7 +1007,7 @@ async function openTripModal(preselectRequestId = null) {
             .eq("status", "В роботі")
             .order("created_at", { ascending: false })
             .limit(150),
-        sbClient.from("carriers").select("id,name").order("name", { ascending: true }).limit(3000),
+        Promise.resolve({ data: [] }), // перевізники шукаються під час введення (нижче)
     ]);
     requestsForTrips = reqRes.data || [];
     carriers = carRes.data || [];
@@ -780,10 +1020,17 @@ async function openTripModal(preselectRequestId = null) {
                     `<option value="${r.id}">${escapeHtml(r.client || "Без клієнта")} · ${escapeHtml(shortPlace(r.load_address) || r.load_country || "")} → ${escapeHtml(shortPlace(r.unload_address) || r.unload_country || "")}${r.desired_date ? " · " + escapeHtml(r.desired_date) : ""}</option>`,
             )
             .join("");
-    $("tripCarriers").innerHTML = carriers.map((c) => `<option value="${escapeHtml(c.name)}"></option>`).join("");
-    $("tripCountries").innerHTML = COUNTRIES.map((c) => `<option value="${c}"></option>`).join("");
+    $("tripCarriers").innerHTML = carriers
+        .map((c) => `<option value="${escapeHtml(c.name)}"></option>`)
+        .join("");
+    $("tripCountries").innerHTML = COUNTRIES.map(
+        (c) => `<option value="${c}"></option>`,
+    ).join("");
 
-    if (preselectRequestId && requestsForTrips.some((r) => r.id === preselectRequestId)) {
+    if (
+        preselectRequestId &&
+        requestsForTrips.some((r) => r.id === preselectRequestId)
+    ) {
         $("trip_request").value = preselectRequestId;
         fillFromRequest(preselectRequestId);
     }
@@ -801,15 +1048,50 @@ function fillFromRequest(id) {
         const load = new Date(`${r.desired_date}T08:00:00`);
         if (!isNaN(load)) {
             $("trip_load_at").value = toLocalInput(load);
-            $("trip_unload_at").value = toLocalInput(new Date(load.getTime() + 26 * 3600000));
+            $("trip_unload_at").value = toLocalInput(
+                new Date(load.getTime() + 26 * 3600000),
+            );
         }
     }
 }
 
-$("trip_request").addEventListener("change", (e) => fillFromRequest(e.target.value));
+$("trip_request").addEventListener("change", (e) =>
+    fillFromRequest(e.target.value),
+);
+
+// Підказки перевізників із реєстру під час введення назви або ЄДРПОУ
+let carrierTimer = null;
+$("trip_carrier").addEventListener("input", () => {
+    clearTimeout(carrierTimer);
+    const q = $("trip_carrier")
+        .value.replace(/[,()%*\\]/g, " ")
+        .trim();
+    if (q.length < 2) return;
+    carrierTimer = setTimeout(async () => {
+        const { data } = await sbClient
+            .from("carriers")
+            .select("id,name,edrpou")
+            .or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`)
+            .limit(20);
+        (data || []).forEach((c) => {
+            if (!carriers.some((x) => String(x.id) === String(c.id)))
+                carriers.push(c);
+        });
+        $("tripCarriers").innerHTML = (data || [])
+            .map(
+                (c) =>
+                    `<option value="${escapeHtml(c.name)}">${escapeHtml(c.edrpou || "")}</option>`,
+            )
+            .join("");
+    }, 250);
+});
 $("openTripModalBtn").addEventListener("click", () => openTripModal());
-$("closeTripModalBtn").addEventListener("click", () => tripModal.classList.remove("active"));
-$("cancelTripBtn").addEventListener("click", () => tripModal.classList.remove("active"));
+$("closeTripModalBtn").addEventListener("click", () =>
+    tripModal.classList.remove("active"),
+);
+$("cancelTripBtn").addEventListener("click", () =>
+    tripModal.classList.remove("active"),
+);
 
 // Маршрут для фури через уже наявну функцію fura-geo (TomTom)
 async function routeFor(payload) {
@@ -844,11 +1126,16 @@ tripForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const loadAt = new Date($("trip_load_at").value);
     const unloadAt = new Date($("trip_unload_at").value);
-    if (isNaN(loadAt) || isNaN(unloadAt)) return alert("Вкажіть дати завантаження і розвантаження.");
-    if (unloadAt < loadAt) return alert("Розвантаження не може бути раніше завантаження.");
+    if (isNaN(loadAt) || isNaN(unloadAt))
+        return alert("Вкажіть дати завантаження і розвантаження.");
+    if (unloadAt < loadAt)
+        return alert("Розвантаження не може бути раніше завантаження.");
 
     const carrierName = $("trip_carrier").value.trim();
-    const carrier = carriers.find((c) => (c.name || "").trim().toLowerCase() === carrierName.toLowerCase());
+    const carrier = carriers.find(
+        (c) =>
+            (c.name || "").trim().toLowerCase() === carrierName.toLowerCase(),
+    );
 
     const payload = {
         request_id: $("trip_request").value || null,
@@ -886,10 +1173,15 @@ tripForm.addEventListener("submit", async (e) => {
             borders: route.borders || [],
         });
     } else {
-        $("tripFormStatus").textContent = "Маршрут не знайдено — рейс створимо без нього (прогноз прибуття не рахуватиметься).";
+        $("tripFormStatus").textContent =
+            "Маршрут не знайдено — рейс створимо без нього (прогноз прибуття не рахуватиметься).";
     }
 
-    const { data, error } = await sbClient.from("trips").insert(payload).select("*").single();
+    const { data, error } = await sbClient
+        .from("trips")
+        .insert(payload)
+        .select("*")
+        .single();
     saveBtn.disabled = false;
     if (error) {
         $("tripFormStatus").textContent = "";
@@ -911,7 +1203,9 @@ function inviteText(t) {
         `Рейс № ${t.trip_no} · GRANDAR`,
         `${shortPlace(t.load_address)} → ${shortPlace(t.unload_address)}`,
         `Завантаження: ${fmtDT(t.load_planned_at)}`,
-        t.truck_plate ? `Авто: ${[t.truck_plate, t.trailer_plate].filter(Boolean).join(" / ")}` : null,
+        t.truck_plate
+            ? `Авто: ${[t.truck_plate, t.trailer_plate].filter(Boolean).join(" / ")}`
+            : null,
         "",
         "1) Встановіть застосунок «FURA Водій»:",
         `Android: ${APP_LINKS.android || "[посилання Google Play]"}`,
@@ -933,14 +1227,30 @@ function openInvite(t) {
 $("copyInviteBtn").addEventListener("click", async () => {
     try {
         await navigator.clipboard.writeText($("inviteText").value);
-        $("copyInviteBtn").innerHTML = "<i class='bx bx-check'></i> Скопійовано";
-        setTimeout(() => ($("copyInviteBtn").innerHTML = "<i class='bx bx-copy'></i> Скопіювати"), 1500);
+        $("copyInviteBtn").innerHTML =
+            "<i class='bx bx-check'></i> Скопійовано";
+        setTimeout(
+            () =>
+                ($("copyInviteBtn").innerHTML =
+                    "<i class='bx bx-copy'></i> Скопіювати"),
+            1500,
+        );
     } catch {
         $("inviteText").select();
     }
 });
-$("closeInviteModalBtn").addEventListener("click", () => inviteModal.classList.remove("active"));
-$("doneInviteBtn").addEventListener("click", () => inviteModal.classList.remove("active"));
+$("closeInviteModalBtn").addEventListener("click", () =>
+    inviteModal.classList.remove("active"),
+);
+$("doneInviteBtn").addEventListener("click", () =>
+    inviteModal.classList.remove("active"),
+);
+
+/* ---------------- "Шлях" з меню ---------------- */
+
+function openShlyahModal() {
+    window.open("https://shlyah.dsbt.gov.ua/lc.html", "_blank", "noopener");
+}
 
 /* ---------------- Бічна панель ---------------- */
 

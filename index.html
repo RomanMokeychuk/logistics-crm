@@ -35,16 +35,18 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
-                <a href="leads.html"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
                 <a href="reports.html"
                     ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
                 >
+                <a href="leads.html"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
                 <a href="index.html" class="active"
                     ><i class="bx bx-group"></i> Перевізники</a
                 >
+                <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
                 <a
                     href="#"
                     onclick="
@@ -794,6 +796,21 @@
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="script.js"></script>
         <script src="address-suggest.js"></script>
+        <script src="table-columns.js"></script>
+        <script>
+            // Ширина / приховування колонок (table-columns.js)
+            document.addEventListener("DOMContentLoaded", () => {
+                const t = document.querySelector("#tableScrollArea table");
+                const n = t
+                    ? t.querySelectorAll("thead tr:first-child > th").length
+                    : 0;
+                furaTableColumns(t, "fura_cols_carriers", {
+                    fixed: [0, 1]
+                        .map((i) => (i < 0 ? n + i : i))
+                        .concat([n - 1]),
+                });
+            });
+        </script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>
