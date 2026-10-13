@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Рейси</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css" />
+        <link rel="stylesheet" href="trips.css" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img
+                    src="logo.svg"
+                    alt=""
+                    width="28"
+                    height="28"
+                    style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="requests.html"
+                    ><i class="bx bx-list-ul"></i> Запити</a
+                >
+                <a href="trips.html" class="active"
+                    ><i class="bx bx-map-alt"></i> Рейси</a
+                >
+                <a href="leads.html"
+                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
+                >
+                <a href="reports.html"
+                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
+                >
+                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="staff.html"
+                    ><i class="bx bx-id-card"></i> Співробітники</a
+                >
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content trips-page">
+            <header class="top-bar">
+                <h1>Рейси</h1>
+                <button class="btn btn-primary" id="openTripModalBtn">
+                    <i class="bx bx-plus"></i> Новий рейс
+                </button>
+                <button
+                    class="btn btn-secondary"
+                    onclick="logout()"
+                    title="Вийти">
+                    <i class="bx bx-log-out"></i> Вийти
+                </button>
+            </header>
+
+            <div class="filters-bar trips-filters">
+                <div class="trip-chips" id="tripChips" role="group" aria-label="Фільтр рейсів"></div>
+                <input
+                    type="text"
+                    id="tripsSearch"
+                    class="search-input"
+                    placeholder="🔍 Пошук: номер, маршрут, водій, авто" />
+            </div>
+
+            <div class="trips-layout">
+                <section class="trips-list" id="tripsList" aria-label="Список рейсів">
+                    <div class="trips-empty">Завантаження…</div>
+                </section>
+
+                <section class="trip-detail" id="tripDetail" aria-live="polite">
+                    <div class="trip-detail-empty">
+                        <i class="bx bx-map-alt"></i>
+                        <div>Оберіть рейс зліва, щоб побачити карту й етапи</div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Новий рейс -->
+        <div class="modal-overlay" id="tripModalOverlay">
+            <div class="modal" style="max-width: 760px">
+                <div class="modal-header">
+                    <h2>Новий рейс</h2>
+                    <button type="button" class="close-btn" id="closeTripModalBtn" aria-label="Закрити">&times;</button>
+                </div>
+                <form id="tripForm" autocomplete="off">
+                    <div class="modal-body trip-form-grid">
+                        <div class="form-group span-2">
+                            <label for="trip_request">Запит «В роботі»</label>
+                            <select id="trip_request">
+                                <option value="">— без запиту —</option>
+                            </select>
+                            <div class="form-hint">Адреси, клієнт і дати підставляться із запиту.</div>
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="trip_client">Клієнт</label>
+                            <input type="text" id="trip_client" />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="trip_load_country">Країна завантаження</label>
+                            <input type="text" id="trip_load_country" list="tripCountries" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_load_address">Адреса завантаження *</label>
+                            <input type="text" id="trip_load_address" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_unload_country">Країна розвантаження</label>
+                            <input type="text" id="trip_unload_country" list="tripCountries" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_unload_address">Адреса розвантаження *</label>
+                            <input type="text" id="trip_unload_address" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label for="trip_load_at">Завантаження (план) *</label>
+                            <input type="datetime-local" id="trip_load_at" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_unload_at">Розвантаження (план) *</label>
+                            <input type="datetime-local" id="trip_unload_at" required />
+                        </div>
+
+                        <div class="form-group span-2">
+                            <label for="trip_carrier">Перевізник</label>
+                            <input type="text" id="trip_carrier" list="tripCarriers" placeholder="Почніть вводити назву" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_driver_name">Водій (ПІБ) *</label>
+                            <input type="text" id="trip_driver_name" required />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_driver_phone">Телефон водія *</label>
+                            <input type="tel" id="trip_driver_phone" required placeholder="+380…" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_truck">Тягач</label>
+                            <input type="text" id="trip_truck" placeholder="AC 4521 BK" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_trailer">Причіп</label>
+                            <input type="text" id="trip_trailer" placeholder="AC 7713 XP" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_logist_phone">Ваш телефон для водія</label>
+                            <input type="tel" id="trip_logist_phone" placeholder="+380…" />
+                        </div>
+                        <div class="form-group">
+                            <label for="trip_notes">Нотатка (бачать лише співробітники)</label>
+                            <input type="text" id="trip_notes" />
+                        </div>
+                        <div class="form-hint span-2" id="tripFormStatus"></div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="cancelTripBtn">Скасувати</button>
+                        <button type="submit" class="btn btn-primary" id="saveTripBtn">
+                            <i class="bx bx-send"></i> Створити й отримати код
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Повідомлення водію -->
+        <div class="modal-overlay" id="inviteModalOverlay">
+            <div class="modal" style="max-width: 560px">
+                <div class="modal-header">
+                    <h2>Надішліть водію</h2>
+                    <button type="button" class="close-btn" id="closeInviteModalBtn" aria-label="Закрити">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="invite-code" id="inviteCode">——————</div>
+                    <label for="inviteText" class="form-hint">Текст для Viber / Telegram / SMS:</label>
+                    <textarea id="inviteText" rows="8" readonly class="invite-text"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="doneInviteBtn">Готово</button>
+                    <button type="button" class="btn btn-primary" id="copyInviteBtn">
+                        <i class="bx bx-copy"></i> Скопіювати
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <datalist id="tripCountries"></datalist>
+        <datalist id="tripCarriers"></datalist>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="trips.js"></script>
+        <script src="address-suggest.js"></script>
+        <script src="notify.js"></script>
+        <script src="lock.js"></script>
+    </body>
+</html>
