@@ -29,7 +29,6 @@
             items: [
                 { href: "leads.html", icon: "bx-briefcase-alt-2", label: "Ліди" },
                 { href: "index.html", icon: "bx-group", label: "Перевізники" },
-                { href: "#shlyah", icon: "bx-search-alt", label: "Шлях" },
             ],
         },
         {
@@ -37,6 +36,19 @@
             items: [{ href: "staff.html", icon: "bx-id-card", label: "Співробітники" }],
         },
     ];
+
+    // Логотип FURA (той самий, що logo.svg), але в помаранчевому квадраті
+    const LOGO_SVG = `<svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true">
+        <rect width="64" height="64" rx="14" fill="#f57c00"/>
+        <path d="M5 22h6M3 29h8M6 36h5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+        <rect x="14" y="16" width="27" height="22" rx="3" fill="#fff"/>
+        <path d="M43 22h7.6a2 2 0 0 1 1.6 .8l5.3 7a2 2 0 0 1 .5 1.3V36a2 2 0 0 1-2 2H43z" fill="#fff"/>
+        <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#f57c00"/>
+        <circle cx="21" cy="41" r="4.6" fill="#f57c00" stroke="#fff" stroke-width="3"/>
+        <circle cx="34" cy="41" r="4.6" fill="#f57c00" stroke="#fff" stroke-width="3"/>
+        <circle cx="50" cy="41" r="4.6" fill="#f57c00" stroke="#fff" stroke-width="3"/>
+        <path d="M12 52h40" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    </svg>`;
 
     const ROLE_LABELS = { admin: "Адмін", head: "Керівник", sales: "Sales", logist: "Логіст" };
 
@@ -70,7 +82,7 @@
         aside.classList.add("fura-sidebar");
         aside.innerHTML = `
             <a href="home.html" class="fura-brand" title="Головна сторінка">
-                <span class="fura-brand-icon"><i class="bx bxs-truck"></i></span>
+                <span class="fura-brand-icon">${LOGO_SVG}</span>
                 <span class="fura-brand-name">FURA</span>
             </a>
             <nav class="fura-nav">${groups}</nav>
@@ -116,7 +128,9 @@
             pendingCrumbs = parts;
             return;
         }
-        const list = [{ label: "FURA", href: "home.html" }, ...parts.map((p) => (typeof p === "string" ? { label: p } : p))];
+        // Сторінка розділу: «FURA / Угоди»; всередині запису: «Угоди / № 3908»
+        const own = parts.map((p) => (typeof p === "string" ? { label: p } : p));
+        const list = own.length > 1 ? own : [{ label: "FURA", href: "home.html" }, ...own];
         box.innerHTML = list
             .map((p, i) =>
                 i === list.length - 1

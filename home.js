@@ -29,25 +29,12 @@ const todayIso = () => {
 };
 
 function rolesOf(s) {
-    return Array.isArray(s?.roles) && s.roles.length
-        ? s.roles
-        : s?.role
-          ? [s.role]
-          : [];
+    return Array.isArray(s?.roles) && s.roles.length ? s.roles : s?.role ? [s.role] : [];
 }
 
 /* ---------------- Швидкі команди ---------------- */
 
-function quickCard({
-    href,
-    onclick,
-    icon,
-    color,
-    title,
-    sub,
-    count,
-    countTone,
-}) {
+function quickCard({ href, onclick, icon, color, title, sub, count, countTone }) {
     const attrs = href ? `href="${href}"` : `href="#" data-action="${onclick}"`;
     return `
         <a class="quick-card" ${attrs} style="--qc:${color}">
@@ -63,51 +50,35 @@ function quickCard({
 async function renderHome(session) {
     const email = (session.user?.email || "").toLowerCase();
     const { data: staff } = await sbClient.from("staff").select("*");
-    const me =
-        (staff || []).find((s) => (s.email || "").toLowerCase() === email) ||
-        null;
+    const me = (staff || []).find((s) => (s.email || "").toLowerCase() === email) || null;
     const roles = rolesOf(me);
     const isBoss = roles.includes("admin") || roles.includes("head");
 
     // Привітання
     const h = new Date().getHours();
-    const hello =
-        h < 12 ? "Доброго ранку" : h < 18 ? "Добрий день" : "Добрий вечір";
+    const hello = h < 12 ? "Доброго ранку" : h < 18 ? "Добрий день" : "Добрий вечір";
     const firstName = (me?.full_name || "").split(" ").slice(-1)[0];
-    document.getElementById("homeGreeting").textContent =
-        `${hello}${firstName ? ", " + firstName : ""}!`;
+    document.getElementById("homeGreeting").textContent = `${hello}${firstName ? ", " + firstName : ""}!`;
     const dateText = new Date().toLocaleDateString("uk-UA", {
         weekday: "long",
         day: "numeric",
         month: "long",
         year: "numeric",
     });
-    document.getElementById("homeDate").textContent =
-        dateText.charAt(0).toUpperCase() + dateText.slice(1);
+    document.getElementById("homeDate").textContent = dateText.charAt(0).toUpperCase() + dateText.slice(1);
 
     // Лічильники (кожен бачить тільки те, що йому доступно)
     const [{ data: reqs }, { data: leads }] = await Promise.all([
-        sbClient
-            .from("requests")
-            .select(
-                "id, status, created_at, logistician_ids, logistician_id, answers",
-            ),
+        sbClient.from("requests").select("id, status, created_at, logistician_ids, logistician_id, answers"),
         sbClient.from("leads").select("id, status, sales_id, next_contact"),
     ]);
     const myId = String(me?.id || "");
     const newReqs = (reqs || []).filter((r) => r.status === "Запит");
-    const overdue = newReqs.filter(
-        (r) => Date.now() - new Date(r.created_at).getTime() > 2 * 3600000,
-    );
+    const overdue = newReqs.filter((r) => Date.now() - new Date(r.created_at).getTime() > 2 * 3600000);
     const forMe = newReqs.filter((r) => {
         const ids = (r.logistician_ids || []).map(String);
-        const answered = (r.answers || []).some(
-            (a) => String(a.logist_id) === myId,
-        );
-        return (
-            (ids.includes(myId) || String(r.logistician_id) === myId) &&
-            !answered
-        );
+        const answered = (r.answers || []).some((a) => String(a.logist_id) === myId);
+        return (ids.includes(myId) || String(r.logistician_id) === myId) && !answered;
     });
     const inWork = (reqs || []).filter((r) => r.status === "В роботі");
     const toCall = (leads || []).filter(
@@ -119,57 +90,23 @@ async function renderHome(session) {
     );
 
     const cards = [
-        quickCard({
-            href: "requests.html?new=1",
-            icon: "bx-plus-circle",
-            color: "#2a78d6",
-            title: "Новий запит",
-            sub: "Створити запит для логіста",
-        }),
-        quickCard({
-            href: "leads.html?new=1",
-            icon: "bx-user-plus",
-            color: "#1baf7a",
-            title: "Новий лід",
-            sub: "Додати клієнта",
-        }),
-        quickCard({
-            href: "deals.html?new=1",
-            icon: "bx-file",
-            color: "#0d9488",
-            title: "Нова угода",
-            sub: "Перевізник, авто, водій, дати",
-        }),
-        quickCard({
-            href: "index.html?new=1",
-            icon: "bx-car",
-            color: "#6250d6",
-            title: "Додати перевізника",
-            sub: "У реєстр перевізників",
-        }),
+        quickCard({ href: "requests.html?new=1", icon: "bx-plus-circle", color: "#2a78d6", title: "Новий запит", sub: "Створити запит для логіста" }),
+        quickCard({ href: "leads.html?new=1", icon: "bx-user-plus", color: "#1baf7a", title: "Новий лід", sub: "Додати клієнта" }),
+        quickCard({ href: "deals.html?new=1", icon: "bx-file", color: "#0d9488", title: "Нова угода", sub: "Перевізник, авто, водій, дати" }),
+        quickCard({ href: "index.html?new=1", icon: "bx-car", color: "#6250d6", title: "Додати перевізника", sub: "У реєстр перевізників" }),
         quickCard({
             href: "requests.html",
             icon: "bx-time-five",
             color: "#eda100",
             title: "Запити без відповіді",
-            sub: overdue.length
-                ? `з них понад 2 год: ${overdue.length}`
-                : "нові запити",
+            sub: overdue.length ? `з них понад 2 год: ${overdue.length}` : "нові запити",
             count: newReqs.length || "",
             countTone: overdue.length ? "tone-red" : "tone-amber",
         }),
     ];
     if (forMe.length) {
         cards.push(
-            quickCard({
-                href: "requests.html",
-                icon: "bx-bell",
-                color: "#e34948",
-                title: "Чекають моєї відповіді",
-                sub: "запити, надіслані вам",
-                count: forMe.length,
-                countTone: "tone-red",
-            }),
+            quickCard({ href: "requests.html", icon: "bx-bell", color: "#e34948", title: "Чекають моєї відповіді", sub: "запити, надіслані вам", count: forMe.length, countTone: "tone-red" }),
         );
     }
     cards.push(
@@ -182,28 +119,8 @@ async function renderHome(session) {
             count: toCall.length || "",
             countTone: "tone-amber",
         }),
-        quickCard({
-            href: "requests.html",
-            icon: "bx-briefcase",
-            color: "#008300",
-            title: "В роботі",
-            sub: "запити, де обрано логіста",
-            count: inWork.length || "",
-        }),
-        quickCard({
-            href: "reports.html",
-            icon: "bx-bar-chart-alt-2",
-            color: "#2a78d6",
-            title: "Підсумки місяця",
-            sub: "графіки і хто як працює",
-        }),
-        quickCard({
-            onclick: "shlyah",
-            icon: "bx-search-alt",
-            color: "#52514e",
-            title: "Шлях",
-            sub: "перевірка транспортного засобу",
-        }),
+        quickCard({ href: "requests.html", icon: "bx-briefcase", color: "#008300", title: "В роботі", sub: "запити, де обрано логіста", count: inWork.length || "" }),
+        quickCard({ href: "reports.html", icon: "bx-bar-chart-alt-2", color: "#2a78d6", title: "Підсумки місяця", sub: "графіки і хто як працює" }),
     );
 
     document.getElementById("quickGrid").innerHTML = cards.join("");
@@ -238,12 +155,8 @@ function openShlyahModal() {
 function closeShlyahModal() {
     shlyahModalOverlay.classList.remove("active");
 }
-document
-    .getElementById("shlyahBackBtn")
-    .addEventListener("click", () => (shlyahIframe.src = SHLYAH_URL));
-document
-    .getElementById("closeShlyahModalBtn")
-    .addEventListener("click", closeShlyahModal);
+document.getElementById("shlyahBackBtn").addEventListener("click", () => (shlyahIframe.src = SHLYAH_URL));
+document.getElementById("closeShlyahModalBtn").addEventListener("click", closeShlyahModal);
 shlyahModalOverlay.addEventListener("click", (e) => {
     if (e.target === shlyahModalOverlay) closeShlyahModal();
 });

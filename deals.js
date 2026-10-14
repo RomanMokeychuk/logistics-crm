@@ -185,9 +185,9 @@ function renderDeals() {
             <td>${stateBadge(d)}</td>
             <td><strong>${escapeHtml(d.client) || "—"}</strong>${d.cargo ? `<div class="lead-sub">${escapeHtml(d.cargo)}</div>` : ""}</td>
             <td class="deal-route">
-                <div>${escapeHtml(place(d.load_country, d.load_address)) || "—"}</div>
+                <div>${escapeHtml(place(d.load_country, cityOf(d.load_address))) || "—"}</div>
                 <div class="deal-arrow">↓ ${d.border_crossing ? escapeHtml(d.border_crossing) : ""}</div>
-                <div>${escapeHtml(place(d.unload_country, d.unload_address)) || "—"}</div>
+                <div>${escapeHtml(place(d.unload_country, cityOf(d.unload_address))) || "—"}</div>
             </td>
             <td><strong>${escapeHtml(d.carrier_name) || "—"}</strong>${d.trailer_type ? `<div class="lead-sub">${escapeHtml(d.trailer_type)}</div>` : ""}</td>
             <td>
@@ -654,7 +654,7 @@ function renderTab(d) {
         box.innerHTML = `
             <div class="dv-dev"><i class="bx bx-time-five"></i> Розрахунок у розробці — поки це лише вигляд, дані не зберігаються.</div>
             <div class="dv-block-head"><div class="dv-block-title">Послуги перевезення</div><span class="dv-pill">Статус: Новий</span><button class="dv-ghost" disabled>+ Додати послугу</button></div>
-            <div class="dv-grid">${dvField("Дата розрахунку", "")}<div></div>${dvField("Валюта", "EUR")}</div>
+            <div class="dv-grid">${dvField("<span class='dv-u'>Дата розрахунку</span>", "")}${dvField("&nbsp;", "&nbsp;")}${dvField("Валюта", "EUR")}</div>
             <table class="dv-table"><thead><tr><th>Послуга</th><th>Платник / отримувач</th><th>Дохід</th><th>Витрати</th><th>Курс</th><th>Дохід, грн</th><th>Витрати, грн</th></tr></thead>
                 <tbody><tr><td>Перевезення ${e(route)}</td><td>${e(d.client || "—")}</td><td>0,00</td><td>0,00</td><td>—</td><td>0,00</td><td>0,00</td></tr></tbody></table>
             <div class="dv-totals">
@@ -664,6 +664,7 @@ function renderTab(d) {
                 <button class="dv-invoice" disabled>Виставити рахунок на послуги</button>
             </div>
             <div class="dv-block-head"><div class="dv-block-title">Додаткові послуги</div><span class="dv-pill">Статус: Новий</span><button class="dv-ghost" disabled>+ Додати послугу</button></div>
+            <div class="dv-grid dv-grid-4">${dvField("Платник", "")}${dvField("Інший контрагент / перевізник", "")}${dvField("Дата розрахунку", "")}${dvField("Вид оплати від клієнта", "")}</div>
             <table class="dv-table"><thead><tr><th>Послуга</th><th>Платник / отримувач</th><th>Дохід</th><th>Витрати</th><th>Дохід, грн</th><th>Витрати, грн</th></tr></thead>
                 <tbody><tr><td colspan="6" class="dv-empty">Немає даних</td></tr></tbody></table>`;
         return;
