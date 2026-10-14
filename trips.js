@@ -111,6 +111,13 @@ let currentStaff = null;
 // Рейс усередині угоди (вкладка «Трекінг»): trips.html?embed=1&trip=… або &new_from_deal=…
 const EMBED = new URLSearchParams(location.search).get("embed") === "1";
 let pendingDealId = null;
+// У вкладці угоди повідомляємо висоту сторінки — рамка росте разом із вмістом
+if (EMBED && window.parent !== window) {
+    const report = () =>
+        parent.postMessage({ type: "fura-trip-height", height: document.documentElement.scrollHeight }, location.origin);
+    new ResizeObserver(report).observe(document.documentElement);
+    setInterval(report, 1500);
+}
 let trips = [];
 let recentProblems = new Map(); // trip_id → остання проблема за 12 год
 let filter = "active";

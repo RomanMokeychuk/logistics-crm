@@ -502,3 +502,37 @@ html.fura-embed .modal-overlay {
 html.fura-embed .modal {
     max-height: none;
 }
+
+/* Рейс усередині угоди: сторінка росте у висоту (прокрутка — у самій угоді) */
+html.fura-embed,
+html.fura-embed body {
+    height: auto !important;
+    min-height: 0;
+    overflow: visible !important;
+}
+html.fura-embed .main-content {
+    height: auto !important;
+    overflow: visible !important;
+}
+html.fura-embed .trips-layout {
+    display: block;
+}
+html.fura-embed .trip-detail {
+    max-height: none;
+    overflow: visible;
+}
+html.fura-embed .modal-overlay {
+    position: static;
+    padding: 0;
+    background: none;
+}
+html.fura-embed .modal-overlay.active ~ * .trip-detail,
+html.fura-embed body:has(#tripModalOverlay.active) .main-content,
+html.fura-embed body:has(#inviteModalOverlay.active) .main-content {
+    display: none;
+}
+html.fura-embed .modal {
+    max-width: none !important;
+    box-shadow: none;
+    border-radius: 0;
+}

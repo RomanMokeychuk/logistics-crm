@@ -660,3 +660,215 @@
     color: #1d5bd8;
     white-space: nowrap;
 }
+
+/* ===== Сторінки угоди прокручуються ===== */
+.deals-list-view {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.deal-view {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 32px;
+    margin-right: -8px;
+    padding-right: 8px;
+}
+
+/* ===== Форма угоди — на всю сторінку ===== */
+.modal-overlay.deal-form-page {
+    position: static;
+    background: none;
+    backdrop-filter: none;
+    padding: 0 8px 32px 0;
+    margin-right: -8px;
+    z-index: auto;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+.modal-overlay.deal-form-page.active {
+    display: block !important;
+}
+.deal-form-page .modal {
+    max-width: 1100px !important;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 16px;
+    padding: 28px 32px;
+}
+.deal-form-page .modal-header h2 {
+    font-size: 28px;
+    font-weight: 800;
+}
+.deal-form-page .modal-footer {
+    position: sticky;
+    bottom: -32px;
+    background: #fff;
+    margin: 24px -32px -28px;
+    padding: 16px 32px;
+    border-top: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 0 0 16px 16px;
+}
+
+/* Трекінг: висота підлаштовується під вміст */
+.dv-track-frame {
+    height: 900px;
+    transition: height 0.15s ease;
+}
+
+/* ===== Поля, які редагуються прямо на сторінці ===== */
+.dv-in {
+    display: block;
+    width: 100%;
+    margin-left: -8px;
+    width: calc(100% + 8px);
+    padding: 5px 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    outline: none;
+    transition: background 0.12s, border-color 0.12s;
+}
+.dv-in::placeholder {
+    color: #b6bfcc;
+    font-weight: 500;
+}
+.dv-in:hover {
+    background: #f4f7fb;
+}
+.dv-in:focus {
+    background: #fff;
+    border-color: var(--f-blue, #1d5bd8);
+    box-shadow: 0 0 0 3px rgba(29, 91, 216, 0.12);
+}
+select.dv-in {
+    cursor: pointer;
+}
+.dv-link-in {
+    color: var(--f-blue, #1d5bd8);
+}
+.dv-field .dv-label small {
+    font-weight: 400;
+    color: #94a3b8;
+}
+.dv-mini-link {
+    color: var(--f-blue, #1d5bd8);
+    font-size: 14px;
+    margin-left: 4px;
+    text-decoration: none;
+}
+.dv-side .dv-code {
+    display: block;
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 2px;
+}
+.dv-side .dv-person {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.dv-side .dv-person .dv-in {
+    margin-left: 0;
+    width: 100%;
+}
+.dv-plates {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.dv-plates span {
+    color: #94a3b8;
+}
+.dv-plates .dv-in {
+    margin-left: 0;
+    width: 100%;
+    min-width: 0;
+}
+.dv-trailer-in {
+    color: #c2410c;
+}
+.dv-rc .dv-in {
+    font-size: 14px;
+}
+.dv-rc-country-in {
+    font-size: 12px !important;
+    color: #6b7280 !important;
+    text-transform: uppercase;
+}
+.dv-rc-city-in {
+    font-size: 17px !important;
+    font-weight: 700 !important;
+    margin-bottom: 6px;
+}
+.dv-rc-row .dv-date {
+    width: auto;
+    margin: 0;
+    padding: 3px 6px;
+    font-size: 13px;
+    text-align: right;
+}
+.dv-customs {
+    margin-top: 4px;
+}
+.dv-here {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    color: var(--f-blue, #1d5bd8);
+    cursor: pointer;
+}
+.dv-customs-in {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 4px;
+}
+.dv-customs-in[hidden] {
+    display: none;
+}
+.dv-customs-in .dv-in {
+    margin: 0;
+    width: 100%;
+    font-size: 13px;
+}
+.dv-side .deal-pick,
+.dv-grid .deal-pick {
+    position: relative;
+}
+.dv-saved {
+    align-self: center;
+    font-size: 13px;
+    color: #16a34a;
+    opacity: 0;
+    transition: opacity 0.2s;
+    max-width: 360px;
+}
+.dv-saved.show {
+    opacity: 1;
+}
+.dv-saved.bad {
+    color: #dc2626;
+}
+.dv-del {
+    padding: 11px 13px;
+    color: #dc2626;
+}
+.deal-type-mini {
+    margin-top: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d5bd8;
+}
+.dv-tab-body > .dv-grid:first-of-type {
+    grid-template-columns: 1.5fr 1fr 1fr 0.5fr;
+}

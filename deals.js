@@ -194,7 +194,7 @@ function renderDeals() {
         const tr = document.createElement("tr");
         tr.className = "clickable-row";
         tr.innerHTML = `
-            <td class="deal-num">№ ${escapeHtml(d.number)}${d.copied_from ? `<div class="lead-sub">копія № ${escapeHtml(d.copied_from)}</div>` : ""}</td>
+            <td class="deal-num">№ ${escapeHtml(d.number)}${d.deal_type ? `<div class="deal-type-mini">${escapeHtml(d.deal_type)}</div>` : ""}${d.copied_from ? `<div class="lead-sub">копія № ${escapeHtml(d.copied_from)}</div>` : ""}</td>
             <td>${stateBadge(d)}${tripMini(d)}</td>
             <td><strong>${escapeHtml(d.client) || "—"}</strong>${d.cargo ? `<div class="lead-sub">${escapeHtml(d.cargo)}</div>` : ""}</td>
             <td class="deal-route">
@@ -220,8 +220,8 @@ function renderDeals() {
             </td>`;
         tr.addEventListener("click", (e) => {
             const btn = e.target.closest("button[data-action]");
-            if (btn?.dataset.action === "edit") return openDealModal(d);
-            if (btn?.dataset.action === "copy") return openDealModal(d, { copy: true });
+            if (btn?.dataset.action === "edit") return openDealCard(d.id);
+            if (btn?.dataset.action === "copy") return duplicateDeal(d);
             if (btn?.dataset.action === "delete") return deleteDeal(d);
             if (e.target.closest("a")) return;
             openDealCard(d.id);
@@ -399,16 +399,35 @@ function openDealModal(deal = null, { copy = false } = {}) {
         : deal
           ? `Угода № ${d.number}`
           : "Нова угода";
+    // Форма угоди — окрема сторінка (не маленьке вікно поверх)
+    $("dealsListView").hidden = true;
+    $("dealDetailView").hidden = true;
     modalOverlay.classList.add("active");
+    modalOverlay.scrollTop = 0;
+    window.furaSetCrumbs?.([
+        { label: "Угоди", href: "deals.html" },
+        copy ? `Копія № ${d.number}` : deal ? `№ ${d.number} — редагування` : "Нова угода",
+    ]);
+    setTimeout(() => (deal ? null : $("deal_client").focus()), 50);
 }
 
-const closeDealModal = () => modalOverlay.classList.remove("active");
-$("openDealModalBtn").addEventListener("click", () => openDealModal());
+function closeDealModal() {
+    if (!modalOverlay.classList.contains("active")) return;
+    modalOverlay.classList.remove("active");
+    // Повертаємось туди, звідки прийшли: у відкриту угоду або до списку
+    const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
+    if (d) openDealCard(d.id);
+    else {
+        $("dealsListView").hidden = false;
+        window.furaSetCrumbs?.(["Угоди"]);
+    }
+}
+$("openDealModalBtn").addEventListener("click", () => createDeal());
 $("closeDealModalBtn").addEventListener("click", closeDealModal);
 $("cancelDealBtn").addEventListener("click", closeDealModal);
-modalOverlay.addEventListener("click", (e) => {
-    if (e.target === modalOverlay) closeDealModal();
-});
+// Форму переносимо всередину сторінки (замість спливаючого вікна)
+document.querySelector("main.main-content")?.appendChild(modalOverlay);
+modalOverlay.classList.add("deal-form-page");
 
 dealForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -470,7 +489,7 @@ dealForm.addEventListener("submit", async (e) => {
         ? await sbClient.from("deals").update(payload).eq("id", id).select().single()
         : await sbClient.from("deals").insert([payload]).select().single();
     if (res.error) return alert("Не вдалося зберегти: " + res.error.message);
-    closeDealModal();
+    modalOverlay.classList.remove("active");
     await loadDeals();
     if (res.data) openDealCard(res.data.id);
 });
@@ -526,6 +545,147 @@ function personRow(label, name) {
     }</div></div>`;
 }
 
+/* ---------------- Редагування прямо на сторінці угоди ---------------- */
+
+const DEAL_TYPES = ["Імпорт", "Експорт", "Внутрішнє", "Move gray"];
+
+function optList(list, selected, placeholder) {
+    const has = selected && !list.includes(selected);
+    return (
+        (placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : "") +
+        (has ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : "") +
+        list.map((v) => `<option value="${escapeHtml(v)}" ${v === selected ? "selected" : ""}>${escapeHtml(v)}</option>`).join("")
+    );
+}
+
+function staffOpts(roles, selectedId, legacyName) {
+    const list = staffCache.filter((s) => (s.active !== false && hasRole(s, roles)) || String(s.id) === String(selectedId));
+    let html = `<option value="">— не вибрано —</option>`;
+    if (!selectedId && legacyName) html += `<option value="" selected>${escapeHtml(legacyName)}</option>`;
+    return html + list.map((s) => `<option value="${s.id}" ${String(s.id) === String(selectedId) ? "selected" : ""}>${escapeHtml(s.full_name)}</option>`).join("");
+}
+
+let savedTimer = null;
+function flashSaved(text, bad = false) {
+    const el = $("dvSaved");
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("bad", bad);
+    el.classList.add("show");
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => el.classList.remove("show"), bad ? 6000 : 1600);
+}
+
+// Зберегти зміну одразу в базу і оновити шапку (маршрут, статус)
+async function saveDeal(d, patch) {
+    flashSaved("Зберігаю…");
+    const { error } = await sbClient.from("deals").update(patch).eq("id", d.id);
+    if (error) {
+        flashSaved("Не збережено: " + error.message, true);
+        return false;
+    }
+    Object.assign(d, patch);
+    const c = dealsCache.find((x) => x.id === d.id);
+    if (c && c !== d) Object.assign(c, patch);
+    if ($("dvRoute")) $("dvRoute").textContent = `${shortPlace(d.load_country, d.load_address)} → ${shortPlace(d.unload_country, d.unload_address)}`;
+    if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
+    flashSaved("Збережено ✓");
+    return true;
+}
+
+// Усі поля з data-f зберігаються, щойно їх змінили
+function bindFields(root, d) {
+    root.querySelectorAll("[data-f]").forEach((el) =>
+        el.addEventListener("change", () => {
+            let v = el.value.trim();
+            if (el.dataset.up) v = v.toUpperCase().replace(/\s+/g, "");
+            if (el.dataset.phone && v) v = cleanPhone(v);
+            if (el.value !== v) el.value = v;
+            const f = el.dataset.f;
+            if ((d[f] ?? "") === v) return;
+            saveDeal(d, { [f]: v || null });
+        }),
+    );
+}
+
+function bindSide(d) {
+    const side = detailView.querySelector(".dv-side");
+    bindFields(side, d);
+
+    // Клієнт — тільки з Лідів
+    suggestBox($("dvClient"), $("dvClientSg"), {
+        search: async (q) => {
+            const { data } = await sbClient.from("leads").select("id, name, edrpou, city, sales_id, sales").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(10);
+            return data || [];
+        },
+        render: (l) => `<strong>${escapeHtml(l.name)}</strong><span>${escapeHtml([l.edrpou, l.city, l.sales].filter(Boolean).join(" · "))}</span>`,
+        onPick: async (l) => {
+            if (!l) return;
+            const patch = { lead_id: l.id, client: l.name };
+            if (!d.sales_id && l.sales_id) Object.assign(patch, { sales_id: l.sales_id, sales: l.sales || null });
+            $("dvClient").value = l.name;
+            if (await saveDeal(d, patch)) renderDealView(d);
+        },
+    });
+    $("dvClient").addEventListener("blur", () => setTimeout(() => ($("dvClient") ? ($("dvClient").value = d.client || "") : null), 250));
+
+    // Перевізник — тільки з реєстру
+    suggestBox($("dvCarrier"), $("dvCarrierSg"), {
+        search: async (q) => {
+            const { data } = await sbClient.from("carriers").select("id, name, edrpou, city, region_ukr, trailer_type, phone_1").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(12);
+            return data || [];
+        },
+        render: (c) => `<strong>${escapeHtml(c.name)}</strong><span>${escapeHtml([c.edrpou, c.city || c.region_ukr, c.trailer_type].filter(Boolean).join(" · "))}</span>`,
+        onPick: async (c) => {
+            if (!c) return;
+            const patch = { carrier_id: String(c.id), carrier_name: c.name, carrier_edrpou: c.edrpou || null };
+            if (!d.trailer_type && c.trailer_type) patch.trailer_type = String(c.trailer_type).split(";")[0].trim();
+            $("dvCarrier").value = c.name;
+            if (await saveDeal(d, patch)) renderDealView(d);
+        },
+    });
+    $("dvCarrier").addEventListener("blur", () => setTimeout(() => ($("dvCarrier") ? ($("dvCarrier").value = d.carrier_name || "") : null), 250));
+
+    // Відповідальні
+    const nameOf = (id) => staffCache.find((s) => String(s.id) === String(id));
+    $("dvSales").addEventListener("change", async (ev) => {
+        const s = nameOf(ev.target.value);
+        if (await saveDeal(d, { sales_id: s?.id || null, sales: s?.full_name || null })) $("dvSalesAv").textContent = initials(s?.full_name) || "?";
+    });
+    $("dvLogist").addEventListener("change", async (ev) => {
+        const s = nameOf(ev.target.value);
+        const patch = { logist_id: s?.id || null, logist_name: s?.full_name || null };
+        if (s?.phone) patch.logist_phone = cleanPhone(s.phone);
+        if (await saveDeal(d, patch)) $("dvLogistAv").textContent = initials(s?.full_name) || "?";
+    });
+}
+
+// Нова угода: створюється одразу і відкривається — поля заповнюються прямо на сторінці
+async function createDeal() {
+    const me = currentStaff;
+    const payload = { deal_kind: "FTL" };
+    if (me && hasRole(me, ["sales", "head"])) Object.assign(payload, { sales_id: me.id, sales: me.full_name });
+    if (me && hasRole(me, ["logist"])) Object.assign(payload, { logist_id: me.id, logist_name: me.full_name, logist_phone: me.phone ? cleanPhone(me.phone) : null });
+    const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
+    if (error) return alert("Не вдалося створити угоду: " + error.message);
+    await loadDeals();
+    openDealCard(data.id, "auto");
+    setTimeout(() => $("dvClient")?.focus(), 100);
+}
+
+// Дублювати: нова угода з новим номером, ті самі дані без фактичних дат і галочок
+async function duplicateDeal(d) {
+    const skip = new Set(["id", "number", "created_at", "updated_at", "created_by", "load_date", "unload_date",
+        "paid_by_client", "originals_from_client", "confirmed_cfo", "paid_to_carrier", "originals_from_carrier"]);
+    const payload = Object.fromEntries(Object.entries(d).filter(([k]) => !skip.has(k)));
+    payload.copied_from = d.number;
+    const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
+    if (error) return alert("Не вдалося дублювати: " + error.message);
+    await loadDeals();
+    openDealCard(data.id, "auto");
+    flashSaved(`Копія угоди № ${d.number} створена`);
+}
+
 function openDealCard(id, tab) {
     const d = dealsCache.find((x) => String(x.id) === String(id));
     if (!d) return;
@@ -553,25 +713,38 @@ function renderDealView(d) {
     detailView.innerHTML = `
         <div class="dv-head">
             <h1 class="dv-num">№ ${e(d.number)}</h1>
-            ${stateBadge(d)}
-            <span class="dv-route">${e(shortPlace(d.load_country, d.load_address))} → ${e(shortPlace(d.unload_country, d.unload_address))}</span>
+            <span id="dvState">${stateBadge(d)}</span>
+            <span class="dv-route" id="dvRoute">${e(shortPlace(d.load_country, d.load_address))} → ${e(shortPlace(d.unload_country, d.unload_address))}</span>
             <div class="dv-actions">
+                <span class="dv-saved" id="dvSaved"></span>
+                <button type="button" class="btn btn-secondary dv-del" data-dv="delete" title="Видалити угоду"><i class="bx bx-trash"></i></button>
                 <button type="button" class="btn btn-secondary" data-dv="copy"><i class="bx bx-copy"></i> Дублювати</button>
-                <button type="button" class="btn btn-secondary" data-dv="close">Закрити</button>
-                <button type="button" class="btn btn-primary" data-dv="edit"><i class="bx bx-edit"></i> Редагувати</button>
+                <button type="button" class="btn btn-primary" data-dv="close"><i class="bx bx-check"></i> Готово</button>
             </div>
         </div>
 
         <div class="dv-layout">
             <aside class="dv-side">
                 <div class="dv-sec-title">Угода</div>
-                ${dvField("Тип перевезення", e([d.deal_kind || "FTL", d.trailer_type].filter(Boolean).join(" · ")))}
-                ${dvField("Клієнт <i class='req'>*</i>", d.client ? (d.lead_id ? `<a href="leads.html?open=${e(d.lead_id)}" class="dv-link">${e(d.client)}</a>` : e(d.client)) : "")}
-                ${dvField("Вантаж", e(d.cargo))}
-                ${dvField("Перевізник <i class='req'>*</i>", d.carrier_name ? `${e(d.carrier_name)} ${d.carrier_edrpou ? `<span class="dv-code">${e(d.carrier_edrpou)}</span>` : ""}` : "")}
+                <div class="dv-field"><div class="dv-label">Тип угоди</div>
+                    <select class="dv-in" data-f="deal_type">${optList(DEAL_TYPES, d.deal_type, "Оберіть…")}</select></div>
+                <div class="dv-field deal-pick"><div class="dv-label">Клієнт <i class='req'>*</i>
+                    ${d.lead_id ? `<a href="leads.html?open=${e(d.lead_id)}" class="dv-mini-link" title="Відкрити в Лідах"><i class="bx bx-link-external"></i></a>` : ""}</div>
+                    <input class="dv-in" id="dvClient" value="${e(d.client || "")}" placeholder="Почніть вводити назву або ЄДРПОУ…" autocomplete="off" />
+                    <div class="deal-suggest" id="dvClientSg" hidden></div></div>
+                <div class="dv-field"><div class="dv-label">Договір</div>
+                    <input class="dv-in" data-f="contract" value="${e(d.contract || "")}" placeholder="№ і дата договору" /></div>
+                <div class="dv-field deal-pick"><div class="dv-label">Перевізник <i class='req'>*</i> <small>(з реєстру)</small></div>
+                    <input class="dv-in" id="dvCarrier" value="${e(d.carrier_name || "")}" placeholder="Назва або ЄДРПОУ перевізника…" autocomplete="off" />
+                    <span class="dv-code" id="dvCarrierCode">${e(d.carrier_edrpou || "")}</span>
+                    <div class="deal-suggest" id="dvCarrierSg" hidden></div></div>
                 <div class="dv-sec-title dv-sec-gap">Відповідальні</div>
-                ${personRow("Sales manager", d.sales)}
-                ${personRow("Логіст", d.logist_name)}
+                <div class="dv-field"><div class="dv-label">Sales manager</div>
+                    <div class="dv-person"><span class="dv-avatar" id="dvSalesAv">${e(initials(d.sales) || "?")}</span>
+                    <select class="dv-in" id="dvSales">${staffOpts(["sales", "head"], d.sales_id, d.sales)}</select></div></div>
+                <div class="dv-field"><div class="dv-label">Логіст</div>
+                    <div class="dv-person"><span class="dv-avatar" id="dvLogistAv">${e(initials(d.logist_name) || "?")}</span>
+                    <select class="dv-in" id="dvLogist">${staffOpts(["logist"], d.logist_id, d.logist_name)}</select></div></div>
             </aside>
 
             <div class="dv-main">
@@ -594,8 +767,15 @@ function renderDealView(d) {
         </div>`;
 
     detailView.querySelector("[data-dv=close]").addEventListener("click", closeDealCard);
-    detailView.querySelector("[data-dv=edit]").addEventListener("click", () => openDealModal(d));
-    detailView.querySelector("[data-dv=copy]").addEventListener("click", () => openDealModal(d, { copy: true }));
+    detailView.querySelector("[data-dv=copy]").addEventListener("click", () => duplicateDeal(d));
+    detailView.querySelector("[data-dv=delete]").addEventListener("click", async () => {
+        if (!confirm(`Видалити угоду № ${d.number}${d.client ? ` (${d.client})` : ""}?`)) return;
+        const { error } = await sbClient.from("deals").delete().eq("id", d.id);
+        if (error) return alert("Не вдалося видалити: " + error.message);
+        closeDealCard();
+        loadDeals();
+    });
+    bindSide(d);
     detailView.querySelectorAll("[data-tab]").forEach((b) =>
         b.addEventListener("click", () => {
             detailTab = b.dataset.tab;
@@ -621,45 +801,76 @@ function renderTab(d) {
     const box = $("dvTabBody");
     const e = escapeHtml;
     if (detailTab === "auto") {
+        const here = (k) => d[`customs_${k}`] === CUSTOMS_HERE;
         box.innerHTML = `
             <div class="dv-block-title">Авто і водій</div>
             <div class="dv-grid">
-                ${dvField("Номер тягача і причепа", e([d.truck_plate, d.trailer_plate].filter(Boolean).join("/")))}
-                ${dvField("ПІБ водія", e(d.driver_name))}
-                ${dvField("Телефон", d.driver_phone ? `<a href="tel:+${e(cleanPhone(d.driver_phone))}" class="dv-link">${e(d.driver_phone)}</a>` : "")}
+                <div class="dv-field"><div class="dv-label">Номер тягача і причепа</div>
+                    <div class="dv-plates"><input class="dv-in" data-f="truck_plate" data-up="1" value="${e(d.truck_plate || "")}" placeholder="AC1234AB" />
+                    <span>/</span><input class="dv-in" data-f="trailer_plate" data-up="1" value="${e(d.trailer_plate || "")}" placeholder="AC5678XX" /></div></div>
+                <div class="dv-field"><div class="dv-label">ПІБ водія</div>
+                    <input class="dv-in" data-f="driver_name" value="${e(d.driver_name || "")}" placeholder="Прізвище Ім'я" /></div>
+                <div class="dv-field"><div class="dv-label">Телефон ${d.driver_phone ? `<a href="tel:+${e(cleanPhone(d.driver_phone))}" class="dv-mini-link" title="Подзвонити"><i class="bx bx-phone"></i></a>` : ""}</div>
+                    <input class="dv-in dv-link-in" data-f="driver_phone" data-phone="1" value="${e(d.driver_phone || "")}" placeholder="380XXXXXXXXX" /></div>
                 <div></div>
             </div>
             <div class="dv-block-title">Вантаж</div>
             <div class="dv-grid dv-grid-cargo">
-                ${dvField("Назва вантажу", e(d.cargo))}
-                ${dvField("Тип причепу", d.trailer_type ? `<span class="dv-trailer">${e(d.trailer_type)}</span>` : "")}
-                ${dvField("Перевізник", e(d.carrier_name))}
+                <div class="dv-field"><div class="dv-label">Назва вантажу</div>
+                    <input class="dv-in" data-f="cargo" value="${e(d.cargo || "")}" placeholder="наприклад: обладнання на палетах, 20 т" /></div>
+                <div class="dv-field"><div class="dv-label">Тип причепу · FTL/LTL</div>
+                    <div class="dv-plates"><input class="dv-in dv-trailer-in" data-f="trailer_type" data-up="1" list="dealTrailerList" value="${e(d.trailer_type || "")}" placeholder="ТЕНТ" />
+                    <select class="dv-in" data-f="deal_kind">${optList(["FTL", "LTL"], d.deal_kind || "FTL")}</select></div></div>
+                <div class="dv-field"><div class="dv-label">Перевізник</div><div class="dv-value" id="dvCarrierEcho">${e(d.carrier_name) || "—"}</div></div>
             </div>
             <div class="dv-block-title">Маршрут</div>
             <div class="dv-route-cards">
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot blue"></i> Завантаження</div>
-                    <div class="dv-rc-city">${e(cityOf(d.load_address)) || "—"}</div>
-                    <div class="dv-rc-country">${e(d.load_country || "")}</div>
-                    <div class="dv-rc-row"><span>План</span><b>${fmtDate(d.load_date_plan) || "—"}</b></div>
-                    <div class="dv-rc-row"><span>Факт</span><b>${fmtDate(d.load_date) || "—"}</b></div>
+                    <select class="dv-in dv-rc-country-in" data-f="load_country" id="dvLoadCountry">${optList(COUNTRIES, d.load_country, "Країна…")}</select>
+                    <input class="dv-in dv-rc-city-in" data-f="load_address" id="dvLoadAddr" value="${e(d.load_address || "")}" placeholder="Місто, село, індекс" />
+                    <div class="dv-rc-row"><span>План</span><input type="date" class="dv-in dv-date" data-f="load_date_plan" value="${e(String(d.load_date_plan || "").slice(0, 10))}" /></div>
+                    <div class="dv-rc-row"><span>Факт</span><input type="date" class="dv-in dv-date" data-f="load_date" value="${e(String(d.load_date || "").slice(0, 10))}" /></div>
                 </div>
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot orange"></i> Митниця і кордон</div>
-                    <div class="dv-rc-city">${e(String(d.border_crossing || "—").replace(/\s*\([A-Z]{2}\)$/, ""))}</div>
-                    <div class="dv-rc-row dv-rc-small"><span>Замитнення</span><b>${e(customsText(d.customs_export_country, d.customs_export, "export")) || "—"}</b></div>
-                    <div class="dv-rc-row dv-rc-small"><span>Розмитнення</span><b>${e(customsText(d.customs_import_country, d.customs_import, "import")) || "—"}</b></div>
+                    <input class="dv-in dv-rc-city-in" data-f="border_crossing" list="dealBorderList" value="${e(d.border_crossing || "")}" placeholder="Пункт пропуску" />
+                    ${["export", "import"].map((k) => `
+                    <div class="dv-customs">
+                        <div class="dv-rc-row"><span>${k === "export" ? "Замитнення" : "Розмитнення"}</span>
+                            <label class="dv-here"><input type="checkbox" data-here="${k}" ${here(k) ? "checked" : ""}/> по місцю ${k === "export" ? "завантаження" : "розвантаження"}</label></div>
+                        <div class="dv-customs-in" ${here(k) ? "hidden" : ""}>
+                            <select class="dv-in" data-f="customs_${k}_country" id="dvC_${k}_country">${optList(COUNTRIES, d[`customs_${k}_country`], "Країна…")}</select>
+                            <input class="dv-in" data-f="customs_${k}" id="dvC_${k}" value="${e(here(k) ? "" : d[`customs_${k}`] || "")}" placeholder="Місто митниці" />
+                        </div>
+                    </div>`).join("")}
                 </div>
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot green"></i> Вивантаження</div>
-                    <div class="dv-rc-city">${e(cityOf(d.unload_address)) || "—"}</div>
-                    <div class="dv-rc-country">${e(d.unload_country || "")}</div>
-                    <div class="dv-rc-row"><span>План</span><b>${fmtDate(d.unload_date_plan) || "—"}</b></div>
-                    <div class="dv-rc-row"><span>Факт</span><b>${fmtDate(d.unload_date) || "—"}</b></div>
+                    <select class="dv-in dv-rc-country-in" data-f="unload_country" id="dvUnloadCountry">${optList(COUNTRIES, d.unload_country, "Країна…")}</select>
+                    <input class="dv-in dv-rc-city-in" data-f="unload_address" id="dvUnloadAddr" value="${e(d.unload_address || "")}" placeholder="Місто, село, індекс" />
+                    <div class="dv-rc-row"><span>План</span><input type="date" class="dv-in dv-date" data-f="unload_date_plan" value="${e(String(d.unload_date_plan || "").slice(0, 10))}" /></div>
+                    <div class="dv-rc-row"><span>Факт</span><input type="date" class="dv-in dv-date" data-f="unload_date" value="${e(String(d.unload_date || "").slice(0, 10))}" /></div>
                 </div>
             </div>`;
+        bindFields(box, d);
+        box.querySelectorAll("[data-here]").forEach((cb) =>
+            cb.addEventListener("change", async () => {
+                const k = cb.dataset.here;
+                cb.closest(".dv-customs").querySelector(".dv-customs-in").hidden = cb.checked;
+                const patch = cb.checked
+                    ? { [`customs_${k}`]: CUSTOMS_HERE, [`customs_${k}_country`]: null }
+                    : { [`customs_${k}`]: null };
+                await saveDeal(d, patch);
+            }),
+        );
+        if (window.furaAddressSuggest) {
+            [["dvLoadAddr", "dvLoadCountry"], ["dvUnloadAddr", "dvUnloadCountry"], ["dvC_export", "dvC_export_country"], ["dvC_import", "dvC_import_country"]].forEach(
+                ([i, c]) => $(i) && window.furaAddressSuggest($(i), { countrySelect: $(c), mode: "full" }),
+            );
+        }
         return;
     }
     if (detailTab === "calc") {
@@ -802,6 +1013,10 @@ window.addEventListener("message", (ev) => {
     const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
     if (!d || detailTab !== "track") return;
     if (ev.data.type === "fura-trip-close") renderTab(d);
+    if (ev.data.type === "fura-trip-height") {
+        const fr = document.querySelector(".dv-track-frame");
+        if (fr) fr.style.height = Math.max(700, Number(ev.data.height) || 0) + 20 + "px";
+    }
 });
 
 /* ---------------- Бічна панель і "Шлях" ---------------- */
@@ -888,7 +1103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadDeals();
 
     const params = new URLSearchParams(location.search);
-    if (params.get("new") === "1") openDealModal();
+    if (params.get("new") === "1") createDeal();
     if (params.get("open")) openDealCard(params.get("open"));
     else if ([...params.keys()].length) history.replaceState(null, "", location.pathname);
 });
