@@ -513,9 +513,8 @@ const DEAL_TABS = [
 const FLAGS = [
     ["paid_by_client", "Оплата від клієнта"],
     ["paid_to_carrier", "Оплата перевізнику"],
-    ["originals_from_client", "Оригінали від клієнта"],
+    ["originals_from_client", "Оригінали на клієнта"],
     ["originals_from_carrier", "Оригінали від перевізника"],
-    ["confirmed_cfo", "Confirmed by CFO"],
 ];
 
 const countryCode = (c) => ((window.furaCountryCode && window.furaCountryCode(c)) || "").toUpperCase();
@@ -548,6 +547,77 @@ function personRow(label, name) {
 /* ---------------- Редагування прямо на сторінці угоди ---------------- */
 
 const DEAL_TYPES = ["Імпорт", "Експорт", "Внутрішнє", "Move gray"];
+
+// Розділи вкладки можна згортати стрілочкою (запам'ятовується в цьому браузері)
+function makeCollapsible(root) {
+    let closed = [];
+    try {
+        closed = JSON.parse(localStorage.getItem("fura_deal_collapsed") || "[]");
+    } catch {
+        /* без пам'яті — все відкрите */
+    }
+    root.querySelectorAll(".dv-block-title").forEach((t) => {
+        const name = t.textContent.trim();
+        const body = t.nextElementSibling;
+        if (!body) return;
+        t.classList.add("dv-collapsible");
+        t.insertAdjacentHTML("afterbegin", `<i class="bx bx-chevron-down dv-chev"></i>`);
+        const apply = (isClosed) => {
+            t.classList.toggle("closed", isClosed);
+            body.hidden = isClosed;
+        };
+        apply(closed.includes(name));
+        t.addEventListener("click", () => {
+            const isClosed = !t.classList.contains("closed");
+            apply(isClosed);
+            closed = isClosed ? [...new Set([...closed, name])] : closed.filter((x) => x !== name);
+            try {
+                localStorage.setItem("fura_deal_collapsed", JSON.stringify(closed));
+            } catch {
+                /* не страшно */
+            }
+        });
+    });
+}
+
+// Типи причепів — усі, що є в реєстрі перевізників (+ базові)
+let trailerTypes = [...TRAILERS];
+async function loadTrailerTypes() {
+    try {
+        const cached = JSON.parse(sessionStorage.getItem("fura_trailer_types") || "null");
+        if (Array.isArray(cached) && cached.length) return (trailerTypes = cached);
+    } catch {
+        /* немає пам'яті браузера — просто завантажимо */
+    }
+    const set = new Set(TRAILERS);
+    const CHUNK = 1000;
+    for (let from = 0; from < 50000; from += CHUNK) {
+        const { data, error } = await sbClient.from("carriers").select("trailer_type").not("trailer_type", "is", null).range(from, from + CHUNK - 1);
+        if (error || !data?.length) break;
+        data.forEach((r) =>
+            String(r.trailer_type)
+                .split(/[;,]/)
+                .map((t) => t.replace(/\(.*?\)/g, "").trim().toUpperCase())
+                .filter((t) => t && t.length < 40)
+                .forEach((t) => set.add(t)),
+        );
+        if (data.length < CHUNK) break;
+    }
+    trailerTypes = [...set].sort((a, b) => a.localeCompare(b, "uk"));
+    try {
+        sessionStorage.setItem("fura_trailer_types", JSON.stringify(trailerTypes));
+    } catch {
+        /* не страшно */
+    }
+    return trailerTypes;
+}
+
+// Кнопка «написати у Viber» (одразу відкриває переписку з цим номером)
+function viberBtn(phone) {
+    const digits = String(phone || "").split(",")[0].replace(/\D/g, "");
+    if (!digits) return "";
+    return `<a class="dv-viber" href="viber://chat?number=%2B${digits}" title="Написати у Viber"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11.4 2C8.5 2 3 2.7 3 9.9c0 3.5 1.2 5.8 3.3 6.9V20c0 .5.6.8 1 .4l2.2-2.5h1.9c2.9 0 8.6-.7 8.6-8 0-7.2-5.7-7.9-8.6-7.9zm4.4 11.5c-.3.6-1 1.2-1.7 1.3-.5.1-1.1.1-3-.7-2.4-1-4-3.4-4.1-3.6-.1-.2-1-1.3-1-2.5s.6-1.8.9-2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.3 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.7 1.1 1.4 1.8 1 .9 1.8 1.1 2.1 1.3.3.1.4.1.6-.1l.8-1c.2-.3.4-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .1 0 .7-.3 1.3z"/></svg></a>`;
+}
 
 function optList(list, selected, placeholder) {
     const has = selected && !list.includes(selected);
@@ -632,7 +702,7 @@ function bindSide(d) {
     // Перевізник — тільки з реєстру
     suggestBox($("dvCarrier"), $("dvCarrierSg"), {
         search: async (q) => {
-            const { data } = await sbClient.from("carriers").select("id, name, edrpou, city, region_ukr, trailer_type, phone_1").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(12);
+            const { data } = await sbClient.from("carriers").select("id, name, edrpou, city, region_ukr, trailer_type, phone_1, contact_person_1").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(12);
             return data || [];
         },
         render: (c) => `<strong>${escapeHtml(c.name)}</strong><span>${escapeHtml([c.edrpou, c.city || c.region_ukr, c.trailer_type].filter(Boolean).join(" · "))}</span>`,
@@ -640,6 +710,11 @@ function bindSide(d) {
             if (!c) return;
             const patch = { carrier_id: String(c.id), carrier_name: c.name, carrier_edrpou: c.edrpou || null };
             if (!d.trailer_type && c.trailer_type) patch.trailer_type = String(c.trailer_type).split(";")[0].trim();
+            // Логіст перевізника — перший контакт з реєстру
+            if (c.contact_person_1 || c.phone_1) {
+                patch.carrier_contact = c.contact_person_1 || null;
+                patch.carrier_phone = c.phone_1 ? cleanPhone(c.phone_1) : null;
+            }
             $("dvCarrier").value = c.name;
             if (await saveDeal(d, patch)) renderDealView(d);
         },
@@ -806,22 +881,28 @@ function renderTab(d) {
             <div class="dv-block-title">Авто і водій</div>
             <div class="dv-grid">
                 <div class="dv-field"><div class="dv-label">Номер тягача і причепа</div>
-                    <div class="dv-plates"><input class="dv-in" data-f="truck_plate" data-up="1" value="${e(d.truck_plate || "")}" placeholder="AC1234AB" />
-                    <span>/</span><input class="dv-in" data-f="trailer_plate" data-up="1" value="${e(d.trailer_plate || "")}" placeholder="AC5678XX" /></div></div>
+                    <input class="dv-in" id="dvPlates" value="${e([d.truck_plate, d.trailer_plate].filter(Boolean).join("/"))}" placeholder="AC1234AB/AC5678XX" /></div>
                 <div class="dv-field"><div class="dv-label">ПІБ водія</div>
                     <input class="dv-in" data-f="driver_name" value="${e(d.driver_name || "")}" placeholder="Прізвище Ім'я" /></div>
-                <div class="dv-field"><div class="dv-label">Телефон ${d.driver_phone ? `<a href="tel:+${e(cleanPhone(d.driver_phone))}" class="dv-mini-link" title="Подзвонити"><i class="bx bx-phone"></i></a>` : ""}</div>
-                    <input class="dv-in dv-link-in" data-f="driver_phone" data-phone="1" value="${e(d.driver_phone || "")}" placeholder="380XXXXXXXXX" /></div>
+                <div class="dv-field"><div class="dv-label">Телефон водія</div>
+                    <div class="dv-phone"><input class="dv-in dv-link-in" data-f="driver_phone" data-phone="1" value="${e(d.driver_phone || "")}" placeholder="380XXXXXXXXX" />${viberBtn(d.driver_phone)}</div></div>
                 <div></div>
             </div>
             <div class="dv-block-title">Вантаж</div>
             <div class="dv-grid dv-grid-cargo">
                 <div class="dv-field"><div class="dv-label">Назва вантажу</div>
                     <input class="dv-in" data-f="cargo" value="${e(d.cargo || "")}" placeholder="наприклад: обладнання на палетах, 20 т" /></div>
-                <div class="dv-field"><div class="dv-label">Тип причепу · FTL/LTL</div>
-                    <div class="dv-plates"><input class="dv-in dv-trailer-in" data-f="trailer_type" data-up="1" list="dealTrailerList" value="${e(d.trailer_type || "")}" placeholder="ТЕНТ" />
-                    <select class="dv-in" data-f="deal_kind">${optList(["FTL", "LTL"], d.deal_kind || "FTL")}</select></div></div>
-                <div class="dv-field"><div class="dv-label">Перевізник</div><div class="dv-value" id="dvCarrierEcho">${e(d.carrier_name) || "—"}</div></div>
+                <div class="dv-field"><div class="dv-label">Тип причепу</div>
+                    <select class="dv-in dv-trailer-in" data-f="trailer_type">${optList(trailerTypes, d.trailer_type, "Оберіть…")}</select></div>
+                <div></div>
+            </div>
+            <div class="dv-block-title">Логіст перевізника</div>
+            <div class="dv-grid dv-grid-cargo">
+                <div class="dv-field"><div class="dv-label">ПІБ логіста перевізника</div>
+                    <input class="dv-in" data-f="carrier_contact" value="${e(d.carrier_contact || "")}" placeholder="Ім'я та прізвище" /></div>
+                <div class="dv-field"><div class="dv-label">Телефон логіста перевізника</div>
+                    <div class="dv-phone"><input class="dv-in dv-link-in" data-f="carrier_phone" data-phone="1" value="${e(d.carrier_phone || "")}" placeholder="380XXXXXXXXX" />${viberBtn(d.carrier_phone)}</div></div>
+                <div></div>
             </div>
             <div class="dv-block-title">Маршрут</div>
             <div class="dv-route-cards">
@@ -835,7 +916,7 @@ function renderTab(d) {
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot orange"></i> Митниця і кордон</div>
-                    <input class="dv-in dv-rc-city-in" data-f="border_crossing" list="dealBorderList" value="${e(d.border_crossing || "")}" placeholder="Пункт пропуску" />
+                    <select class="dv-in dv-rc-city-in" data-f="border_crossing">${optList(BORDER_CROSSINGS, d.border_crossing, "Пункт пропуску…")}</select>
                     ${["export", "import"].map((k) => `
                     <div class="dv-customs">
                         <div class="dv-rc-row"><span>${k === "export" ? "Замитнення" : "Розмитнення"}</span>
@@ -856,6 +937,20 @@ function renderTab(d) {
                 </div>
             </div>`;
         bindFields(box, d);
+        makeCollapsible(box);
+        $("dvPlates").addEventListener("change", (ev) => {
+            const [truck, trailer] = ev.target.value.toUpperCase().replace(/\s+/g, "").split(/[\/\\|,;]+/);
+            ev.target.value = [truck, trailer].filter(Boolean).join("/");
+            saveDeal(d, { truck_plate: truck || null, trailer_plate: trailer || null });
+        });
+        // Значок Viber оновлюється разом із номером
+        box.querySelectorAll("[data-phone]").forEach((inp) =>
+            inp.addEventListener("change", () => {
+                const wrap = inp.closest(".dv-phone");
+                wrap.querySelector(".dv-viber")?.remove();
+                wrap.insertAdjacentHTML("beforeend", viberBtn(inp.value));
+            }),
+        );
         box.querySelectorAll("[data-here]").forEach((cb) =>
             cb.addEventListener("change", async () => {
                 const k = cb.dataset.here;
@@ -1101,6 +1196,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     await loadDeals();
+    // Список типів причепів з реєстру (у фоні); відкрита вкладка «Дані авто» оновиться
+    loadTrailerTypes().then(() => {
+        const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
+        if (d && detailTab === "auto" && !document.activeElement?.closest?.("#dvTabBody")) renderTab(d);
+    });
 
     const params = new URLSearchParams(location.search);
     if (params.get("new") === "1") createDeal();
