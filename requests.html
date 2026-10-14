@@ -17,6 +17,7 @@
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
+            <link rel="stylesheet" href="theme.css" />
     </head>
     <body>
         <aside class="sidebar">
@@ -30,29 +31,14 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="reports.html"
-                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
-                >
-                <a href="leads.html"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
-                <a href="requests.html" class="active"
-                    ><i class="bx bx-list-ul"></i> Запити</a
-                >
+                <a href="reports.html"><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a>
+                <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
+                <a href="requests.html" class="active"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
                 <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
-                <a
-                    href="#"
-                    onclick="
-                        openShlyahModal();
-                        return false;
-                    "
-                    ><i class="bx bx-search-alt"></i> Шлях</a
-                >
-                <a href="staff.html"
-                    ><i class="bx bx-id-card"></i> Співробітники</a
-                >
+                <a href="#" onclick="openShlyahModal(); return false;"><i class="bx bx-search-alt"></i> Шлях</a>
+                <a href="staff.html"><i class="bx bx-id-card"></i> Співробітники</a>
             </nav>
         </aside>
 
@@ -237,17 +223,9 @@
                             <label>Температурний режим, °C</label>
                             <div class="temp-inputs">
                                 <span>від</span>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    id="req_temp_from"
-                                    placeholder="-20" />
+                                <input type="number" step="0.5" id="req_temp_from" placeholder="-20" />
                                 <span>до</span>
-                                <input
-                                    type="number"
-                                    step="0.5"
-                                    id="req_temp_to"
-                                    placeholder="+5" />
+                                <input type="number" step="0.5" id="req_temp_to" placeholder="+5" />
                                 <span class="temp-unit">°C</span>
                             </div>
                         </div>
@@ -256,10 +234,7 @@
                         <div class="form-group span-2">
                             <label>Пакування</label>
                             <div id="req_pack_rows" class="pack-rows"></div>
-                            <button
-                                type="button"
-                                class="pack-add"
-                                id="reqPackAddBtn">
+                            <button type="button" class="pack-add" id="reqPackAddBtn">
                                 <i class="bx bx-plus"></i> Додати ще пакування
                             </button>
                         </div>
@@ -267,18 +242,11 @@
                         <div class="form-group">
                             <label>Кількість авто</label>
                             <div class="trucks-inputs">
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    id="req_trucks_count"
-                                    placeholder="1" />
+                                <input type="number" min="1" step="1" id="req_trucks_count" placeholder="1" />
                                 <select id="req_trucks_period">
                                     <option value="">Разово</option>
                                     <option value="на день">на день</option>
-                                    <option value="на тиждень">
-                                        на тиждень
-                                    </option>
+                                    <option value="на тиждень">на тиждень</option>
                                     <option value="на місяць">на місяць</option>
                                 </select>
                             </div>
@@ -286,9 +254,7 @@
 
                         <div class="form-group">
                             <label>Як можуть вантажити</label>
-                            <div
-                                class="loading-chips"
-                                id="req_loading_types"></div>
+                            <div class="loading-chips" id="req_loading_types"></div>
                         </div>
 
                         <!-- Відвантаження -->
@@ -342,19 +308,13 @@
                             <div class="date-label-row">
                                 <label>Замитнення</label>
                                 <label class="date-range-toggle">
-                                    <input
-                                        type="checkbox"
-                                        id="req_customs_export_here" />
+                                    <input type="checkbox" id="req_customs_export_here" />
                                     по місцю завантаження
                                 </label>
                             </div>
                             <div class="customs-inputs">
-                                <select
-                                    id="req_customs_export_country"></select>
-                                <input
-                                    type="text"
-                                    id="req_customs_export"
-                                    placeholder="Місто / село / індекс митниці" />
+                                <select id="req_customs_export_country"></select>
+                                <input type="text" id="req_customs_export" placeholder="Місто / село / індекс митниці" />
                             </div>
                         </div>
 
@@ -372,19 +332,13 @@
                             <div class="date-label-row">
                                 <label>Розмитнення</label>
                                 <label class="date-range-toggle">
-                                    <input
-                                        type="checkbox"
-                                        id="req_customs_import_here" />
+                                    <input type="checkbox" id="req_customs_import_here" />
                                     по місцю розвантаження
                                 </label>
                             </div>
                             <div class="customs-inputs">
-                                <select
-                                    id="req_customs_import_country"></select>
-                                <input
-                                    type="text"
-                                    id="req_customs_import"
-                                    placeholder="Місто / село / індекс митниці" />
+                                <select id="req_customs_import_country"></select>
+                                <input type="text" id="req_customs_import" placeholder="Місто / село / індекс митниці" />
                             </div>
                         </div>
 
@@ -637,6 +591,7 @@
         <script src="requests.js"></script>
         <script src="address-suggest.js"></script>
         <script src="route-map.js"></script>
+        <script src="shell.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

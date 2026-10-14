@@ -1,0 +1,169 @@
+/* ================================================================= *
+ * FURA — СПІЛЬНА "ОБОЛОНКА" ВСІХ СТОРІНОК                             *
+ * • бічне меню з групами (Робота / Довідники / Система)               *
+ * • блок користувача внизу меню (ініціали, ім'я, ролі, вихід)          *
+ * • верхня смуга: «FURA / Назва сторінки» + сьогоднішня дата           *
+ * Меню тепер змінюється ТІЛЬКИ тут — в одному файлі.                   *
+ * ================================================================= */
+
+(function () {
+    // Не малюємо оболонку, коли сторінка відкрита всередині іншої (вкладка «Трекінг» в угоді)
+    if (window.top !== window.self) {
+        document.documentElement.classList.add("fura-embed");
+        return;
+    }
+
+    const MENU = [
+        {
+            group: "Робота",
+            items: [
+                { href: "home.html", icon: "bx-home-alt", label: "Головна" },
+                { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+                { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
+                { href: "deals.html", icon: "bx-file", label: "Угоди" },
+                { href: "trips.html", icon: "bx-map-alt", label: "Рейси" },
+            ],
+        },
+        {
+            group: "Довідники",
+            items: [
+                { href: "leads.html", icon: "bx-briefcase-alt-2", label: "Ліди" },
+                { href: "index.html", icon: "bx-group", label: "Перевізники" },
+                { href: "#shlyah", icon: "bx-search-alt", label: "Шлях" },
+            ],
+        },
+        {
+            group: "Система",
+            items: [{ href: "staff.html", icon: "bx-id-card", label: "Співробітники" }],
+        },
+    ];
+
+    const ROLE_LABELS = { admin: "Адмін", head: "Керівник", sales: "Sales", logist: "Логіст" };
+
+    const esc = (s) =>
+        String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
+
+    function currentPage() {
+        const f = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+        return f || "index.html";
+    }
+
+    function buildSidebar() {
+        const aside = document.querySelector("aside.sidebar");
+        if (!aside) return null;
+        const page = currentPage();
+        let activeLabel = "";
+        const groups = MENU.map((g) => {
+            const links = g.items
+                .map((it) => {
+                    const active = it.href === page;
+                    if (active) activeLabel = it.label;
+                    if (it.href === "#shlyah") {
+                        return `<a href="#" class="fura-nav-item" data-shlyah="1"><i class="bx ${it.icon}"></i><span>${it.label}</span></a>`;
+                    }
+                    return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}"><i class="bx ${it.icon}"></i><span>${it.label}</span></a>`;
+                })
+                .join("");
+            return `<div class="fura-nav-group"><div class="fura-nav-title">${g.group}</div>${links}</div>`;
+        }).join("");
+
+        aside.classList.add("fura-sidebar");
+        aside.innerHTML = `
+            <a href="home.html" class="fura-brand" title="Головна сторінка">
+                <span class="fura-brand-icon"><i class="bx bxs-truck"></i></span>
+                <span class="fura-brand-name">FURA</span>
+            </a>
+            <nav class="fura-nav">${groups}</nav>
+            <div class="fura-user" id="furaUser">
+                <span class="fura-avatar">…</span>
+                <span class="fura-user-text">
+                    <span class="fura-user-name">&nbsp;</span>
+                    <span class="fura-user-roles">&nbsp;</span>
+                </span>
+                <button type="button" class="fura-logout" title="Вийти"><i class="bx bx-log-out"></i></button>
+            </div>`;
+
+        aside.querySelector("[data-shlyah]")?.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (typeof openShlyahModal === "function") openShlyahModal();
+            else window.open("https://shlyah.dsbt.gov.ua/lc.html", "_blank", "noopener");
+        });
+        aside.querySelector(".fura-logout").addEventListener("click", () => {
+            if (typeof logout === "function") logout();
+        });
+        return activeLabel;
+    }
+
+    function buildTopbar(activeLabel) {
+        const main = document.querySelector("main.main-content");
+        if (!main || main.querySelector(".fura-topbar")) return;
+        const bar = document.createElement("div");
+        bar.className = "fura-topbar";
+        const dateText = new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" });
+        bar.innerHTML = `
+            <div class="fura-crumbs" id="furaCrumbs"></div>
+            <div class="fura-date"><i class="bx bx-calendar"></i> ${esc(dateText)}</div>`;
+        main.prepend(bar);
+        // Сторінка могла вже попросити свої «крихти» (напр. № угоди) раніше, ніж з'явилася смуга
+        setCrumbs(pendingCrumbs || [activeLabel || document.title.replace(/^FURA\s*—\s*/, "")]);
+    }
+
+    // Сторінки можуть змінити «хлібні крихти»: furaSetCrumbs([{label, href}, "№ 15"])
+    let pendingCrumbs = null;
+    function setCrumbs(parts) {
+        const box = document.getElementById("furaCrumbs");
+        if (!box) {
+            pendingCrumbs = parts;
+            return;
+        }
+        const list = [{ label: "FURA", href: "home.html" }, ...parts.map((p) => (typeof p === "string" ? { label: p } : p))];
+        box.innerHTML = list
+            .map((p, i) =>
+                i === list.length - 1
+                    ? `<b>${esc(p.label)}</b>`
+                    : p.href
+                      ? `<a href="${esc(p.href)}">${esc(p.label)}</a>`
+                      : `<span>${esc(p.label)}</span>`,
+            )
+            .join(`<span class="fura-sep">/</span>`);
+    }
+    window.furaSetCrumbs = setCrumbs;
+
+    async function fillUser() {
+        const box = document.getElementById("furaUser");
+        if (!box || typeof sbClient === "undefined") return;
+        try {
+            const {
+                data: { session },
+            } = await sbClient.auth.getSession();
+            if (!session) return;
+            const email = (session.user?.email || "").toLowerCase();
+            const { data } = await sbClient.from("staff").select("full_name, role, roles, email").ilike("email", email).limit(1);
+            const me = data?.[0];
+            const name = me?.full_name || email;
+            const roles = Array.isArray(me?.roles) && me.roles.length ? me.roles : me?.role ? [me.role] : [];
+            const initials = String(name)
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0])
+                .join("")
+                .toUpperCase();
+            box.querySelector(".fura-avatar").textContent = initials || "?";
+            box.querySelector(".fura-user-name").textContent = name;
+            box.querySelector(".fura-user-name").title = name;
+            box.querySelector(".fura-user-roles").textContent = roles.map((r) => ROLE_LABELS[r] || r).join(" · ") || "—";
+        } catch (e) {
+            console.warn("FURA shell:", e);
+        }
+    }
+
+    function init() {
+        const label = buildSidebar();
+        buildTopbar(label);
+        fillUser();
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+    else init();
+})();

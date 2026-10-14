@@ -18,6 +18,7 @@
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
+            <link rel="stylesheet" href="theme.css" />
     </head>
     <body>
         <aside class="sidebar">
@@ -31,27 +32,14 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="reports.html" class="active"
-                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
-                >
-                <a href="leads.html"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
+                <a href="reports.html" class="active"><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a>
+                <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
                 <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
-                <a
-                    href="#"
-                    onclick="
-                        openShlyahModal();
-                        return false;
-                    "
-                    ><i class="bx bx-search-alt"></i> Шлях</a
-                >
-                <a href="staff.html"
-                    ><i class="bx bx-id-card"></i> Співробітники</a
-                >
+                <a href="#" onclick="openShlyahModal(); return false;"><i class="bx bx-search-alt"></i> Шлях</a>
+                <a href="staff.html"><i class="bx bx-id-card"></i> Співробітники</a>
             </nav>
         </aside>
 
@@ -68,26 +56,11 @@
             <header class="top-bar">
                 <h1>Підсумки</h1>
                 <div class="month-nav">
-                    <button
-                        type="button"
-                        class="pager-btn"
-                        id="prevMonthBtn"
-                        title="Попередній місяць">
-                        <i class="bx bx-chevron-left"></i>
-                    </button>
+                    <button type="button" class="pager-btn" id="prevMonthBtn" title="Попередній місяць"><i class="bx bx-chevron-left"></i></button>
                     <span class="month-title" id="monthTitle">—</span>
-                    <button
-                        type="button"
-                        class="pager-btn"
-                        id="nextMonthBtn"
-                        title="Наступний місяць">
-                        <i class="bx bx-chevron-right"></i>
-                    </button>
+                    <button type="button" class="pager-btn" id="nextMonthBtn" title="Наступний місяць"><i class="bx bx-chevron-right"></i></button>
                 </div>
-                <button
-                    class="btn btn-secondary"
-                    onclick="logout()"
-                    title="Вийти">
+                <button class="btn btn-secondary" onclick="logout()" title="Вийти">
                     <i class="bx bx-log-out"></i> Вийти
                 </button>
             </header>
@@ -96,92 +69,53 @@
                 <div class="rep-scope" id="repScope"></div>
 
                 <section class="rep-card my-card" id="myCard">
-                    <div class="rep-card-head">
-                        <h2 id="myTitle">Моя робота</h2>
-                        <span class="rep-sub" id="mySub"></span>
-                    </div>
+                    <div class="rep-card-head"><h2 id="myTitle">Моя робота</h2><span class="rep-sub" id="mySub"></span></div>
                     <div id="myBody"></div>
                 </section>
 
-                <div class="team-only" id="teamHead">
-                    <h2 class="team-h2">
-                        <i class="bx bx-group"></i> Уся команда
-                    </h2>
-                </div>
+                <div class="team-only" id="teamHead"><h2 class="team-h2"><i class="bx bx-group"></i> Уся команда</h2></div>
                 <div class="kpi-grid team-only" id="kpiGrid"></div>
 
                 <section class="rep-card">
-                    <div class="rep-card-head">
-                        <h2>Запити по днях</h2>
-                        <span class="rep-sub" id="daysSub"></span>
-                    </div>
+                    <div class="rep-card-head"><h2>Запити по днях</h2><span class="rep-sub" id="daysSub"></span></div>
                     <div class="daychart" id="dayChart"></div>
                 </section>
 
                 <div class="rep-two">
                     <section class="rep-card">
-                        <div class="rep-card-head">
-                            <h2>Запити за статусами</h2>
-                            <span class="rep-sub">створені цього місяця</span>
-                        </div>
+                        <div class="rep-card-head"><h2>Запити за статусами</h2><span class="rep-sub">створені цього місяця</span></div>
                         <div id="statusChart"></div>
                     </section>
                     <section class="rep-card">
-                        <div class="rep-card-head">
-                            <h2>Запити за типами</h2>
-                            <span class="rep-sub">створені цього місяця</span>
-                        </div>
+                        <div class="rep-card-head"><h2>Запити за типами</h2><span class="rep-sub">створені цього місяця</span></div>
                         <div id="typeChart"></div>
                     </section>
                 </div>
 
                 <div class="rep-two">
                     <section class="rep-card">
-                        <div class="rep-card-head">
-                            <h2>Ліди за етапами</h2>
-                            <span class="rep-sub">зараз, усі клієнти</span>
-                        </div>
+                        <div class="rep-card-head"><h2>Ліди за етапами</h2><span class="rep-sub">зараз, усі клієнти</span></div>
                         <div id="leadStageChart"></div>
                     </section>
                     <section class="rep-card team-only">
-                        <div class="rep-card-head">
-                            <h2>Нові ліди за місяць</h2>
-                            <span class="rep-sub">хто скільки додав</span>
-                        </div>
+                        <div class="rep-card-head"><h2>Нові ліди за місяць</h2><span class="rep-sub">хто скільки додав</span></div>
                         <div id="newLeadsChart"></div>
                     </section>
                 </div>
 
                 <section class="rep-card team-only">
-                    <div class="rep-card-head">
-                        <h2>Як працюють Sales</h2>
-                        <span class="rep-sub">за місяць</span>
-                    </div>
-                    <div class="rep-table-wrap">
-                        <table class="rep-table" id="salesTable"></table>
-                    </div>
+                    <div class="rep-card-head"><h2>Як працюють Sales</h2><span class="rep-sub">за місяць</span></div>
+                    <div class="rep-table-wrap"><table class="rep-table" id="salesTable"></table></div>
                 </section>
 
                 <section class="rep-card team-only">
-                    <div class="rep-card-head">
-                        <h2>Як працюють логісти</h2>
-                        <span class="rep-sub">за місяць</span>
-                    </div>
-                    <div class="rep-table-wrap">
-                        <table class="rep-table" id="logistTable"></table>
-                    </div>
+                    <div class="rep-card-head"><h2>Як працюють логісти</h2><span class="rep-sub">за місяць</span></div>
+                    <div class="rep-table-wrap"><table class="rep-table" id="logistTable"></table></div>
                 </section>
 
                 <section class="rep-card" id="archive">
-                    <div class="rep-card-head">
-                        <h2>Архів по місяцях</h2>
-                        <span class="rep-sub"
-                            >натисніть «Докладніше», щоб відкрити місяць</span
-                        >
-                    </div>
-                    <div class="rep-table-wrap">
-                        <table class="rep-table" id="archiveTable"></table>
-                    </div>
+                    <div class="rep-card-head"><h2>Архів по місяцях</h2><span class="rep-sub">натисніть «Докладніше», щоб відкрити місяць</span></div>
+                    <div class="rep-table-wrap"><table class="rep-table" id="archiveTable"></table></div>
                 </section>
             </div>
             <div class="rep-tip" id="repTip" hidden></div>
@@ -237,6 +171,7 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="reports.js"></script>
+        <script src="shell.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

@@ -138,26 +138,11 @@
     font-weight: 700;
     white-space: nowrap;
 }
-.tb-grey {
-    background: #e2e8f0;
-    color: #334155;
-}
-.tb-blue {
-    background: #dbeafe;
-    color: #1d4ed8;
-}
-.tb-amber {
-    background: #fef3c7;
-    color: #92400e;
-}
-.tb-red {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-.tb-green {
-    background: #dcfce7;
-    color: #166534;
-}
+.tb-grey { background: #e2e8f0; color: #334155; }
+.tb-blue { background: #dbeafe; color: #1d4ed8; }
+.tb-amber { background: #fef3c7; color: #92400e; }
+.tb-red { background: #fee2e2; color: #b91c1c; }
+.tb-green { background: #dcfce7; color: #166534; }
 
 /* Деталі рейсу */
 .td-head {
@@ -272,16 +257,8 @@
 .td-alert b {
     display: block;
 }
-.td-alert.red {
-    background: #fef2f2;
-    border: 1px solid #fecaca;
-    color: #7f1d1d;
-}
-.td-alert.amber {
-    background: #fffbeb;
-    border: 1px solid #fde68a;
-    color: #78350f;
-}
+.td-alert.red { background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; }
+.td-alert.amber { background: #fffbeb; border: 1px solid #fde68a; color: #78350f; }
 
 /* Етапи */
 .tl {
@@ -461,4 +438,20 @@
     .trip-form-grid .span-2 {
         grid-column: span 1;
     }
+}
+
+.td-deal-link {
+    margin-left: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #1d5bd8;
+    text-decoration: none;
+}
+.td-deal-link:hover {
+    text-decoration: underline;
+}
+
+/* Усередині угоди модальне вікно займає всю вкладку */
+html.fura-embed body {
+    background: #fff;
 }

@@ -7,8 +7,7 @@
         <script>
             // Адреса сайту без назви сторінки (…/logistics-crm/) → Головна.
             // Перевізники відкриваються з меню як index.html.
-            if (location.pathname.endsWith("/"))
-                location.replace("home.html" + location.search + location.hash);
+            if (location.pathname.endsWith("/")) location.replace("home.html" + location.search + location.hash);
         </script>
         <style>
             body {
@@ -22,6 +21,7 @@
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
+            <link rel="stylesheet" href="theme.css" />
     </head>
     <body>
         <aside class="sidebar">
@@ -35,29 +35,14 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="reports.html"
-                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
-                >
-                <a href="leads.html"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
+                <a href="reports.html"><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a>
+                <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
-                <a href="index.html" class="active"
-                    ><i class="bx bx-group"></i> Перевізники</a
-                >
+                <a href="index.html" class="active"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
-                <a
-                    href="#"
-                    onclick="
-                        openShlyahModal();
-                        return false;
-                    "
-                    ><i class="bx bx-search-alt"></i> Шлях</a
-                >
-                <a href="staff.html"
-                    ><i class="bx bx-id-card"></i> Співробітники</a
-                >
+                <a href="#" onclick="openShlyahModal(); return false;"><i class="bx bx-search-alt"></i> Шлях</a>
+                <a href="staff.html"><i class="bx bx-id-card"></i> Співробітники</a>
             </nav>
         </aside>
 
@@ -801,16 +786,11 @@
             // Ширина / приховування колонок (table-columns.js)
             document.addEventListener("DOMContentLoaded", () => {
                 const t = document.querySelector("#tableScrollArea table");
-                const n = t
-                    ? t.querySelectorAll("thead tr:first-child > th").length
-                    : 0;
-                furaTableColumns(t, "fura_cols_carriers", {
-                    fixed: [0, 1]
-                        .map((i) => (i < 0 ? n + i : i))
-                        .concat([n - 1]),
-                });
+                const n = t ? t.querySelectorAll("thead tr:first-child > th").length : 0;
+                furaTableColumns(t, "fura_cols_carriers", { fixed: [0, 1].map((i) => (i < 0 ? n + i : i)).concat([n - 1]) });
             });
         </script>
+        <script src="shell.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

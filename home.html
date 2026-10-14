@@ -18,6 +18,7 @@
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
+            <link rel="stylesheet" href="theme.css" />
     </head>
     <body>
         <aside class="sidebar">
@@ -31,27 +32,14 @@
                 <span>FURA</span>
             </a>
             <nav class="menu">
-                <a href="reports.html"
-                    ><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a
-                >
-                <a href="leads.html"
-                    ><i class="bx bx-briefcase-alt-2"></i> Ліди</a
-                >
+                <a href="reports.html"><i class="bx bx-bar-chart-alt-2"></i> Підсумки</a>
+                <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
                 <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
-                <a
-                    href="#"
-                    onclick="
-                        openShlyahModal();
-                        return false;
-                    "
-                    ><i class="bx bx-search-alt"></i> Шлях</a
-                >
-                <a href="staff.html"
-                    ><i class="bx bx-id-card"></i> Співробітники</a
-                >
+                <a href="#" onclick="openShlyahModal(); return false;"><i class="bx bx-search-alt"></i> Шлях</a>
+                <a href="staff.html"><i class="bx bx-id-card"></i> Співробітники</a>
             </nav>
         </aside>
 
@@ -67,77 +55,47 @@
         <main class="main-content home-page">
             <header class="top-bar home-hero">
                 <div class="home-hero-left">
-                    <img
-                        class="home-company-logo"
-                        src="company-logo.svg"
-                        alt="Логотип компанії" />
+                    <img class="home-company-logo" src="company-logo.svg" alt="Логотип компанії" />
                     <div>
                         <h1 id="homeGreeting">Вітаємо у FURA</h1>
                         <div class="home-date" id="homeDate"></div>
                     </div>
                 </div>
-                <button
-                    class="btn btn-secondary"
-                    onclick="logout()"
-                    title="Вийти">
+                <button class="btn btn-secondary" onclick="logout()" title="Вийти">
                     <i class="bx bx-log-out"></i> Вийти
                 </button>
             </header>
 
             <div class="home-scroll">
                 <section class="home-block">
-                    <h2 class="home-h2">
-                        <i class="bx bx-bolt-circle"></i> Швидкі команди
-                    </h2>
+                    <h2 class="home-h2"><i class="bx bx-bolt-circle"></i> Швидкі команди</h2>
                     <div class="quick-grid" id="quickGrid"></div>
                 </section>
 
                 <div class="home-sections">
                     <section class="home-section">
-                        <h2 class="home-h2 hs-blue">
-                            <i class="bx bx-buildings"></i> Базис
-                        </h2>
+                        <h2 class="home-h2 hs-blue"><i class="bx bx-buildings"></i> Базис</h2>
                         <a href="index.html">Перевізники</a>
                         <a href="leads.html">Ліди (клієнти)</a>
                         <a href="staff.html">Співробітники</a>
                     </section>
                     <section class="home-section">
-                        <h2 class="home-h2 hs-green">
-                            <i class="bx bx-filter-alt"></i> Продажі
-                        </h2>
+                        <h2 class="home-h2 hs-green"><i class="bx bx-filter-alt"></i> Продажі</h2>
                         <a href="requests.html">Запити</a>
                         <a href="requests.html?new=1">Новий запит</a>
                         <a href="deals.html">Угоди</a>
                         <a href="leads.html?new=1">Новий лід</a>
-                        <a href="leads.html?today=1"
-                            >Кому подзвонити сьогодні</a
-                        >
+                        <a href="leads.html?today=1">Кому подзвонити сьогодні</a>
                     </section>
                     <section class="home-section">
-                        <h2 class="home-h2 hs-cyan">
-                            <i class="bx bx-bar-chart-alt-2"></i> Аналітика
-                        </h2>
+                        <h2 class="home-h2 hs-cyan"><i class="bx bx-bar-chart-alt-2"></i> Аналітика</h2>
                         <a href="reports.html">Підсумки місяця</a>
                         <a href="reports.html#archive">Архів по місяцях</a>
                     </section>
                     <section class="home-section">
-                        <h2 class="home-h2 hs-violet">
-                            <i class="bx bx-wrench"></i> Інструменти
-                        </h2>
-                        <a
-                            href="#"
-                            onclick="
-                                openShlyahModal();
-                                return false;
-                            "
-                            >Шлях — перевірка ТЗ</a
-                        >
-                        <a
-                            href="https://t.me/fura_crm_bot"
-                            target="_blank"
-                            rel="noopener"
-                            >Telegram-бот FURA</a
-                        >
+                        <h2 class="home-h2 hs-violet"><i class="bx bx-wrench"></i> Інструменти</h2>
+                        <a href="#" onclick="openShlyahModal(); return false;">Шлях — перевірка ТЗ</a>
+                        <a href="https://t.me/fura_crm_bot" target="_blank" rel="noopener">Telegram-бот FURA</a>
                     </section>
                 </div>
             </div>
@@ -193,6 +151,7 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="home.js"></script>
+        <script src="shell.js"></script>
         <script src="notify.js"></script>
         <script src="lock.js"></script>
     </body>

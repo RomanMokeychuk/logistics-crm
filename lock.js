@@ -12,6 +12,9 @@
  * ================================================================= */
 
 (function () {
+    // Сторінка відкрита всередині іншої (вкладка «Трекінг» в угоді) — тут не потрібно
+    if (window.top !== window.self) return;
+
     const client = typeof sbClient !== "undefined" ? sbClient : null;
     if (!client) return;
 
@@ -122,10 +125,7 @@
     function pinScreen({ title, sub, onComplete, showForgot }) {
         locked = true;
         const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-            .map(
-                (n) =>
-                    `<button type="button" class="fura-key" data-k="${n}">${n}</button>`,
-            )
+            .map((n) => `<button type="button" class="fura-key" data-k="${n}">${n}</button>`)
             .join("");
         showOverlay(`
             <img class="fura-lock-logo" src="logo.svg" alt="" />
@@ -148,10 +148,7 @@
         const errorEl = overlay.querySelector(".fura-lock-error");
         let busy = false;
 
-        const draw = () =>
-            dots.forEach((d, i) =>
-                d.classList.toggle("filled", i < input.value.length),
-            );
+        const draw = () => dots.forEach((d, i) => d.classList.toggle("filled", i < input.value.length));
 
         async function submitIfFull() {
             draw();
@@ -162,10 +159,7 @@
             if (err) {
                 errorEl.textContent = err;
                 overlay.classList.add("shake");
-                setTimeout(
-                    () => overlay && overlay.classList.remove("shake"),
-                    450,
-                );
+                setTimeout(() => overlay && overlay.classList.remove("shake"), 450);
                 input.value = "";
                 draw();
             }
@@ -193,13 +187,10 @@
         });
         // Цифри з клавіатури ноутбука
         overlay.addEventListener("keydown", (e) => {
-            if (e.target !== input && /^[0-9]$/.test(e.key))
-                input.value += e.key;
+            if (e.target !== input && /^[0-9]$/.test(e.key)) input.value += e.key;
         });
         setTimeout(() => input.focus({ preventScroll: true }), 50);
-        overlay.addEventListener("click", () =>
-            input.focus({ preventScroll: true }),
-        );
+        overlay.addEventListener("click", () => input.focus({ preventScroll: true }));
     }
 
     function askPin() {
@@ -208,9 +199,7 @@
             sub: myName ? myName : "",
             showForgot: true,
             onComplete: async (pin) => {
-                const { data, error } = await client.rpc("check_my_pin", {
-                    p_pin: pin,
-                });
+                const { data, error } = await client.rpc("check_my_pin", { p_pin: pin });
                 if (error) return "Помилка: " + error.message;
                 if (data?.ok) {
                     unlock();
@@ -220,8 +209,7 @@
                     createPin();
                     return null;
                 }
-                if (data?.locked)
-                    return `Забагато спроб. Спробуйте через ${data.wait_min} хв або увійдіть з паролем.`;
+                if (data?.locked) return `Забагато спроб. Спробуйте через ${data.wait_min} хв або увійдіть з паролем.`;
                 return `Невірний PIN. Залишилось спроб: ${data?.left ?? "—"}`;
             },
         });
@@ -248,9 +236,7 @@
                         setTimeout(step1, 900);
                         return "PIN не збігається — почніть спочатку";
                     }
-                    const { error } = await client.rpc("set_my_pin", {
-                        p_pin: pin,
-                    });
+                    const { error } = await client.rpc("set_my_pin", { p_pin: pin });
                     if (error) return error.message;
                     ss.del(KEY_RESET);
                     if (status) status.has_pin = true;
@@ -286,10 +272,7 @@
         const { data, error } = await client.rpc("pin_status");
         if (error) {
             // pin.sql ще не виконано — не блокуємо роботу
-            console.warn(
-                "FURA PIN: функції ще не створені в базі (pin.sql)",
-                error.message,
-            );
+            console.warn("FURA PIN: функції ще не створені в базі (pin.sql)", error.message);
             unlock();
             return;
         }
@@ -311,10 +294,7 @@
         }
 
         // Щойно увійшли з паролем (або «забули PIN») — пропонуємо створити PIN
-        if (
-            !status.has_pin ||
-            (ss.get(KEY_RESET) === "1" && status.recent_login)
-        ) {
+        if (!status.has_pin || (ss.get(KEY_RESET) === "1" && status.recent_login)) {
             createPin();
             return;
         }
@@ -327,8 +307,7 @@
         btn.type = "button";
         btn.className = "fura-lock-btn";
         btn.style.display = "inline-flex";
-        btn.title =
-            "Заблокувати CRM (наприклад, коли відходите від комп'ютера)";
+        btn.title = "Заблокувати CRM (наприклад, коли відходите від комп'ютера)";
         btn.innerHTML = "🔒 Заблокувати";
         btn.addEventListener("click", lockNow);
         document.body.appendChild(btn);
@@ -348,7 +327,6 @@
         if (Date.now() - last > SLEEP_GAP_MS) lockNow();
     });
 
-    if (document.readyState === "loading")
-        document.addEventListener("DOMContentLoaded", start);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
     else start();
 })();

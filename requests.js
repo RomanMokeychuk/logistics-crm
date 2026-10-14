@@ -91,33 +91,9 @@ const TRANSPORT_TYPES = [
 
 // Пакування — групи як на біржах вантажів
 const PACKAGING_GROUPS = [
-    {
-        group: "Палети",
-        items: [
-            "EURO 1,2×0,8 м",
-            "FIN 1,2×1 м",
-            "1×1 м",
-            "1,1×1,1 м",
-            "1,2×1,2 м",
-            "Нестандартна палета",
-        ],
-    },
-    {
-        group: "Тверда",
-        items: [
-            "Блок",
-            "Бочка",
-            "Чушка",
-            "Ящик",
-            "Коробка",
-            "Пачка",
-            "Упаковка",
-        ],
-    },
-    {
-        group: "Контейнери",
-        items: ["Swap body", "Контейнер 45'", "Контейнер 40'", "Контейнер 20'"],
-    },
+    { group: "Палети", items: ["EURO 1,2×0,8 м", "FIN 1,2×1 м", "1×1 м", "1,1×1,1 м", "1,2×1,2 м", "Нестандартна палета"] },
+    { group: "Тверда", items: ["Блок", "Бочка", "Чушка", "Ящик", "Коробка", "Пачка", "Упаковка"] },
+    { group: "Контейнери", items: ["Swap body", "Контейнер 45'", "Контейнер 40'", "Контейнер 20'"] },
     { group: "Гнучка", items: ["Біг-бег", "Мішок", "Зв'язка", "Сітка", "Тюк"] },
     { group: "Рідка", items: ["Барабан", "Балон", "Каністра", "Відро"] },
     { group: "Рулони або лист", items: ["Бухта", "Рулон"] },
@@ -126,15 +102,7 @@ const PACKAGING_GROUPS = [
 ];
 
 // Як можуть вантажити
-const LOADING_TYPES = [
-    "Задня",
-    "Бокова",
-    "Верхня",
-    "Повне розтентування",
-    "Зняття поперечин",
-    "Зняття стійок",
-    "Гідроборт",
-];
+const LOADING_TYPES = ["Задня", "Бокова", "Верхня", "Повне розтентування", "Зняття поперечин", "Зняття стійок", "Гідроборт"];
 
 const isRef = (t) => /РЕФ/i.test(String(t || ""));
 
@@ -226,10 +194,11 @@ function formatCreatedAt(iso) {
 }
 
 // Тільки плашка країни — для таблиці
+// У таблиці країна — коротким кодом (PL, UA, DE), повна назва — при наведенні
 function countryBadge(country) {
-    return country
-        ? `<span class="badge-country">${escapeHtml(country)}</span>`
-        : "—";
+    if (!country) return "—";
+    const code = (window.furaCountryCode && window.furaCountryCode(country)) || "";
+    return `<span class="badge-country" title="${escapeHtml(country)}">${escapeHtml(code ? code.toUpperCase() : country)}</span>`;
 }
 
 // Країна + під нею місто/адреса — для картки запиту
@@ -240,9 +209,7 @@ function logistListHtml(r) {
         .map((x) => x.trim())
         .filter(Boolean);
     if (!names.length) return "—";
-    return names
-        .map((n) => `<div class="logist-line">${escapeHtml(n)}</div>`)
-        .join("");
+    return names.map((n) => `<div class="logist-line">${escapeHtml(n)}</div>`).join("");
 }
 
 function locationCell(country, address) {
@@ -417,44 +384,33 @@ function readStaffSelect(selectId) {
  * ================================================================= */
 
 const LEAD_STATUS_CLS = {
-    Новий: "status-quote",
-    Контакт: "status-offer",
-    Переговори: "status-progress",
-    Працюємо: "status-confirmed",
-    Відмова: "status-rejected",
+    "Новий": "status-quote",
+    "Контакт": "status-offer",
+    "Переговори": "status-progress",
+    "Працюємо": "status-confirmed",
+    "Відмова": "status-rejected",
 };
 
 let leadsCache = [];
 let selectedLeadId = null;
 
-const normName = (s) =>
-    String(s || "")
-        .trim()
-        .toLowerCase();
+const normName = (s) => String(s || "").trim().toLowerCase();
 
 async function loadLeadsList() {
     const { data, error } = await sbClient
         .from("leads")
-        .select(
-            "id, name, edrpou, contact_person, phone, email, city, country, status, sales, sales_id, next_contact, history",
-        )
+        .select("id, name, edrpou, contact_person, phone, email, city, country, status, sales, sales_id, next_contact, history")
         .order("name");
     if (error) {
-        console.warn(
-            "Ліди не завантажились (виконано leads.sql?):",
-            error.message,
-        );
+        console.warn("Ліди не завантажились (виконано leads.sql?):", error.message);
         return;
     }
     leadsCache = data || [];
 }
 
-const leadById = (id) =>
-    leadsCache.find((l) => String(l.id) === String(id)) || null;
+const leadById = (id) => leadsCache.find((l) => String(l.id) === String(id)) || null;
 const findLeadByName = (name) =>
-    normName(name)
-        ? leadsCache.find((l) => normName(l.name) === normName(name)) || null
-        : null;
+    normName(name) ? leadsCache.find((l) => normName(l.name) === normName(name)) || null : null;
 
 function leadStatusBadge(status) {
     return status
@@ -505,15 +461,8 @@ function renderClientSuggest() {
         return;
     }
     const list = leadsCache
-        .filter(
-            (l) =>
-                normName(l.name).includes(q) || normName(l.edrpou).includes(q),
-        )
-        .sort(
-            (a, b) =>
-                (normName(a.name).startsWith(q) ? 0 : 1) -
-                (normName(b.name).startsWith(q) ? 0 : 1),
-        )
+        .filter((l) => normName(l.name).includes(q) || normName(l.edrpou).includes(q))
+        .sort((a, b) => (normName(a.name).startsWith(q) ? 0 : 1) - (normName(b.name).startsWith(q) ? 0 : 1))
         .slice(0, 8);
     const exact = leadsCache.some((l) => normName(l.name) === q);
 
@@ -558,11 +507,7 @@ function pickLead(lead) {
     clientBox.hidden = true;
     // Sales ліда підставляємо, якщо в запиті Sales ще не обраний
     const salesSel = document.getElementById("req_sales");
-    if (
-        lead.sales_id &&
-        !salesSel.value &&
-        [...salesSel.options].some((o) => o.value === String(lead.sales_id))
-    ) {
+    if (lead.sales_id && !salesSel.value && [...salesSel.options].some((o) => o.value === String(lead.sales_id))) {
         salesSel.value = String(lead.sales_id);
     }
 }
@@ -570,10 +515,7 @@ function pickLead(lead) {
 // Швидко створює ліда з назвою (решту можна дописати в «Лідах»)
 async function createLeadQuick(name) {
     if (!name) return null;
-    const me =
-        currentStaff && hasRole(currentStaff, ["sales", "head"])
-            ? currentStaff
-            : null;
+    const me = currentStaff && hasRole(currentStaff, ["sales", "head"]) ? currentStaff : null;
     const { data, error } = await sbClient
         .from("leads")
         .insert([
@@ -608,9 +550,7 @@ clientInput.addEventListener("input", () => {
     renderClientSuggest();
 });
 clientInput.addEventListener("focus", renderClientSuggest);
-clientInput.addEventListener("blur", () =>
-    setTimeout(() => (clientBox.hidden = true), 150),
-);
+clientInput.addEventListener("blur", () => setTimeout(() => (clientBox.hidden = true), 150));
 clientInput.addEventListener("keydown", (e) => {
     if (clientBox.hidden) return;
     if (e.key === "ArrowDown") {
@@ -643,9 +583,7 @@ function leadSectionHtml(r) {
             <div class="card-block-text offer-muted">Клієнта немає в Лідах. Відкрийте «Редагувати» і оберіть клієнта зі списку.</div>
         </div>`;
     }
-    const history = (Array.isArray(lead.history) ? lead.history : [])
-        .slice(-3)
-        .reverse();
+    const history = (Array.isArray(lead.history) ? lead.history : []).slice(-3).reverse();
     return `
         <div class="card-section lead-in-request">
             <div class="card-section-title lead-in-request-title">
@@ -662,8 +600,7 @@ function leadSectionHtml(r) {
                 history.length
                     ? `<div class="lead-in-request-history">${history
                           .map(
-                              (h) =>
-                                  `<div><span>${formatDateTime(h.at)}</span> ${escapeHtml(h.text)}</div>`,
+                              (h) => `<div><span>${formatDateTime(h.at)}</span> ${escapeHtml(h.text)}</div>`,
                           )
                           .join("")}</div>`
                     : ""
@@ -782,17 +719,13 @@ function logistFieldsFor(existing, pick) {
 
 // Три кнопки "Тип запиту" у формі
 function renderTypePicker(selected) {
-    document.getElementById("req_type_picker").innerHTML = REQUEST_TYPES.filter(
-        (t) => !t.old || t.value === selected,
-    )
-        .map(
-            (t) => `
+    document.getElementById("req_type_picker").innerHTML = REQUEST_TYPES.filter((t) => !t.old || t.value === selected).map(
+        (t) => `
         <label class="type-option ${t.cls}">
             <input type="radio" name="req_type" value="${escapeHtml(t.value)}" ${t.value === selected ? "checked" : ""} />
             <i class='bx ${t.icon}'></i> ${escapeHtml(t.value)}
         </label>`,
-        )
-        .join("");
+    ).join("");
 }
 
 /* ================================================================= *
@@ -1261,10 +1194,8 @@ function fillSelects() {
 
     document.getElementById("req_load_country").innerHTML = countryOptions;
     document.getElementById("req_unload_country").innerHTML = countryOptions;
-    document.getElementById("req_customs_export_country").innerHTML =
-        countryOptions;
-    document.getElementById("req_customs_import_country").innerHTML =
-        countryOptions;
+    document.getElementById("req_customs_export_country").innerHTML = countryOptions;
+    document.getElementById("req_customs_import_country").innerHTML = countryOptions;
 
     document.getElementById("req_status").innerHTML = REQUEST_STATUSES.map(
         (s) =>
@@ -1295,13 +1226,9 @@ function packSelectHtml(selected) {
     return `<select class="pack-type">
         <option value="">Виберіть...</option>
         ${PACKAGING_GROUPS.map(
-            (g) =>
-                `<optgroup label="${escapeHtml(g.group)}">${g.items
-                    .map(
-                        (i) =>
-                            `<option value="${escapeHtml(i)}"${i === selected ? " selected" : ""}>${escapeHtml(i)}</option>`,
-                    )
-                    .join("")}</optgroup>`,
+            (g) => `<optgroup label="${escapeHtml(g.group)}">${g.items
+                .map((i) => `<option value="${escapeHtml(i)}"${i === selected ? " selected" : ""}>${escapeHtml(i)}</option>`)
+                .join("")}</optgroup>`,
         ).join("")}
         ${selected && !known ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : ""}
     </select>`;
@@ -1324,9 +1251,7 @@ function addPackRow(type = "", qty = "") {
 
 function renderPackRows(list) {
     packRowsBox.innerHTML = "";
-    (Array.isArray(list) && list.length ? list : [{}]).forEach((p) =>
-        addPackRow(p.type || "", p.qty ?? ""),
-    );
+    (Array.isArray(list) && list.length ? list : [{}]).forEach((p) => addPackRow(p.type || "", p.qty ?? ""));
 }
 
 function readPackRows() {
@@ -1338,35 +1263,24 @@ function readPackRows() {
         .filter((p) => p.type);
 }
 
-document
-    .getElementById("reqPackAddBtn")
-    .addEventListener("click", () => addPackRow());
+document.getElementById("reqPackAddBtn").addEventListener("click", () => addPackRow());
 
 /* ---------- Як можуть вантажити ---------- */
 function renderLoadingChips(selected) {
     const sel = new Set(selected || []);
     document.getElementById("req_loading_types").innerHTML = LOADING_TYPES.map(
-        (t) =>
-            `<label class="loading-chip"><input type="checkbox" value="${escapeHtml(t)}"${sel.has(t) ? " checked" : ""} /> ${escapeHtml(t)}</label>`,
+        (t) => `<label class="loading-chip"><input type="checkbox" value="${escapeHtml(t)}"${sel.has(t) ? " checked" : ""} /> ${escapeHtml(t)}</label>`,
     ).join("");
 }
 const readLoadingChips = () =>
-    [...document.querySelectorAll("#req_loading_types input:checked")].map(
-        (i) => i.value,
-    );
+    [...document.querySelectorAll("#req_loading_types input:checked")].map((i) => i.value);
 
 /* ---------- Температура для РЕФ ---------- */
 function updateTempVisibility() {
-    document.getElementById("reqTempGroup").hidden = !isRef(
-        document.getElementById("req_transport_type").value,
-    );
+    document.getElementById("reqTempGroup").hidden = !isRef(document.getElementById("req_transport_type").value);
 }
-document
-    .getElementById("req_transport_type")
-    .addEventListener("input", updateTempVisibility);
-document
-    .getElementById("req_transport_type")
-    .addEventListener("change", updateTempVisibility);
+document.getElementById("req_transport_type").addEventListener("input", updateTempVisibility);
+document.getElementById("req_transport_type").addEventListener("change", updateTempVisibility);
 
 /* ---------- Замитнення / розмитнення "по місцю" ---------- */
 function updateCustomsHere(kind) {
@@ -1378,9 +1292,7 @@ function updateCustomsHere(kind) {
     });
 }
 ["export", "import"].forEach((kind) =>
-    document
-        .getElementById(`req_customs_${kind}_here`)
-        .addEventListener("change", () => updateCustomsHere(kind)),
+    document.getElementById(`req_customs_${kind}_here`).addEventListener("change", () => updateCustomsHere(kind)),
 );
 
 const CUSTOMS_HERE = "По місцю";
@@ -1394,10 +1306,7 @@ function setCustoms(kind, country, place) {
 }
 
 function customsText(country, place, kind) {
-    if (place === CUSTOMS_HERE)
-        return kind === "export"
-            ? "По місцю завантаження"
-            : "По місцю розвантаження";
+    if (place === CUSTOMS_HERE) return kind === "export" ? "По місцю завантаження" : "По місцю розвантаження";
     if (!country && !place) return "";
     return locationCell(country, place);
 }
@@ -1408,9 +1317,7 @@ function openRequestModal(request = null) {
     setVal("requestId", request ? request.id : "");
     setVal("req_client", request?.client);
     setSelectedLead(
-        request
-            ? leadById(request.lead_id) || findLeadByName(request.client)
-            : null,
+        request ? leadById(request.lead_id) || findLeadByName(request.client) : null,
     );
     clientBox.hidden = true;
     loadLeadsList(); // свіжий список лідів (раптом хтось щойно додав)
@@ -1422,17 +1329,9 @@ function openRequestModal(request = null) {
     setVal("req_load_address", request?.load_address);
     setVal("req_unload_country", request?.unload_country);
     setVal("req_unload_address", request?.unload_address);
-    setCustoms(
-        "export",
-        request?.customs_export_country,
-        request?.customs_export,
-    );
+    setCustoms("export", request?.customs_export_country, request?.customs_export);
     setVal("req_border_crossing", request?.border_crossing);
-    setCustoms(
-        "import",
-        request?.customs_import_country,
-        request?.customs_import,
-    );
+    setCustoms("import", request?.customs_import_country, request?.customs_import);
     setVal("req_status", request?.status || REQUEST_STATUSES[0].value);
     // Статус змінюється сам (запит → відповідь → в роботі). У формі — лише при редагуванні
     document.getElementById("reqStatusGroup").hidden = !request;
@@ -1561,34 +1460,18 @@ requestForm.addEventListener("submit", async (e) => {
         load_address: getValue("req_load_address"),
         unload_country: getValue("req_unload_country"),
         unload_address: getValue("req_unload_address"),
-        customs_export: document.getElementById("req_customs_export_here")
-            .checked
-            ? CUSTOMS_HERE
-            : getValue("req_customs_export"),
+        customs_export: document.getElementById("req_customs_export_here").checked ? CUSTOMS_HERE : getValue("req_customs_export"),
         customs_export_country: getValue("req_customs_export_country"),
         border_crossing: getValue("req_border_crossing"),
-        customs_import: document.getElementById("req_customs_import_here")
-            .checked
-            ? CUSTOMS_HERE
-            : getValue("req_customs_import"),
+        customs_import: document.getElementById("req_customs_import_here").checked ? CUSTOMS_HERE : getValue("req_customs_import"),
         customs_import_country: getValue("req_customs_import_country"),
-        status: existing
-            ? getValue("req_status") || existing.status
-            : STATUS_NEW,
+        status: existing ? getValue("req_status") || existing.status : STATUS_NEW,
         packaging: readPackRows(),
         loading_types: readLoadingChips(),
         trucks_count: Number(getValue("req_trucks_count")) || null,
         trucks_period: getValue("req_trucks_period"),
-        temp_from:
-            isRef(getValue("req_transport_type")) &&
-            getValue("req_temp_from") !== null
-                ? Number(getValue("req_temp_from"))
-                : null,
-        temp_to:
-            isRef(getValue("req_transport_type")) &&
-            getValue("req_temp_to") !== null
-                ? Number(getValue("req_temp_to"))
-                : null,
+        temp_from: isRef(getValue("req_transport_type")) && getValue("req_temp_from") !== null ? Number(getValue("req_temp_from")) : null,
+        temp_to: isRef(getValue("req_transport_type")) && getValue("req_temp_to") !== null ? Number(getValue("req_temp_to")) : null,
         desired_date: dateFrom,
         desired_date_to: dateTo,
         sales: salesPick.name,
@@ -1633,20 +1516,12 @@ let currentCardRequestId = null;
 
 function packagingText(list) {
     if (!Array.isArray(list) || !list.length) return "";
-    return list
-        .map((p) =>
-            escapeHtml(`${p.type}${p.qty ? " — " + p.qty + " шт" : ""}`),
-        )
-        .join("<br>");
+    return list.map((p) => escapeHtml(`${p.type}${p.qty ? " — " + p.qty + " шт" : ""}`)).join("<br>");
 }
 
 function tempText(r) {
-    const f = (v) =>
-        v === null || v === undefined || v === ""
-            ? null
-            : `${Number(v) > 0 ? "+" : ""}${v}`;
-    const a = f(r.temp_from),
-        b = f(r.temp_to);
+    const f = (v) => (v === null || v === undefined || v === "" ? null : `${Number(v) > 0 ? "+" : ""}${v}`);
+    const a = f(r.temp_from), b = f(r.temp_to);
     if (a === null && b === null) return "";
     if (a !== null && b !== null) return `від ${a} до ${b} °C`;
     return a !== null ? `від ${a} °C` : `до ${b} °C`;

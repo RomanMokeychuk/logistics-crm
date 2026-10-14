@@ -10,12 +10,13 @@
  * ================================================================= */
 
 (function () {
+    // Сторінка відкрита всередині іншої (вкладка «Трекінг» в угоді) — тут не потрібно
+    if (window.top !== window.self) return;
+
     // sbClient вже створений основним скриптом сторінки
     const client = typeof sbClient !== "undefined" ? sbClient : null;
     if (!client) {
-        console.warn(
-            "FURA сповіщення: не знайдено sbClient — notify.js має стояти ПІСЛЯ основного скрипта сторінки",
-        );
+        console.warn("FURA сповіщення: не знайдено sbClient — notify.js має стояти ПІСЛЯ основного скрипта сторінки");
         return;
     }
 
@@ -72,15 +73,10 @@
         "click",
         () => {
             try {
-                audioCtx =
-                    audioCtx ||
-                    new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
                 audioCtx.resume();
             } catch (_) {}
-            if (
-                "Notification" in window &&
-                Notification.permission === "default"
-            ) {
+            if ("Notification" in window && Notification.permission === "default") {
                 Notification.requestPermission().catch(() => {});
             }
         },
@@ -89,9 +85,7 @@
 
     function beep() {
         try {
-            audioCtx =
-                audioCtx ||
-                new (window.AudioContext || window.webkitAudioContext)();
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
             const t = audioCtx.currentTime;
             [880, 1175].forEach((freq, i) => {
                 const osc = audioCtx.createOscillator();
@@ -99,14 +93,8 @@
                 osc.type = "sine";
                 osc.frequency.value = freq;
                 gain.gain.setValueAtTime(0.0001, t + i * 0.18);
-                gain.gain.exponentialRampToValueAtTime(
-                    0.25,
-                    t + i * 0.18 + 0.02,
-                );
-                gain.gain.exponentialRampToValueAtTime(
-                    0.0001,
-                    t + i * 0.18 + 0.16,
-                );
+                gain.gain.exponentialRampToValueAtTime(0.25, t + i * 0.18 + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.18 + 0.16);
                 osc.connect(gain).connect(audioCtx.destination);
                 osc.start(t + i * 0.18);
                 osc.stop(t + i * 0.18 + 0.17);
@@ -162,11 +150,7 @@
         beep();
 
         // Якщо вкладка не активна — ще й системне сповіщення macOS / Windows
-        if (
-            document.hidden &&
-            "Notification" in window &&
-            Notification.permission === "granted"
-        ) {
+        if (document.hidden && "Notification" in window && Notification.permission === "granted") {
             try {
                 const n = new Notification(`FURA · ${title}`, {
                     body: text.replace(/<[^>]+>/g, ""),
@@ -194,9 +178,7 @@
 
     const snapshot = (r) => ({
         logists: idsOf(r),
-        answers: new Map(
-            answersOf(r).map((a) => [String(a.logist_id), String(a.at || "")]),
-        ),
+        answers: new Map(answersOf(r).map((a) => [String(a.logist_id), String(a.at || "")])),
         status: r.status,
         chosen: r.logistician_id ? String(r.logistician_id) : null,
     });
@@ -208,8 +190,7 @@
         JSON.stringify([...a.answers]) === JSON.stringify([...b.answers]);
 
     const route = (r) =>
-        [r.load_country, r.unload_country].filter(Boolean).join(" → ") ||
-        "маршрут не вказано";
+        [r.load_country, r.unload_country].filter(Boolean).join(" → ") || "маршрут не вказано";
 
     function priceText(a) {
         const o = (a.offers || []).find((x) => x && x.price);
@@ -236,8 +217,7 @@
             notify({
                 kind: "new",
                 icon: "🟡",
-                title:
-                    type === "INSERT" ? "Новий запит" : "Вам надіслано запит",
+                title: type === "INSERT" ? "Новий запит" : "Вам надіслано запит",
                 text: `${head}${r.sales ? `<br>Sales: ${esc(r.sales)}` : ""}`,
                 requestId: r.id,
             });
@@ -249,16 +229,11 @@
                 const lid = String(a.logist_id || "");
                 if (!lid || lid === myId) return; // свою відповідь не показуємо
                 const hasContent = (a.offers || []).length || a.notes;
-                if (
-                    hasContent &&
-                    before.answers.get(lid) !== String(a.at || "")
-                ) {
+                if (hasContent && before.answers.get(lid) !== String(a.at || "")) {
                     notify({
                         kind: "answer",
                         icon: "🟢",
-                        title: before.answers.has(lid)
-                            ? "Логіст змінив відповідь"
-                            : "Логіст відповів",
+                        title: before.answers.has(lid) ? "Логіст змінив відповідь" : "Логіст відповів",
                         text: `${head}<br>${esc(a.logist || "Логіст")}${priceText(a)}`,
                         requestId: r.id,
                     });
@@ -294,8 +269,7 @@
         refreshTimer = setTimeout(() => {
             try {
                 if (typeof loadRequests === "function") loadRequests(); // Запити
-                if (typeof window.furaOnRequestsChanged === "function")
-                    window.furaOnRequestsChanged(); // Головна, Ліди
+                if (typeof window.furaOnRequestsChanged === "function") window.furaOnRequestsChanged(); // Головна, Ліди
             } catch (e) {
                 console.warn("FURA оновлення сторінки:", e);
             }
@@ -310,18 +284,10 @@
         if (!session) return;
 
         const email = (session.user?.email || "").toLowerCase();
-        const { data: staff } = await client
-            .from("staff")
-            .select("id, full_name, email")
-            .eq("active", true);
-        me =
-            (staff || []).find(
-                (s) => (s.email || "").toLowerCase() === email,
-            ) || null;
+        const { data: staff } = await client.from("staff").select("id, full_name, email").eq("active", true);
+        me = (staff || []).find((s) => (s.email || "").toLowerCase() === email) || null;
         if (!me) {
-            console.warn(
-                `FURA сповіщення: пошти ${email} немає серед активних співробітників`,
-            );
+            console.warn(`FURA сповіщення: пошти ${email} немає серед активних співробітників`);
             return;
         }
         console.log(`FURA сповіщення: ви — ${me.full_name}`);
@@ -330,39 +296,28 @@
         const since = new Date(Date.now() - 30 * 86400000).toISOString();
         const { data: recent } = await client
             .from("requests")
-            .select(
-                "id, status, sales_id, logistician_id, logistician_ids, answers",
-            )
+            .select("id, status, sales_id, logistician_id, logistician_ids, answers")
             .gte("created_at", since);
         (recent || []).forEach((r) => known.set(String(r.id), snapshot(r)));
 
         // Живий канал. Явно передаємо токен входу, щоб база віддавала
         // зміни саме цьому користувачу (з урахуванням RLS).
         try {
-            if (client.realtime?.setAuth)
-                client.realtime.setAuth(session.access_token);
+            if (client.realtime?.setAuth) client.realtime.setAuth(session.access_token);
         } catch (_) {}
 
         client
             .channel("fura-requests")
-            .on(
-                "postgres_changes",
-                { event: "*", schema: "public", table: "requests" },
-                (p) => {
-                    if (p.eventType === "DELETE") {
-                        known.delete(String(p.old?.id));
-                        refreshPage();
-                        return;
-                    }
-                    handleChange(p.eventType, p.new);
-                },
-            )
+            .on("postgres_changes", { event: "*", schema: "public", table: "requests" }, (p) => {
+                if (p.eventType === "DELETE") {
+                    known.delete(String(p.old?.id));
+                    refreshPage();
+                    return;
+                }
+                handleChange(p.eventType, p.new);
+            })
             .subscribe((status, err) => {
-                console.log(
-                    "FURA сповіщення (зв'язок з базою):",
-                    status,
-                    err || "",
-                );
+                console.log("FURA сповіщення (зв'язок з базою):", status, err || "");
             });
 
         // Запасний варіант: кожні 20 секунд самі перевіряємо свіжі запити.
@@ -373,17 +328,13 @@
                 .select(
                     "id, client, request_type, load_country, unload_country, sales, sales_id, status, logistician_id, logistician_ids, answers",
                 )
-                .gte(
-                    "created_at",
-                    new Date(Date.now() - 30 * 86400000).toISOString(),
-                );
+                .gte("created_at", new Date(Date.now() - 30 * 86400000).toISOString());
             const seen = new Set();
             (data || []).forEach((r) => {
                 seen.add(String(r.id));
                 const before = known.get(String(r.id));
                 if (!before) handleChange("INSERT", r);
-                else if (!sameSnapshot(before, snapshot(r)))
-                    handleChange("UPDATE", r);
+                else if (!sameSnapshot(before, snapshot(r))) handleChange("UPDATE", r);
             });
             // Запит видалили — прибираємо з пам'яті й оновлюємо сторінку
             let removed = false;
@@ -438,7 +389,6 @@
         }
     });
 
-    if (document.readyState === "loading")
-        document.addEventListener("DOMContentLoaded", start);
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
     else start();
 })();
