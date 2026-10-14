@@ -629,3 +629,34 @@
     color: var(--f-blue, #1d5bd8);
     text-decoration: none;
 }
+
+.dv-track-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.dv-track-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    font-size: 14px;
+    color: #64748b;
+}
+.dv-track-link select {
+    flex: 1;
+    min-width: 260px;
+    padding: 9px 12px;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 10px;
+    font-size: 14px;
+}
+.deal-trip-mini {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #1d5bd8;
+    white-space: nowrap;
+}

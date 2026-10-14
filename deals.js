@@ -44,6 +44,7 @@ let staffCache = [];
 let currentStaff = null;
 let activeState = "";
 let currentCardDealId = null;
+let tripByDeal = new Map(); // id угоди → її рейс
 
 const tableBody = document.getElementById("dealsTableBody");
 const modalOverlay = document.getElementById("dealModalOverlay");
@@ -94,6 +95,11 @@ function dealState(d) {
     if (d.load_date_plan && String(d.load_date_plan).slice(0, 10) < todayIso()) return "late";
     return "plan";
 }
+function tripMini(d) {
+    const t = tripByDeal.get(String(d.id));
+    if (!t) return "";
+    return `<div class="deal-trip-mini" title="Трекінг рейсу"><i class="bx bx-map-pin"></i> рейс № ${escapeHtml(t.trip_no)} · ${escapeHtml((typeof TRIP_LABELS !== "undefined" && TRIP_LABELS[t.status]) || t.status)}</div>`;
+}
 function stateBadge(d) {
     const s = DEAL_STATES.find((x) => x.key === dealState(d));
     return `<span class="deal-state ${s.cls}">${s.label}</span>`;
@@ -128,6 +134,13 @@ async function loadDeals() {
         return;
     }
     dealsCache = data || [];
+    // Рейс кожної угоди — для позначки «Трекінг» у таблиці
+    const { data: trs } = await sbClient
+        .from("trips")
+        .select("deal_id, trip_no, status, created_at")
+        .not("deal_id", "is", null)
+        .order("created_at", { ascending: true });
+    tripByDeal = new Map((trs || []).map((t) => [String(t.deal_id), t]));
     renderTabs();
     renderDeals();
 }
@@ -182,7 +195,7 @@ function renderDeals() {
         tr.className = "clickable-row";
         tr.innerHTML = `
             <td class="deal-num">№ ${escapeHtml(d.number)}${d.copied_from ? `<div class="lead-sub">копія № ${escapeHtml(d.copied_from)}</div>` : ""}</td>
-            <td>${stateBadge(d)}</td>
+            <td>${stateBadge(d)}${tripMini(d)}</td>
             <td><strong>${escapeHtml(d.client) || "—"}</strong>${d.cargo ? `<div class="lead-sub">${escapeHtml(d.cargo)}</div>` : ""}</td>
             <td class="deal-route">
                 <div>${escapeHtml(place(d.load_country, cityOf(d.load_address))) || "—"}</div>
@@ -709,9 +722,23 @@ function renderTab(d) {
 
 /* ---------- Трекінг: рейс із розділу «Рейси» всередині угоди ---------- */
 
+// Один рейс = одна угода. Скасований рейс можна замінити новим.
+const TRIP_DEAD = ["cancelled", "declined"];
+const TRIP_LABELS = {
+    assigned: "Очікує підтвердження", confirmed: "Підтверджено водієм", declined: "Водій відмовився",
+    to_loading: "Їде на завантаження", at_loading: "На завантаженні", loaded: "В дорозі",
+    at_border: "На кордоні", crossed_border: "Пройшов кордон", at_unloading: "На розвантаженні",
+    unloaded: "Виконано", timeout: "Трекінг зупинено", cancelled: "Скасовано",
+};
+
 async function renderTrackTab(d, box) {
     box.innerHTML = `<div class="dv-empty">Завантаження трекінгу…</div>`;
-    const { data, error } = await sbClient.from("trips").select("id, trip_no, status").eq("deal_id", d.id).order("created_at", { ascending: false }).limit(1);
+    const { data, error } = await sbClient
+        .from("trips")
+        .select("id, trip_no, status")
+        .eq("deal_id", d.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
     if (detailTab !== "track" || currentCardDealId !== d.id) return;
     if (error) {
         box.innerHTML = `<div class="dv-dev">Трекінг недоступний: ${escapeHtml(error.message)}<br>Можливо, ще не виконано deals_ui.sql.</div>`;
@@ -719,20 +746,54 @@ async function renderTrackTab(d, box) {
     }
     const trip = data?.[0];
     if (trip) {
+        const dead = TRIP_DEAD.includes(trip.status);
         box.innerHTML = `
-            <div class="dv-track-bar">Рейс № ${escapeHtml(trip.trip_no)} · <a href="trips.html?trip=${escapeHtml(trip.id)}" class="dv-link" target="_blank">відкрити в «Рейсах»</a></div>
+            <div class="dv-track-bar">
+                <span>Рейс № ${escapeHtml(trip.trip_no)} цієї угоди · ${escapeHtml(TRIP_LABELS[trip.status] || trip.status)}</span>
+                ${dead ? `<button type="button" class="btn btn-primary" id="dvRestartTrack"><i class="bx bx-refresh"></i> Запустити трекінг заново</button>` : ""}
+            </div>
             <iframe class="dv-track-frame" src="trips.html?embed=1&trip=${encodeURIComponent(trip.id)}" title="Трекінг рейсу"></iframe>`;
+        $("dvRestartTrack")?.addEventListener("click", () => startTrackForm(d, box));
         return;
     }
+
+    // Рейсу ще немає: створити новий або прив'язати вже наявний (створений раніше без угоди)
     box.innerHTML = `
         <div class="dv-track-empty">
             <i class="bx bx-map-alt"></i>
             <div><b>Трекінг ще не запущено</b><br>Створіть рейс — дані угоди (адреси, водій, авто, дати) підставляться самі. Водій отримає код для застосунку «FURA Водій».</div>
             <button type="button" class="btn btn-primary" id="dvStartTrack"><i class="bx bx-send"></i> Запустити трекінг</button>
+        </div>
+        <div class="dv-track-link" id="dvLinkBox" hidden>
+            <span>або прив'язати рейс, створений раніше без угоди:</span>
+            <select id="dvLinkSelect"></select>
+            <button type="button" class="btn btn-secondary" id="dvLinkBtn">Прив'язати</button>
         </div>`;
-    $("dvStartTrack").addEventListener("click", () => {
-        box.innerHTML = `<iframe class="dv-track-frame" src="trips.html?embed=1&new_from_deal=${encodeURIComponent(d.id)}" title="Новий рейс"></iframe>`;
+    $("dvStartTrack").addEventListener("click", () => startTrackForm(d, box));
+
+    const { data: free } = await sbClient
+        .from("trips")
+        .select("id, trip_no, status, load_address, unload_address, driver_name, created_at")
+        .is("deal_id", null)
+        .not("status", "in", "(cancelled,declined)")
+        .order("created_at", { ascending: false })
+        .limit(30);
+    if (!free?.length || detailTab !== "track" || currentCardDealId !== d.id) return;
+    const short = (a) => String(a || "—").split(",")[0];
+    $("dvLinkSelect").innerHTML = free
+        .map((t) => `<option value="${escapeHtml(t.id)}">№ ${escapeHtml(t.trip_no)} · ${escapeHtml(short(t.load_address))} → ${escapeHtml(short(t.unload_address))} · ${escapeHtml(t.driver_name || "")} · ${escapeHtml(TRIP_LABELS[t.status] || t.status)}</option>`)
+        .join("");
+    $("dvLinkBox").hidden = false;
+    $("dvLinkBtn").addEventListener("click", async () => {
+        const id = $("dvLinkSelect").value;
+        const { error: e2 } = await sbClient.from("trips").update({ deal_id: d.id }).eq("id", id);
+        if (e2) return alert("Не вдалося прив'язати: " + e2.message);
+        renderTab(d);
     });
+}
+
+function startTrackForm(d, box) {
+    box.innerHTML = `<iframe class="dv-track-frame" src="trips.html?embed=1&new_from_deal=${encodeURIComponent(d.id)}" title="Новий рейс"></iframe>`;
 }
 
 // Повідомлення з вкладки «Трекінг» (рейс створено / форму закрили)

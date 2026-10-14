@@ -21,7 +21,6 @@
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
-                { href: "trips.html", icon: "bx-map-alt", label: "Рейси" },
             ],
         },
         {
