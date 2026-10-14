@@ -1141,3 +1141,18 @@ select.dv-in {
 .dv-tab-body .dv-grid-calc {
     grid-template-columns: 220px 320px;
 }
+.cc-wrap {
+    padding-bottom: 14px;
+}
+.cc-table {
+    min-width: 1750px;
+}
+select.cc-title {
+    min-width: 200px;
+}
+select.cc-pay {
+    min-width: 170px;
+}
+.cc-note {
+    min-width: 170px;
+}

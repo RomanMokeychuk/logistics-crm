@@ -732,7 +732,32 @@ function personRow(label, name) {
 
 const CALC_CURRENCIES = ["UAH", "EUR", "USD"];
 const VAT_TYPES = ["З ПДВ 20%", "Без ПДВ", "ПДВ 0%", "Не ПДВ"];
-const PAY_ACCOUNTS = ["ВСТ БАНК (ГРН)", "GRANDAR BG LTD", "Готівка"];
+// Статті доходу (як у 1С) і ПДВ, що ставиться автоматично
+const ARTICLES = [
+    { name: "Авто Саша 0%", vat: "ПДВ 0%" },
+    { name: "Авто Саша з ПДВ", vat: "З ПДВ 20%" },
+    { name: "Авто Саша не ПДВ", vat: "ПДВ 0%" },
+    { name: "Авто Саша Профіт з ПДВ", vat: "З ПДВ 20%" },
+    { name: "Авто Саша Профіт не ПДВ", vat: "Не ПДВ" },
+    { name: "Додаткові витрати", vat: "" },
+    { name: "Перетарка", vat: "" },
+    { name: "Простой", vat: "" },
+    { name: "ТЕО", vat: "" },
+];
+// Види оплати (рахунки) і їхня валюта
+const PAY_ACCOUNTS = [
+    { name: "GRANDAR BG LTD (UBB)", cur: "USD" },
+    { name: "Аванс Маерск", cur: "USD" },
+    { name: "Аванс МШК", cur: "USD" },
+    { name: "БлюМ (EURO)", cur: "EUR" },
+    { name: "БлюМ (ГРН)", cur: "UAH" },
+    { name: "ВСТ БАНК (EURO)", cur: "EUR" },
+    { name: "ВСТ БАНК (USD)", cur: "USD" },
+    { name: "ВСТ БАНК (ГРН)", cur: "UAH" },
+    { name: "Касса (UAH)", cur: "UAH" },
+    { name: "Касса (USD)", cur: "USD" },
+    { name: "Корпоративна карта", cur: "UAH" },
+];
 const CALC_STATUSES = ["Новий", "Погоджено", "Рахунок виставлено", "Оплачено"];
 
 const num = (v) => {
@@ -773,24 +798,46 @@ function calcTotals(d) {
 }
 
 // Курс НБУ (скільки валюти за 1 долар); якщо не вдалося — вводиться вручну
-let nbuRates = null;
-async function loadNbu() {
-    if (nbuRates) return nbuRates;
-    try {
-        const res = await fetch(
-            "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json",
-        );
-        const list = await res.json();
-        const uah = (cc) => list.find((x) => x.cc === cc)?.rate;
-        const usdUah = uah("USD"),
-            eurUah = uah("EUR");
-        if (usdUah && eurUah)
-            nbuRates = { USD: 1, UAH: usdUah, EUR: usdUah / eurUah };
-    } catch {
-        /* немає доступу до НБУ — курс вводиться вручну */
+// Курс НБУ на дату розрахунку (якщо дати немає — найсвіжіший, зокрема вже встановлений на завтра)
+const nbuCache = new Map();
+async function nbuFor(dateIso) {
+    const ymd = (dt) =>
+        `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, "0")}${String(dt.getDate()).padStart(2, "0")}`;
+    const tries = [];
+    if (dateIso) tries.push(String(dateIso).slice(0, 10).replace(/-/g, ""));
+    else {
+        const t = new Date();
+        const tm = new Date(t.getTime() + 86400000);
+        tries.push(ymd(tm), ymd(t));
     }
-    return nbuRates;
+    for (const key of tries) {
+        if (nbuCache.has(key)) return nbuCache.get(key);
+        try {
+            const res = await fetch(
+                `https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?date=${key}&json`,
+            );
+            const list = await res.json();
+            const uah = (cc) => list.find((x) => x.cc === cc)?.rate;
+            const usdUah = uah("USD"),
+                eurUah = uah("EUR");
+            if (usdUah && eurUah) {
+                const r = {
+                    USD: 1,
+                    UAH: usdUah,
+                    EUR: usdUah / eurUah,
+                    date: list[0]?.exchangedate,
+                };
+                nbuCache.set(key, r);
+                return r;
+            }
+        } catch {
+            /* немає доступу до НБУ — курс вводиться вручну */
+        }
+    }
+    return null;
 }
+let calcDealRef = null;
+const loadNbu = () => nbuFor(calcDealRef?.calc_date);
 
 function newServiceRow(d, title) {
     return {
@@ -806,6 +853,7 @@ function newServiceRow(d, title) {
         out_cur: "EUR",
         out_fx: "",
         out_pay: "",
+        note: "",
     };
 }
 
@@ -835,16 +883,11 @@ function updateProfitKpis(d) {
 
 function renderCalc(d, box) {
     const e = escapeHtml;
-    if (!Array.isArray(d.services) || !d.services.length) {
-        const route = [cityOf(d.load_address), cityOf(d.unload_address)]
-            .filter(Boolean)
-            .join(" — ");
-        d.services = [
-            newServiceRow(d, `Перевезення${route ? " " + route : ""}`),
-        ];
-    }
-    const sel = (list, v, cls, f) =>
-        `<select class="cc-in ${cls || ""}" data-c="${f}">${optList(list, v)}</select>`;
+    calcDealRef = d;
+    if (!Array.isArray(d.services) || !d.services.length)
+        d.services = [newServiceRow(d, "")];
+    const sel = (list, v, cls, f, ph) =>
+        `<select class="cc-in ${cls || ""}" data-c="${f}">${optList(list, v, ["title", "in_pay", "out_pay"].includes(f) ? "— оберіть —" : undefined)}</select>`;
     const inp = (v, f, cls, ph) =>
         `<input class="cc-in ${cls || ""}" data-c="${f}" value="${e(v ?? "")}" ${ph ? `placeholder="${ph}"` : ""} />`;
     const rowsHtml = d.services
@@ -852,7 +895,12 @@ function renderCalc(d, box) {
             const c = rowCalc(r);
             return `<tr data-i="${i}">
                 <td class="cc-n">${i + 1}</td>
-                <td>${inp(r.title, "title", "cc-title", "Стаття (Перевезення, Перетарка, ТЕО…)")}</td>
+                <td>${sel(
+                    ARTICLES.map((a) => a.name),
+                    r.title,
+                    "cc-title",
+                    "title",
+                )}</td>
                 <td>${inp(r.qty, "qty", "cc-num cc-qty")}</td>
                 <td class="cc-in-side">${inp(r.in_rate, "in_rate", "cc-num", "0,00")}</td>
                 <td class="cc-in-side">${sel(VAT_TYPES, r.in_vat, "cc-vat", "in_vat")}</td>
@@ -860,14 +908,25 @@ function renderCalc(d, box) {
                 <td class="cc-in-side">${sel(CALC_CURRENCIES, r.in_cur, "cc-cur", "in_cur")}</td>
                 <td class="cc-in-side">${inp(fmtRate(r.in_fx), "in_fx", "cc-num cc-fx", "курс")}</td>
                 <td class="cc-in-side cc-sum cc-ue" data-o="inUe">${fmt2(c.inUe)}</td>
-                <td class="cc-in-side">${inp(r.in_pay, "in_pay", "cc-pay", "")}</td>
+                <td class="cc-in-side">${sel(
+                    PAY_ACCOUNTS.map((a) => a.name),
+                    r.in_pay,
+                    "cc-pay",
+                    "in_pay",
+                )}</td>
                 <td class="cc-out-side">${inp(r.out_rate, "out_rate", "cc-num", "0,00")}</td>
                 <td class="cc-out-side">${sel(VAT_TYPES, r.out_vat, "cc-vat", "out_vat")}</td>
                 <td class="cc-out-side cc-sum cc-red" data-o="outSum">${fmt2(c.outSum)}</td>
                 <td class="cc-out-side">${sel(CALC_CURRENCIES, r.out_cur, "cc-cur", "out_cur")}</td>
                 <td class="cc-out-side">${inp(fmtRate(r.out_fx), "out_fx", "cc-num cc-fx", "курс")}</td>
                 <td class="cc-out-side cc-sum cc-ue cc-red" data-o="outUe">${fmt2(c.outUe)}</td>
-                <td class="cc-out-side">${inp(r.out_pay, "out_pay", "cc-pay", "")}</td>
+                <td class="cc-out-side">${sel(
+                    PAY_ACCOUNTS.map((a) => a.name),
+                    r.out_pay,
+                    "cc-pay",
+                    "out_pay",
+                )}</td>
+                <td>${inp(r.note, "note", "cc-note", "Примітка")}</td>
                 <td><button type="button" class="cc-del" data-del="${i}" title="Видалити рядок">✕</button></td>
             </tr>`;
         })
@@ -888,20 +947,20 @@ function renderCalc(d, box) {
                 <thead>
                     <tr class="cc-group">
                         <th colspan="3"></th>
-                        <th colspan="7" class="cc-in-side">Дохід — від клієнта</th>
-                        <th colspan="7" class="cc-out-side">Витрати — перевізнику</th>
-                        <th></th>
+                        <th colspan="7" class="cc-in-side">Дохід</th>
+                        <th colspan="7" class="cc-out-side">Витрати</th>
+                        <th colspan="2"></th>
                     </tr>
                     <tr>
-                        <th>№</th><th>Стаття</th><th>Кіл.</th>
+                        <th>№</th><th>Стаття доходу</th><th>Кіл.</th>
                         <th class="cc-in-side">Ставка</th><th class="cc-in-side">ПДВ</th><th class="cc-in-side">Дохід</th><th class="cc-in-side">Вал.</th><th class="cc-in-side">Курс</th><th class="cc-in-side">Дохід УЕ</th><th class="cc-in-side">Вид оплати</th>
                         <th class="cc-out-side">Ставка</th><th class="cc-out-side">ПДВ</th><th class="cc-out-side">Витрати</th><th class="cc-out-side">Вал.</th><th class="cc-out-side">Курс</th><th class="cc-out-side">Витрати УЕ</th><th class="cc-out-side">Вид оплати</th>
-                        <th></th>
+                        <th>Примітка</th><th></th>
                     </tr>
                 </thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
-            <datalist id="ccPayList">${PAY_ACCOUNTS.map((a) => `<option value="${e(a)}"></option>`).join("")}</datalist>
+
         </div>
         <div class="dv-totals">
             <div class="dv-kpi"><div class="dv-label">Всього дохід</div><div class="dv-kpi-v" id="dvCalcIncome">${usd(t.income)}</div></div>
@@ -911,8 +970,24 @@ function renderCalc(d, box) {
         </div>`;
 
     bindFields(box, d);
-    box.querySelectorAll(".cc-pay").forEach((el) =>
-        el.setAttribute("list", "ccPayList"),
+    // Нова дата розрахунку — курси НБУ на цю дату
+    box.querySelector("[data-f=calc_date]")?.addEventListener(
+        "change",
+        async (ev) => {
+            d.calc_date = ev.target.value || null;
+            const rates = await loadNbu();
+            if (!rates) return;
+            d.services.forEach((r) =>
+                ["in", "out"].forEach(
+                    (side) =>
+                        (r[`${side}_fx`] =
+                            +Number(rates[r[`${side}_cur`]] || 0).toFixed(4) ||
+                            ""),
+                ),
+            );
+            saveServicesSoon(d);
+            renderCalc(d, box);
+        },
     );
 
     // Зміна будь-якої клітинки — перерахунок рядка, підсумків і збереження
@@ -986,8 +1061,32 @@ async function onCell(ev, d, box, isChange) {
             ? ""
             : num(el.value)
         : el.value;
+    // Стаття → ПДВ підставляється сам
+    if (isChange && f === "title") {
+        const a = ARTICLES.find((x) => x.name === r.title);
+        if (a?.vat) {
+            r.in_vat = r.out_vat = a.vat;
+            tr.querySelectorAll('[data-c="in_vat"],[data-c="out_vat"]').forEach(
+                (x) => (x.value = a.vat),
+            );
+        }
+    }
+    // Вид оплати → валюта цього рахунку (і курс)
+    let curChanged = null;
+    if (isChange && (f === "in_pay" || f === "out_pay")) {
+        const side = f.slice(0, -4);
+        const acc = PAY_ACCOUNTS.find((x) => x.name === r[f]);
+        if (acc && acc.cur !== r[`${side}_cur`]) {
+            r[`${side}_cur`] = acc.cur;
+            const c = tr.querySelector(`[data-c="${side}_cur"]`);
+            if (c) c.value = acc.cur;
+            curChanged = `${side}_cur`;
+        }
+    }
     // Змінили валюту — ставимо курс НБУ для неї
-    if (isChange && (f === "in_cur" || f === "out_cur")) {
+    const fCur = curChanged || f;
+    if (isChange && (fCur === "in_cur" || fCur === "out_cur")) {
+        const f = fCur;
         const side = f.slice(0, -4);
         const rates = await loadNbu();
         r[`${side}_fx`] =
