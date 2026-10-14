@@ -1156,3 +1156,14 @@ select.cc-pay {
 .cc-note {
     min-width: 170px;
 }
+.dv-track-warn {
+    border-color: #fde4b5;
+    background: #fff8eb;
+}
+.dv-track-warn > i {
+    color: #d97706;
+}
+.deal-state i {
+    font-size: 13px;
+    vertical-align: -1px;
+}

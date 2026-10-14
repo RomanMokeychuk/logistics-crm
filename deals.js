@@ -156,7 +156,24 @@ function tripMini(d) {
     if (!t) return "";
     return `<div class="deal-trip-mini" title="Трекінг рейсу"><i class="bx bx-map-pin"></i> рейс № ${escapeHtml(t.trip_no)} · ${escapeHtml((typeof TRIP_LABELS !== "undefined" && TRIP_LABELS[t.status]) || t.status)}</div>`;
 }
+// Етапи рейсу, які показуємо як статус угоди (коли трекінг запущено)
+const TRIP_STATE_BADGE = {
+    assigned: ["Чекає водія", "deal-st-plan"],
+    confirmed: ["Водій підтвердив", "deal-st-plan"],
+    to_loading: ["Їде на завантаження", "deal-st-road"],
+    at_loading: ["Завантаження в процесі", "deal-st-road"],
+    loaded: ["В дорозі", "deal-st-road"],
+    at_border: ["На кордоні", "deal-st-late"],
+    crossed_border: ["Пройшов кордон", "deal-st-road"],
+    at_unloading: ["На розвантаженні", "deal-st-road"],
+    unloaded: ["Доставлено", "deal-st-done"],
+};
 function stateBadge(d) {
+    const t =
+        typeof tripByDeal !== "undefined" ? tripByDeal.get(String(d.id)) : null;
+    const ts = t && TRIP_STATE_BADGE[t.status];
+    if (ts)
+        return `<span class="deal-state ${ts[1]}" title="Статус з трекінгу рейсу № ${escapeHtml(t.trip_no)}"><i class="bx bx-map-pin"></i> ${ts[0]}</span>`;
     const s = DEAL_STATES.find((x) => x.key === dealState(d));
     return `<span class="deal-state ${s.cls}">${s.label}</span>`;
 }
@@ -203,7 +220,7 @@ async function loadDeals() {
     // Рейс кожної угоди — для позначки «Трекінг» у таблиці
     const { data: trs } = await sbClient
         .from("trips")
-        .select("deal_id, trip_no, status, created_at")
+        .select("id, deal_id, trip_no, status, created_at")
         .not("deal_id", "is", null)
         .order("created_at", { ascending: true });
     tripByDeal = new Map((trs || []).map((t) => [String(t.deal_id), t]));
@@ -940,7 +957,6 @@ function renderCalc(d, box) {
         <div class="dv-grid dv-grid-calc">
             <div class="dv-field"><div class="dv-label">Дата розрахунку</div>
                 <input type="date" class="dv-in" data-f="calc_date" value="${e(String(d.calc_date || "").slice(0, 10))}" /></div>
-            <div class="dv-field"><div class="dv-label">УЕ</div><div class="dv-value">USD — курс: скільки валюти за 1 $</div></div>
         </div>
         <div class="cc-wrap">
             <table class="cc-table">
@@ -1268,6 +1284,7 @@ async function saveDeal(d, patch) {
             `${shortPlace(d.load_country, d.load_address)} → ${shortPlace(d.unload_country, d.unload_address)}`;
     if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
     flashSaved("Збережено ✓");
+    syncTrip(d, patch);
     return true;
 }
 
@@ -1795,6 +1812,8 @@ async function renderTrackTab(d, box) {
     }
     const trip = data?.[0];
     if (trip) {
+        tripByDeal.set(String(d.id), { deal_id: d.id, ...trip });
+        if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
         const dead = TRIP_DEAD.includes(trip.status);
         box.innerHTML = `
             <div class="dv-track-bar">
@@ -1812,7 +1831,7 @@ async function renderTrackTab(d, box) {
     box.innerHTML = `
         <div class="dv-track-empty">
             <i class="bx bx-map-alt"></i>
-            <div><b>Трекінг ще не запущено</b><br>Створіть рейс — дані угоди (адреси, водій, авто, дати) підставляться самі. Водій отримає код для застосунку «FURA Водій».</div>
+            <div><b>Трекінг ще не запущено</b><br>Рейс створиться одразу з «Дані авто»: маршрут, пункт пропуску, авто, водій, дати. Водій отримає код для застосунку «FURA Водій». Потім зміни в «Дані авто» самі переносяться в трекінг.</div>
             <button type="button" class="btn btn-primary" id="dvStartTrack"><i class="bx bx-send"></i> Запустити трекінг</button>
         </div>
         <div class="dv-track-link" id="dvLinkBox" hidden>
@@ -1852,8 +1871,165 @@ async function renderTrackTab(d, box) {
     });
 }
 
-function startTrackForm(d, box) {
-    box.innerHTML = `<iframe class="dv-track-frame" src="trips.html?embed=1&new_from_deal=${encodeURIComponent(d.id)}" title="Новий рейс"></iframe>`;
+// Рейс створюється одразу з «Дані авто» — без окремої форми
+function tripFieldsFromDeal(d) {
+    const load = d.load_date_plan
+        ? new Date(`${String(d.load_date_plan).slice(0, 10)}T08:00:00`)
+        : null;
+    let unload = d.unload_date_plan
+        ? new Date(`${String(d.unload_date_plan).slice(0, 10)}T17:00:00`)
+        : null;
+    if (load && (!unload || unload < load))
+        unload = new Date(load.getTime() + 26 * 3600000);
+    return {
+        client: d.client || null,
+        carrier_id: d.carrier_id ? String(d.carrier_id) : null,
+        carrier_name: d.carrier_name || null,
+        driver_name: d.driver_name || null,
+        driver_phone: d.driver_phone
+            ? cleanPhone(d.driver_phone).split(",")[0]
+            : null,
+        truck_plate: d.truck_plate || null,
+        trailer_plate: d.trailer_plate || null,
+        load_country: d.load_country || null,
+        load_address: d.load_address || null,
+        unload_country: d.unload_country || null,
+        unload_address: d.unload_address || null,
+        load_planned_at: load ? load.toISOString() : null,
+        unload_planned_at: unload ? unload.toISOString() : null,
+        logist_name: d.logist_name || currentStaff?.full_name || null,
+        logist_phone:
+            d.logist_phone ||
+            (currentStaff?.phone ? cleanPhone(currentStaff.phone) : null),
+    };
+}
+
+async function tripRoute(d) {
+    const code = window.furaCountryCode || (() => "");
+    try {
+        const { data, error } = await sbClient.functions.invoke("fura-geo", {
+            body: {
+                action: "route",
+                from: d.load_address,
+                to: d.unload_address,
+                fromCountry: code(d.load_country),
+                toCountry: code(d.unload_country),
+                via: BORDER_CROSSINGS.includes(d.border_crossing)
+                    ? d.border_crossing
+                    : "",
+            },
+        });
+        if (error || !data || data.error) return null;
+        const line = Array.isArray(data.line) ? data.line : [];
+        const step = Math.max(1, Math.ceil(line.length / 1500));
+        return {
+            load_lat: data.from?.lat ?? null,
+            load_lon: data.from?.lon ?? null,
+            unload_lat: data.to?.lat ?? null,
+            unload_lon: data.to?.lon ?? null,
+            route_line: line
+                .filter((_, i) => i % step === 0)
+                .concat(line.length ? [line[line.length - 1]] : []),
+            route_km: data.km ?? null,
+            borders: data.borders || [],
+        };
+    } catch {
+        return null;
+    }
+}
+
+async function startTrackForm(d, box) {
+    const missing = [];
+    if (!d.load_address) missing.push("місто завантаження");
+    if (!d.unload_address) missing.push("місто вивантаження");
+    if (!d.load_date_plan) missing.push("план дати завантаження");
+    if (!d.driver_name) missing.push("ПІБ водія");
+    if (!d.driver_phone) missing.push("телефон водія");
+    if (missing.length) {
+        box.innerHTML = `
+            <div class="dv-track-empty dv-track-warn">
+                <i class="bx bx-error-circle"></i>
+                <div><b>Для трекінгу заповніть у «Дані авто»:</b><br>${missing.map(escapeHtml).join(", ")}</div>
+                <button type="button" class="btn btn-primary" id="dvGoAuto">Перейти в «Дані авто»</button>
+            </div>`;
+        $("dvGoAuto").addEventListener("click", () =>
+            detailView.querySelector('[data-tab="auto"]')?.click(),
+        );
+        return;
+    }
+    box.innerHTML = `<div class="dv-empty">Створюю рейс і будую маршрут для фури…</div>`;
+    const payload = { ...tripFieldsFromDeal(d), deal_id: d.id };
+    Object.assign(payload, (await tripRoute(d)) || {});
+    const { data, error } = await sbClient
+        .from("trips")
+        .insert([payload])
+        .select("id, trip_no, status")
+        .single();
+    if (error) {
+        box.innerHTML = `<div class="dv-dev">Не вдалося створити рейс: ${escapeHtml(error.message)}</div>`;
+        return;
+    }
+    tripByDeal.set(String(d.id), { deal_id: d.id, ...data });
+    if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
+    box.innerHTML = `<iframe class="dv-track-frame" src="trips.html?embed=1&trip=${encodeURIComponent(data.id)}&invite=1" title="Трекінг рейсу"></iframe>`;
+}
+
+// Змінили «Дані авто» — оновлюємо і рейс (поки він не завершений)
+const TRIP_SYNC_FIELDS = [
+    "client",
+    "carrier_id",
+    "carrier_name",
+    "driver_name",
+    "driver_phone",
+    "truck_plate",
+    "trailer_plate",
+    "load_country",
+    "load_address",
+    "unload_country",
+    "unload_address",
+    "load_date_plan",
+    "unload_date_plan",
+    "logist_name",
+    "logist_phone",
+    "border_crossing",
+];
+const ROUTE_FIELDS = [
+    "load_country",
+    "load_address",
+    "unload_country",
+    "unload_address",
+    "border_crossing",
+];
+async function syncTrip(d, patch) {
+    const keys = Object.keys(patch);
+    if (!keys.some((k) => TRIP_SYNC_FIELDS.includes(k))) return;
+    const t = tripByDeal.get(String(d.id));
+    if (
+        !t ||
+        ["unloaded", "timeout", "cancelled", "declined"].includes(t.status)
+    )
+        return;
+    const upd = tripFieldsFromDeal(d);
+    if (
+        keys.some((k) => ROUTE_FIELDS.includes(k)) &&
+        d.load_address &&
+        d.unload_address
+    )
+        Object.assign(upd, (await tripRoute(d)) || {});
+    const { error } = await sbClient
+        .from("trips")
+        .update(upd)
+        .eq("id", t.id ?? (await tripIdOf(d)));
+    if (!error) flashSaved("Збережено ✓ (і в трекінгу)");
+}
+async function tripIdOf(d) {
+    const { data } = await sbClient
+        .from("trips")
+        .select("id")
+        .eq("deal_id", d.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+    return data?.[0]?.id;
 }
 
 // Повідомлення з вкладки «Трекінг» (рейс створено / форму закрили)
