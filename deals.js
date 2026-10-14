@@ -16,17 +16,67 @@ async function logout() {
 /* ---------------- Довідники ---------------- */
 
 const COUNTRIES = [
-    "УКРАЇНА", "ПОЛЬША", "НІМЕЧЧИНА", "ЛИТВА", "ЛАТВІЯ", "ЕСТОНІЯ", "ЧЕХІЯ", "СЛОВАЧЧИНА", "УГОРЩИНА",
-    "РУМУНІЯ", "МОЛДОВА", "БОЛГАРІЯ", "АВСТРІЯ", "ІТАЛІЯ", "ІСПАНІЯ", "ФРАНЦІЯ", "БЕЛЬГІЯ", "НІДЕРЛАНДИ",
-    "ДАНІЯ", "ФІНЛЯНДІЯ", "ВЕЛИКОБРИТАНІЯ", "ТУРЕЧЧИНА", "ГРУЗІЯ", "ВІРМЕНІЯ", "АЗЕРБАЙДЖАН", "СЛОВЕНІЯ",
+    "УКРАЇНА",
+    "ПОЛЬША",
+    "НІМЕЧЧИНА",
+    "ЛИТВА",
+    "ЛАТВІЯ",
+    "ЕСТОНІЯ",
+    "ЧЕХІЯ",
+    "СЛОВАЧЧИНА",
+    "УГОРЩИНА",
+    "РУМУНІЯ",
+    "МОЛДОВА",
+    "БОЛГАРІЯ",
+    "АВСТРІЯ",
+    "ІТАЛІЯ",
+    "ІСПАНІЯ",
+    "ФРАНЦІЯ",
+    "БЕЛЬГІЯ",
+    "НІДЕРЛАНДИ",
+    "ДАНІЯ",
+    "ФІНЛЯНДІЯ",
+    "ВЕЛИКОБРИТАНІЯ",
+    "ТУРЕЧЧИНА",
+    "ГРУЗІЯ",
+    "ВІРМЕНІЯ",
+    "АЗЕРБАЙДЖАН",
+    "СЛОВЕНІЯ",
 ];
 const BORDER_CROSSINGS = [
-    "Ягодин – Дорогуськ (PL)", "Устилуг – Зосін (PL)", "Рава-Руська – Гребенне (PL)", "Краковець – Корчова (PL)",
-    "Шегині – Медика (PL)", "Угринів – Долгобичув (PL)", "Ужгород – Вишнє Нємецьке (SK)", "Малий Березний – Убля (SK)",
-    "Тиса – Захонь (HU)", "Лужанка – Берегшурань (HU)", "Дякове – Халмеу (RO)", "Порубне – Сірет (RO)",
-    "Дяківці – Раковець (MD)", "Могилів-Подільський – Отач (MD)", "Паланка – Маяки-Удобне (MD)", "Рені – Джурджулешти (MD)",
+    "Ягодин – Дорогуськ (PL)",
+    "Устилуг – Зосін (PL)",
+    "Рава-Руська – Гребенне (PL)",
+    "Краковець – Корчова (PL)",
+    "Шегині – Медика (PL)",
+    "Угринів – Долгобичув (PL)",
+    "Ужгород – Вишнє Нємецьке (SK)",
+    "Малий Березний – Убля (SK)",
+    "Тиса – Захонь (HU)",
+    "Лужанка – Берегшурань (HU)",
+    "Дякове – Халмеу (RO)",
+    "Порубне – Сірет (RO)",
+    "Дяківці – Раковець (MD)",
+    "Могилів-Подільський – Отач (MD)",
+    "Паланка – Маяки-Удобне (MD)",
+    "Рені – Джурджулешти (MD)",
 ];
-const TRAILERS = ["ТЕНТ", "РЕФ", "ІЗОТЕРМ", "ЦІЛЬНОМЕТ", "КОНТЕЙНЕРОВОЗ", "МЕГА", "СЦЕПКА", "БУС", "ЦИСТЕРНА", "ЗЕРНОВОЗ", "САМОСКИД", "ПЛАТФОРМА", "ТРАЛ", "АВТОВОЗ"];
+const TRAILERS = [
+    "ТЕНТ",
+    "РЕФ",
+    "ІЗОТЕРМ",
+    "ЦІЛЬНОМЕТ",
+    "КОНТЕЙНЕРОВОЗ",
+    "МЕГА",
+    "СЦЕПКА",
+    "БУС",
+    "ЦИСТЕРНА",
+    "ЗЕРНОВОЗ",
+    "САМОСКИД",
+    "ПЛАТФОРМА",
+    "ТРАЛ",
+    "АВТОВОЗ",
+];
 const CUSTOMS_HERE = "По місцю";
 
 // Статус угоди визначається з дат — нічого вручну перемикати не треба
@@ -63,7 +113,12 @@ function escapeHtml(str) {
         .replace(/'/g, "&#039;");
 }
 const $ = (id) => document.getElementById(id);
-const rolesOf = (s) => (Array.isArray(s?.roles) && s.roles.length ? s.roles : s?.role ? [s.role] : []);
+const rolesOf = (s) =>
+    Array.isArray(s?.roles) && s.roles.length
+        ? s.roles
+        : s?.role
+          ? [s.role]
+          : [];
 const hasRole = (s, list) => rolesOf(s).some((r) => list.includes(r));
 const todayIso = () => {
     const d = new Date();
@@ -92,7 +147,8 @@ function cleanPhone(v) {
 function dealState(d) {
     if (d.unload_date) return "done";
     if (d.load_date) return "road";
-    if (d.load_date_plan && String(d.load_date_plan).slice(0, 10) < todayIso()) return "late";
+    if (d.load_date_plan && String(d.load_date_plan).slice(0, 10) < todayIso())
+        return "late";
     return "plan";
 }
 function tripMini(d) {
@@ -108,7 +164,10 @@ function place(country, address) {
     return [address, country].filter(Boolean).join(", ");
 }
 function customsText(country, place_, kind) {
-    if (place_ === CUSTOMS_HERE) return kind === "export" ? "По місцю завантаження" : "По місцю розвантаження";
+    if (place_ === CUSTOMS_HERE)
+        return kind === "export"
+            ? "По місцю завантаження"
+            : "По місцю розвантаження";
     return [place_, country].filter(Boolean).join(", ");
 }
 function dateCell(plan, fact) {
@@ -121,14 +180,21 @@ function dateCell(plan, fact) {
 /* ---------------- Завантаження ---------------- */
 
 async function loadStaff(session) {
-    const { data } = await sbClient.from("staff").select("*").order("full_name");
+    const { data } = await sbClient
+        .from("staff")
+        .select("*")
+        .order("full_name");
     staffCache = data || [];
     const email = (session.user?.email || "").toLowerCase();
-    currentStaff = staffCache.find((s) => (s.email || "").toLowerCase() === email) || null;
+    currentStaff =
+        staffCache.find((s) => (s.email || "").toLowerCase() === email) || null;
 }
 
 async function loadDeals() {
-    const { data, error } = await sbClient.from("deals").select("*").order("number", { ascending: false });
+    const { data, error } = await sbClient
+        .from("deals")
+        .select("*")
+        .order("number", { ascending: false });
     if (error) {
         tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}<br>Можливо, ще не виконано deals.sql у Supabase.</td></tr>`;
         return;
@@ -148,21 +214,29 @@ async function loadDeals() {
 /* ---------------- Вкладки статусів ---------------- */
 
 function renderTabs() {
-    const count = (k) => dealsCache.filter((d) => !k || dealState(d) === k).length;
-    const tabs = [{ key: "", label: "Усі", icon: "bx-list-ul" }, ...DEAL_STATES.map((s) => ({ ...s, icon: "bx-circle" }))];
+    const count = (k) =>
+        dealsCache.filter((d) => !k || dealState(d) === k).length;
+    const tabs = [
+        { key: "", label: "Усі", icon: "bx-list-ul" },
+        ...DEAL_STATES.map((s) => ({ ...s, icon: "bx-circle" })),
+    ];
     $("dealTabs").innerHTML = tabs
         .map(
-            (t) => `<button type="button" class="lead-tab ${activeState === t.key ? "active" : ""}" data-key="${t.key}">
+            (
+                t,
+            ) => `<button type="button" class="lead-tab ${activeState === t.key ? "active" : ""}" data-key="${t.key}">
                 ${escapeHtml(t.label)} <span class="lead-tab-count">${count(t.key)}</span></button>`,
         )
         .join("");
-    $("dealTabs").querySelectorAll("[data-key]").forEach((b) =>
-        b.addEventListener("click", () => {
-            activeState = b.dataset.key;
-            renderTabs();
-            renderDeals();
-        }),
-    );
+    $("dealTabs")
+        .querySelectorAll("[data-key]")
+        .forEach((b) =>
+            b.addEventListener("click", () => {
+                activeState = b.dataset.key;
+                renderTabs();
+                renderDeals();
+            }),
+        );
 }
 
 /* ---------------- Таблиця ---------------- */
@@ -173,16 +247,31 @@ function renderDeals() {
         if (activeState && dealState(d) !== activeState) return false;
         if (!q) return true;
         return [
-            d.number, d.client, d.cargo, d.carrier_name, d.carrier_edrpou, d.truck_plate, d.trailer_plate, d.driver_name,
-            d.driver_phone, d.load_country, d.load_address, d.unload_country, d.unload_address, d.border_crossing,
-            d.logist_name, d.sales, d.notes,
+            d.number,
+            d.client,
+            d.cargo,
+            d.carrier_name,
+            d.carrier_edrpou,
+            d.truck_plate,
+            d.trailer_plate,
+            d.driver_name,
+            d.driver_phone,
+            d.load_country,
+            d.load_address,
+            d.unload_country,
+            d.unload_address,
+            d.border_crossing,
+            d.logist_name,
+            d.sales,
+            d.notes,
         ]
             .join(" ")
             .toLowerCase()
             .includes(q);
     });
 
-    $("dealsCountBar").innerHTML = `<span>${rows.length === dealsCache.length ? `Угод: ${dealsCache.length}` : `Показано: ${rows.length} з ${dealsCache.length}`}</span>`;
+    $("dealsCountBar").innerHTML =
+        `<span>${rows.length === dealsCache.length ? `Угод: ${dealsCache.length}` : `Показано: ${rows.length} з ${dealsCache.length}`}</span>`;
 
     if (!rows.length) {
         tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">${dealsCache.length ? "Нічого не знайдено" : "Угод ще немає — натисніть «Нова угода»"}</td></tr>`;
@@ -266,7 +355,12 @@ function suggestBox(input, box, { search, render, onPick }) {
             items = await search(q);
             if (my !== reqNo) return;
             box.innerHTML = items.length
-                ? items.map((it, i) => `<div class="deal-sg-item" data-i="${i}">${render(it)}</div>`).join("")
+                ? items
+                      .map(
+                          (it, i) =>
+                              `<div class="deal-sg-item" data-i="${i}">${render(it)}</div>`,
+                      )
+                      .join("")
                 : `<div class="deal-sg-note">Нічого не знайдено</div>`;
         }, 250);
     });
@@ -277,14 +371,17 @@ function suggestBox(input, box, { search, render, onPick }) {
         onPick(items[Number(el.dataset.i)]);
         box.hidden = true;
     });
-    input.addEventListener("blur", () => setTimeout(() => (box.hidden = true), 150));
+    input.addEventListener("blur", () =>
+        setTimeout(() => (box.hidden = true), 150),
+    );
 }
 
 function setClient(lead) {
     $("deal_lead_id").value = lead ? lead.id : "";
     if (lead) {
         $("deal_client").value = lead.name;
-        if (lead.sales_id && !$("deal_sales").dataset.touched) $("deal_sales").value = lead.sales_id;
+        if (lead.sales_id && !$("deal_sales").dataset.touched)
+            $("deal_sales").value = lead.sales_id;
     }
 }
 
@@ -294,7 +391,10 @@ function setCarrier(c) {
     const hint = $("dealCarrierHint");
     if (c) {
         $("deal_carrier").value = c.name;
-        if (!$("deal_trailer_type").value && c.trailer_type) $("deal_trailer_type").value = String(c.trailer_type).split(";")[0].trim();
+        if (!$("deal_trailer_type").value && c.trailer_type)
+            $("deal_trailer_type").value = String(c.trailer_type)
+                .split(";")[0]
+                .trim();
         hint.innerHTML = `<span class="deal-ok"><i class='bx bx-check-circle'></i> З реєстру${c.edrpou ? ` · ЄДРПОУ/ІПН ${escapeHtml(c.edrpou)}` : ""}${
             c.phone_1 ? ` · ${escapeHtml(c.phone_1)}` : ""
         }</span>`;
@@ -308,21 +408,47 @@ function setCarrier(c) {
 /* ---------------- Форма ---------------- */
 
 function fillSelects() {
-    const countryOpts = `<option value="">Оберіть країну...</option>` + COUNTRIES.map((c) => `<option value="${c}">${c}</option>`).join("");
-    ["deal_load_country", "deal_unload_country", "deal_customs_export_country", "deal_customs_import_country"].forEach(
-        (id) => ($(id).innerHTML = countryOpts),
-    );
-    $("dealBorderList").innerHTML = BORDER_CROSSINGS.map((b) => `<option value="${escapeHtml(b)}"></option>`).join("");
-    $("dealTrailerList").innerHTML = TRAILERS.map((t) => `<option value="${t}"></option>`).join("");
+    const countryOpts =
+        `<option value="">Оберіть країну...</option>` +
+        COUNTRIES.map((c) => `<option value="${c}">${c}</option>`).join("");
+    [
+        "deal_load_country",
+        "deal_unload_country",
+        "deal_customs_export_country",
+        "deal_customs_import_country",
+    ].forEach((id) => ($(id).innerHTML = countryOpts));
+    $("dealBorderList").innerHTML = BORDER_CROSSINGS.map(
+        (b) => `<option value="${escapeHtml(b)}"></option>`,
+    ).join("");
+    $("dealTrailerList").innerHTML = TRAILERS.map(
+        (t) => `<option value="${t}"></option>`,
+    ).join("");
 
     const active = staffCache.filter((s) => s.active !== false);
     const sales = active.filter((s) => hasRole(s, ["sales", "head"]));
     const logists = active.filter((s) => hasRole(s, ["logist"]));
-    $("deal_sales").innerHTML = `<option value="">—</option>` + sales.map((s) => `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`).join("");
-    $("deal_logist").innerHTML = `<option value="">— не потрібно —</option>` + logists.map((s) => `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`).join("");
+    $("deal_sales").innerHTML =
+        `<option value="">—</option>` +
+        sales
+            .map(
+                (s) =>
+                    `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`,
+            )
+            .join("");
+    $("deal_logist").innerHTML =
+        `<option value="">— не потрібно —</option>` +
+        logists
+            .map(
+                (s) =>
+                    `<option value="${s.id}">${escapeHtml(s.full_name)}</option>`,
+            )
+            .join("");
 }
 
-$("deal_sales").addEventListener("change", (e) => (e.target.dataset.touched = "1"));
+$("deal_sales").addEventListener(
+    "change",
+    (e) => (e.target.dataset.touched = "1"),
+);
 $("deal_logist").addEventListener("change", (e) => {
     const s = staffCache.find((x) => String(x.id) === e.target.value);
     $("deal_logist_phone").value = s?.phone ? cleanPhone(s.phone) : "";
@@ -335,10 +461,19 @@ function updateCustomsHere(kind) {
         if (here) $(id).value = "";
     });
 }
-["export", "import"].forEach((k) => $(`deal_customs_${k}_here`).addEventListener("change", () => updateCustomsHere(k)));
+["export", "import"].forEach((k) =>
+    $(`deal_customs_${k}_here`).addEventListener("change", () =>
+        updateCustomsHere(k),
+    ),
+);
 
 function setVal(id, v) {
-    $(id).value = v === null || v === undefined ? "" : String(v).match(/^\d{4}-\d{2}-\d{2}T/) ? String(v).slice(0, 10) : v;
+    $(id).value =
+        v === null || v === undefined
+            ? ""
+            : String(v).match(/^\d{4}-\d{2}-\d{2}T/)
+              ? String(v).slice(0, 10)
+              : v;
 }
 
 let editingDeal = null;
@@ -363,7 +498,10 @@ function openDealModal(deal = null, { copy = false } = {}) {
     ["export", "import"].forEach((k) => {
         const placeV = d[`customs_${k}`];
         $(`deal_customs_${k}_here`).checked = placeV === CUSTOMS_HERE;
-        setVal(`deal_customs_${k}_country`, placeV === CUSTOMS_HERE ? "" : d[`customs_${k}_country`]);
+        setVal(
+            `deal_customs_${k}_country`,
+            placeV === CUSTOMS_HERE ? "" : d[`customs_${k}_country`],
+        );
         setVal(`deal_customs_${k}`, placeV === CUSTOMS_HERE ? "" : placeV);
         updateCustomsHere(k);
     });
@@ -380,12 +518,21 @@ function openDealModal(deal = null, { copy = false } = {}) {
     setVal("deal_driver_phone", d.driver_phone);
 
     // Відповідальні: для нової угоди — я (як Sales або логіст)
-    const meSales = !deal && currentStaff && hasRole(currentStaff, ["sales", "head"]) ? currentStaff.id : "";
-    const meLogist = !deal && currentStaff && hasRole(currentStaff, ["logist"]) ? currentStaff.id : "";
+    const meSales =
+        !deal && currentStaff && hasRole(currentStaff, ["sales", "head"])
+            ? currentStaff.id
+            : "";
+    const meLogist =
+        !deal && currentStaff && hasRole(currentStaff, ["logist"])
+            ? currentStaff.id
+            : "";
     $("deal_sales").value = d.sales_id || meSales || "";
     $("deal_logist").value = d.logist_id || meLogist || "";
     const lg = staffCache.find((x) => String(x.id) === $("deal_logist").value);
-    setVal("deal_logist_phone", d.logist_phone || (lg?.phone ? cleanPhone(lg.phone) : ""));
+    setVal(
+        "deal_logist_phone",
+        d.logist_phone || (lg?.phone ? cleanPhone(lg.phone) : ""),
+    );
 
     setVal("deal_load_date_plan", d.load_date_plan);
     setVal("deal_unload_date_plan", d.unload_date_plan);
@@ -406,7 +553,11 @@ function openDealModal(deal = null, { copy = false } = {}) {
     modalOverlay.scrollTop = 0;
     window.furaSetCrumbs?.([
         { label: "Угоди", href: "deals.html" },
-        copy ? `Копія № ${d.number}` : deal ? `№ ${d.number} — редагування` : "Нова угода",
+        copy
+            ? `Копія № ${d.number}`
+            : deal
+              ? `№ ${d.number} — редагування`
+              : "Нова угода",
     ]);
     setTimeout(() => (deal ? null : $("deal_client").focus()), 50);
 }
@@ -415,7 +566,9 @@ function closeDealModal() {
     if (!modalOverlay.classList.contains("active")) return;
     modalOverlay.classList.remove("active");
     // Повертаємось туди, звідки прийшли: у відкриту угоду або до списку
-    const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
+    const d = dealsCache.find(
+        (x) => String(x.id) === String(currentCardDealId),
+    );
     if (d) openDealCard(d.id);
     else {
         $("dealsListView").hidden = false;
@@ -437,17 +590,22 @@ dealForm.addEventListener("submit", async (e) => {
     };
 
     if (!v("deal_lead_id")) {
-        alert("Оберіть клієнта зі списку Лідів (почніть вводити назву і клацніть на потрібного).");
+        alert(
+            "Оберіть клієнта зі списку Лідів (почніть вводити назву і клацніть на потрібного).",
+        );
         return $("deal_client").focus();
     }
     if (!v("deal_carrier_id")) {
-        alert("Перевізник має бути з реєстру Перевізників.\n\nПочніть вводити назву і оберіть зі списку. Якщо його немає — спершу додайте в розділі «Перевізники».");
+        alert(
+            "Перевізник має бути з реєстру Перевізників.\n\nПочніть вводити назву і оберіть зі списку. Якщо його немає — спершу додайте в розділі «Перевізники».",
+        );
         return $("deal_carrier").focus();
     }
 
     const salesId = v("deal_sales");
     const logistId = v("deal_logist");
-    const nameOf = (id) => staffCache.find((s) => String(s.id) === String(id))?.full_name || null;
+    const nameOf = (id) =>
+        staffCache.find((s) => String(s.id) === String(id))?.full_name || null;
 
     const payload = {
         lead_id: v("deal_lead_id"),
@@ -457,36 +615,53 @@ dealForm.addEventListener("submit", async (e) => {
         load_country: v("deal_load_country"),
         load_address: v("deal_load_address"),
         customs_export_country: v("deal_customs_export_country"),
-        customs_export: $("deal_customs_export_here").checked ? CUSTOMS_HERE : v("deal_customs_export"),
+        customs_export: $("deal_customs_export_here").checked
+            ? CUSTOMS_HERE
+            : v("deal_customs_export"),
         border_crossing: v("deal_border_crossing"),
         customs_import_country: v("deal_customs_import_country"),
-        customs_import: $("deal_customs_import_here").checked ? CUSTOMS_HERE : v("deal_customs_import"),
+        customs_import: $("deal_customs_import_here").checked
+            ? CUSTOMS_HERE
+            : v("deal_customs_import"),
         unload_country: v("deal_unload_country"),
         unload_address: v("deal_unload_address"),
         carrier_id: v("deal_carrier_id"),
         carrier_name: v("deal_carrier"),
         carrier_edrpou: v("deal_carrier_edrpou"),
         trailer_type: v("deal_trailer_type"),
-        truck_plate: v("deal_truck_plate")?.toUpperCase().replace(/\s+/g, "") || null,
-        trailer_plate: v("deal_trailer_plate")?.toUpperCase().replace(/\s+/g, "") || null,
+        truck_plate:
+            v("deal_truck_plate")?.toUpperCase().replace(/\s+/g, "") || null,
+        trailer_plate:
+            v("deal_trailer_plate")?.toUpperCase().replace(/\s+/g, "") || null,
         driver_name: v("deal_driver_name"),
-        driver_phone: v("deal_driver_phone") ? cleanPhone(v("deal_driver_phone")) : null,
+        driver_phone: v("deal_driver_phone")
+            ? cleanPhone(v("deal_driver_phone"))
+            : null,
         sales_id: salesId,
         sales: nameOf(salesId),
         logist_id: logistId,
         logist_name: nameOf(logistId),
-        logist_phone: v("deal_logist_phone") ? cleanPhone(v("deal_logist_phone")) : null,
+        logist_phone: v("deal_logist_phone")
+            ? cleanPhone(v("deal_logist_phone"))
+            : null,
         load_date_plan: v("deal_load_date_plan"),
         load_date: v("deal_load_date"),
         unload_date_plan: v("deal_unload_date_plan"),
         unload_date: v("deal_unload_date"),
         notes: v("deal_notes"),
-        copied_from: v("deal_copied_from") ? Number(v("deal_copied_from")) : null,
+        copied_from: v("deal_copied_from")
+            ? Number(v("deal_copied_from"))
+            : null,
     };
 
     const id = v("dealId");
     const res = id
-        ? await sbClient.from("deals").update(payload).eq("id", id).select().single()
+        ? await sbClient
+              .from("deals")
+              .update(payload)
+              .eq("id", id)
+              .select()
+              .single()
         : await sbClient.from("deals").insert([payload]).select().single();
     if (res.error) return alert("Не вдалося зберегти: " + res.error.message);
     modalOverlay.classList.remove("active");
@@ -517,8 +692,12 @@ const FLAGS = [
     ["originals_from_carrier", "Оригінали від перевізника"],
 ];
 
-const countryCode = (c) => ((window.furaCountryCode && window.furaCountryCode(c)) || "").toUpperCase();
-const cityOf = (addr) => String(addr || "").split(",")[0].trim();
+const countryCode = (c) =>
+    ((window.furaCountryCode && window.furaCountryCode(c)) || "").toUpperCase();
+const cityOf = (addr) =>
+    String(addr || "")
+        .split(",")[0]
+        .trim();
 function shortPlace(country, addr) {
     const city = cityOf(addr);
     const code = countryCode(country) || country || "";
@@ -533,15 +712,291 @@ function initials(name) {
         .join("")
         .toUpperCase();
 }
-const money = (v) => `${Number(v || 0).toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const money = (v) =>
+    `${Number(v || 0).toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
 function dvField(label, valueHtml, cls = "") {
     return `<div class="dv-field ${cls}"><div class="dv-label">${label}</div><div class="dv-value">${valueHtml || "—"}</div></div>`;
 }
 function personRow(label, name) {
     return `<div class="dv-field"><div class="dv-label">${label}</div><div class="dv-value dv-person">${
-        name ? `<span class="dv-avatar">${escapeHtml(initials(name))}</span>${escapeHtml(name)}` : "—"
+        name
+            ? `<span class="dv-avatar">${escapeHtml(initials(name))}</span>${escapeHtml(name)}`
+            : "—"
     }</div></div>`;
+}
+
+/* ---------------- Розрахунок: послуги (дохід від клієнта / витрати перевізнику) ---------------- */
+// Як у 1С: стаття, кількість, ставка, ПДВ, валюта, курс → сума в УЕ (долари).
+// Курс = скільки одиниць валюти за 1 долар (UAH ≈ 41, EUR ≈ 0,87, USD = 1).
+
+const CALC_CURRENCIES = ["UAH", "EUR", "USD"];
+const VAT_TYPES = ["З ПДВ 20%", "Без ПДВ", "ПДВ 0%", "Не ПДВ"];
+const PAY_ACCOUNTS = ["ВСТ БАНК (ГРН)", "GRANDAR BG LTD", "Готівка"];
+const CALC_STATUSES = ["Новий", "Погоджено", "Рахунок виставлено", "Оплачено"];
+
+const num = (v) => {
+    const n = parseFloat(
+        String(v ?? "")
+            .replace(/\s/g, "")
+            .replace(",", "."),
+    );
+    return isFinite(n) ? n : 0;
+};
+const fmt2 = (v) =>
+    Number(v || 0).toLocaleString("uk-UA", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    });
+const fmtRate = (v) =>
+    v ? Number(v).toLocaleString("uk-UA", { maximumFractionDigits: 4 }) : "";
+const usd = (v) => `${fmt2(v)} $`;
+
+function rowCalc(r) {
+    const qty = num(r.qty) || 1;
+    const inSum = qty * num(r.in_rate);
+    const outSum = qty * num(r.out_rate);
+    const inUe = num(r.in_fx) ? inSum / num(r.in_fx) : 0;
+    const outUe = num(r.out_fx) ? outSum / num(r.out_fx) : 0;
+    return { inSum, outSum, inUe, outUe };
+}
+function calcTotals(d) {
+    const rows = Array.isArray(d.services) ? d.services : [];
+    let income = 0,
+        expense = 0;
+    rows.forEach((r) => {
+        const c = rowCalc(r);
+        income += c.inUe;
+        expense += c.outUe;
+    });
+    return { income, expense, profit: income - expense };
+}
+
+// Курс НБУ (скільки валюти за 1 долар); якщо не вдалося — вводиться вручну
+let nbuRates = null;
+async function loadNbu() {
+    if (nbuRates) return nbuRates;
+    try {
+        const res = await fetch(
+            "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json",
+        );
+        const list = await res.json();
+        const uah = (cc) => list.find((x) => x.cc === cc)?.rate;
+        const usdUah = uah("USD"),
+            eurUah = uah("EUR");
+        if (usdUah && eurUah)
+            nbuRates = { USD: 1, UAH: usdUah, EUR: usdUah / eurUah };
+    } catch {
+        /* немає доступу до НБУ — курс вводиться вручну */
+    }
+    return nbuRates;
+}
+
+function newServiceRow(d, title) {
+    return {
+        title: title || "",
+        qty: 1,
+        in_rate: "",
+        in_vat: "Без ПДВ",
+        in_cur: "EUR",
+        in_fx: "",
+        in_pay: "",
+        out_rate: "",
+        out_vat: "Без ПДВ",
+        out_cur: "EUR",
+        out_fx: "",
+        out_pay: "",
+    };
+}
+
+let calcSaveTimer = null;
+function saveServicesSoon(d) {
+    clearTimeout(calcSaveTimer);
+    calcSaveTimer = setTimeout(
+        () => saveDeal(d, { services: d.services }),
+        700,
+    );
+}
+
+function updateProfitKpis(d) {
+    const t = calcTotals(d);
+    if ($("dvPlanProfit")) $("dvPlanProfit").textContent = usd(t.profit);
+    if ($("dvFactProfit"))
+        $("dvFactProfit").textContent = usd(
+            d.paid_by_client && d.paid_to_carrier ? t.profit : 0,
+        );
+    if ($("dvCalcIncome")) $("dvCalcIncome").textContent = usd(t.income);
+    if ($("dvCalcExpense")) $("dvCalcExpense").textContent = usd(t.expense);
+    if ($("dvCalcProfit")) {
+        $("dvCalcProfit").textContent = usd(t.profit);
+        $("dvCalcProfit").classList.toggle("neg", t.profit < 0);
+    }
+}
+
+function renderCalc(d, box) {
+    const e = escapeHtml;
+    if (!Array.isArray(d.services) || !d.services.length) {
+        const route = [cityOf(d.load_address), cityOf(d.unload_address)]
+            .filter(Boolean)
+            .join(" — ");
+        d.services = [
+            newServiceRow(d, `Перевезення${route ? " " + route : ""}`),
+        ];
+    }
+    const sel = (list, v, cls, f) =>
+        `<select class="cc-in ${cls || ""}" data-c="${f}">${optList(list, v)}</select>`;
+    const inp = (v, f, cls, ph) =>
+        `<input class="cc-in ${cls || ""}" data-c="${f}" value="${e(v ?? "")}" ${ph ? `placeholder="${ph}"` : ""} />`;
+    const rowsHtml = d.services
+        .map((r, i) => {
+            const c = rowCalc(r);
+            return `<tr data-i="${i}">
+                <td class="cc-n">${i + 1}</td>
+                <td>${inp(r.title, "title", "cc-title", "Стаття (Перевезення, Перетарка, ТЕО…)")}</td>
+                <td>${inp(r.qty, "qty", "cc-num cc-qty")}</td>
+                <td class="cc-in-side">${inp(r.in_rate, "in_rate", "cc-num", "0,00")}</td>
+                <td class="cc-in-side">${sel(VAT_TYPES, r.in_vat, "cc-vat", "in_vat")}</td>
+                <td class="cc-in-side cc-sum" data-o="inSum">${fmt2(c.inSum)}</td>
+                <td class="cc-in-side">${sel(CALC_CURRENCIES, r.in_cur, "cc-cur", "in_cur")}</td>
+                <td class="cc-in-side">${inp(fmtRate(r.in_fx), "in_fx", "cc-num cc-fx", "курс")}</td>
+                <td class="cc-in-side cc-sum cc-ue" data-o="inUe">${fmt2(c.inUe)}</td>
+                <td class="cc-in-side">${inp(r.in_pay, "in_pay", "cc-pay", "")}</td>
+                <td class="cc-out-side">${inp(r.out_rate, "out_rate", "cc-num", "0,00")}</td>
+                <td class="cc-out-side">${sel(VAT_TYPES, r.out_vat, "cc-vat", "out_vat")}</td>
+                <td class="cc-out-side cc-sum cc-red" data-o="outSum">${fmt2(c.outSum)}</td>
+                <td class="cc-out-side">${sel(CALC_CURRENCIES, r.out_cur, "cc-cur", "out_cur")}</td>
+                <td class="cc-out-side">${inp(fmtRate(r.out_fx), "out_fx", "cc-num cc-fx", "курс")}</td>
+                <td class="cc-out-side cc-sum cc-ue cc-red" data-o="outUe">${fmt2(c.outUe)}</td>
+                <td class="cc-out-side">${inp(r.out_pay, "out_pay", "cc-pay", "")}</td>
+                <td><button type="button" class="cc-del" data-del="${i}" title="Видалити рядок">✕</button></td>
+            </tr>`;
+        })
+        .join("");
+    const t = calcTotals(d);
+    box.innerHTML = `
+        <div class="dv-block-head">
+            <div class="dv-block-title">Послуги перевезення</div>
+            <button type="button" class="dv-ghost dv-ghost-right" id="ccAdd">+ Додати рядок</button>
+        </div>
+        <div class="dv-grid dv-grid-calc">
+            <div class="dv-field"><div class="dv-label">Дата розрахунку</div>
+                <input type="date" class="dv-in" data-f="calc_date" value="${e(String(d.calc_date || "").slice(0, 10))}" /></div>
+            <div class="dv-field"><div class="dv-label">УЕ</div><div class="dv-value">USD — курс: скільки валюти за 1 $</div></div>
+        </div>
+        <div class="cc-wrap">
+            <table class="cc-table">
+                <thead>
+                    <tr class="cc-group">
+                        <th colspan="3"></th>
+                        <th colspan="7" class="cc-in-side">Дохід — від клієнта</th>
+                        <th colspan="7" class="cc-out-side">Витрати — перевізнику</th>
+                        <th></th>
+                    </tr>
+                    <tr>
+                        <th>№</th><th>Стаття</th><th>Кіл.</th>
+                        <th class="cc-in-side">Ставка</th><th class="cc-in-side">ПДВ</th><th class="cc-in-side">Дохід</th><th class="cc-in-side">Вал.</th><th class="cc-in-side">Курс</th><th class="cc-in-side">Дохід УЕ</th><th class="cc-in-side">Вид оплати</th>
+                        <th class="cc-out-side">Ставка</th><th class="cc-out-side">ПДВ</th><th class="cc-out-side">Витрати</th><th class="cc-out-side">Вал.</th><th class="cc-out-side">Курс</th><th class="cc-out-side">Витрати УЕ</th><th class="cc-out-side">Вид оплати</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+            <datalist id="ccPayList">${PAY_ACCOUNTS.map((a) => `<option value="${e(a)}"></option>`).join("")}</datalist>
+        </div>
+        <div class="dv-totals">
+            <div class="dv-kpi"><div class="dv-label">Всього дохід</div><div class="dv-kpi-v" id="dvCalcIncome">${usd(t.income)}</div></div>
+            <div class="dv-kpi"><div class="dv-label">Всього витрати</div><div class="dv-kpi-v cc-red" id="dvCalcExpense">${usd(t.expense)}</div></div>
+            <div class="dv-kpi"><div class="dv-label">Профіт</div><div class="dv-kpi-v green ${t.profit < 0 ? "neg" : ""}" id="dvCalcProfit">${usd(t.profit)}</div></div>
+            <button class="dv-invoice" disabled title="Скоро">Виставити рахунок на послуги</button>
+        </div>`;
+
+    bindFields(box, d);
+    box.querySelectorAll(".cc-pay").forEach((el) =>
+        el.setAttribute("list", "ccPayList"),
+    );
+
+    // Зміна будь-якої клітинки — перерахунок рядка, підсумків і збереження
+    box.querySelector("tbody").addEventListener("input", (ev) =>
+        onCell(ev, d, box),
+    );
+    box.querySelector("tbody").addEventListener("change", (ev) =>
+        onCell(ev, d, box, true),
+    );
+    box.querySelectorAll("[data-del]").forEach((b) =>
+        b.addEventListener("click", () => {
+            const i = Number(b.dataset.del);
+            if (d.services.length === 1 && !confirm("Очистити останній рядок?"))
+                return;
+            d.services.splice(i, 1);
+            saveServicesSoon(d);
+            updateProfitKpis(d);
+            renderCalc(d, box);
+        }),
+    );
+    $("ccAdd").addEventListener("click", () => {
+        d.services.push(newServiceRow(d, ""));
+        saveServicesSoon(d);
+        renderCalc(d, box);
+        box.querySelector(
+            `tr[data-i="${d.services.length - 1}"] .cc-title`,
+        )?.focus();
+    });
+
+    // Порожній курс — підставляємо курс НБУ (якщо доступний)
+    loadNbu().then((rates) => {
+        if (!rates) return;
+        let changed = false;
+        d.services.forEach((r, i) => {
+            ["in", "out"].forEach((side) => {
+                if (!r[`${side}_fx`] && rates[r[`${side}_cur`]]) {
+                    r[`${side}_fx`] = +rates[r[`${side}_cur`]].toFixed(4);
+                    const el = box.querySelector(
+                        `tr[data-i="${i}"] [data-c="${side}_fx"]`,
+                    );
+                    if (el) el.value = fmtRate(r[`${side}_fx`]);
+                    changed = true;
+                }
+            });
+        });
+        if (changed) {
+            refreshCalcRows(d, box);
+            saveServicesSoon(d);
+        }
+    });
+}
+
+function refreshCalcRows(d, box) {
+    box.querySelectorAll("tbody tr[data-i]").forEach((tr) => {
+        const c = rowCalc(d.services[Number(tr.dataset.i)] || {});
+        tr.querySelectorAll("[data-o]").forEach(
+            (td) => (td.textContent = fmt2(c[td.dataset.o])),
+        );
+    });
+    updateProfitKpis(d);
+}
+
+async function onCell(ev, d, box, isChange) {
+    const el = ev.target.closest("[data-c]");
+    if (!el) return;
+    const tr = el.closest("tr[data-i]");
+    const r = d.services[Number(tr.dataset.i)];
+    const f = el.dataset.c;
+    r[f] = ["qty", "in_rate", "out_rate", "in_fx", "out_fx"].includes(f)
+        ? el.value.trim() === ""
+            ? ""
+            : num(el.value)
+        : el.value;
+    // Змінили валюту — ставимо курс НБУ для неї
+    if (isChange && (f === "in_cur" || f === "out_cur")) {
+        const side = f.slice(0, -4);
+        const rates = await loadNbu();
+        r[`${side}_fx`] =
+            r[f] === "USD" ? 1 : rates?.[r[f]] ? +rates[r[f]].toFixed(4) : "";
+        const fx = tr.querySelector(`[data-c="${side}_fx"]`);
+        if (fx) fx.value = fmtRate(r[`${side}_fx`]);
+    }
+    refreshCalcRows(d, box);
+    saveServicesSoon(d);
 }
 
 /* ---------------- Редагування прямо на сторінці угоди ---------------- */
@@ -552,7 +1007,9 @@ const DEAL_TYPES = ["Імпорт", "Експорт", "Внутрішнє", "Mov
 function makeCollapsible(root) {
     let closed = [];
     try {
-        closed = JSON.parse(localStorage.getItem("fura_deal_collapsed") || "[]");
+        closed = JSON.parse(
+            localStorage.getItem("fura_deal_collapsed") || "[]",
+        );
     } catch {
         /* без пам'яті — все відкрите */
     }
@@ -561,7 +1018,10 @@ function makeCollapsible(root) {
         const body = t.nextElementSibling;
         if (!body) return;
         t.classList.add("dv-collapsible");
-        t.insertAdjacentHTML("afterbegin", `<i class="bx bx-chevron-down dv-chev"></i>`);
+        t.insertAdjacentHTML(
+            "afterbegin",
+            `<i class="bx bx-chevron-down dv-chev"></i>`,
+        );
         const apply = (isClosed) => {
             t.classList.toggle("closed", isClosed);
             body.hidden = isClosed;
@@ -570,9 +1030,14 @@ function makeCollapsible(root) {
         t.addEventListener("click", () => {
             const isClosed = !t.classList.contains("closed");
             apply(isClosed);
-            closed = isClosed ? [...new Set([...closed, name])] : closed.filter((x) => x !== name);
+            closed = isClosed
+                ? [...new Set([...closed, name])]
+                : closed.filter((x) => x !== name);
             try {
-                localStorage.setItem("fura_deal_collapsed", JSON.stringify(closed));
+                localStorage.setItem(
+                    "fura_deal_collapsed",
+                    JSON.stringify(closed),
+                );
             } catch {
                 /* не страшно */
             }
@@ -584,20 +1049,32 @@ function makeCollapsible(root) {
 let trailerTypes = [...TRAILERS];
 async function loadTrailerTypes() {
     try {
-        const cached = JSON.parse(sessionStorage.getItem("fura_trailer_types") || "null");
-        if (Array.isArray(cached) && cached.length) return (trailerTypes = cached);
+        const cached = JSON.parse(
+            sessionStorage.getItem("fura_trailer_types") || "null",
+        );
+        if (Array.isArray(cached) && cached.length)
+            return (trailerTypes = cached);
     } catch {
         /* немає пам'яті браузера — просто завантажимо */
     }
     const set = new Set(TRAILERS);
     const CHUNK = 1000;
     for (let from = 0; from < 50000; from += CHUNK) {
-        const { data, error } = await sbClient.from("carriers").select("trailer_type").not("trailer_type", "is", null).range(from, from + CHUNK - 1);
+        const { data, error } = await sbClient
+            .from("carriers")
+            .select("trailer_type")
+            .not("trailer_type", "is", null)
+            .range(from, from + CHUNK - 1);
         if (error || !data?.length) break;
         data.forEach((r) =>
             String(r.trailer_type)
                 .split(/[;,]/)
-                .map((t) => t.replace(/\(.*?\)/g, "").trim().toUpperCase())
+                .map((t) =>
+                    t
+                        .replace(/\(.*?\)/g, "")
+                        .trim()
+                        .toUpperCase(),
+                )
                 .filter((t) => t && t.length < 40)
                 .forEach((t) => set.add(t)),
         );
@@ -605,7 +1082,10 @@ async function loadTrailerTypes() {
     }
     trailerTypes = [...set].sort((a, b) => a.localeCompare(b, "uk"));
     try {
-        sessionStorage.setItem("fura_trailer_types", JSON.stringify(trailerTypes));
+        sessionStorage.setItem(
+            "fura_trailer_types",
+            JSON.stringify(trailerTypes),
+        );
     } catch {
         /* не страшно */
     }
@@ -614,7 +1094,9 @@ async function loadTrailerTypes() {
 
 // Кнопка «написати у Viber» (одразу відкриває переписку з цим номером)
 function viberBtn(phone) {
-    const digits = String(phone || "").split(",")[0].replace(/\D/g, "");
+    const digits = String(phone || "")
+        .split(",")[0]
+        .replace(/\D/g, "");
     if (!digits) return "";
     return `<a class="dv-viber" href="viber://chat?number=%2B${digits}" title="Написати у Viber"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M11.4 2C8.5 2 3 2.7 3 9.9c0 3.5 1.2 5.8 3.3 6.9V20c0 .5.6.8 1 .4l2.2-2.5h1.9c2.9 0 8.6-.7 8.6-8 0-7.2-5.7-7.9-8.6-7.9zm4.4 11.5c-.3.6-1 1.2-1.7 1.3-.5.1-1.1.1-3-.7-2.4-1-4-3.4-4.1-3.6-.1-.2-1-1.3-1-2.5s.6-1.8.9-2c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.3 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.7 1.1 1.4 1.8 1 .9 1.8 1.1 2.1 1.3.3.1.4.1.6-.1l.8-1c.2-.3.4-.2.6-.1l1.8.9c.3.1.4.2.5.3 0 .1 0 .7-.3 1.3z"/></svg></a>`;
 }
@@ -622,17 +1104,39 @@ function viberBtn(phone) {
 function optList(list, selected, placeholder) {
     const has = selected && !list.includes(selected);
     return (
-        (placeholder ? `<option value="">${escapeHtml(placeholder)}</option>` : "") +
-        (has ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>` : "") +
-        list.map((v) => `<option value="${escapeHtml(v)}" ${v === selected ? "selected" : ""}>${escapeHtml(v)}</option>`).join("")
+        (placeholder
+            ? `<option value="">${escapeHtml(placeholder)}</option>`
+            : "") +
+        (has
+            ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected)}</option>`
+            : "") +
+        list
+            .map(
+                (v) =>
+                    `<option value="${escapeHtml(v)}" ${v === selected ? "selected" : ""}>${escapeHtml(v)}</option>`,
+            )
+            .join("")
     );
 }
 
 function staffOpts(roles, selectedId, legacyName) {
-    const list = staffCache.filter((s) => (s.active !== false && hasRole(s, roles)) || String(s.id) === String(selectedId));
+    const list = staffCache.filter(
+        (s) =>
+            (s.active !== false && hasRole(s, roles)) ||
+            String(s.id) === String(selectedId),
+    );
     let html = `<option value="">— не вибрано —</option>`;
-    if (!selectedId && legacyName) html += `<option value="" selected>${escapeHtml(legacyName)}</option>`;
-    return html + list.map((s) => `<option value="${s.id}" ${String(s.id) === String(selectedId) ? "selected" : ""}>${escapeHtml(s.full_name)}</option>`).join("");
+    if (!selectedId && legacyName)
+        html += `<option value="" selected>${escapeHtml(legacyName)}</option>`;
+    return (
+        html +
+        list
+            .map(
+                (s) =>
+                    `<option value="${s.id}" ${String(s.id) === String(selectedId) ? "selected" : ""}>${escapeHtml(s.full_name)}</option>`,
+            )
+            .join("")
+    );
 }
 
 let savedTimer = null;
@@ -643,7 +1147,10 @@ function flashSaved(text, bad = false) {
     el.classList.toggle("bad", bad);
     el.classList.add("show");
     clearTimeout(savedTimer);
-    savedTimer = setTimeout(() => el.classList.remove("show"), bad ? 6000 : 1600);
+    savedTimer = setTimeout(
+        () => el.classList.remove("show"),
+        bad ? 6000 : 1600,
+    );
 }
 
 // Зберегти зміну одразу в базу і оновити шапку (маршрут, статус)
@@ -657,7 +1164,9 @@ async function saveDeal(d, patch) {
     Object.assign(d, patch);
     const c = dealsCache.find((x) => x.id === d.id);
     if (c && c !== d) Object.assign(c, patch);
-    if ($("dvRoute")) $("dvRoute").textContent = `${shortPlace(d.load_country, d.load_address)} → ${shortPlace(d.unload_country, d.unload_address)}`;
+    if ($("dvRoute"))
+        $("dvRoute").textContent =
+            `${shortPlace(d.load_country, d.load_address)} → ${shortPlace(d.unload_country, d.unload_address)}`;
     if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
     flashSaved("Збережено ✓");
     return true;
@@ -685,31 +1194,60 @@ function bindSide(d) {
     // Клієнт — тільки з Лідів
     suggestBox($("dvClient"), $("dvClientSg"), {
         search: async (q) => {
-            const { data } = await sbClient.from("leads").select("id, name, edrpou, city, sales_id, sales").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(10);
+            const { data } = await sbClient
+                .from("leads")
+                .select("id, name, edrpou, city, sales_id, sales")
+                .or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`)
+                .limit(10);
             return data || [];
         },
-        render: (l) => `<strong>${escapeHtml(l.name)}</strong><span>${escapeHtml([l.edrpou, l.city, l.sales].filter(Boolean).join(" · "))}</span>`,
+        render: (l) =>
+            `<strong>${escapeHtml(l.name)}</strong><span>${escapeHtml([l.edrpou, l.city, l.sales].filter(Boolean).join(" · "))}</span>`,
         onPick: async (l) => {
             if (!l) return;
             const patch = { lead_id: l.id, client: l.name };
-            if (!d.sales_id && l.sales_id) Object.assign(patch, { sales_id: l.sales_id, sales: l.sales || null });
+            if (!d.sales_id && l.sales_id)
+                Object.assign(patch, {
+                    sales_id: l.sales_id,
+                    sales: l.sales || null,
+                });
             $("dvClient").value = l.name;
             if (await saveDeal(d, patch)) renderDealView(d);
         },
     });
-    $("dvClient").addEventListener("blur", () => setTimeout(() => ($("dvClient") ? ($("dvClient").value = d.client || "") : null), 250));
+    $("dvClient").addEventListener("blur", () =>
+        setTimeout(
+            () =>
+                $("dvClient") ? ($("dvClient").value = d.client || "") : null,
+            250,
+        ),
+    );
 
     // Перевізник — тільки з реєстру
     suggestBox($("dvCarrier"), $("dvCarrierSg"), {
         search: async (q) => {
-            const { data } = await sbClient.from("carriers").select("id, name, edrpou, city, region_ukr, trailer_type, phone_1, contact_person_1").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(12);
+            const { data } = await sbClient
+                .from("carriers")
+                .select(
+                    "id, name, edrpou, city, region_ukr, trailer_type, phone_1, contact_person_1",
+                )
+                .or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`)
+                .limit(12);
             return data || [];
         },
-        render: (c) => `<strong>${escapeHtml(c.name)}</strong><span>${escapeHtml([c.edrpou, c.city || c.region_ukr, c.trailer_type].filter(Boolean).join(" · "))}</span>`,
+        render: (c) =>
+            `<strong>${escapeHtml(c.name)}</strong><span>${escapeHtml([c.edrpou, c.city || c.region_ukr, c.trailer_type].filter(Boolean).join(" · "))}</span>`,
         onPick: async (c) => {
             if (!c) return;
-            const patch = { carrier_id: String(c.id), carrier_name: c.name, carrier_edrpou: c.edrpou || null };
-            if (!d.trailer_type && c.trailer_type) patch.trailer_type = String(c.trailer_type).split(";")[0].trim();
+            const patch = {
+                carrier_id: String(c.id),
+                carrier_name: c.name,
+                carrier_edrpou: c.edrpou || null,
+            };
+            if (!d.trailer_type && c.trailer_type)
+                patch.trailer_type = String(c.trailer_type)
+                    .split(";")[0]
+                    .trim();
             // Логіст перевізника — перший контакт з реєстру
             if (c.contact_person_1 || c.phone_1) {
                 patch.carrier_contact = c.contact_person_1 || null;
@@ -719,19 +1257,37 @@ function bindSide(d) {
             if (await saveDeal(d, patch)) renderDealView(d);
         },
     });
-    $("dvCarrier").addEventListener("blur", () => setTimeout(() => ($("dvCarrier") ? ($("dvCarrier").value = d.carrier_name || "") : null), 250));
+    $("dvCarrier").addEventListener("blur", () =>
+        setTimeout(
+            () =>
+                $("dvCarrier")
+                    ? ($("dvCarrier").value = d.carrier_name || "")
+                    : null,
+            250,
+        ),
+    );
 
     // Відповідальні
     const nameOf = (id) => staffCache.find((s) => String(s.id) === String(id));
     $("dvSales").addEventListener("change", async (ev) => {
         const s = nameOf(ev.target.value);
-        if (await saveDeal(d, { sales_id: s?.id || null, sales: s?.full_name || null })) $("dvSalesAv").textContent = initials(s?.full_name) || "?";
+        if (
+            await saveDeal(d, {
+                sales_id: s?.id || null,
+                sales: s?.full_name || null,
+            })
+        )
+            $("dvSalesAv").textContent = initials(s?.full_name) || "?";
     });
     $("dvLogist").addEventListener("change", async (ev) => {
         const s = nameOf(ev.target.value);
-        const patch = { logist_id: s?.id || null, logist_name: s?.full_name || null };
+        const patch = {
+            logist_id: s?.id || null,
+            logist_name: s?.full_name || null,
+        };
         if (s?.phone) patch.logist_phone = cleanPhone(s.phone);
-        if (await saveDeal(d, patch)) $("dvLogistAv").textContent = initials(s?.full_name) || "?";
+        if (await saveDeal(d, patch))
+            $("dvLogistAv").textContent = initials(s?.full_name) || "?";
     });
 }
 
@@ -739,9 +1295,19 @@ function bindSide(d) {
 async function createDeal() {
     const me = currentStaff;
     const payload = { deal_kind: "FTL" };
-    if (me && hasRole(me, ["sales", "head"])) Object.assign(payload, { sales_id: me.id, sales: me.full_name });
-    if (me && hasRole(me, ["logist"])) Object.assign(payload, { logist_id: me.id, logist_name: me.full_name, logist_phone: me.phone ? cleanPhone(me.phone) : null });
-    const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
+    if (me && hasRole(me, ["sales", "head"]))
+        Object.assign(payload, { sales_id: me.id, sales: me.full_name });
+    if (me && hasRole(me, ["logist"]))
+        Object.assign(payload, {
+            logist_id: me.id,
+            logist_name: me.full_name,
+            logist_phone: me.phone ? cleanPhone(me.phone) : null,
+        });
+    const { data, error } = await sbClient
+        .from("deals")
+        .insert([payload])
+        .select()
+        .single();
     if (error) return alert("Не вдалося створити угоду: " + error.message);
     await loadDeals();
     openDealCard(data.id, "auto");
@@ -750,11 +1316,29 @@ async function createDeal() {
 
 // Дублювати: нова угода з новим номером, ті самі дані без фактичних дат і галочок
 async function duplicateDeal(d) {
-    const skip = new Set(["id", "number", "created_at", "updated_at", "created_by", "load_date", "unload_date",
-        "paid_by_client", "originals_from_client", "confirmed_cfo", "paid_to_carrier", "originals_from_carrier"]);
-    const payload = Object.fromEntries(Object.entries(d).filter(([k]) => !skip.has(k)));
+    const skip = new Set([
+        "id",
+        "number",
+        "created_at",
+        "updated_at",
+        "created_by",
+        "load_date",
+        "unload_date",
+        "paid_by_client",
+        "originals_from_client",
+        "confirmed_cfo",
+        "paid_to_carrier",
+        "originals_from_carrier",
+    ]);
+    const payload = Object.fromEntries(
+        Object.entries(d).filter(([k]) => !skip.has(k)),
+    );
     payload.copied_from = d.number;
-    const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
+    const { data, error } = await sbClient
+        .from("deals")
+        .insert([payload])
+        .select()
+        .single();
     if (error) return alert("Не вдалося дублювати: " + error.message);
     await loadDeals();
     openDealCard(data.id, "auto");
@@ -770,7 +1354,10 @@ function openDealCard(id, tab) {
     listView.hidden = true;
     detailView.hidden = false;
     history.replaceState(null, "", `?open=${d.id}`);
-    window.furaSetCrumbs?.([{ label: "Угоди", href: "deals.html" }, `№ ${d.number}`]);
+    window.furaSetCrumbs?.([
+        { label: "Угоди", href: "deals.html" },
+        `№ ${d.number}`,
+    ]);
 }
 
 function closeDealCard() {
@@ -784,7 +1371,9 @@ function closeDealCard() {
 
 function renderDealView(d) {
     const e = escapeHtml;
-    const created = d.created_at ? fmtDate(String(d.created_at).slice(0, 10)) : "—";
+    const created = d.created_at
+        ? fmtDate(String(d.created_at).slice(0, 10))
+        : "—";
     detailView.innerHTML = `
         <div class="dv-head">
             <h1 class="dv-num">№ ${e(d.number)}</h1>
@@ -824,8 +1413,8 @@ function renderDealView(d) {
 
             <div class="dv-main">
                 <div class="dv-kpis">
-                    <div class="dv-kpi"><div class="dv-label">План профіту</div><div class="dv-kpi-v">${money(0)}</div></div>
-                    <div class="dv-kpi"><div class="dv-label">Факт профіту</div><div class="dv-kpi-v">${money(0)}</div></div>
+                    <div class="dv-kpi"><div class="dv-label">План профіту</div><div class="dv-kpi-v" id="dvPlanProfit">${usd(calcTotals(d).profit)}</div></div>
+                    <div class="dv-kpi"><div class="dv-label">Факт профіту</div><div class="dv-kpi-v" id="dvFactProfit">${usd(d.paid_by_client && d.paid_to_carrier ? calcTotals(d).profit : 0)}</div></div>
                     <div class="dv-kpi"><div class="dv-label">Створено</div><div class="dv-kpi-v">${created}</div></div>
                     <div class="dv-kpi dv-flags">
                         ${FLAGS.map(([k, label]) => `<label class="dv-flag"><input type="checkbox" data-flag="${k}" ${d[k] ? "checked" : ""}/> ${label}</label>`).join("")}
@@ -841,32 +1430,56 @@ function renderDealView(d) {
             </div>
         </div>`;
 
-    detailView.querySelector("[data-dv=close]").addEventListener("click", closeDealCard);
-    detailView.querySelector("[data-dv=copy]").addEventListener("click", () => duplicateDeal(d));
-    detailView.querySelector("[data-dv=delete]").addEventListener("click", async () => {
-        if (!confirm(`Видалити угоду № ${d.number}${d.client ? ` (${d.client})` : ""}?`)) return;
-        const { error } = await sbClient.from("deals").delete().eq("id", d.id);
-        if (error) return alert("Не вдалося видалити: " + error.message);
-        closeDealCard();
-        loadDeals();
-    });
+    detailView
+        .querySelector("[data-dv=close]")
+        .addEventListener("click", closeDealCard);
+    detailView
+        .querySelector("[data-dv=copy]")
+        .addEventListener("click", () => duplicateDeal(d));
+    detailView
+        .querySelector("[data-dv=delete]")
+        .addEventListener("click", async () => {
+            if (
+                !confirm(
+                    `Видалити угоду № ${d.number}${d.client ? ` (${d.client})` : ""}?`,
+                )
+            )
+                return;
+            const { error } = await sbClient
+                .from("deals")
+                .delete()
+                .eq("id", d.id);
+            if (error) return alert("Не вдалося видалити: " + error.message);
+            closeDealCard();
+            loadDeals();
+        });
     bindSide(d);
     detailView.querySelectorAll("[data-tab]").forEach((b) =>
         b.addEventListener("click", () => {
             detailTab = b.dataset.tab;
-            detailView.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("active", x === b));
+            detailView
+                .querySelectorAll("[data-tab]")
+                .forEach((x) => x.classList.toggle("active", x === b));
             renderTab(d);
         }),
     );
     detailView.querySelectorAll("[data-flag]").forEach((cb) =>
         cb.addEventListener("change", async () => {
             const k = cb.dataset.flag;
-            const { error } = await sbClient.from("deals").update({ [k]: cb.checked }).eq("id", d.id);
+            const { error } = await sbClient
+                .from("deals")
+                .update({ [k]: cb.checked })
+                .eq("id", d.id);
             if (error) {
                 cb.checked = !cb.checked;
-                return alert("Не вдалося зберегти: " + error.message + "\n\nМожливо, ще не виконано deals_ui.sql.");
+                return alert(
+                    "Не вдалося зберегти: " +
+                        error.message +
+                        "\n\nМожливо, ще не виконано deals_ui.sql.",
+                );
             }
             d[k] = cb.checked;
+            updateProfitKpis(d);
         }),
     );
     renderTab(d);
@@ -917,7 +1530,9 @@ function renderTab(d) {
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot orange"></i> Митниця і кордон</div>
                     <select class="dv-in dv-rc-city-in" data-f="border_crossing">${optList(BORDER_CROSSINGS, d.border_crossing, "Пункт пропуску…")}</select>
-                    ${["export", "import"].map((k) => `
+                    ${["export", "import"]
+                        .map(
+                            (k) => `
                     <div class="dv-customs">
                         <div class="dv-rc-row"><span>${k === "export" ? "Замитнення" : "Розмитнення"}</span>
                             <label class="dv-here"><input type="checkbox" data-here="${k}" ${here(k) ? "checked" : ""}/> по місцю ${k === "export" ? "завантаження" : "розвантаження"}</label></div>
@@ -925,7 +1540,9 @@ function renderTab(d) {
                             <select class="dv-in" data-f="customs_${k}_country" id="dvC_${k}_country">${optList(COUNTRIES, d[`customs_${k}_country`], "Країна…")}</select>
                             <input class="dv-in" data-f="customs_${k}" id="dvC_${k}" value="${e(here(k) ? "" : d[`customs_${k}`] || "")}" placeholder="Місто митниці" />
                         </div>
-                    </div>`).join("")}
+                    </div>`,
+                        )
+                        .join("")}
                 </div>
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
@@ -939,9 +1556,15 @@ function renderTab(d) {
         bindFields(box, d);
         makeCollapsible(box);
         $("dvPlates").addEventListener("change", (ev) => {
-            const [truck, trailer] = ev.target.value.toUpperCase().replace(/\s+/g, "").split(/[\/\\|,;]+/);
+            const [truck, trailer] = ev.target.value
+                .toUpperCase()
+                .replace(/\s+/g, "")
+                .split(/[\/\\|,;]+/);
             ev.target.value = [truck, trailer].filter(Boolean).join("/");
-            saveDeal(d, { truck_plate: truck || null, trailer_plate: trailer || null });
+            saveDeal(d, {
+                truck_plate: truck || null,
+                trailer_plate: trailer || null,
+            });
         });
         // Значок Viber оновлюється разом із номером
         box.querySelectorAll("[data-phone]").forEach((inp) =>
@@ -954,38 +1577,37 @@ function renderTab(d) {
         box.querySelectorAll("[data-here]").forEach((cb) =>
             cb.addEventListener("change", async () => {
                 const k = cb.dataset.here;
-                cb.closest(".dv-customs").querySelector(".dv-customs-in").hidden = cb.checked;
+                cb
+                    .closest(".dv-customs")
+                    .querySelector(".dv-customs-in").hidden = cb.checked;
                 const patch = cb.checked
-                    ? { [`customs_${k}`]: CUSTOMS_HERE, [`customs_${k}_country`]: null }
+                    ? {
+                          [`customs_${k}`]: CUSTOMS_HERE,
+                          [`customs_${k}_country`]: null,
+                      }
                     : { [`customs_${k}`]: null };
                 await saveDeal(d, patch);
             }),
         );
         if (window.furaAddressSuggest) {
-            [["dvLoadAddr", "dvLoadCountry"], ["dvUnloadAddr", "dvUnloadCountry"], ["dvC_export", "dvC_export_country"], ["dvC_import", "dvC_import_country"]].forEach(
-                ([i, c]) => $(i) && window.furaAddressSuggest($(i), { countrySelect: $(c), mode: "full" }),
+            [
+                ["dvLoadAddr", "dvLoadCountry"],
+                ["dvUnloadAddr", "dvUnloadCountry"],
+                ["dvC_export", "dvC_export_country"],
+                ["dvC_import", "dvC_import_country"],
+            ].forEach(
+                ([i, c]) =>
+                    $(i) &&
+                    window.furaAddressSuggest($(i), {
+                        countrySelect: $(c),
+                        mode: "full",
+                    }),
             );
         }
         return;
     }
     if (detailTab === "calc") {
-        const route = [cityOf(d.load_address), cityOf(d.unload_address)].filter(Boolean).join(" — ") || "маршрут";
-        box.innerHTML = `
-            <div class="dv-dev"><i class="bx bx-time-five"></i> Розрахунок у розробці — поки це лише вигляд, дані не зберігаються.</div>
-            <div class="dv-block-head"><div class="dv-block-title">Послуги перевезення</div><span class="dv-pill">Статус: Новий</span><button class="dv-ghost" disabled>+ Додати послугу</button></div>
-            <div class="dv-grid">${dvField("<span class='dv-u'>Дата розрахунку</span>", "")}${dvField("&nbsp;", "&nbsp;")}${dvField("Валюта", "EUR")}</div>
-            <table class="dv-table"><thead><tr><th>Послуга</th><th>Платник / отримувач</th><th>Дохід</th><th>Витрати</th><th>Курс</th><th>Дохід, грн</th><th>Витрати, грн</th></tr></thead>
-                <tbody><tr><td>Перевезення ${e(route)}</td><td>${e(d.client || "—")}</td><td>0,00</td><td>0,00</td><td>—</td><td>0,00</td><td>0,00</td></tr></tbody></table>
-            <div class="dv-totals">
-                <div class="dv-kpi"><div class="dv-label">Всього дохід</div><div class="dv-kpi-v">${money(0)}</div></div>
-                <div class="dv-kpi"><div class="dv-label">Всього витрати</div><div class="dv-kpi-v">${money(0)}</div></div>
-                <div class="dv-kpi"><div class="dv-label">Профіт</div><div class="dv-kpi-v green">${money(0)}</div></div>
-                <button class="dv-invoice" disabled>Виставити рахунок на послуги</button>
-            </div>
-            <div class="dv-block-head"><div class="dv-block-title">Додаткові послуги</div><span class="dv-pill">Статус: Новий</span><button class="dv-ghost" disabled>+ Додати послугу</button></div>
-            <div class="dv-grid dv-grid-4">${dvField("Платник", "")}${dvField("Інший контрагент / перевізник", "")}${dvField("Дата розрахунку", "")}${dvField("Вид оплати від клієнта", "")}</div>
-            <table class="dv-table"><thead><tr><th>Послуга</th><th>Платник / отримувач</th><th>Дохід</th><th>Витрати</th><th>Дохід, грн</th><th>Витрати, грн</th></tr></thead>
-                <tbody><tr><td colspan="6" class="dv-empty">Немає даних</td></tr></tbody></table>`;
+        renderCalc(d, box);
         return;
     }
     if (detailTab === "track") {
@@ -1005,23 +1627,37 @@ function renderTab(d) {
             <div class="dv-dev"><i class="bx bx-time-five"></i> Завантаження файлів у розробці. Фото CMR від водія — у вкладці «Трекінг».</div>`;
         $("dvNotesSave").addEventListener("click", async () => {
             const notes = $("dvNotes").value.trim() || null;
-            const { error } = await sbClient.from("deals").update({ notes }).eq("id", d.id);
-            $("dvNotesMsg").textContent = error ? "Помилка: " + error.message : "Збережено ✓";
+            const { error } = await sbClient
+                .from("deals")
+                .update({ notes })
+                .eq("id", d.id);
+            $("dvNotesMsg").textContent = error
+                ? "Помилка: " + error.message
+                : "Збережено ✓";
             if (!error) d.notes = notes;
         });
         return;
     }
     if (detailTab === "act") {
-        const author = staffCache.find((s) => String(s.id) === String(d.created_by))?.full_name;
+        const author = staffCache.find(
+            (s) => String(s.id) === String(d.created_by),
+        )?.full_name;
         const items = [
             [d.created_at, "Угоду створено", author ? `Автор: ${author}` : ""],
-            d.copied_from ? [d.created_at, `Скопійовано з угоди № ${d.copied_from}`, ""] : null,
+            d.copied_from
+                ? [d.created_at, `Скопійовано з угоди № ${d.copied_from}`, ""]
+                : null,
             d.load_date ? [d.load_date, "Завантажено (факт)", ""] : null,
             d.unload_date ? [d.unload_date, "Розвантажено (факт)", ""] : null,
-            d.updated_at && d.updated_at !== d.created_at ? [d.updated_at, "Останні зміни", ""] : null,
+            d.updated_at && d.updated_at !== d.created_at
+                ? [d.updated_at, "Останні зміни", ""]
+                : null,
         ].filter(Boolean);
         box.innerHTML = `<ul class="dv-act">${items
-            .map(([at, t, sub]) => `<li><span class="dv-act-dot"></span><div><b>${e(t)}</b>${sub ? `<div class="dv-sub">${e(sub)}</div>` : ""}</div><span class="dv-act-time">${fmtDate(String(at).slice(0, 10))}</span></li>`)
+            .map(
+                ([at, t, sub]) =>
+                    `<li><span class="dv-act-dot"></span><div><b>${e(t)}</b>${sub ? `<div class="dv-sub">${e(sub)}</div>` : ""}</div><span class="dv-act-time">${fmtDate(String(at).slice(0, 10))}</span></li>`,
+            )
             .join("")}</ul>`;
     }
 }
@@ -1031,10 +1667,18 @@ function renderTab(d) {
 // Один рейс = одна угода. Скасований рейс можна замінити новим.
 const TRIP_DEAD = ["cancelled", "declined"];
 const TRIP_LABELS = {
-    assigned: "Очікує підтвердження", confirmed: "Підтверджено водієм", declined: "Водій відмовився",
-    to_loading: "Їде на завантаження", at_loading: "На завантаженні", loaded: "В дорозі",
-    at_border: "На кордоні", crossed_border: "Пройшов кордон", at_unloading: "На розвантаженні",
-    unloaded: "Виконано", timeout: "Трекінг зупинено", cancelled: "Скасовано",
+    assigned: "Очікує підтвердження",
+    confirmed: "Підтверджено водієм",
+    declined: "Водій відмовився",
+    to_loading: "Їде на завантаження",
+    at_loading: "На завантаженні",
+    loaded: "В дорозі",
+    at_border: "На кордоні",
+    crossed_border: "Пройшов кордон",
+    at_unloading: "На розвантаженні",
+    unloaded: "Виконано",
+    timeout: "Трекінг зупинено",
+    cancelled: "Скасовано",
 };
 
 async function renderTrackTab(d, box) {
@@ -1059,7 +1703,9 @@ async function renderTrackTab(d, box) {
                 ${dead ? `<button type="button" class="btn btn-primary" id="dvRestartTrack"><i class="bx bx-refresh"></i> Запустити трекінг заново</button>` : ""}
             </div>
             <iframe class="dv-track-frame" src="trips.html?embed=1&trip=${encodeURIComponent(trip.id)}" title="Трекінг рейсу"></iframe>`;
-        $("dvRestartTrack")?.addEventListener("click", () => startTrackForm(d, box));
+        $("dvRestartTrack")?.addEventListener("click", () =>
+            startTrackForm(d, box),
+        );
         return;
     }
 
@@ -1079,20 +1725,29 @@ async function renderTrackTab(d, box) {
 
     const { data: free } = await sbClient
         .from("trips")
-        .select("id, trip_no, status, load_address, unload_address, driver_name, created_at")
+        .select(
+            "id, trip_no, status, load_address, unload_address, driver_name, created_at",
+        )
         .is("deal_id", null)
         .not("status", "in", "(cancelled,declined)")
         .order("created_at", { ascending: false })
         .limit(30);
-    if (!free?.length || detailTab !== "track" || currentCardDealId !== d.id) return;
+    if (!free?.length || detailTab !== "track" || currentCardDealId !== d.id)
+        return;
     const short = (a) => String(a || "—").split(",")[0];
     $("dvLinkSelect").innerHTML = free
-        .map((t) => `<option value="${escapeHtml(t.id)}">№ ${escapeHtml(t.trip_no)} · ${escapeHtml(short(t.load_address))} → ${escapeHtml(short(t.unload_address))} · ${escapeHtml(t.driver_name || "")} · ${escapeHtml(TRIP_LABELS[t.status] || t.status)}</option>`)
+        .map(
+            (t) =>
+                `<option value="${escapeHtml(t.id)}">№ ${escapeHtml(t.trip_no)} · ${escapeHtml(short(t.load_address))} → ${escapeHtml(short(t.unload_address))} · ${escapeHtml(t.driver_name || "")} · ${escapeHtml(TRIP_LABELS[t.status] || t.status)}</option>`,
+        )
         .join("");
     $("dvLinkBox").hidden = false;
     $("dvLinkBtn").addEventListener("click", async () => {
         const id = $("dvLinkSelect").value;
-        const { error: e2 } = await sbClient.from("trips").update({ deal_id: d.id }).eq("id", id);
+        const { error: e2 } = await sbClient
+            .from("trips")
+            .update({ deal_id: d.id })
+            .eq("id", id);
         if (e2) return alert("Не вдалося прив'язати: " + e2.message);
         renderTab(d);
     });
@@ -1105,12 +1760,16 @@ function startTrackForm(d, box) {
 // Повідомлення з вкладки «Трекінг» (рейс створено / форму закрили)
 window.addEventListener("message", (ev) => {
     if (ev.origin !== location.origin || !ev.data?.type) return;
-    const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
+    const d = dealsCache.find(
+        (x) => String(x.id) === String(currentCardDealId),
+    );
     if (!d || detailTab !== "track") return;
     if (ev.data.type === "fura-trip-close") renderTab(d);
     if (ev.data.type === "fura-trip-height") {
         const fr = document.querySelector(".dv-track-frame");
-        if (fr) fr.style.height = Math.max(700, Number(ev.data.height) || 0) + 20 + "px";
+        if (fr)
+            fr.style.height =
+                Math.max(700, Number(ev.data.height) || 0) + 20 + "px";
     }
 });
 
@@ -1134,7 +1793,10 @@ function openShlyahModal() {
 function closeShlyahModal() {
     shlyahModalOverlay.classList.remove("active");
 }
-$("shlyahBackBtn").addEventListener("click", () => (shlyahIframe.src = SHLYAH_URL));
+$("shlyahBackBtn").addEventListener(
+    "click",
+    () => (shlyahIframe.src = SHLYAH_URL),
+);
 $("closeShlyahModalBtn").addEventListener("click", closeShlyahModal);
 shlyahModalOverlay.addEventListener("click", (e) => {
     if (e.target === shlyahModalOverlay) closeShlyahModal();
@@ -1165,17 +1827,24 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     suggestBox($("deal_client"), $("dealClientSuggest"), {
         search: async (q) => {
-            const { data } = await sbClient.from("leads").select("id, name, edrpou, city, sales_id, sales").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(10);
+            const { data } = await sbClient
+                .from("leads")
+                .select("id, name, edrpou, city, sales_id, sales")
+                .or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`)
+                .limit(10);
             return data || [];
         },
-        render: (l) => `<strong>${escapeHtml(l.name)}</strong><span>${escapeHtml([l.edrpou, l.city, l.sales].filter(Boolean).join(" · "))}</span>`,
+        render: (l) =>
+            `<strong>${escapeHtml(l.name)}</strong><span>${escapeHtml([l.edrpou, l.city, l.sales].filter(Boolean).join(" · "))}</span>`,
         onPick: setClient,
     });
     suggestBox($("deal_carrier"), $("dealCarrierSuggest"), {
         search: async (q) => {
             const { data } = await sbClient
                 .from("carriers")
-                .select("id, name, edrpou, city, region_ukr, trailer_type, phone_1")
+                .select(
+                    "id, name, edrpou, city, region_ukr, trailer_type, phone_1",
+                )
                 .or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`)
                 .limit(12);
             return data || [];
@@ -1192,18 +1861,31 @@ document.addEventListener("DOMContentLoaded", async () => {
             ["deal_unload_address", "deal_unload_country"],
             ["deal_customs_export", "deal_customs_export_country"],
             ["deal_customs_import", "deal_customs_import_country"],
-        ].forEach(([inp, sel]) => window.furaAddressSuggest($(inp), { countrySelect: $(sel), mode: "full" }));
+        ].forEach(([inp, sel]) =>
+            window.furaAddressSuggest($(inp), {
+                countrySelect: $(sel),
+                mode: "full",
+            }),
+        );
     }
 
     await loadDeals();
     // Список типів причепів з реєстру (у фоні); відкрита вкладка «Дані авто» оновиться
     loadTrailerTypes().then(() => {
-        const d = dealsCache.find((x) => String(x.id) === String(currentCardDealId));
-        if (d && detailTab === "auto" && !document.activeElement?.closest?.("#dvTabBody")) renderTab(d);
+        const d = dealsCache.find(
+            (x) => String(x.id) === String(currentCardDealId),
+        );
+        if (
+            d &&
+            detailTab === "auto" &&
+            !document.activeElement?.closest?.("#dvTabBody")
+        )
+            renderTab(d);
     });
 
     const params = new URLSearchParams(location.search);
     if (params.get("new") === "1") createDeal();
     if (params.get("open")) openDealCard(params.get("open"));
-    else if ([...params.keys()].length) history.replaceState(null, "", location.pathname);
+    else if ([...params.keys()].length)
+        history.replaceState(null, "", location.pathname);
 });
