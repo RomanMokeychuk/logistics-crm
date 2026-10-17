@@ -178,6 +178,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
 
+    restoreCarriersView();
     loadCarriers();
     setupScrollTopButton();
     renderDirectionSelects();
@@ -574,8 +575,53 @@ async function loadCarriers() {
     renderCarriers();
 }
 
+
+/* ---------- Пам'ять фільтрів: повертаєшся на сторінку — фільтри ті самі ---------- */
+const VIEW_KEY = "fura_carriers_view";
+
+function saveCarriersView() {
+    try {
+        localStorage.setItem(VIEW_KEY, JSON.stringify({
+            search: searchInput?.value || "",
+            trailer: filterTrailer?.value || "",
+            region: filterRegion?.value || "",
+            filters: activeFiltersState,
+            sortCol: currentSortColumn,
+            sortAsc: currentSortAscending,
+            page: currentPage,
+        }));
+    } catch (e) {}
+}
+
+function restoreCarriersView() {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(VIEW_KEY) || "null"); } catch (e) {}
+    if (!v) return;
+    if (searchInput && v.search) searchInput.value = v.search;
+    if (filterTrailer && v.trailer) filterTrailer.value = v.trailer;
+    if (filterRegion && v.region) filterRegion.value = v.region;
+    if (v.filters && typeof v.filters === "object") activeFiltersState = v.filters;
+    if (v.sortCol) { currentSortColumn = v.sortCol; currentSortAscending = v.sortAsc !== false; }
+    if (v.page) currentPage = v.page;
+}
+
+function hasCarriersFilters() {
+    return !!(searchInput?.value.trim() || filterTrailer?.value || filterRegion?.value || Object.keys(activeFiltersState).length);
+}
+
+function resetCarriersFilters() {
+    if (searchInput) searchInput.value = "";
+    if (filterTrailer) filterTrailer.value = "";
+    if (filterRegion) filterRegion.value = "";
+    activeFiltersState = {};
+    currentPage = 1;
+    renderCarriers();
+}
+
 // Фільтрує, сортує і малює ОДНУ сторінку таблиці з кешу
 function renderCarriers() {
+    saveCarriersView();
+    markFilteredHeaders();
     const searchQuery = searchInput?.value.trim() || "";
     const trailerFilterVal = filterTrailer?.value || "";
     const regionFilterVal = filterRegion?.value || "";
@@ -879,8 +925,12 @@ function updateCarriersCountBar(
         text = `Знайдено: ${shownCount.toLocaleString("uk-UA")} з ${totalCount.toLocaleString("uk-UA")}`;
     }
 
+    if (hasCarriersFilters()) {
+        text = `${text} <button type="button" class="filters-reset" onclick="resetCarriersFilters()">✕ Скинути фільтри</button>`;
+    }
+
     if (pageCount <= 1) {
-        bar.textContent = text;
+        bar.innerHTML = text;
         return;
     }
 
@@ -1588,4 +1638,12 @@ async function updateCarrierRating(id, newRating) {
         if (carrier) carrier.rating = newRating;
         renderCarriers(); // залишаємось на тій самій сторінці
     }
+}
+
+// Підсвічуємо іконку фільтра в шапці колонки, де фільтр увімкнений
+function markFilteredHeaders() {
+    document.querySelectorAll("th [onclick*='openColumnFilter']").forEach((el) => {
+        const m = (el.getAttribute("onclick") || "").match(/openColumnFilter\(\s*event,\s*'([^']+)'/);
+        el.classList.toggle("filter-on", !!(m && activeFiltersState[m[1]]));
+    });
 }

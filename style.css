@@ -1204,3 +1204,8 @@ body,
 .sidebar a.logo:hover {
     opacity: 0.85;
 }
+
+/* Активний фільтр колонки і кнопка скидання */
+.filter-icon.filter-on { color: #ea580c !important; opacity: 1 !important; }
+.filters-reset { margin-left: 10px; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
+.filters-reset:hover { background: #ffedd5; }
