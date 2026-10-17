@@ -845,6 +845,76 @@ async function onCell(ev, d, box, isChange) {
     saveServicesSoon(d);
 }
 
+/* ---------- Кілька точок завантаження і замитнення (кнопка «+») ---------- */
+function extraLoadsHtml(d) {
+    const e = escapeHtml;
+    const list = Array.isArray(d.extra_loads) ? d.extra_loads : [];
+    return (
+        list
+            .map(
+                (p, i) => `
+        <div class="dv-extra" data-x="extra_loads" data-i="${i}">
+            <div class="dv-extra-head"><span>Точка завантаження ${i + 2}</span><button type="button" class="dv-x-del" data-xdel title="Прибрати точку">✕</button></div>
+            <select class="dv-in dv-rc-country-in" data-xf="country">${optList(COUNTRIES, p.country, "Країна…")}</select>
+            <input class="dv-in dv-rc-city-in" data-xf="address" value="${e(p.address || "")}" placeholder="Місто, село, індекс" />
+            <div class="dv-rc-row"><span>План</span><input type="date" class="dv-in dv-date" data-xf="date_plan" value="${e(p.date_plan || "")}" /></div>
+            <div class="dv-rc-row"><span>Факт</span><input type="date" class="dv-in dv-date" data-xf="date" value="${e(p.date || "")}" /></div>
+        </div>`,
+            )
+            .join("") + `<button type="button" class="dv-add" data-xadd="extra_loads">+ Ще точка завантаження</button>`
+    );
+}
+
+function extraCustomsHtml(d) {
+    const e = escapeHtml;
+    const list = Array.isArray(d.extra_customs) ? d.extra_customs : [];
+    return (
+        list
+            .map(
+                (p, i) => `
+        <div class="dv-extra" data-x="extra_customs" data-i="${i}">
+            <div class="dv-extra-head"><span>Замитнення ${i + 2}</span><button type="button" class="dv-x-del" data-xdel title="Прибрати">✕</button></div>
+            <div class="dv-customs-in">
+                <select class="dv-in" data-xf="country">${optList(COUNTRIES, p.country, "Країна…")}</select>
+                <input class="dv-in" data-xf="place" value="${e(p.place || "")}" placeholder="Місто митниці" />
+            </div>
+        </div>`,
+            )
+            .join("") + `<button type="button" class="dv-add" data-xadd="extra_customs">+ Ще замитнення</button>`
+    );
+}
+
+function bindExtras(box, d) {
+    const listOf = (k) => (Array.isArray(d[k]) ? d[k] : (d[k] = []));
+    box.querySelectorAll("[data-xadd]").forEach((b) =>
+        b.addEventListener("click", async () => {
+            const k = b.dataset.xadd;
+            listOf(k).push({});
+            await saveDeal(d, { [k]: d[k] });
+            renderTab(d);
+        }),
+    );
+    box.querySelectorAll(".dv-extra").forEach((row) => {
+        const k = row.dataset.x;
+        const i = Number(row.dataset.i);
+        row.querySelector("[data-xdel]").addEventListener("click", async () => {
+            listOf(k).splice(i, 1);
+            await saveDeal(d, { [k]: d[k] });
+            renderTab(d);
+        });
+        row.querySelectorAll("[data-xf]").forEach((el) =>
+            el.addEventListener("change", () => {
+                listOf(k)[i][el.dataset.xf] = el.value.trim() || null;
+                saveDeal(d, { [k]: d[k] });
+            }),
+        );
+        // Підказки міст для додаткових точок
+        const addr = row.querySelector('[data-xf="address"], [data-xf="place"]');
+        const ctry = row.querySelector('[data-xf="country"]');
+        if (addr && window.furaAddressSuggest) window.furaAddressSuggest(addr, { countrySelect: ctry, mode: "full" });
+    });
+}
+
 /* ---------------- Редагування прямо на сторінці угоди ---------------- */
 
 const DEAL_TYPES = ["Імпорт", "Експорт", "Внутрішнє", "Move gray"];
@@ -1215,6 +1285,7 @@ function renderTab(d) {
                     <input class="dv-in dv-rc-city-in" data-f="load_address" id="dvLoadAddr" value="${e(d.load_address || "")}" placeholder="Місто, село, індекс" />
                     <div class="dv-rc-row"><span>План</span><input type="date" class="dv-in dv-date" data-f="load_date_plan" value="${e(String(d.load_date_plan || "").slice(0, 10))}" /></div>
                     <div class="dv-rc-row"><span>Факт</span><input type="date" class="dv-in dv-date" data-f="load_date" value="${e(String(d.load_date || "").slice(0, 10))}" /></div>
+                    ${extraLoadsHtml(d)}
                 </div>
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
@@ -1228,7 +1299,7 @@ function renderTab(d) {
                             <select class="dv-in" data-f="customs_${k}_country" id="dvC_${k}_country">${optList(COUNTRIES, d[`customs_${k}_country`], "Країна…")}</select>
                             <input class="dv-in" data-f="customs_${k}" id="dvC_${k}" value="${e(here(k) ? "" : d[`customs_${k}`] || "")}" placeholder="Місто митниці" />
                         </div>
-                    </div>`).join("")}
+                    </div>${k === "export" ? extraCustomsHtml(d) : ""}`).join("")}
                 </div>
                 <i class="bx bx-right-arrow-alt dv-rc-arrow"></i>
                 <div class="dv-rc">
@@ -1254,6 +1325,7 @@ function renderTab(d) {
                 wrap.insertAdjacentHTML("beforeend", viberBtn(inp.value));
             }),
         );
+        bindExtras(box, d);
         box.querySelectorAll("[data-here]").forEach((cb) =>
             cb.addEventListener("change", async () => {
                 const k = cb.dataset.here;

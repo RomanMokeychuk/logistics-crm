@@ -1147,3 +1147,55 @@ select.cc-pay {
     font-size: 13px;
     vertical-align: -1px;
 }
+
+/* Додаткові точки завантаження / замитнення */
+.dv-extra {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #dbe2ec;
+}
+.dv-extra-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #6b7280;
+}
+.dv-x-del {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+.dv-x-del:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+.dv-add {
+    display: block;
+    margin-top: 8px;
+    padding: 5px 10px;
+    border: 1px dashed #93c5fd;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.dv-add:hover {
+    background: #dbeafe;
+}
+.dv-route-cards {
+    align-items: start;
+}
+.dv-rc-arrow {
+    align-self: center;
+}
