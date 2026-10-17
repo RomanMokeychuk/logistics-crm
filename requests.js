@@ -1279,8 +1279,85 @@ const readLoadingChips = () =>
 function updateTempVisibility() {
     document.getElementById("reqTempGroup").hidden = !isRef(document.getElementById("req_transport_type").value);
 }
-document.getElementById("req_transport_type").addEventListener("input", updateTempVisibility);
-document.getElementById("req_transport_type").addEventListener("change", updateTempVisibility);
+
+/* ---------- Тип транспорту: кілька типів причепів ---------- */
+// Основні типи — кнопками; решта типів з реєстру перевізників — у списку «+ інший тип»
+let registryTrailerTypes = [];
+async function loadRegistryTrailerTypes() {
+    try {
+        const cached = JSON.parse(sessionStorage.getItem("fura_trailer_types") || "null");
+        if (Array.isArray(cached) && cached.length) return (registryTrailerTypes = cached);
+    } catch {
+        /* немає пам'яті браузера */
+    }
+    const set = new Set();
+    for (let from = 0; from < 50000; from += 1000) {
+        const { data, error } = await sbClient.from("carriers").select("trailer_type").not("trailer_type", "is", null).range(from, from + 999);
+        if (error || !data?.length) break;
+        data.forEach((r) =>
+            String(r.trailer_type)
+                .split(/[;,]/)
+                .map((t) => t.replace(/\(.*?\)/g, "").trim().toUpperCase())
+                .filter((t) => t && t.length < 40)
+                .forEach((t) => set.add(t)),
+        );
+        if (data.length < 1000) break;
+    }
+    registryTrailerTypes = [...set].sort((a, b) => a.localeCompare(b, "uk"));
+    try {
+        sessionStorage.setItem("fura_trailer_types", JSON.stringify(registryTrailerTypes));
+    } catch {
+        /* не страшно */
+    }
+    return registryTrailerTypes;
+}
+
+const splitTypes = (v) =>
+    String(v || "")
+        .split(/[;,]/)
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean);
+
+function renderTransportPicker() {
+    const box = document.getElementById("req_transport_picker");
+    const chosen = splitTypes(document.getElementById("req_transport_type").value);
+    const main = [...new Set([...TRANSPORT_TYPES, ...chosen])];
+    const others = registryTrailerTypes.filter((t) => !main.includes(t));
+    box.innerHTML =
+        main
+            .map(
+                (t) =>
+                    `<label class="loading-chip"><input type="checkbox" value="${escapeHtml(t)}"${chosen.includes(t) ? " checked" : ""} /> ${escapeHtml(t)}</label>`,
+            )
+            .join("") +
+        `<select class="transport-more" title="Інші типи з реєстру перевізників">
+            <option value="">+ інший тип…</option>
+            ${others.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("")}
+            <option value="__own">✎ ввести свій…</option>
+        </select>`;
+}
+
+function syncTransportValue() {
+    const vals = [...document.querySelectorAll("#req_transport_picker input:checked")].map((i) => i.value);
+    document.getElementById("req_transport_type").value = vals.join("; ");
+    updateTempVisibility();
+}
+
+document.getElementById("req_transport_picker").addEventListener("change", (e) => {
+    if (e.target.matches("select.transport-more")) {
+        let v = e.target.value;
+        if (v === "__own") v = (prompt("Тип причепу:") || "").trim().toUpperCase();
+        if (v) {
+            const cur = splitTypes(document.getElementById("req_transport_type").value);
+            if (!cur.includes(v)) cur.push(v);
+            document.getElementById("req_transport_type").value = cur.join("; ");
+            renderTransportPicker();
+            updateTempVisibility();
+        } else e.target.value = "";
+        return;
+    }
+    syncTransportValue();
+});
 
 /* ---------- Замитнення / розмитнення "по місцю" ---------- */
 function updateCustomsHere(kind) {
@@ -1323,7 +1400,8 @@ function openRequestModal(request = null) {
     loadLeadsList(); // свіжий список лідів (раптом хтось щойно додав)
     renderTypePicker(request?.request_type || "");
     setVal("req_cargo", request?.cargo);
-    setVal("req_transport_type", request?.transport_type);
+    setVal("req_transport_type", splitTypes(request?.transport_type).join("; "));
+    renderTransportPicker();
     setVal("req_weight", request?.weight);
     setVal("req_load_country", request?.load_country);
     setVal("req_load_address", request?.load_address);
@@ -1573,7 +1651,7 @@ function openRequestCard(id) {
                 <div class="card-section">
                     <div class="card-section-title">Вантаж і транспорт</div>
                     ${cardRow("Вантаж:", escapeHtml(r.cargo))}
-                    ${cardRow("Тип транспорту:", r.transport_type ? `<span class="badge badge-warning">${escapeHtml(r.transport_type)}</span>` : "")}
+                    ${cardRow("Тип транспорту:", splitTypes(r.transport_type).map((t) => `<span class="badge badge-warning" style="margin-right:4px">${escapeHtml(t)}</span>`).join(""))}
                     ${cardRow("Вага:", escapeHtml(r.weight))}
                     ${cardRow("Пакування:", packagingText(r.packaging))}
                     ${isRef(r.transport_type) || r.temp_from !== null || r.temp_to !== null ? cardRow("Температура:", tempText(r)) : ""}
@@ -2136,6 +2214,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupScrollTopButton();
     searchInput?.addEventListener("input", renderRequests);
     loadRequests();
+    // Типи причепів з реєстру перевізників — для списку «+ інший тип»
+    loadRegistryTrailerTypes().then(() => {
+        if (document.getElementById("requestModalOverlay")?.classList.contains("active")) renderTransportPicker();
+    });
 
     // Кожну хвилину підтягуємо нові запити від Sales і оновлюємо таймери
     setInterval(loadRequests, 60 * 1000);

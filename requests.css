@@ -1120,3 +1120,15 @@
 .requests-table .cell-logists .logist-line + .logist-line {
     margin-top: 2px;
 }
+
+/* Тип транспорту — кілька типів */
+.transport-more {
+    padding: 5px 10px;
+    border: 1px dashed #93c5fd;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}

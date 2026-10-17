@@ -201,13 +201,10 @@
                                 placeholder="наприклад: медичне обладнання на палетах, 33 пал." />
                         </div>
 
-                        <div class="form-group">
-                            <label>Тип транспорту</label>
-                            <input
-                                type="text"
-                                id="req_transport_type"
-                                list="transportTypesList"
-                                placeholder="Оберіть або введіть..." />
+                        <div class="form-group span-2">
+                            <label>Тип транспорту <span class="logist-hint">— можна кілька</span></label>
+                            <input type="hidden" id="req_transport_type" />
+                            <div class="loading-chips" id="req_transport_picker"></div>
                         </div>
 
                         <div class="form-group">
