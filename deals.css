@@ -43,22 +43,10 @@
     font-weight: 700;
     white-space: nowrap;
 }
-.deal-st-plan {
-    background: #fef3c7;
-    color: #92400e;
-}
-.deal-st-late {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-.deal-st-road {
-    background: #dbeafe;
-    color: #1d4ed8;
-}
-.deal-st-done {
-    background: #dcfce7;
-    color: #15803d;
-}
+.deal-st-plan { background: #fef3c7; color: #92400e; }
+.deal-st-late { background: #fee2e2; color: #b91c1c; }
+.deal-st-road { background: #dbeafe; color: #1d4ed8; }
+.deal-st-done { background: #dcfce7; color: #15803d; }
 
 /* Підказки клієнта / перевізника */
 .deal-pick {
@@ -399,15 +387,9 @@
     height: 8px;
     border-radius: 50%;
 }
-.dot.blue {
-    background: #1d5bd8;
-}
-.dot.orange {
-    background: #f57c00;
-}
-.dot.green {
-    background: #16a34a;
-}
+.dot.blue { background: #1d5bd8; }
+.dot.orange { background: #f57c00; }
+.dot.green { background: #16a34a; }
 .dv-rc-city {
     font-size: 17px;
     font-weight: 700;
@@ -754,9 +736,7 @@
     font-weight: 600;
     color: #111827;
     outline: none;
-    transition:
-        background 0.12s,
-        border-color 0.12s;
+    transition: background 0.12s, border-color 0.12s;
 }
 .dv-in::placeholder {
     color: #b6bfcc;

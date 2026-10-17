@@ -1568,8 +1568,6 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
-        <div id="routeMapBox"></div>
-
         <div class="card-columns">
             <div class="card-col">
                 <div class="card-section">
@@ -1614,6 +1612,8 @@ function openRequestCard(id) {
                 </div>
             </div>
         </div>
+
+        <div id="routeMapBox" style="margin-top:16px"></div>
     `;
 
     document
