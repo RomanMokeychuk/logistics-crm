@@ -2214,6 +2214,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupScrollTopButton();
     searchInput?.addEventListener("input", renderRequests);
     loadRequests();
+    renderTransportPicker();
     // Типи причепів з реєстру перевізників — для списку «+ інший тип»
     loadRegistryTrailerTypes().then(() => {
         if (document.getElementById("requestModalOverlay")?.classList.contains("active")) renderTransportPicker();
