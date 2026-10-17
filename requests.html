@@ -12,12 +12,12 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202610171846" />
-        <link rel="stylesheet" href="requests.css?v=202610171846" />
+        <link rel="stylesheet" href="style.css?v=202610171855" />
+        <link rel="stylesheet" href="requests.css?v=202610171855" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-            <link rel="stylesheet" href="theme.css?v=202610171846" />
+            <link rel="stylesheet" href="theme.css?v=202610171855" />
     </head>
     <body>
         <aside class="sidebar">
@@ -274,6 +274,13 @@
                                 placeholder="наприклад: Луцьк, вул. Рівненська 76" />
                         </div>
 
+                        <div class="form-group span-2 extra-points-group">
+                            <div id="req_extra_loads" class="extra-points"></div>
+                            <button type="button" class="pack-add" data-xadd="loads">
+                                <i class="bx bx-plus"></i> Ще точка завантаження
+                            </button>
+                        </div>
+
                         <!-- Розвантаження -->
                         <div class="form-section-title span-2">
                             <i class="bx bx-download"></i> Розвантаження
@@ -292,6 +299,13 @@
                                 type="text"
                                 id="req_unload_address"
                                 placeholder="наприклад: Варшава, ul. Przemysłowa 12" />
+                        </div>
+
+                        <div class="form-group span-2 extra-points-group">
+                            <div id="req_extra_unloads" class="extra-points"></div>
+                            <button type="button" class="pack-add" data-xadd="unloads">
+                                <i class="bx bx-plus"></i> Ще точка розвантаження
+                            </button>
                         </div>
 
                         <!-- Митниця та кордон -->
@@ -313,6 +327,13 @@
                                 <select id="req_customs_export_country"></select>
                                 <input type="text" id="req_customs_export" placeholder="Місто / село / індекс митниці" />
                             </div>
+                        </div>
+
+                        <div class="form-group span-2 extra-points-group">
+                            <div id="req_extra_customs_export" class="extra-points"></div>
+                            <button type="button" class="pack-add" data-xadd="customs_export">
+                                <i class="bx bx-plus"></i> Ще замитнення
+                            </button>
                         </div>
 
                         <div class="form-group span-2">
@@ -337,6 +358,13 @@
                                 <select id="req_customs_import_country"></select>
                                 <input type="text" id="req_customs_import" placeholder="Місто / село / індекс митниці" />
                             </div>
+                        </div>
+
+                        <div class="form-group span-2 extra-points-group">
+                            <div id="req_extra_customs_import" class="extra-points"></div>
+                            <button type="button" class="pack-add" data-xadd="customs_import">
+                                <i class="bx bx-plus"></i> Ще розмитнення
+                            </button>
                         </div>
 
                         <!-- Дата, статус, відповідальні -->
@@ -585,11 +613,11 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="requests.js?v=202610171846"></script>
-        <script src="address-suggest.js?v=202610171846"></script>
-        <script src="route-map.js?v=202610171846"></script>
-        <script src="shell.js?v=202610171846"></script>
-        <script src="notify.js?v=202610171846"></script>
-        <script src="lock.js?v=202610171846"></script>
+        <script src="requests.js?v=202610171855"></script>
+        <script src="address-suggest.js?v=202610171855"></script>
+        <script src="route-map.js?v=202610171855"></script>
+        <script src="shell.js?v=202610171855"></script>
+        <script src="notify.js?v=202610171855"></script>
+        <script src="lock.js?v=202610171855"></script>
     </body>
 </html>

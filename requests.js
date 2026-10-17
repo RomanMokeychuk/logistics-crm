@@ -1265,6 +1265,92 @@ function readPackRows() {
 
 document.getElementById("reqPackAddBtn").addEventListener("click", () => addPackRow());
 
+/* ---------- Додаткові точки маршруту (кнопка «+») ---------- */
+const EXTRA_KINDS = {
+    loads: { col: "extra_loads", title: "Завантаження", ph: "Місто / адреса завантаження" },
+    unloads: { col: "extra_unloads", title: "Розвантаження", ph: "Місто / адреса розвантаження" },
+    customs_export: { col: "extra_customs_export", title: "Замитнення", ph: "Місто / село / індекс митниці" },
+    customs_import: { col: "extra_customs_import", title: "Розмитнення", ph: "Місто / село / індекс митниці" },
+};
+
+function addExtraRow(kind, p = {}) {
+    const box = document.getElementById(`req_extra_${kind}`);
+    const cfg = EXTRA_KINDS[kind];
+    const row = document.createElement("div");
+    row.className = "extra-point";
+    const countries =
+        `<option value="">Оберіть країну...</option>` +
+        REQUEST_COUNTRIES.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    row.innerHTML = `
+        <div class="extra-point-head"><span></span>
+            <button type="button" class="pack-del" title="Прибрати">×</button></div>
+        <div class="customs-inputs">
+            <select class="xp-country">${countries}</select>
+            <input type="text" class="xp-address" placeholder="${escapeHtml(cfg.ph)}" />
+        </div>`;
+    box.appendChild(row);
+    row.querySelector(".xp-country").value = p.country || "";
+    row.querySelector(".xp-address").value = p.address || "";
+    row.querySelector(".pack-del").addEventListener("click", () => {
+        row.remove();
+        numberExtraRows(kind);
+    });
+    if (window.furaAddressSuggest) {
+        window.furaAddressSuggest(row.querySelector(".xp-address"), {
+            countrySelect: row.querySelector(".xp-country"),
+            mode: "full",
+        });
+    }
+    numberExtraRows(kind);
+    return row;
+}
+
+function numberExtraRows(kind) {
+    const cfg = EXTRA_KINDS[kind];
+    document.querySelectorAll(`#req_extra_${kind} .extra-point`).forEach((row, i) => {
+        row.querySelector(".extra-point-head span").textContent = `${cfg.title} ${i + 2}`;
+    });
+}
+
+function renderExtraRows(request) {
+    Object.keys(EXTRA_KINDS).forEach((kind) => {
+        document.getElementById(`req_extra_${kind}`).innerHTML = "";
+        const list = request?.[EXTRA_KINDS[kind].col];
+        (Array.isArray(list) ? list : []).forEach((p) => addExtraRow(kind, p));
+    });
+}
+
+function readExtraRows(kind) {
+    return [...document.querySelectorAll(`#req_extra_${kind} .extra-point`)]
+        .map((row) => ({
+            country: row.querySelector(".xp-country").value || null,
+            address: row.querySelector(".xp-address").value.trim() || null,
+        }))
+        .filter((p) => p.country || p.address);
+}
+
+// Додаємо колонки в запис лише коли є що зберегти (або було раніше),
+// щоб форма працювала і до запуску requests_points.sql
+function extraFieldsFor(existing) {
+    const out = {};
+    Object.keys(EXTRA_KINDS).forEach((kind) => {
+        const col = EXTRA_KINDS[kind].col;
+        const list = readExtraRows(kind);
+        if (list.length || (Array.isArray(existing?.[col]) && existing[col].length)) out[col] = list;
+    });
+    return out;
+}
+
+function extraPointsHtml(list) {
+    return (Array.isArray(list) ? list : [])
+        .map((p) => `<div class="extra-point-card">${locationCell(p.country, p.address)}</div>`)
+        .join("");
+}
+
+document.querySelectorAll("[data-xadd]").forEach((btn) =>
+    btn.addEventListener("click", () => addExtraRow(btn.dataset.xadd).querySelector(".xp-country").focus()),
+);
+
 /* ---------- Як можуть вантажити ---------- */
 function renderLoadingChips(selected) {
     const sel = new Set(selected || []);
@@ -1414,6 +1500,7 @@ function openRequestModal(request = null) {
     // Статус змінюється сам (запит → відповідь → в роботі). У формі — лише при редагуванні
     document.getElementById("reqStatusGroup").hidden = !request;
     renderPackRows(request?.packaging);
+    renderExtraRows(request);
     renderLoadingChips(request?.loading_types);
     setVal("req_trucks_count", request?.trucks_count);
     setVal("req_trucks_period", request?.trucks_period);
@@ -1556,6 +1643,7 @@ requestForm.addEventListener("submit", async (e) => {
         sales_id: salesPick.id,
         ...logistFields,
         notes: getValue("req_notes"),
+        ...extraFieldsFor(existing),
     };
 
     const id = document.getElementById("requestId").value;
@@ -1661,8 +1749,8 @@ function openRequestCard(id) {
 
                 <div class="card-section">
                     <div class="card-section-title">Маршрут</div>
-                    ${cardRow("Відвантаження:", locationCell(r.load_country, r.load_address))}
-                    ${cardRow("Розвантаження:", locationCell(r.unload_country, r.unload_address))}
+                    ${cardRow("Відвантаження:", locationCell(r.load_country, r.load_address) + extraPointsHtml(r.extra_loads))}
+                    ${cardRow("Розвантаження:", locationCell(r.unload_country, r.unload_address) + extraPointsHtml(r.extra_unloads))}
                 </div>
 
                 <div class="card-section">
@@ -1674,9 +1762,9 @@ function openRequestCard(id) {
             <div class="card-col">
                 <div class="card-section">
                     <div class="card-section-title">Митниця та кордон</div>
-                    ${cardRow("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export"))}
+                    ${cardRow("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export") + extraPointsHtml(r.extra_customs_export))}
                     ${cardRow("Погран перехід:", escapeHtml(r.border_crossing))}
-                    ${cardRow("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import"))}
+                    ${cardRow("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import") + extraPointsHtml(r.extra_customs_import))}
                 </div>
 
                 <div class="card-section">

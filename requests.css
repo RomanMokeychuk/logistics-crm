@@ -1132,3 +1132,12 @@
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Додаткові точки маршруту */
+.extra-points { display: flex; flex-direction: column; gap: 10px; }
+.extra-points:empty { display: none; }
+.extra-point { border-left: 3px solid #bfdbfe; padding-left: 10px; }
+.extra-point-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: #64748b; }
+.extra-point-head .pack-del { width: 28px; height: 28px; font-size: 16px; }
+.extra-points-group .pack-add { margin-top: 0; }
+.extra-point-card { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
