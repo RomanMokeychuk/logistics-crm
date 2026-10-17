@@ -225,6 +225,11 @@ async function staffByChat(chatId: number) {
     return data;
 }
 
+async function staffIdByChat(chatId: number): Promise<string | null> {
+    const { data } = await db.from("staff").select("id").eq("telegram_chat_id", chatId).maybeSingle();
+    return data?.id ? String(data.id) : null;
+}
+
 async function chatIdOf(staffId: unknown): Promise<number | null> {
     if (!staffId) return null;
     const { data } = await db
@@ -759,9 +764,15 @@ async function handleCallback(cb: Any) {
 
 const CHAT_WAIT_MS = 30 * 60 * 1000; // скільки бот чекає текст після "Написати"
 
-// Хто бере участь у запиті: Sales + усі логісти запиту
+// Логіста обрано (запит у роботі) — далі тільки Sales ↔ обраний логіст
+function isChosen(r: Any): boolean {
+    return !!r?.logistician_id && ![STATUS_NEW, STATUS_QUOTE].includes(r.status);
+}
+
+// Хто бере участь у переписці: Sales + логісти запиту (або тільки обраний)
 function participantsOf(r: Any): string[] {
-    return [...new Set([String(r.sales_id || ""), ...logistIdsOf(r)].filter(Boolean))];
+    const logists = isChosen(r) ? [String(r.logistician_id)] : logistIdsOf(r);
+    return [...new Set([String(r.sales_id || ""), ...logists].filter(Boolean))];
 }
 
 function canChat(me: Any, r: Any) {
@@ -781,7 +792,11 @@ async function setSession(chatId: number, state: Any) {
 async function startChat(chatId: number, me: Any, requestId: string): Promise<string> {
     const r = await getRequest(requestId);
     if (!r) return "Запит не знайдено";
-    if (!canChat(me, r)) return "Ви не берете участі в цьому запиті";
+    if (!canChat(me, r)) {
+        return isChosen(r)
+            ? "Sales обрав іншого логіста — переписка тепер тільки з ним"
+            : "Ви не берете участі в цьому запиті";
+    }
     await setSession(chatId, { mode: "chat", request_id: r.id });
     await tg("sendMessage", {
         chat_id: chatId,
@@ -801,6 +816,11 @@ async function saveChatFromBot(chatId: number, me: Any, text: string): Promise<b
         return false;
     }
     await setSession(chatId, {});
+    const r = await getRequest(String(st.request_id));
+    if (!r || !canChat(me, r)) {
+        await send(chatId, "❌ Не надіслано: Sales обрав іншого логіста — переписка тепер тільки з ним.");
+        return true;
+    }
     const { error } = await db.from("request_messages").insert({
         request_id: st.request_id,
         author_id: me.id,
@@ -937,8 +957,19 @@ async function handleRequestChange(payload: Any) {
             messages.set(chatId, text); // одна людина — одне повідомлення
         }
 
+        // Обрали логіста — Sales і обраному логісту кнопка переписки
+        const chatIds = new Set<number>();
+        if (r.status === STATUS_OK) {
+            for (const id of participantsOf(r)) {
+                const c = await chatIdOf(id);
+                if (c) chatIds.add(c);
+            }
+        }
         for (const [chatId, text] of messages) {
-            await send(chatId, text, [[crmButton]]);
+            const rows: Button[][] = chatIds.has(chatId)
+                ? [[chatButton(r.id, String(r.sales_id) === String(await staffIdByChat(chatId)) ? "✍️ Написати логісту" : "✍️ Написати Sales")], [crmButton]]
+                : [[crmButton]];
+            await send(chatId, text, rows);
         }
     }
 }

@@ -36,6 +36,17 @@ begin
     if s.id is null then
         raise exception 'Вас немає серед співробітників FURA';
     end if;
+    -- Після вибору логіста писати можуть тільки Sales, обраний логіст і керівник
+    if exists (
+        select 1 from public.requests r
+         where r.id = new.request_id
+           and r.logistician_id is not null
+           and r.status not in ('Запит', 'Відповідь')
+           and s.id::text is distinct from r.sales_id::text
+           and s.id::text is distinct from r.logistician_id::text
+    ) and not public.is_head() then
+        raise exception 'Sales обрав іншого логіста — переписка тепер тільки з ним';
+    end if;
     new.author_id   := s.id;
     new.author_name := s.full_name;
     new.via         := 'site';

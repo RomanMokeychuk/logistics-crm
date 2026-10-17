@@ -1734,6 +1734,8 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
+        ${chatSectionHtml(r)}
+
         <div class="card-columns">
             <div class="card-col">
                 <div class="card-section">
@@ -1779,14 +1781,6 @@ function openRequestCard(id) {
             </div>
         </div>
 
-        <div class="card-section req-chat" style="margin-top:16px">
-            <div class="card-section-title"><i class='bx bx-chat'></i> Переписка Sales ↔ логіст</div>
-            <div class="req-chat-list" id="reqChatList"><div class="req-chat-empty">Завантаження…</div></div>
-            <form class="req-chat-form" id="reqChatForm">
-                <textarea id="reqChatText" rows="1" maxlength="2000" placeholder="Питання або уточнення по запиту… (Enter — надіслати, Shift+Enter — новий рядок)"></textarea>
-                <button type="submit" class="req-chat-send" title="Надіслати"><i class='bx bx-send'></i> Надіслати</button>
-            </form>
-        </div>
 
         <div id="routeMapBox" style="margin-top:16px"></div>
     `;
@@ -1817,6 +1811,44 @@ function openRequestCard(id) {
 /* ================================================================= *
  * 8.1 ПЕРЕПИСКА ПО ЗАПИТУ (Sales ↔ логіст, дублюється в Telegram)    *
  * ================================================================= */
+
+// Хто в переписці: до вибору — Sales і всі логісти запиту,
+// після вибору — тільки Sales і обраний логіст
+function chatPeople(r) {
+    const ids = isChosen(r) ? [String(r.logistician_id)] : logistIdsOf(r);
+    return [...new Set([String(r.sales_id || ""), ...ids].filter(Boolean))];
+}
+
+function canChat(r) {
+    if (!currentStaff) return false;
+    if (hasRole(currentStaff, ["head", "admin"])) return true;
+    const me = String(currentStaff.id);
+    if (chatPeople(r).includes(me)) return true;
+    return !logistIdsOf(r).length && hasRole(currentStaff, ["logist"]);
+}
+
+function chatSectionHtml(r) {
+    const chosen = isChosen(r);
+    const title = chosen
+        ? `Переписка: ${escapeHtml(r.sales || "Sales")} ↔ ${escapeHtml(r.logistician || "логіст")}`
+        : logistIdsOf(r).length > 1
+          ? "Переписка Sales ↔ логісти"
+          : "Переписка Sales ↔ логіст";
+    const hint = chosen
+        ? `<div class="req-chat-hint"><i class='bx bx-lock-alt'></i> Обрано логіста — далі переписка тільки між Sales і ${escapeHtml(r.logistician || "обраним логістом")}.</div>`
+        : "";
+    const body = canChat(r)
+        ? `<div class="req-chat-list" id="reqChatList"><div class="req-chat-empty">Завантаження…</div></div>
+            <form class="req-chat-form" id="reqChatForm">
+                <textarea id="reqChatText" rows="1" maxlength="2000" placeholder="Питання або уточнення по запиту… (Enter — надіслати, Shift+Enter — новий рядок)"></textarea>
+                <button type="submit" class="req-chat-send" title="Надіслати"><i class='bx bx-send'></i> Надіслати</button>
+            </form>`
+        : `<div class="req-chat-empty">Sales обрав іншого логіста — переписка по цьому запиту тепер тільки з ним.</div>`;
+    return `<div class="card-section req-chat" style="margin-top:16px">
+            <div class="card-section-title"><i class='bx bx-chat'></i> ${title}</div>
+            ${hint}${body}
+        </div>`;
+}
 
 let chatMessages = [];
 let chatRequestId = null;
@@ -1866,6 +1898,7 @@ async function initRequestChat(requestId) {
     chatRequestId = requestId;
     chatMessages = [];
     const form = document.getElementById("reqChatForm");
+    if (!form) return; // переписка не для цього користувача
     const ta = document.getElementById("reqChatText");
 
     const grow = () => {

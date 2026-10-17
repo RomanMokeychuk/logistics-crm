@@ -296,14 +296,17 @@
 
         const { data: r } = await client
             .from("requests")
-            .select("id, client, request_type, load_country, unload_country, sales_id, logistician_id, logistician_ids")
+            .select("id, client, request_type, load_country, unload_country, status, sales_id, logistician_id, logistician_ids")
             .eq("id", m.request_id)
             .maybeSingle();
         if (!r) return;
         const myId = String(me.id);
+        // Після вибору логіста — переписка тільки Sales ↔ обраний логіст
+        const chosen = r.logistician_id && !["Запит", "Відповідь"].includes(r.status);
+        const logists = chosen ? [String(r.logistician_id)] : idsOf(r);
         const mine =
             String(r.sales_id || "") === myId ||
-            idsOf(r).includes(myId) ||
+            logists.includes(myId) ||
             (!idsOf(r).length && isLogist(me));
         if (!mine || (shownInCard && !document.hidden)) {
             if (shownInCard) beep();
