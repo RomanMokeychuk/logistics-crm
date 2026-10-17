@@ -36,6 +36,7 @@
         animation: fura-toast-in 0.25s ease-out; font-family: inherit; }
     .fura-toast.answer { border-left-color: #10b981; }
     .fura-toast.chosen { border-left-color: #2563eb; }
+    .fura-toast.chat { border-left-color: #8b5cf6; }
     .fura-toast-icon { font-size: 26px; line-height: 1; }
     .fura-toast-body { flex: 1; min-width: 0; }
     .fura-toast-title { font-weight: 700; font-size: 14px; color: #0f172a; margin-bottom: 3px; }
@@ -276,6 +277,59 @@
         }, 400);
     }
 
+    /* ---------------- Переписка по запиту ---------------- */
+    const seenMsgs = new Set();
+    let lastMsgAt = new Date().toISOString();
+
+    const isLogist = (s) =>
+        (Array.isArray(s?.roles) && s.roles.includes("logist")) || s?.role === "logist";
+
+    async function handleChatMessage(m) {
+        if (!me || !m?.id || seenMsgs.has(String(m.id))) return;
+        seenMsgs.add(String(m.id));
+        if (String(m.created_at || "") > lastMsgAt) lastMsgAt = String(m.created_at);
+        if (String(m.author_id || "") === String(me.id)) return;
+
+        // Картка цього запиту відкрита — повідомлення одразу з'являється в ній
+        const shownInCard =
+            typeof window.furaOnRequestMessage === "function" && window.furaOnRequestMessage(m);
+
+        const { data: r } = await client
+            .from("requests")
+            .select("id, client, request_type, load_country, unload_country, sales_id, logistician_id, logistician_ids")
+            .eq("id", m.request_id)
+            .maybeSingle();
+        if (!r) return;
+        const myId = String(me.id);
+        const mine =
+            String(r.sales_id || "") === myId ||
+            idsOf(r).includes(myId) ||
+            (!idsOf(r).length && isLogist(me));
+        if (!mine || (shownInCard && !document.hidden)) {
+            if (shownInCard) beep();
+            return;
+        }
+        const preview = String(m.text || "").length > 160 ? String(m.text).slice(0, 160) + "…" : String(m.text || "");
+        notify({
+            kind: "chat",
+            icon: "💬",
+            title: `${m.author_name || "Повідомлення"} пише`,
+            text: `<b>${esc(r.client || "—")}</b> · ${esc(route(r))}<br>${esc(preview)}`,
+            requestId: r.id,
+        });
+    }
+
+    async function pollChat() {
+        const { data, error } = await client
+            .from("request_messages")
+            .select("*")
+            .gt("created_at", lastMsgAt)
+            .order("created_at", { ascending: true })
+            .limit(50);
+        if (error) return;
+        for (const m of data || []) await handleChatMessage(m);
+    }
+
     /* ---------------- Старт ---------------- */
     async function start() {
         const {
@@ -284,7 +338,7 @@
         if (!session) return;
 
         const email = (session.user?.email || "").toLowerCase();
-        const { data: staff } = await client.from("staff").select("id, full_name, email").eq("active", true);
+        const { data: staff } = await client.from("staff").select("id, full_name, email, roles, role").eq("active", true);
         me = (staff || []).find((s) => (s.email || "").toLowerCase() === email) || null;
         if (!me) {
             console.warn(`FURA сповіщення: пошти ${email} немає серед активних співробітників`);
@@ -320,6 +374,14 @@
                 console.log("FURA сповіщення (зв'язок з базою):", status, err || "");
             });
 
+        // Переписка: живий канал + запасна перевірка разом із запитами
+        client
+            .channel("fura-request-messages")
+            .on("postgres_changes", { event: "INSERT", schema: "public", table: "request_messages" }, (p) =>
+                handleChatMessage(p.new),
+            )
+            .subscribe();
+
         // Запасний варіант: кожні 20 секунд самі перевіряємо свіжі запити.
         // Якщо живий канал уже показав зміну — повтору не буде.
         setInterval(async () => {
@@ -345,6 +407,7 @@
                 }
             }
             if (removed) refreshPage();
+            pollChat();
         }, 15000);
 
         // Повернулися на вкладку після перерви — одразу оновлюємо

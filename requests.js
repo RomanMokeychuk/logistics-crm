@@ -1779,6 +1779,15 @@ function openRequestCard(id) {
             </div>
         </div>
 
+        <div class="card-section req-chat" style="margin-top:16px">
+            <div class="card-section-title"><i class='bx bx-chat'></i> Переписка Sales ↔ логіст</div>
+            <div class="req-chat-list" id="reqChatList"><div class="req-chat-empty">Завантаження…</div></div>
+            <form class="req-chat-form" id="reqChatForm">
+                <textarea id="reqChatText" rows="1" maxlength="2000" placeholder="Питання або уточнення по запиту… (Enter — надіслати, Shift+Enter — новий рядок)"></textarea>
+                <button type="submit" class="req-chat-send" title="Надіслати"><i class='bx bx-send'></i> Надіслати</button>
+            </form>
+        </div>
+
         <div id="routeMapBox" style="margin-top:16px"></div>
     `;
 
@@ -1799,9 +1808,116 @@ function openRequestCard(id) {
         });
 
     requestCardOverlay.classList.add("active");
+    initRequestChat(r.id);
 
     // Карта маршруту (route-map.js)
     window.furaRouteMap?.render(document.getElementById("routeMapBox"), r);
+}
+
+/* ================================================================= *
+ * 8.1 ПЕРЕПИСКА ПО ЗАПИТУ (Sales ↔ логіст, дублюється в Telegram)    *
+ * ================================================================= */
+
+let chatMessages = [];
+let chatRequestId = null;
+
+function chatTime(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const today = new Date().toDateString() === d.toDateString();
+    const t = d.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" });
+    return today ? t : `${d.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })} ${t}`;
+}
+
+function renderChat() {
+    const list = document.getElementById("reqChatList");
+    if (!list) return;
+    if (!chatMessages.length) {
+        list.innerHTML = `<div class="req-chat-empty">Повідомлень ще немає. Поставте питання — його побачать Sales і логісти запиту (і в Telegram).</div>`;
+        return;
+    }
+    const myId = String(currentStaff?.id || "");
+    list.innerHTML = chatMessages
+        .map((m) => {
+            const mine = myId && String(m.author_id) === myId;
+            return `<div class="req-msg${mine ? " mine" : ""}">
+                <div class="req-msg-head"><b>${escapeHtml(m.author_name || "—")}</b>
+                    <span>${chatTime(m.created_at)}${m.via === "telegram" ? " · Telegram" : ""}</span></div>
+                <div class="req-msg-text">${escapeHtml(m.text)}</div>
+            </div>`;
+        })
+        .join("");
+    list.scrollTop = list.scrollHeight;
+}
+
+function addChatMessage(m) {
+    if (!m || String(m.request_id) !== String(chatRequestId)) return false;
+    if (chatMessages.some((x) => String(x.id) === String(m.id))) return true;
+    chatMessages.push(m);
+    chatMessages.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    renderChat();
+    return true;
+}
+// notify.js викликає, коли приходить нове повідомлення
+window.furaOnRequestMessage = (m) =>
+    requestCardOverlay.classList.contains("active") && addChatMessage(m);
+
+async function initRequestChat(requestId) {
+    chatRequestId = requestId;
+    chatMessages = [];
+    const form = document.getElementById("reqChatForm");
+    const ta = document.getElementById("reqChatText");
+
+    const grow = () => {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(ta.scrollHeight, 140) + "px";
+    };
+    ta.addEventListener("input", grow);
+    ta.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+            e.preventDefault();
+            form.requestSubmit();
+        }
+    });
+    form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const text = ta.value.trim();
+        if (!text) return;
+        const btn = form.querySelector("button");
+        btn.disabled = true;
+        const { data, error } = await sbClient
+            .from("request_messages")
+            .insert([{ request_id: requestId, text }])
+            .select()
+            .single();
+        btn.disabled = false;
+        if (error) {
+            alert(
+                /request_messages/.test(error.message || "")
+                    ? "Переписка ще не увімкнена: потрібно один раз запустити request_messages.sql у Supabase."
+                    : "Не вдалося надіслати: " + error.message,
+            );
+            return;
+        }
+        ta.value = "";
+        grow();
+        addChatMessage(data);
+        ta.focus();
+    });
+
+    const { data, error } = await sbClient
+        .from("request_messages")
+        .select("*")
+        .eq("request_id", requestId)
+        .order("created_at", { ascending: true });
+    if (chatRequestId !== requestId) return; // поки вантажили — відкрили інший запит
+    if (error) {
+        document.getElementById("reqChatList").innerHTML =
+            `<div class="req-chat-empty">Переписка ще не увімкнена (потрібно запустити request_messages.sql у Supabase).</div>`;
+        return;
+    }
+    chatMessages = data || [];
+    renderChat();
 }
 
 function closeRequestCard() {
