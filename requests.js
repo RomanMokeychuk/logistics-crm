@@ -1734,6 +1734,8 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
+        ${window.furaBids ? window.furaBids.sectionHtml() : ""}
+
         ${chatSectionHtml(r)}
 
         <div class="card-columns">
@@ -1807,6 +1809,7 @@ function openRequestCard(id) {
 
     requestCardOverlay.classList.add("active");
     initRequestChat(r.id);
+    window.furaBids?.mount(r); // ставки перевізників (bids.js)
 
     // Карта маршруту (route-map.js)
     window.furaRouteMap?.render(document.getElementById("routeMapBox"), r);
@@ -1960,6 +1963,7 @@ async function initRequestChat(requestId) {
 function closeRequestCard() {
     requestCardOverlay.classList.remove("active");
     currentCardRequestId = null;
+    window.furaBids?.unmount();
 }
 
 // Редагувати з картки: закриваємо картку і відкриваємо форму
@@ -2098,14 +2102,9 @@ function answerSectionHtml(r) {
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
                 <span><i class='bx bx-dollar-circle'></i> ${title}</span>
-                <span style="display:flex; gap:8px; flex-wrap:wrap">
-                    <a class="btn-answer" href="agents.html?request=${encodeURIComponent(r.id)}" style="text-decoration:none" title="AI-агент напише перевізникам і збере ставки">
-                        <i class='bx bx-bot'></i> AI: зібрати ставки
-                    </a>
-                    <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
-                        <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
-                    </button>
-                </span>
+                <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
+                    <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
+                </button>
             </div>
             ${blocksHtml}
         </div>`;

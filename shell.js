@@ -21,7 +21,6 @@
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
-                { href: "agents.html", icon: "bx-bot", label: "AI-агенти" },
             ],
         },
         {
@@ -176,13 +175,24 @@
     // Потрібен платний ключ ШІ (ANTHROPIC_API_KEY у Supabase). Коли буде — поставте true.
     const ASSISTANT_ENABLED = false;
 
-    function loadAssistant() {
-        if (!ASSISTANT_ENABLED) return;
-        if (document.querySelector('script[data-fura-assistant]')) return;
-        const s = document.createElement("script");
-        s.src = "assistant.js?v=202610192330";
-        s.dataset.furaAssistant = "1";
-        document.body.appendChild(s);
+    function addScript(src) {
+        return new Promise((resolve) => {
+            const s = document.createElement("script");
+            s.src = src;
+            s.onload = s.onerror = resolve;
+            document.body.appendChild(s);
+        });
+    }
+
+    // Без ключа — безкоштовний «Помічник»: пошук перевізників звичайними словами (helper.js)
+    async function loadAssistant() {
+        if (document.querySelector("[data-fura-assistant]")) return;
+        const mark = document.createElement("meta");
+        mark.dataset.furaAssistant = "1";
+        document.head.appendChild(mark);
+        if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
+        if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
+        await addScript("helper.js?v=202610192350");
     }
 
     function init() {

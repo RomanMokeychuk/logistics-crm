@@ -1,0 +1,250 @@
+/* FURA — Ставки перевізників у картці запиту */
+
+.bd-section {
+    border: 1px solid #fde1bf;
+}
+
+.bd-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.bd-count {
+    font-weight: 500;
+    color: #6b7280;
+    margin-left: 6px;
+}
+
+.bd-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px 0;
+}
+
+.bd-empty {
+    color: #6b7280;
+    font-size: 13.5px;
+    padding: 6px 0;
+}
+
+.bd-empty.bad,
+.bd-msg.bad {
+    color: #8a1c14;
+}
+
+.bd-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "who chat end"
+        "fields fields fields";
+    gap: 10px 14px;
+    align-items: center;
+    border: 1px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #fff;
+}
+
+.bd-who { grid-area: who; }
+.bd-chat { grid-area: chat; }
+.bd-end { grid-area: end; }
+.bd-fields { grid-area: fields; }
+
+@media (max-width: 760px) {
+    .bd-row {
+        grid-template-columns: 1fr;
+        grid-template-areas: "who" "chat" "fields" "end";
+    }
+}
+
+.bd-row.best {
+    border-color: #2e9e5b;
+    background: #f1fbf5;
+}
+
+.bd-row.refused {
+    opacity: 0.6;
+}
+
+.bd-who {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.bd-who b,
+.bd-who a {
+    color: #13203f;
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.bd-who a:hover {
+    text-decoration: underline;
+}
+
+.bd-who span {
+    font-size: 12.5px;
+    color: #6b7280;
+}
+
+.bd-best {
+    color: #146c3c;
+}
+
+.bd-chat,
+.bd-end {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.bd-btn {
+    min-height: 34px;
+    padding: 0 11px;
+    border: 1px solid #d5dbe5;
+    border-radius: 8px;
+    background: #fff;
+    color: #13203f;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.bd-btn:hover {
+    border-color: #1d5bd8;
+}
+
+.bd-viber {
+    background: #5b4bd1;
+    border-color: #5b4bd1;
+    color: #fff;
+}
+
+.bd-small {
+    font-weight: 500;
+    color: #4b5563;
+}
+
+.bd-x {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: #9aa4b5;
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 6px;
+}
+
+.bd-x:hover {
+    background: #fdf1f0;
+    color: #8a1c14;
+}
+
+.bd-fields {
+    display: grid;
+    grid-template-columns: 120px 90px 150px minmax(140px, 1fr);
+    gap: 8px;
+}
+
+.bd-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11.5px;
+    color: #6b7280;
+}
+
+.bd-fields input,
+.bd-fields select {
+    height: 34px;
+    border: 1px solid #d5dbe5;
+    border-radius: 8px;
+    padding: 0 8px;
+    font: inherit;
+    font-size: 13.5px;
+    color: #111827;
+    background: #fff;
+    min-width: 0;
+}
+
+.bd-fields input[data-f="price"] {
+    font-weight: 700;
+}
+
+.bd-add {
+    position: relative;
+    padding: 12px 14px 0;
+}
+
+.bd-add input {
+    width: 100%;
+    box-sizing: border-box;
+    height: 40px;
+    border: 1px dashed #c9d2e0;
+    border-radius: 10px;
+    padding: 0 12px;
+    font: inherit;
+    font-size: 14px;
+}
+
+.bd-suggest {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.bd-sug {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    border: 1px solid #e4e8ef;
+    background: #fff;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.bd-sug:hover {
+    border-color: #1d5bd8;
+    background: #f5f8ff;
+}
+
+.bd-sug b {
+    color: #13203f;
+    font-size: 13.5px;
+}
+
+.bd-sug span {
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.bd-msg {
+    min-height: 18px;
+    padding: 6px 14px 12px;
+    font-size: 12.5px;
+    color: #146c3c;
+}
+
+.bd-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
