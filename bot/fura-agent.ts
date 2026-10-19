@@ -10,7 +10,8 @@
 //
 // Секрети (Supabase → Edge Functions → Secrets — ті самі, що в fura-bot, плюс ключ AI):
 //   TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET          — вже є для fura-bot
-//   ANTHROPIC_API_KEY                           — ключ Claude API (без нього агент пише за шаблоном)
+//   ANTHROPIC_API_KEY  — НЕОБОВ'ЯЗКОВО. Без нього агент працює безкоштовно: пише за шаблоном,
+//                        а відповіді перевізників розбирає своїми правилами (ставка, дата, оплата).
 // Необов'язково:
 //   AGENT_MODEL   (типово claude-haiku-5-5)
 //   APP_URL       (адреса сайту, типово GitHub Pages)
@@ -139,6 +140,181 @@ function logistIdsOf(r: Any): string[] {
 }
 
 /* ================================================================== */
+/* Свій розбір відповіді перевізника — без платного ШІ                 */
+/* Шукає ставку, валюту, дату й час подачі, умови оплати, відмову,     */
+/* питання. Працює завжди; якщо підключено Claude — він точніший.      */
+/* ================================================================== */
+
+const MONTHS: Record<string, number> = {
+    січ: 1, янв: 1, лют: 2, фев: 2, бер: 3, мар: 3, кві: 4, апр: 4, тра: 5, мая: 5, май: 5,
+    чер: 6, июн: 6, лип: 7, июл: 7, сер: 8, авг: 8, вер: 9, сен: 9, жов: 10, окт: 10,
+    лис: 11, ноя: 11, гру: 12, дек: 12,
+};
+
+// Межі слова, що розуміють кирилицю (\b у JavaScript — тільки латиниця)
+const RX_START = "(?<![\\p{L}\\d])";
+const RX_END = "(?![\\p{L}\\d])";
+const re = (src: string) => new RegExp(src.replace(/\\b</g, RX_START).replace(/\\b>/g, RX_END), "u");
+
+function pad2(n: number): string {
+    return String(n).padStart(2, "0");
+}
+
+// Дата без року → найближча в майбутньому (або сьогодні)
+function isoFrom(day: number, month: number | null, year: number | null, today: Date): string | null {
+    if (!day || day > 31) return null;
+    let m = month;
+    let y = year;
+    if (!m) {
+        m = today.getMonth() + 1;
+        if (day < today.getDate()) m += 1;
+        if (m > 12) {
+            m = 1;
+            y = (y || today.getFullYear()) + 1;
+        }
+    }
+    if (m < 1 || m > 12) return null;
+    if (!y) {
+        y = today.getFullYear();
+        // «05.01», коли зараз жовтень — це наступний рік
+        if (m < today.getMonth() + 1 - 2) y += 1;
+    } else if (y < 100) y += 2000;
+    return `${y}-${pad2(m)}-${pad2(day)}`;
+}
+
+function parseCarrierReply(text: string, today = new Date()): Any {
+    const raw = String(text || "");
+    const t = raw.toLowerCase().replace(/ /g, " ");
+    const out: Any = {
+        has_bid: false,
+        price: null,
+        currency: null,
+        load_date: null,
+        load_time: null,
+        can_do: null,
+        payment_terms: null,
+        questions: [],
+    };
+
+    // Відмова
+    if (/(не\s*(можу|можемо|можем|зможу|зможемо|получится|вийде|выйдет|беремо|берем|цікаво|интересно)|нема(є)?\s+(машин|авто|вільн)|нет\s+(машин|авто|свободн)|(машин|авто)[^.!?\n]{0,40}(немає|нема|нет)|все\s+(зайнят|занят)|відмов|отказ)/u.test(t)) {
+        out.can_do = false;
+    }
+
+    // Ставка: число + валюта (або валюта + число)
+    const CUR = "(€|eur\\p{L}*|євро|евро|euro|\\$|usd|дол\\p{L}*|грн|uah|гривень|гривн\\p{L}*)";
+    const NUM = "(\\d{1,3}(?:[ .]\\d{3})+|\\d{3,6})(?:[.,]\\d{1,2})?";
+    let m = t.match(new RegExp(NUM + "\\s*" + CUR, "u")) || null;
+    let num: string | null = null;
+    let cur: string | null = null;
+    if (m) {
+        num = m[1];
+        cur = m[2];
+    } else {
+        const m2 = t.match(new RegExp(CUR + "\\s*" + NUM, "u"));
+        if (m2) {
+            cur = m2[1];
+            num = m2[2];
+        } else {
+            // «ставка 2150», «ціна 2150»
+            const m3 = t.match(/(?:ставк|цін|цен|фрахт)\p{L}*\D{0,12}(\d{1,3}(?:[ .]\d{3})+|\d{3,6})/u);
+            if (m3) num = m3[1];
+        }
+    }
+    if (num) {
+        const value = Number(num.replace(/[ .]/g, ""));
+        if (value >= 50 && value <= 200000) {
+            out.price = value;
+            if (cur) {
+                if (/€|eur|євро|евро/.test(cur)) out.currency = "EUR";
+                else if (/\$|usd|дол/.test(cur)) out.currency = "USD";
+                else out.currency = "UAH";
+            }
+        }
+    }
+
+    // Дата подачі
+    let d = t.match(re("\\b<(\\d{1,2})\\.(\\d{1,2})(?:\\.(\\d{2,4}))?\\b>"));
+    if (d) out.load_date = isoFrom(+d[1], +d[2], d[3] ? +d[3] : null, today);
+    if (!out.load_date) {
+        d = t.match(re("\\b<(\\d{1,2})\\s*(?:-?(?:го|е|ого))?\\s+(січ|янв|лют|фев|бер|мар|кві|апр|тра|мая|май|чер|июн|лип|июл|сер|авг|вер|сен|жов|окт|лис|ноя|гру|дек)"));
+        if (d) out.load_date = isoFrom(+d[1], MONTHS[d[2]], null, today);
+    }
+    if (!out.load_date) {
+        d =
+            t.match(re("\\b<(\\d{1,2})\\s*-\\s*(?:го|ого|е)\\b>")) ||
+            t.match(re("\\b<(\\d{1,2})(?:го|ого)\\b>")) ||
+            t.match(re("\\b<на\\s+(\\d{1,2})\\b>(?!\\s*(?::|\\.|год|ранку|утра|вечора|вечера|ч\\b>))"));
+        if (d) out.load_date = isoFrom(+d[1], null, null, today);
+    }
+    if (!out.load_date) {
+        const add = /післязавтра|послезавтра/.test(t) ? 2 : /завтра/.test(t) ? 1 : /сьогодні|сегодня/.test(t) ? 0 : null;
+        if (add !== null) {
+            const x = new Date(today.getTime() + add * 864e5);
+            out.load_date = `${x.getFullYear()}-${pad2(x.getMonth() + 1)}-${pad2(x.getDate())}`;
+        }
+    }
+
+    // Час подачі
+    let tm = t.match(re("\\b<([01]?\\d|2[0-3]):([0-5]\\d)\\b>"));
+    if (tm) out.load_time = `${pad2(+tm[1])}:${tm[2]}`;
+    else {
+        tm = t.match(re("\\b<(?:о|об|в|на)\\s+(\\d{1,2})\\s*(?:-?й|-?ій)?\\s*(ранку|утра|годин\\p{L}*|час\\p{L}*|ч\\b>|вечора|вечера|дня)"));
+        if (tm) {
+            let h = +tm[1];
+            if (/вечор|вечер|дня/.test(tm[2]) && h < 12) h += 12;
+            if (h <= 23) out.load_time = `${pad2(h)}:00`;
+        }
+    }
+
+    // Оплата
+    const pay = raw.match(/(оплат|по оригінал|по оригинал|по факту|по скан|предоплат|передоплат|відстрочк|отсрочк)[^.!?\n]*/iu);
+    if (pay) out.payment_terms = pay[0].trim().replace(/^[,;\s]+/, "").slice(0, 120);
+
+    // Питання перевізника
+    out.questions = (raw.match(/[^.!?\n]*\?/g) || []).map((q: string) => q.trim()).filter((q: string) => q.length > 2).slice(0, 5);
+
+    out.has_bid = out.price !== null && out.can_do !== false;
+    if (out.has_bid) out.can_do = true;
+    return out;
+}
+
+function fmtShort(iso: string | null): string {
+    if (!iso) return "";
+    const [, mo, da] = iso.split("-");
+    return `${da}.${mo}`;
+}
+
+// Підсумок для логіста і чернетка відповіді перевізнику
+function describeReply(x: Any, signature: string): { summary: string; reply: string } {
+    const sign = `\n\n${signature}`;
+    if (x.has_bid) {
+        const when = x.load_date ? ` і подачу ${fmtShort(x.load_date)}${x.load_time ? ` о ${x.load_time}` : ""}` : "";
+        const price = `${x.price.toLocaleString("uk-UA").replace(/ /g, " ")} ${x.currency || ""}`.trim();
+        return {
+            summary: `Ставка ${price}${x.load_date ? `, подача ${fmtShort(x.load_date)}${x.load_time ? " " + x.load_time : ""}` : ""}${x.questions.length ? ` · є питання` : ""}.`,
+            reply: `Дякуємо! Записали ставку ${price}${when}. Логіст підтвердить найближчим часом. Надішліть, будь ласка, номер авто, причепа та ПІБ водія.${sign}`,
+        };
+    }
+    if (x.can_do === false) {
+        return {
+            summary: "Перевізник відмовився.",
+            reply: `Дякуємо за відповідь! Будемо на зв'язку з наступними запитами.${sign}`,
+        };
+    }
+    if (x.questions.length) {
+        return {
+            summary: `Перевізник питає: ${x.questions.join(" ")}`,
+            reply: `Дякуємо! Уточнюємо у логіста й повернемося з відповіддю.${sign}`,
+        };
+    }
+    return {
+        summary: "Ставку не знайдено — прочитайте відповідь.",
+        reply: `Дякуємо за відповідь! Логіст зв'яжеться з вами найближчим часом.${sign}`,
+    };
+}
+
+/* ================================================================== */
 /* AI (Claude API)                                                     */
 /* ================================================================== */
 
@@ -241,16 +417,9 @@ ${incoming}
         ),
     );
     if (ai) return ai;
-    return {
-        has_bid: false,
-        price: null,
-        currency: null,
-        load_date: null,
-        can_do: null,
-        questions: [],
-        summary: "Перевізник відповів — прочитайте повідомлення.",
-        reply: "Дякуємо за відповідь! Логіст зв'яжеться з вами найближчим часом.",
-    };
+    // Без ключа ШІ (або ШІ не відповів) — свій розбір за правилами
+    const x = parseCarrierReply(incoming);
+    return { ...x, ...describeReply(x, `${COMPANY}, відділ логістики`) };
 }
 
 /* ================================================================== */

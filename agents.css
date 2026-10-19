@@ -399,3 +399,9 @@
 .ag-confirm button {
     min-height: 38px;
 }
+
+/* Атрибут hidden сильніший за display: flex */
+.ag-card[hidden],
+.ag-actions[hidden] {
+    display: none;
+}

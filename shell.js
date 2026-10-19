@@ -172,8 +172,12 @@
         }
     }
 
-    // AI-помічник — кнопка «Помічник» на кожній сторінці CRM (assistant.js)
+    // AI-помічник — кнопка «Помічник» на кожній сторінці CRM (assistant.js).
+    // Потрібен платний ключ ШІ (ANTHROPIC_API_KEY у Supabase). Коли буде — поставте true.
+    const ASSISTANT_ENABLED = false;
+
     function loadAssistant() {
+        if (!ASSISTANT_ENABLED) return;
         if (document.querySelector('script[data-fura-assistant]')) return;
         const s = document.createElement("script");
         s.src = "assistant.js?v=202610192330";
