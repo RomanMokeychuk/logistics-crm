@@ -1734,6 +1734,8 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
+        ${window.furikReply ? window.furikReply.sectionHtml(r) : ""}
+
         ${window.furaBids ? window.furaBids.sectionHtml() : ""}
 
         ${chatSectionHtml(r)}
@@ -1810,6 +1812,7 @@ function openRequestCard(id) {
     requestCardOverlay.classList.add("active");
     initRequestChat(r.id);
     window.furaBids?.mount(r); // ставки перевізників (bids.js)
+    window.furikReply?.mount(r); // Фурик підкаже: ціни логісту, відповідь клієнту Sales (furik-reply.js)
 
     // Карта маршруту (route-map.js)
     window.furaRouteMap?.render(document.getElementById("routeMapBox"), r);

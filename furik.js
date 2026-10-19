@@ -55,6 +55,30 @@
     const K_HIDDEN = "fura_furik_hidden"; // { tipId: "YYYY-MM-DD" }
     const K_MORNING = "fura_furik_morning";
     const seenThisSession = new Set();
+    const K_SOUND = "fura_furik_sound";
+    let userTouched = false;
+    ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, () => (userTouched = true), { once: true, capture: true }));
+
+    function beep() {
+        if (!store.get(K_SOUND, true) || !userTouched) return;
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            const ctx = (beep.ctx = beep.ctx || new AC());
+            const now = ctx.currentTime;
+            [[660, 0], [880, 0.13]].forEach(([f, t]) => {
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = "sine";
+                o.frequency.value = f;
+                g.gain.setValueAtTime(0.0001, now + t);
+                g.gain.exponentialRampToValueAtTime(0.12, now + t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.16);
+                o.connect(g).connect(ctx.destination);
+                o.start(now + t);
+                o.stop(now + t + 0.18);
+            });
+        } catch (_) {}
+    }
 
     function hiddenToday(id) {
         const h = store.get(K_HIDDEN, {});
@@ -99,11 +123,24 @@
         try {
             const { data } = await client
                 .from("requests")
-                .select("id, client, load_country, unload_country, status, created_at, sales_id, logistician_ids, logistician_id")
-                .eq("status", "Запит")
+                .select("id, client, load_country, unload_country, status, created_at, answered_at, sales_id, logistician_ids, logistician_id")
+                .in("status", ["Запит", "Відповідь"])
                 .order("created_at", { ascending: true })
                 .limit(100);
             for (const r of data || []) {
+                if (r.status === "Відповідь") {
+                    // Логіст дав ціни — Sales треба відповісти клієнту
+                    if (isSales && String(r.sales_id) === meId) {
+                        tips.push({
+                            id: `answered-${r.id}`,
+                            kind: "info",
+                            text: `Логіст відповів по запиту <b>${esc(r.client)}</b>${r.answered_at ? ` (${ago(r.answered_at)} тому)` : ""}. Допомогти скласти відповідь клієнту?`,
+                            action: { label: "Скласти відповідь", href: `requests.html?open=${r.id}&furik=1` },
+                            weight: 3,
+                        });
+                    }
+                    continue;
+                }
                 const ids = Array.isArray(r.logistician_ids) && r.logistician_ids.length ? r.logistician_ids.map(String) : r.logistician_id ? [String(r.logistician_id)] : [];
                 const waitMin = (Date.now() - new Date(r.created_at).getTime()) / 60000;
                 const route = `${r.load_country || "—"} → ${r.unload_country || "—"}`;
@@ -112,7 +149,7 @@
                         id: `req-${r.id}`,
                         kind: "warn",
                         text: `Запит <b>${esc(r.client)}</b> (${esc(route)}) чекає вашої відповіді вже <b>${ago(r.created_at)}</b>.`,
-                        action: { label: "Відповісти", href: `requests.html?open=${r.id}` },
+                        action: { label: "Відповісти", href: `requests.html?open=${r.id}&furik=1` },
                         weight: 3,
                     });
                 } else if (isSales && String(r.sales_id) === meId && waitMin > WAIT_SALES_MIN) {
@@ -234,7 +271,7 @@
 
     const css = document.createElement("link");
     css.rel = "stylesheet";
-    css.href = "furik.css?v=202610200030";
+    css.href = "furik.css?v=202610200100";
     document.head.appendChild(css);
 
     const root = document.createElement("div");
@@ -248,6 +285,7 @@
             <div class="fk-tips" aria-live="polite"></div>
             <div class="fk-foot">
                 <button type="button" class="fk-link" data-fk="helper">Знайти перевізника</button>
+                <button type="button" class="fk-link fk-sound" data-fk="sound"></button>
                 <button type="button" class="fk-link" data-fk="off">Вимкнути до завтра</button>
             </div>
         </div>
@@ -268,7 +306,15 @@
         return tips.filter((t) => !hiddenToday(t.id));
     }
 
+    function drawSound() {
+        const on = store.get(K_SOUND, true);
+        const b = root.querySelector("[data-fk='sound']");
+        b.textContent = on ? "🔔 Звук увімк." : "🔕 Звук вимк.";
+        b.setAttribute("aria-pressed", String(on));
+    }
+
     function draw() {
+        drawSound();
         const v = visibleTips();
         const todo = v.filter((t) => t.kind !== "calm").length; // привітання не рахуємо
         badge.hidden = !todo;
@@ -305,6 +351,13 @@
         clearTimeout(autoHide);
     }
 
+    function driveIn() {
+        meBtn.classList.remove("hop", "drive");
+        void meBtn.offsetWidth;
+        meBtn.classList.add("drive");
+        setTimeout(() => meBtn.classList.remove("drive"), 1600);
+    }
+
     function hop() {
         meBtn.classList.remove("hop");
         void meBtn.offsetWidth; // перезапуск анімації
@@ -320,6 +373,14 @@
             store.set(K_OFF, todayIso());
             closeBubble();
             root.hidden = true;
+        }
+        if (act === "sound") {
+            store.set(K_SOUND, !store.get(K_SOUND, true));
+            drawSound();
+            if (store.get(K_SOUND, true)) {
+                userTouched = true;
+                beep();
+            }
         }
         if (act === "helper") {
             closeBubble();
@@ -368,7 +429,9 @@
         const fresh = visibleTips().filter((t) => !seenThisSession.has(t.id));
         fresh.forEach((t) => seenThisSession.add(t.id));
         if (fresh.length) {
-            hop();
+            if (first) driveIn();
+            else hop();
+            if (fresh.some((t) => t.kind !== "calm")) beep();
             // Самі відкриваємо пузир лише при першому завантаженні сторінки або при новій важливій справі
             if (first || fresh.some((t) => t.kind === "warn")) openBubble(true);
         }

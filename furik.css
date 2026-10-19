@@ -260,6 +260,7 @@
 }
 
 .fk-foot {
+    flex-wrap: wrap;
     display: flex;
     justify-content: space-between;
     gap: 8px;
@@ -312,4 +313,36 @@ body:has(.fh-panel:not([hidden])) .fk {
     .fk-bubble {
         animation: none !important;
     }
+}
+
+/* Приїжджає з правого краю екрана, колеса крутяться */
+.fk-me.drive {
+    animation: fk-drive 1.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.fk-me.drive .fk-wheel {
+    animation: fk-roll 0.45s linear 3;
+}
+
+@keyframes fk-drive {
+    0% { transform: translateX(140px); }
+    80% { transform: translateX(-6px); }
+    100% { transform: translateX(0); }
+}
+
+.fk-sound {
+    color: #4b5563 !important;
+    font-weight: 500 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fk-me.drive,
+    .fk-me.drive .fk-wheel {
+        animation: none !important;
+    }
+}
+
+/* Відкрита картка чи форма — пузир Фурика не закриває її */
+body:has(.modal-overlay.active) .fk-bubble {
+    display: none;
 }
