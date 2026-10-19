@@ -10,6 +10,8 @@
 //  Зміна статусу       → Sales і логістам
 //  Переписка по запиту → Sales і логістам запиту, кнопка "✍️ Відповісти"
 //
+//  Перевізник (через /start c_<код>) → його повідомлення читає AI-агент (функція fura-agent)
+//
 // Секрети: TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
 // Необов'язково: CRM_URL, APP_URL (адреса сайту на GitHub Pages)
 
@@ -744,15 +746,49 @@ async function handleStart(chatId: number, username: string) {
     );
 }
 
+// AI-агент ставок живе в окремій функції fura-agent (bot/fura-agent.ts)
+async function callAgent(payload: Any): Promise<Any> {
+    try {
+        const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/fura-agent`, {
+            method: "POST",
+            headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`,
+                "x-webhook-secret": WEBHOOK_SECRET,
+            },
+            body: JSON.stringify(payload),
+        });
+        return await res.json().catch(() => null);
+    } catch (e) {
+        console.error("fura-agent:", e);
+        return null;
+    }
+}
+
 async function handleMessage(msg: Any) {
     const chatId = Number(msg.chat.id);
     const username = String(msg.from?.username || "").toLowerCase();
     const text = String(msg.text || "").trim();
 
+    // Перевізник відкрив посилання-запрошення: /start c_<код>
+    const invite = text.match(/^\/start\s+c_([A-Za-z0-9]+)/);
+    if (invite) {
+        await callAgent({ action: "link", chat_id: chatId, code: invite[1] });
+        return;
+    }
+
     if (text.startsWith("/start")) return handleStart(chatId, username);
 
     const me = await staffByChat(chatId);
     if (!me) {
+        // Може, це перевізник — тоді повідомлення читає AI-агент ставок
+        const agent = await callAgent({
+            action: "inbound",
+            chat_id: chatId,
+            text: text || String(msg.caption || "").trim(),
+            message_id: msg.message_id,
+        });
+        if (agent?.handled) return;
         return send(chatId, "❌ Вас немає у списку співробітників FURA. Натисніть /start.");
     }
 

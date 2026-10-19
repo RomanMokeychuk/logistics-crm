@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — AI-агенти</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202610192300" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202610192300" />
+        <link rel="stylesheet" href="agents.css?v=202610192300" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img src="logo.svg" alt="" width="28" height="28" style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
+                <a href="agents.html" class="active"><i class="bx bx-bot"></i> AI-агенти</a>
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content agents-page">
+            <header class="top-bar">
+                <div>
+                    <h1>AI-агенти</h1>
+                    <p class="ag-sub">
+                        Агент ставок пише перевізникам у Telegram. Нічого не
+                        надсилається без вашого «Надіслати».
+                    </p>
+                </div>
+            </header>
+
+            <!-- Запит, по якому збираємо ставки (якщо відкрито з картки запиту) -->
+            <section class="ag-card" id="requestPanel" hidden>
+                <div class="ag-card-head">
+                    <h2>Запит</h2>
+                    <a href="agents.html" class="ag-link">Усі запити</a>
+                </div>
+                <div id="requestSummary" class="ag-request"></div>
+            </section>
+
+            <div class="ag-grid">
+                <section class="ag-card" aria-labelledby="queueTitle">
+                    <div class="ag-card-head">
+                        <h2 id="queueTitle">Чекають схвалення</h2>
+                        <span class="ag-count" id="queueCount">0</span>
+                    </div>
+                    <div id="queueList" class="ag-list">
+                        <p class="ag-empty">Завантаження…</p>
+                    </div>
+                </section>
+
+                <section class="ag-card" aria-labelledby="bidsTitle">
+                    <div class="ag-card-head">
+                        <h2 id="bidsTitle">Відповіді перевізників</h2>
+                    </div>
+                    <div id="bidsList" class="ag-list">
+                        <p class="ag-empty">Завантаження…</p>
+                    </div>
+                </section>
+            </div>
+
+            <section class="ag-card" aria-labelledby="carriersTitle">
+                <div class="ag-card-head">
+                    <h2 id="carriersTitle">Перевізники</h2>
+                    <span class="ag-hint" id="carriersHint">
+                        Перевізник має один раз відкрити посилання-запрошення в
+                        Telegram — тоді агент зможе йому писати.
+                    </span>
+                </div>
+                <div class="ag-search">
+                    <label for="carrierSearch" class="ag-label">Назва або ЄДРПОУ</label>
+                    <input
+                        id="carrierSearch"
+                        type="search"
+                        autocomplete="off"
+                        placeholder="Наприклад: Вест-Карго або 12345678" />
+                    <label class="ag-check-inline">
+                        <input type="checkbox" id="onlyLinked" />
+                        Тільки підключені до Telegram
+                    </label>
+                </div>
+                <div id="carrierResults" class="ag-carriers"></div>
+                <div class="ag-actions" id="draftActions" hidden>
+                    <button type="button" class="btn-primary" id="createDraftsBtn">
+                        <i class="bx bx-bot"></i>
+                        Підготувати запит на ставку (<span id="selectedCount">0</span>)
+                    </button>
+                    <span class="ag-hint">Агент напише чернетку — ви переглянете й надішлете.</span>
+                </div>
+            </section>
+        </main>
+
+        <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="agents.js?v=202610192300"></script>
+        <script src="shell.js?v=202610192300"></script>
+        <script src="notify.js?v=202610192300"></script>
+        <script src="lock.js?v=202610192300"></script>
+    </body>
+</html>

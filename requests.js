@@ -2098,9 +2098,14 @@ function answerSectionHtml(r) {
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
                 <span><i class='bx bx-dollar-circle'></i> ${title}</span>
-                <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
-                    <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
-                </button>
+                <span style="display:flex; gap:8px; flex-wrap:wrap">
+                    <a class="btn-answer" href="agents.html?request=${encodeURIComponent(r.id)}" style="text-decoration:none" title="AI-агент напише перевізникам і збере ставки">
+                        <i class='bx bx-bot'></i> AI: зібрати ставки
+                    </a>
+                    <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
+                        <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
+                    </button>
+                </span>
             </div>
             ${blocksHtml}
         </div>`;
