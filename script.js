@@ -891,7 +891,7 @@ function renderCarriers() {
         </td>
         <td>${ukraineBadges}</td>
         <td>${starsHtml}</td>
-        <td style="max-width: 220px; white-space: normal; word-break: break-word;">${escapeHtml(notesFull) || "—"}${notesTimestampHtml}</td>
+        <td class="notes-cell" title="${escapeHtml(notesFull)}">${notesShortHtml(notesFull)}</td>
         <td>
           <button class="btn-icon" onclick="editCarrier('${item.id}')" title="Редактировать"><i class='bx bx-edit'></i></button>
           <button class="btn-icon text-danger" onclick="deleteCarrier('${item.id}')" title="Удалить"><i class='bx bx-trash'></i></button>
@@ -1646,4 +1646,17 @@ function markFilteredHeaders() {
         const m = (el.getAttribute("onclick") || "").match(/openColumnFilter\(\s*event,\s*'([^']+)'/);
         el.classList.toggle("filter-on", !!(m && activeFiltersState[m[1]]));
     });
+}
+
+// У таблиці з замітки показуємо тільки «Що возять: …» (повний текст — у картці і при наведенні)
+function notesShortHtml(notes) {
+    const text = String(notes || "").trim();
+    if (!text) return "—";
+    const m = text.match(/Що\s+возять\s*:\s*([\s\S]*?)(?=\s*(?:Напрям(?:ок|ки)\s*:|Перевезен\S*|$))/i);
+    if (m) {
+        const what = m[1].replace(/\s+/g, " ").trim();
+        return `<span class="notes-label">Що возять:</span> ${escapeHtml(what || "—")}`;
+    }
+    const short = text.replace(/\s+/g, " ");
+    return escapeHtml(short.length > 80 ? short.slice(0, 80) + "…" : short);
 }

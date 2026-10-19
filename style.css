@@ -1209,3 +1209,7 @@ body,
 .filter-icon.filter-on { color: #ea580c !important; opacity: 1 !important; }
 .filters-reset { margin-left: 10px; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 .filters-reset:hover { background: #ffedd5; }
+
+/* Замітки в таблиці перевізників — коротко і дрібно */
+.notes-cell { max-width: 200px; white-space: normal; word-break: break-word; font-size: 12px; line-height: 1.35; color: #475569; }
+.notes-cell .notes-label { color: #94a3b8; }
