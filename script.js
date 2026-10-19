@@ -179,7 +179,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     restoreCarriersView();
-    loadCarriers();
+    // index.html?open=<id> — одразу картка перевізника (посилання з AI-помічника)
+    const openCarrierId = new URLSearchParams(location.search).get("open");
+    loadCarriers().then(() => {
+        if (openCarrierId) openCarrierCard(openCarrierId);
+    });
     setupScrollTopButton();
     renderDirectionSelects();
 

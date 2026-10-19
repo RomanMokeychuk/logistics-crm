@@ -2497,7 +2497,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateDateRangeUI();
     setupScrollTopButton();
     searchInput?.addEventListener("input", renderRequests);
-    loadRequests();
+    // requests.html?open=<id> — одразу картка запиту (посилання з бота й AI-помічника)
+    const openRequestId = new URLSearchParams(location.search).get("open");
+    loadRequests().then(() => {
+        if (openRequestId) openRequestCard(openRequestId);
+    });
     renderTransportPicker();
     // Типи причепів з реєстру перевізників — для списку «+ інший тип»
     loadRegistryTrailerTypes().then(() => {
