@@ -209,7 +209,7 @@ async function loadQueue() {
                 <textarea id="draft-${m.id}">${escapeHtml(m.text)}</textarea>
                 <div class="ag-item-actions">${buttons.join("")}</div>
                 <div class="ag-confirm" data-confirm="${m.id}" hidden>
-                    <span>Текст скопійовано. Якщо в месенджері поле порожнє — клікніть у нього і вставте (Cmd+V на Mac, Ctrl+V на Windows), надішліть, і тільки тоді натисніть «Я надіслав».</span>
+                    <span>Текст уже скопійовано. У месенджері клікніть у поле повідомлення → <b>Cmd+V</b> (Mac) або <b>Ctrl+V</b> (Windows) → надішліть. Тільки після цього натисніть «Я надіслав».</span>
                     <button type="button" class="btn-primary" data-marked="${m.id}">Я надіслав</button>
                 </div>
                 ${!phone && !tg ? `<span class="ag-hint">У перевізника немає телефону в базі — додайте його в картці перевізника.</span>` : ""}
