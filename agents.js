@@ -327,30 +327,34 @@ document.getElementById("queueList").addEventListener("click", async (e) => {
 
 async function renderReplyForm() {
     const form = document.getElementById("replyForm");
-    if (!REQUEST_ID) {
-        form.hidden = true;
-        return;
-    }
-    // Перевізники, яким уже надіслали запит по цьому запиту
-    const { data } = await sbClient
+    // Кому вже надіслали запит: по цьому запиту, або (на загальній сторінці) за останні 14 днів
+    let q = sbClient
         .from("agent_messages")
-        .select("carrier_id, carrier_name, channel")
-        .eq("request_id", REQUEST_ID)
+        .select("request_id, carrier_id, carrier_name, channel, sent_at")
         .eq("direction", "out")
         .eq("status", "sent")
-        .order("sent_at", { ascending: false });
+        .order("sent_at", { ascending: false })
+        .limit(100);
+    if (REQUEST_ID) q = q.eq("request_id", REQUEST_ID);
+    else q = q.gte("sent_at", new Date(Date.now() - 14 * 864e5).toISOString());
+    const { data } = await q;
     const seen = new Map();
     (data || []).forEach((m) => {
-        if (!seen.has(String(m.carrier_id))) seen.set(String(m.carrier_id), m);
+        const key = `${m.request_id}|${m.carrier_id}`;
+        if (!seen.has(key)) seen.set(key, m);
     });
-    const sel = document.getElementById("replyCarrier");
-    const keep = sel.value;
     if (!seen.size) {
         form.hidden = true;
         return;
     }
-    sel.innerHTML = [...seen.values()]
-        .map((m) => `<option value="${escapeHtml(m.carrier_id)}" data-channel="${escapeHtml(m.channel || "manual")}">${escapeHtml(m.carrier_name || "Перевізник")}</option>`)
+    await ensureRequests([...seen.values()].map((m) => m.request_id));
+    const sel = document.getElementById("replyCarrier");
+    const keep = sel.value;
+    sel.innerHTML = [...seen.entries()]
+        .map(([key, m]) => {
+            const label = REQUEST_ID ? m.carrier_name || "Перевізник" : `${m.carrier_name || "Перевізник"} — ${routeOf(requestsById.get(m.request_id))}`;
+            return `<option value="${escapeHtml(key)}" data-channel="${escapeHtml(m.channel || "manual")}">${escapeHtml(label)}</option>`;
+        })
         .join("");
     if (keep && seen.has(keep)) sel.value = keep;
     form.hidden = false;
@@ -366,10 +370,11 @@ document.getElementById("replyForm").addEventListener("submit", async (e) => {
     btn.disabled = true;
     btn.textContent = "Агент читає…";
     try {
+        const [requestId, carrierId] = String(sel.value).split("|");
         await agent({
             action: "manual_reply",
-            request_id: REQUEST_ID,
-            carrier_id: sel.value,
+            request_id: requestId,
+            carrier_id: carrierId,
             channel: sel.selectedOptions[0]?.dataset.channel || "manual",
             text,
         });
