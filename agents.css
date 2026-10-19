@@ -319,3 +319,18 @@
 .ag-toast.error {
     background: #9b1c1c;
 }
+
+.agents-page .btn-primary,
+.agents-page .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 16px;
+    border-radius: 9px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.ag-invite button {
+    min-height: 36px;
+}
