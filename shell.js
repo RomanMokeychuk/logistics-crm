@@ -201,7 +201,11 @@
         fillUser();
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
-        if (window.top === window.self) addScript("global-search.js?v=202610200010");
+        if (window.top === window.self) {
+            addScript("global-search.js?v=202610200010");
+            // Фурик — персонаж із нагадуваннями (furik.js)
+            addScript("furik.js?v=202610200030");
+        }
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

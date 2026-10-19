@@ -1,0 +1,315 @@
+/* FURA — Фурик: помічник-персонаж. Над кнопкою «Помічник» справа внизу. */
+
+.fk {
+    position: fixed;
+    right: 24px;
+    bottom: 84px;
+    z-index: 8990;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.fk[hidden] {
+    display: none;
+}
+
+/* Сам Фурик */
+.fk-me {
+    position: relative;
+    width: 104px;
+    height: 80px;
+    border: none;
+    background: transparent;
+    padding: 0;
+    cursor: pointer;
+    filter: drop-shadow(0 6px 10px rgba(19, 32, 63, 0.25));
+    transition: transform 0.2s ease;
+}
+
+.fk-me:hover {
+    transform: translateY(-2px);
+}
+
+.fk-me:focus-visible {
+    outline: 3px solid #1d5bd8;
+    outline-offset: 4px;
+    border-radius: 12px;
+}
+
+.fk-svg {
+    width: 104px;
+    height: auto;
+    overflow: visible;
+}
+
+/* Моргає раз на кілька секунд */
+.fk-eyes {
+    transform-origin: 72px 31px;
+    animation: fk-blink 5.5s infinite;
+}
+
+@keyframes fk-blink {
+    0%, 94%, 100% { transform: scaleY(1); }
+    96% { transform: scaleY(0.1); }
+}
+
+/* Спить, коли справ немає: очі прикриті, з'являється «z» */
+.fk-zz {
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.fk-me.sleepy .fk-zz {
+    opacity: 1;
+    animation: fk-z 2.6s ease-in-out infinite;
+}
+
+.fk-me.sleepy .fk-eyes {
+    animation: none;
+    transform: scaleY(0.25);
+}
+
+.fk-me.sleepy .fk-smile {
+    d: path("M69 41h8");
+}
+
+@keyframes fk-z {
+    0%, 100% { transform: translate(0, 0); opacity: 0.4; }
+    50% { transform: translate(2px, -3px); opacity: 1; }
+}
+
+/* Нова справа — підстрибує, колеса крутяться */
+.fk-me.hop .fk-body {
+    animation: fk-hop 0.9s ease;
+}
+
+.fk-me.hop .fk-wheel {
+    animation: fk-roll 0.9s linear;
+}
+
+.fk-wheel {
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+@keyframes fk-hop {
+    0%, 100% { transform: translateY(0); }
+    25% { transform: translateY(-8px); }
+    45% { transform: translateY(0); }
+    65% { transform: translateY(-4px); }
+}
+
+@keyframes fk-roll {
+    to { transform: rotate(360deg); }
+}
+
+/* Є щось термінове — легке погойдування раз на кілька секунд */
+.fk-me.alert:not(.hop) .fk-body {
+    animation: fk-wiggle 4s ease-in-out infinite;
+    transform-origin: 50px 50px;
+}
+
+@keyframes fk-wiggle {
+    0%, 88%, 100% { transform: rotate(0); }
+    91% { transform: rotate(-3deg); }
+    94% { transform: rotate(3deg); }
+    97% { transform: rotate(-1.5deg); }
+}
+
+.fk-badge {
+    position: absolute;
+    top: -2px;
+    right: 0;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 6px;
+    border-radius: 11px;
+    background: #d93a1f;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 22px;
+    box-shadow: 0 0 0 2px #fff;
+}
+
+.fk-badge[hidden] {
+    display: none;
+}
+
+/* Пузир з підказками */
+.fk-bubble {
+    width: 340px;
+    max-width: calc(100vw - 32px);
+    max-height: min(60vh, 460px);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 16px;
+    box-shadow: 0 16px 40px rgba(19, 32, 63, 0.22);
+    overflow: hidden;
+    animation: fk-pop 0.18s ease-out;
+    position: relative;
+}
+
+.fk-bubble[hidden] {
+    display: none;
+}
+
+@keyframes fk-pop {
+    from { transform: translateY(6px) scale(0.98); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+.fk-bubble-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 10px 10px 14px;
+    background: var(--f-navy, #13203f);
+    color: #fff;
+}
+
+.fk-x {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    border-radius: 8px;
+}
+
+.fk-x:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.fk-tips {
+    overflow-y: auto;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--f-bg, #f3f5f9);
+}
+
+.fk-tip {
+    background: #fff;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 12px;
+    padding: 10px 12px;
+}
+
+.fk-tip.warn {
+    border-color: #f5c58a;
+    background: #fffaf2;
+}
+
+.fk-tip.calm {
+    border-color: #b9e3c9;
+    background: #f6fcf8;
+}
+
+.fk-tip p {
+    margin: 0;
+    line-height: 1.45;
+    color: #1f2937;
+}
+
+.fk-tip b {
+    color: var(--f-navy, #13203f);
+}
+
+.fk-tip-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.fk-act {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--f-navy, #13203f);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.fk-act:hover {
+    background: var(--f-navy-2, #1b2a4d);
+}
+
+.fk-later {
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid #d5dbe5;
+    border-radius: 8px;
+    background: #fff;
+    color: #4b5563;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.fk-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 12px;
+    border-top: 1px solid var(--f-line, #e4e8ef);
+    background: #fff;
+}
+
+.fk-link {
+    border: none;
+    background: transparent;
+    padding: 6px 0;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--f-blue, #1d5bd8);
+    cursor: pointer;
+}
+
+.fk-link[data-fk="off"] {
+    color: #6b7280;
+    font-weight: 500;
+}
+
+/* Коли відкрито вікно «Помічник» — Фурик не заважає */
+body:has(.fh-panel:not([hidden])) .fk {
+    display: none;
+}
+
+@media (max-width: 600px) {
+    .fk {
+        right: 12px;
+        bottom: 76px;
+    }
+    .fk-me {
+        width: 64px;
+        height: 50px;
+    }
+    .fk-svg {
+        width: 64px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fk-eyes,
+    .fk-me.sleepy .fk-zz,
+    .fk-me.hop .fk-body,
+    .fk-me.hop .fk-wheel,
+    .fk-me.alert .fk-body,
+    .fk-bubble {
+        animation: none !important;
+    }
+}
