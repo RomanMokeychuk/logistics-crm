@@ -21,6 +21,7 @@
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
+                { href: "agents.html", icon: "bx-bot", label: "AI-агенти" },
             ],
         },
         {
@@ -171,10 +172,20 @@
         }
     }
 
+    // AI-помічник — кнопка «Помічник» на кожній сторінці CRM (assistant.js)
+    function loadAssistant() {
+        if (document.querySelector('script[data-fura-assistant]')) return;
+        const s = document.createElement("script");
+        s.src = "assistant.js?v=202610192330";
+        s.dataset.furaAssistant = "1";
+        document.body.appendChild(s);
+    }
+
     function init() {
         const label = buildSidebar();
         buildTopbar(label);
         fillUser();
+        loadAssistant();
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

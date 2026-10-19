@@ -1,0 +1,285 @@
+/* FURA — AI-помічник. Кольори з theme.css (--f-*). */
+
+.fa-fab {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 9000;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    padding: 0 18px 0 14px;
+    border: none;
+    border-radius: 24px;
+    background: var(--f-navy, #13203f);
+    color: #fff;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(19, 32, 63, 0.28);
+}
+
+.fa-fab i {
+    font-size: 20px;
+    color: var(--f-orange, #f57c00);
+}
+
+.fa-fab:hover {
+    background: var(--f-navy-2, #1b2a4d);
+}
+
+.fa-panel {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 9001;
+    width: 420px;
+    max-width: calc(100vw - 32px);
+    height: 640px;
+    max-height: calc(100vh - 48px);
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(19, 32, 63, 0.25);
+    overflow: hidden;
+    font-size: 14px;
+    color: var(--f-text, #111827);
+}
+
+.fa-panel[hidden],
+.fa-fab[hidden] {
+    display: none;
+}
+
+.fa-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 14px 14px 18px;
+    background: var(--f-navy, #13203f);
+    color: #fff;
+}
+
+.fa-head b {
+    display: block;
+    font-size: 15px;
+}
+
+.fa-head span {
+    font-size: 12px;
+    color: #b8c4dc;
+}
+
+.fa-head-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.fa-icon {
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fa-icon:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.fa-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--f-bg, #f3f5f9);
+}
+
+.fa-hello p {
+    margin: 0 0 12px;
+    line-height: 1.5;
+    color: #374151;
+}
+
+.fa-chips {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.fa-chip {
+    text-align: left;
+    border: 1px solid #d5dbe5;
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 13.5px;
+    color: var(--f-navy, #13203f);
+    cursor: pointer;
+}
+
+.fa-chip:hover {
+    border-color: var(--f-blue, #1d5bd8);
+}
+
+.fa-msg {
+    max-width: 88%;
+    padding: 10px 12px;
+    border-radius: 12px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.fa-msg p {
+    margin: 0 0 6px;
+}
+
+.fa-msg p:last-child {
+    margin-bottom: 0;
+}
+
+.fa-msg ul {
+    margin: 4px 0 6px;
+    padding-left: 18px;
+}
+
+.fa-msg li {
+    margin-bottom: 4px;
+}
+
+.fa-msg a {
+    color: var(--f-blue, #1d5bd8);
+    font-weight: 600;
+}
+
+.fa-user {
+    align-self: flex-end;
+    background: var(--f-navy, #13203f);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+    white-space: pre-wrap;
+}
+
+.fa-bot {
+    align-self: flex-start;
+    background: #fff;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-bottom-left-radius: 4px;
+}
+
+.fa-error {
+    border-color: #f2b8b5;
+    background: #fdf1f0;
+    color: #8a1c14;
+}
+
+.fa-typing {
+    color: var(--f-muted, #6b7280);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.fa-typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--f-orange, #f57c00);
+    animation: fa-blink 1s infinite ease-in-out;
+}
+
+.fa-typing span:nth-child(2) {
+    animation-delay: 0.15s;
+}
+
+.fa-typing span:nth-child(3) {
+    animation-delay: 0.3s;
+    margin-right: 6px;
+}
+
+@keyframes fa-blink {
+    0%,
+    100% {
+        opacity: 0.25;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fa-typing span {
+        animation: none;
+    }
+}
+
+.fa-form {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    padding: 12px;
+    border-top: 1px solid var(--f-line, #e4e8ef);
+    background: #fff;
+}
+
+.fa-form textarea {
+    flex: 1;
+    resize: none;
+    border: 1px solid #d5dbe5;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+    max-height: 120px;
+}
+
+.fa-send {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 10px;
+    background: var(--f-orange, #f57c00);
+    color: var(--f-navy, #13203f);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.fa-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+}
+
+@media (max-width: 600px) {
+    .fa-fab span {
+        display: none;
+    }
+    .fa-fab {
+        padding: 0 14px;
+    }
+    .fa-panel {
+        right: 8px;
+        bottom: 8px;
+        height: calc(100vh - 16px);
+    }
+}
