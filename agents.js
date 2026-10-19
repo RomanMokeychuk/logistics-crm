@@ -189,8 +189,9 @@ async function loadQueue() {
             const phone = phoneDigits(c);
             const buttons = [];
             if (phone) {
-                buttons.push(`<button type="button" class="btn-primary ag-viber" data-open="viber" data-id="${m.id}"><i class="bx bx-phone"></i> Відкрити у Viber</button>`);
-                buttons.push(`<button type="button" class="btn-secondary" data-open="whatsapp" data-id="${m.id}"><i class="bx bxl-whatsapp"></i> WhatsApp</button>`);
+                buttons.push(`<button type="button" class="btn-primary ag-viber" data-open="viber" data-id="${m.id}" data-phone="${phone}"><i class="bx bx-phone"></i> Відкрити у Viber</button>`);
+                buttons.push(`<button type="button" class="btn-secondary" data-open="whatsapp" data-id="${m.id}" data-phone="${phone}"><i class="bx bxl-whatsapp"></i> WhatsApp</button>`);
+                buttons.push(`<button type="button" class="btn-secondary" data-copy-draft="${m.id}"><i class="bx bx-copy"></i> Копіювати текст</button>`);
             }
             if (tg) buttons.push(`<button type="button" class="${phone ? "btn-secondary" : "btn-primary"}" data-send="${m.id}"><i class="bx bx-send"></i> Надіслати в Telegram</button>`);
             if (tg) buttons.push(`<button type="button" class="btn-secondary" data-test="${m.id}" title="Повідомлення прийде у ваш Telegram, перевізнику — нічого">Мені (тест)</button>`);
@@ -208,7 +209,7 @@ async function loadQueue() {
                 <textarea id="draft-${m.id}">${escapeHtml(m.text)}</textarea>
                 <div class="ag-item-actions">${buttons.join("")}</div>
                 <div class="ag-confirm" data-confirm="${m.id}" hidden>
-                    <span>Відкрили чат — натисніть «Надіслати» у месенджері. Текст уже скопійовано: якщо поле порожнє, вставте його (Ctrl+V).</span>
+                    <span>Текст скопійовано. Якщо в месенджері поле порожнє — клікніть у нього і вставте (Cmd+V на Mac, Ctrl+V на Windows), надішліть, і тільки тоді натисніть «Я надіслав».</span>
                     <button type="button" class="btn-primary" data-marked="${m.id}">Я надіслав</button>
                 </div>
                 ${!phone && !tg ? `<span class="ag-hint">У перевізника немає телефону в базі — додайте його в картці перевізника.</span>` : ""}
@@ -217,28 +218,45 @@ async function loadQueue() {
         .join("");
 }
 
-async function copyText(text) {
+// Копіюємо одразу в момент натискання (після запиту до бази браузер може заборонити)
+function copyNow(text) {
+    let ok = false;
     try {
-        await navigator.clipboard.writeText(text);
-        return true;
-    } catch (_) {
-        return false;
-    }
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        ta.remove();
+    } catch (_) {}
+    try {
+        navigator.clipboard?.writeText(text).catch(() => {});
+        ok = true;
+    } catch (_) {}
+    return ok;
 }
 
 document.getElementById("queueList").addEventListener("click", async (e) => {
     // Viber / WhatsApp: телефон із бази, текст агента — логісту лишається натиснути «Надіслати»
+    const copyId = e.target.closest("[data-copy-draft]")?.dataset.copyDraft;
+    if (copyId) {
+        const text = document.getElementById(`draft-${copyId}`).value.trim();
+        toast(copyNow(text) ? "Текст скопійовано — вставте в месенджер (Cmd+V / Ctrl+V)" : "Не вдалося скопіювати — виділіть текст і скопіюйте вручну", !text);
+        return;
+    }
+
     const openBtn = e.target.closest("[data-open]");
     if (openBtn) {
         const id = openBtn.dataset.id;
         const kind = openBtn.dataset.open;
         const card = openBtn.closest(".ag-item");
         const text = document.getElementById(`draft-${id}`).value.trim();
-        const m = await sbClient.from("agent_messages").select("carrier_id").eq("id", id).maybeSingle();
-        const c = carriersById.get(String(m.data?.carrier_id));
-        const phone = phoneDigits(c);
+        const phone = openBtn.dataset.phone || "";
         if (!text || !phone) return toast("Немає тексту або телефону", true);
-        await copyText(text);
+        copyNow(text);
         const url = chatLink(kind, phone, text);
         if (kind === "viber") window.location.href = url;
         else window.open(url, "_blank", "noopener");
