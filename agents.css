@@ -405,3 +405,13 @@
 .ag-actions[hidden] {
     display: none;
 }
+
+/* Сторінка висотою в екран (style.css) — прокручуємо сам вміст */
+.main-content.agents-page {
+    overflow-y: auto;
+    padding-bottom: 32px;
+}
+
+.agents-page > * {
+    flex-shrink: 0;
+}
