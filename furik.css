@@ -346,3 +346,50 @@ body:has(.fh-panel:not([hidden])) .fk {
 body:has(.modal-overlay.active) .fk-bubble {
     display: none;
 }
+
+/* Перемикач «Логіст / Sales» у шапці пузиря */
+.fk-bubble-head {
+    gap: 8px;
+}
+
+.fk-name {
+    flex: 1;
+}
+
+.fk-modes {
+    display: inline-flex;
+    gap: 2px;
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.fk-modes[hidden] {
+    display: none;
+}
+
+.fk-modes button {
+    border: none;
+    background: transparent;
+    color: #c9d3e8;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    min-height: 28px;
+}
+
+.fk-modes button[aria-selected="true"] {
+    background: #fff;
+    color: #13203f;
+}
+
+.fk[data-mode="sales"] .fk-bubble-head {
+    background: #1749b3;
+}
+
+.fk-look {
+    display: block;
+}

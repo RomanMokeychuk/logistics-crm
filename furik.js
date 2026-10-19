@@ -54,7 +54,18 @@
     const K_OFF = "fura_furik_off_until";
     const K_HIDDEN = "fura_furik_hidden"; // { tipId: "YYYY-MM-DD" }
     const K_MORNING = "fura_furik_morning";
-    const seenThisSession = new Set();
+    const seenThisSession = new Set((() => {
+        try {
+            return JSON.parse(sessionStorage.getItem("fura_furik_seen") || "[]");
+        } catch (_) {
+            return [];
+        }
+    })());
+    function rememberSeen() {
+        try {
+            sessionStorage.setItem("fura_furik_seen", JSON.stringify([...seenThisSession].slice(-200)));
+        } catch (_) {}
+    }
     const K_SOUND = "fura_furik_sound";
     let userTouched = false;
     ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, () => (userTouched = true), { once: true, capture: true }));
@@ -110,14 +121,53 @@
     }
     const has = (...r) => me && me.roles.some((x) => r.includes(x));
 
+    // Два Фурики: для логіста і для Sales. Хто має обидві ролі — перемикає в пузирі.
+    const K_MODE = "fura_furik_mode";
+    function modes() {
+        const m = [];
+        if (has("logist", "head", "admin")) m.push("logist");
+        if (has("sales", "head", "admin")) m.push("sales");
+        return m.length ? m : ["logist"];
+    }
+    function mode() {
+        const list = modes();
+        const saved = store.get(K_MODE, "");
+        if (list.includes(saved)) return saved;
+        // Без збереженого вибору: «чистий» Sales — Sales, інакше логіст
+        return has("logist") || !list.includes("sales") ? list[0] : "sales";
+    }
+    const MODE_NAME = { logist: "Фурик · логіст", sales: "Фурик · Sales" };
+
+    // Порада дня — своя для кожного
+    const ADVICE = {
+        logist: [
+            "Перед тим як дати ціну, гляньте «Фурик підкаже» в запиті — там ставки перевізникам на цьому маршруті за пів року.",
+            "Відкрийте картку перевізника перед підтвердженням: блок «Історія з нами» покаже, скільки рейсів він уже зробив і за якою ціною.",
+            "Пишіть у відповіді, скільки діє ціна (напр. «актуально 24 год») — Sales легше дотиснути клієнта.",
+            "Дайте 2–3 варіанти ціни з різною датою подачі — клієнт частіше погоджується, коли є вибір.",
+            "Перевізник мовчить понад 3 години — краще одразу написати ще двом, ніж чекати.",
+            "Помічник розуміє «тент з Одеси в Польщу» — не треба шукати по фільтрах.",
+            "У рядку пошуку зверху можна ввести номер фури хоч кирилицею, хоч латиницею (Cmd+K).",
+        ],
+        sales: [
+            "Відповідайте клієнту в перші 30 хвилин після ціни логіста — шанс закрити угоду помітно вищий.",
+            "Називайте термін дії ціни: «ціна актуальна до 18:00» — клієнт швидше вирішує.",
+            "Клієнт мовчить добу після пропозиції — коротке «Чи актуально ще?» часто повертає розмову.",
+            "Перед відповіддю гляньте маржу в «Фурик підкаже» — він попередить, якщо вона менше 5%.",
+            "Постійний маршрут клієнта? Кнопка «Повторити запит» у картці заповнить усе за вас.",
+            "Ставте «наступний контакт» у ліді — тоді я нагадаю подзвонити саме в той день.",
+            "Пишіть клієнту з тим самим ім’ям і підписом — йому простіше впізнати вас серед інших експедиторів.",
+        ],
+    };
+
     /* ---------------- Правила: що підказати ---------------- */
 
     async function collectTips() {
         const tips = [];
         const today = todayIso();
         const meId = String(me.id);
-        const isLogist = has("logist", "head", "admin");
-        const isSales = has("sales", "head", "admin");
+        const isLogist = mode() === "logist" && has("logist", "head", "admin");
+        const isSales = mode() === "sales" && has("sales", "head", "admin");
 
         // 1. Запити без відповіді
         try {
@@ -131,11 +181,14 @@
                 if (r.status === "Відповідь") {
                     // Логіст дав ціни — Sales треба відповісти клієнту
                     if (isSales && String(r.sales_id) === meId) {
+                        const old = r.answered_at && Date.now() - new Date(r.answered_at).getTime() > 24 * 3600e3;
                         tips.push({
-                            id: `answered-${r.id}`,
-                            kind: "info",
-                            text: `Логіст відповів по запиту <b>${esc(r.client)}</b>${r.answered_at ? ` (${ago(r.answered_at)} тому)` : ""}. Допомогти скласти відповідь клієнту?`,
-                            action: { label: "Скласти відповідь", href: `requests.html?open=${r.id}&furik=1` },
+                            id: `answered-${r.id}${old ? "-old" : ""}`,
+                            kind: old ? "warn" : "info",
+                            text: old
+                                ? `Запит <b>${esc(r.client)}</b> вже ${ago(r.answered_at)} у статусі «Відповідь». Клієнт мовчить? Коротке «Чи ще актуально?» часто повертає розмову.`
+                                : `Логіст відповів по запиту <b>${esc(r.client)}</b>${r.answered_at ? ` (${ago(r.answered_at)} тому)` : ""}. Допомогти скласти відповідь клієнту?`,
+                            action: { label: old ? "Написати клієнту" : "Скласти відповідь", href: `requests.html?open=${r.id}&furik=1` },
                             weight: 3,
                         });
                     }
@@ -248,13 +301,24 @@
 
     /* ---------------- Персонаж ---------------- */
 
-    const FURIK_SVG = `
+    // Логіст — помаранчева кабіна й кепка; Sales — синя кабіна й гарнітура
+    function furikSvg(m) {
+        const sales = m === "sales";
+        const cab = sales ? "#1d5bd8" : "#f57c00";
+        const glass = sales ? "#dbe7ff" : "#ffe2bf";
+        const hub = sales ? "#7aa7ff" : "#f57c00";
+        const hat = sales
+            ? `<path d="M64 20q10-12 20 0" stroke="#13203f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+               <rect x="61.5" y="19" width="5" height="7" rx="2" fill="#13203f"/><rect x="81.5" y="19" width="5" height="7" rx="2" fill="#13203f"/>
+               <path d="M84 26q2 8-5 11" stroke="#13203f" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="78.5" cy="37.3" r="1.8" fill="#13203f"/>`
+            : `<path d="M60 22q0-9 14-9t14 9z" fill="#13203f"/><path d="M74 21h17q1.5 0 0 2H74z" fill="#13203f"/><circle cx="74" cy="13.6" r="1.4" fill="#f57c00"/>`;
+        return `
     <svg viewBox="0 0 96 72" width="72" height="54" aria-hidden="true" class="fk-svg">
         <g class="fk-body">
             <rect x="4" y="14" width="52" height="36" rx="6" fill="#13203f"/>
-            <text x="30" y="37" text-anchor="middle" font-size="11" font-weight="800" fill="#ffffff" font-family="Inter, sans-serif" letter-spacing="0.5">FURA</text>
-            <path d="M58 22h18a5 5 0 0 1 4.2 2.3l8 12.4a5 5 0 0 1 .8 2.7V50H58z" fill="#f57c00"/>
-            <path d="M62 26h13l6.5 10H62z" fill="#ffe2bf"/>
+            <text x="30" y="37" text-anchor="middle" font-size="11" font-weight="800" fill="#ffffff" font-family="Inter, sans-serif" letter-spacing="0.5">${sales ? "SALES" : "FURA"}</text>
+            <path d="M58 22h18a5 5 0 0 1 4.2 2.3l8 12.4a5 5 0 0 1 .8 2.7V50H58z" fill="${cab}"/>
+            <path d="M62 26h13l6.5 10H62z" fill="${glass}"/>
             <g class="fk-eyes">
                 <ellipse cx="68" cy="31" rx="3.2" ry="3.6" fill="#ffffff"/>
                 <ellipse cx="77" cy="31" rx="3.2" ry="3.6" fill="#ffffff"/>
@@ -262,16 +326,18 @@
                 <circle class="fk-pupil" cx="78" cy="31.5" r="1.7" fill="#13203f"/>
             </g>
             <path class="fk-smile" d="M68 40q5 4 10 0" stroke="#13203f" stroke-width="2" fill="none" stroke-linecap="round"/>
-            <path class="fk-zz" d="M84 10h6l-6 6h6" stroke="#6b7280" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            ${hat}
+            <path class="fk-zz" d="M88 6h6l-6 6h6" stroke="#6b7280" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         </g>
-        <g class="fk-wheel"><circle cx="20" cy="54" r="7" fill="#13203f"/><circle cx="20" cy="54" r="2.5" fill="#f57c00"/></g>
-        <g class="fk-wheel"><circle cx="42" cy="54" r="7" fill="#13203f"/><circle cx="42" cy="54" r="2.5" fill="#f57c00"/></g>
-        <g class="fk-wheel"><circle cx="76" cy="54" r="7" fill="#13203f"/><circle cx="76" cy="54" r="2.5" fill="#f57c00"/></g>
+        <g class="fk-wheel"><circle cx="20" cy="54" r="7" fill="#13203f"/><circle cx="20" cy="54" r="2.5" fill="${hub}"/></g>
+        <g class="fk-wheel"><circle cx="42" cy="54" r="7" fill="#13203f"/><circle cx="42" cy="54" r="2.5" fill="${hub}"/></g>
+        <g class="fk-wheel"><circle cx="76" cy="54" r="7" fill="#13203f"/><circle cx="76" cy="54" r="2.5" fill="${hub}"/></g>
     </svg>`;
+    }
 
     const css = document.createElement("link");
     css.rel = "stylesheet";
-    css.href = "furik.css?v=202610200100";
+    css.href = "furik.css?v=202610200120";
     document.head.appendChild(css);
 
     const root = document.createElement("div");
@@ -279,7 +345,11 @@
     root.innerHTML = `
         <div class="fk-bubble" role="dialog" aria-label="Фурик: нагадування" hidden>
             <div class="fk-bubble-head">
-                <b>Фурик</b>
+                <b class="fk-name">Фурик</b>
+                <div class="fk-modes" role="tablist" aria-label="Чий Фурик" hidden>
+                    <button type="button" role="tab" data-mode="logist">Логіст</button>
+                    <button type="button" role="tab" data-mode="sales">Sales</button>
+                </div>
                 <button type="button" class="fk-x" data-fk="close" aria-label="Закрити">×</button>
             </div>
             <div class="fk-tips" aria-live="polite"></div>
@@ -290,7 +360,7 @@
             </div>
         </div>
         <button type="button" class="fk-me sleepy" aria-label="Фурик — нагадування" title="Фурик">
-            ${FURIK_SVG}
+            <span class="fk-look">${furikSvg("logist")}</span>
             <span class="fk-badge" hidden>0</span>
         </button>`;
     document.body.appendChild(root);
@@ -313,13 +383,30 @@
         b.setAttribute("aria-pressed", String(on));
     }
 
+    let drawnMode = "logist";
+    function drawLook() {
+        const m = mode();
+        root.querySelector(".fk-name").textContent = MODE_NAME[m];
+        meBtn.title = MODE_NAME[m];
+        root.dataset.mode = m;
+        if (m !== drawnMode) {
+            root.querySelector(".fk-look").innerHTML = furikSvg(m);
+            drawnMode = m;
+        }
+        const both = modes().length > 1;
+        const sw = root.querySelector(".fk-modes");
+        sw.hidden = !both;
+        sw.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
+    }
+
     function draw() {
+        if (me) drawLook();
         drawSound();
         const v = visibleTips();
         const todo = v.filter((t) => t.kind !== "calm").length; // привітання не рахуємо
         badge.hidden = !todo;
         badge.textContent = String(todo);
-        meBtn.classList.toggle("sleepy", !v.length);
+        meBtn.classList.toggle("sleepy", !todo);
         meBtn.classList.toggle("alert", v.some((t) => t.kind === "warn"));
         meBtn.setAttribute("aria-label", v.length ? `Фурик: ${v.length} нагадувань` : "Фурик: нагадувань немає");
         list.innerHTML = v.length
@@ -374,6 +461,14 @@
             closeBubble();
             root.hidden = true;
         }
+        const md = e.target.closest("[data-mode]")?.dataset.mode;
+        if (md && md !== mode()) {
+            store.set(K_MODE, md);
+            drawLook();
+            driveIn();
+            tick(false, true);
+            return;
+        }
         if (act === "sound") {
             store.set(K_SOUND, !store.get(K_SOUND, true));
             drawSound();
@@ -399,7 +494,7 @@
 
     /* ---------------- Цикл ---------------- */
 
-    async function tick(first) {
+    async function tick(first, quiet) {
         if (isOffToday()) {
             root.hidden = true;
             return;
@@ -410,6 +505,17 @@
             return;
         }
         tips = await collectTips();
+
+        // Порада дня — своя для логіста і для Sales
+        const m = mode();
+        const list = ADVICE[m];
+        const day = Math.floor(Date.now() / 864e5);
+        tips.push({
+            id: `advice-${m}-${todayIso()}`,
+            kind: "calm",
+            text: `💡 <b>Порада дня:</b> ${esc(list[day % list.length])}`,
+            weight: -1,
+        });
 
         // Вранці (один раз на день) — зведення
         const h = new Date().getHours();
@@ -426,14 +532,21 @@
         }
 
         draw();
+        if (quiet) {
+            visibleTips().forEach((t) => seenThisSession.add(t.id));
+            rememberSeen();
+            return openBubble(false);
+        }
         const fresh = visibleTips().filter((t) => !seenThisSession.has(t.id));
         fresh.forEach((t) => seenThisSession.add(t.id));
-        if (fresh.length) {
+        rememberSeen();
+        // Справжні нові справи (порада дня сама по собі пузир не відкриває)
+        const news = fresh.filter((t) => t.kind !== "calm" || t.id.startsWith("morning-"));
+        if (news.length) {
             if (first) driveIn();
             else hop();
-            if (fresh.some((t) => t.kind !== "calm")) beep();
-            // Самі відкриваємо пузир лише при першому завантаженні сторінки або при новій важливій справі
-            if (first || fresh.some((t) => t.kind === "warn")) openBubble(true);
+            if (news.some((t) => t.kind !== "calm")) beep();
+            openBubble(true);
         }
     }
 
