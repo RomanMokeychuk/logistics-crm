@@ -198,6 +198,13 @@ function offerLine(o: Any, i: number): string {
     return `${i + 1}) ${parts.join(" · ")}`;
 }
 
+// Обраний варіант ціни одним рядком (для повідомлень про вибір)
+function chosenLine(r: Any): string {
+    const c = r?.chosen_offer;
+    if (!c || String(c.logist_id) !== String(r.logistician_id)) return "";
+    return `\n<b>Обраний варіант:</b> ${offerLine(c, Number(c.index) || 0)}`;
+}
+
 function answerText(r: Any, a: Any): string {
     const lines = [
         `🟢 <b>Відповідь логіста${a.logist ? ` ${esc(a.logist)}` : ""}</b>`,
@@ -565,10 +572,10 @@ async function miniApi(body: Any): Promise<{ status: number; data: Any }> {
 async function decide(
     chatId: number,
     me: Any,
-    data: string, // "ok:<запит>:<логіст>" або "no:<запит>"
+    data: string, // "ok:<запит>:<логіст>[:<номер варіанту>]" або "no:<запит>"
     messageId?: number,
 ): Promise<string> {
-    const [kind, requestId, logistPrefix] = data.split(":");
+    const [kind, requestId, logistPrefix, offerNo] = data.split(":");
     const r = await getRequest(requestId || "");
     if (!r) return "Запит не знайдено";
     if (!canDecide(me, r)) return "Це не ваш запит";
@@ -582,10 +589,35 @@ async function decide(
         update.status = STATUS_OK;
         update.logistician_id = a.logist_id;
         update.logistician = a.logist;
+        const idx = offerNo !== undefined ? Number(offerNo) : (a.offers || []).length === 1 ? 0 : NaN;
+        const o = Number.isInteger(idx) ? (a.offers || [])[idx] : null;
+        if (o) {
+            update.chosen_offer = {
+                logist_id: a.logist_id,
+                logist: a.logist,
+                index: idx,
+                price: o.price ?? null,
+                currency: o.currency || null,
+                date: o.date || null,
+                date_to: o.date_to || null,
+                date_flexible: !!o.date_flexible,
+                comment: o.comment || null,
+                at: new Date().toISOString(),
+            };
+        }
     } else {
         update.status = STATUS_NO;
     }
-    await db.from("requests").update(update).eq("id", r.id);
+    let { error } = await db.from("requests").update(update).eq("id", r.id);
+    if (error && update.chosen_offer) {
+        // Колонки chosen_offer ще немає — обираємо хоча б логіста
+        delete update.chosen_offer;
+        ({ error } = await db.from("requests").update(update).eq("id", r.id));
+    }
+    if (error) {
+        console.error(error);
+        return "Не вдалося зберегти, спробуйте ще раз";
+    }
 
     // Прибираємо кнопки, щоб не натиснути двічі
     if (messageId) {
@@ -596,7 +628,10 @@ async function decide(
         });
     }
     // Повідомлення про новий статус прийдуть усім автоматично (тригер у базі)
-    return kind === "ok" ? `Обрано: ${update.logistician}` : "Відмова збережена";
+    const co = update.chosen_offer as Any;
+    return kind === "ok"
+        ? `Обрано: ${update.logistician}${co ? ` · ${fmtPrice(co.price)} ${co.currency || ""}` : ""}`
+        : "Відмова збережена";
 }
 
 /* ================================================================== */
@@ -909,12 +944,23 @@ async function handleRequestChange(payload: Any) {
             for (const a of changed) {
                 const rows: Button[][] = [];
                 if (canStillChoose) {
-                    rows.push([
-                        ...(a.logist_id
-                            ? [{ text: "✅ Обрати", callback_data: `ok:${r.id}:${String(a.logist_id).slice(0, 8)}` }]
-                            : []),
-                        { text: "❌ Відмова", callback_data: `no:${r.id}` },
-                    ]);
+                    const offers = a.offers || [];
+                    const lid = String(a.logist_id || "").slice(0, 8);
+                    if (a.logist_id && offers.length > 1) {
+                        // Окрема кнопка на кожен варіант ціни
+                        offers.forEach((o: Any, i: number) => {
+                            rows.push([{
+                                text: `✅ ${i + 1}) ${o.price ? `${fmtPrice(o.price)} ${o.currency || ""}` : "без ціни"}${o.date ? ` · ${fmtDate(o.date)}` : ""}`,
+                                callback_data: `ok:${r.id}:${lid}:${i}`,
+                            }]);
+                        });
+                        rows.push([{ text: "❌ Відмова", callback_data: `no:${r.id}` }]);
+                    } else {
+                        rows.push([
+                            ...(a.logist_id ? [{ text: "✅ Обрати", callback_data: `ok:${r.id}:${lid}` }] : []),
+                            { text: "❌ Відмова", callback_data: `no:${r.id}` },
+                        ]);
+                    }
                 }
                 rows.push([chatButton(r.id, "❓ Питання до логіста")]);
                 rows.push([crmButton]);
@@ -933,7 +979,7 @@ async function handleRequestChange(payload: Any) {
             messages.set(
                 salesChat,
                 r.status === STATUS_OK
-                    ? `✅ <b>${esc(STATUS_OK)}</b>\n${head}\n<b>Логіст:</b> ${esc(r.logistician || "—")}`
+                    ? `✅ <b>${esc(STATUS_OK)}</b>\n${head}\n<b>Логіст:</b> ${esc(r.logistician || "—")}${chosenLine(r)}`
                     : r.status === STATUS_NO
                     ? `❌ <b>Відмова</b>\n${head}`
                     : `🔄 Статус: <b>${esc(r.status)}</b>\n${head}`,
@@ -947,7 +993,7 @@ async function handleRequestChange(payload: Any) {
             if (r.status === STATUS_OK) {
                 text =
                     String(r.logistician_id) === id
-                        ? `✅ <b>Sales обрав вашу пропозицію — запит у роботі</b>\n${head}${r.sales ? `\n<b>Sales:</b> ${esc(r.sales)}` : ""}`
+                        ? `✅ <b>Sales обрав вашу пропозицію — запит у роботі</b>\n${head}${chosenLine(r)}${r.sales ? `\n<b>Sales:</b> ${esc(r.sales)}` : ""}`
                         : `ℹ️ <b>Sales обрав іншого логіста</b> (${esc(r.logistician || "—")})\n${head}`;
             } else if (r.status === STATUS_NO) {
                 text = `❌ <b>Sales відмовився від запиту</b>\n${head}`;

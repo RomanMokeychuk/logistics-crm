@@ -1789,7 +1789,11 @@ function openRequestCard(id) {
         .querySelectorAll("#requestCardBody [data-choose]")
         .forEach((btn) =>
             btn.addEventListener("click", () =>
-                chooseAnswer(r.id, btn.dataset.choose),
+                chooseAnswer(
+                    r.id,
+                    btn.dataset.choose,
+                    btn.dataset.offer !== undefined ? Number(btn.dataset.offer) : null,
+                ),
             ),
         );
 
@@ -2017,18 +2021,36 @@ function formatPrice(price) {
     return s;
 }
 
-function offerRowsHtml(offers) {
+// opts: { chooseFor: logist_id — кнопка "Обрати" біля кожного варіанту,
+//         chosenIndex: номер обраного варіанту (решту приглушуємо) }
+function offerRowsHtml(offers, opts = {}) {
+    const hasChosen = Number.isInteger(opts.chosenIndex);
     return offers
-        .map(
-            (o, i) => `
-            <div class="offer-row">
+        .map((o, i) => {
+            const chosen = hasChosen && opts.chosenIndex === i;
+            const cls = chosen ? " offer-chosen" : hasChosen ? " offer-dim" : "";
+            const btn = opts.chooseFor
+                ? `<button type="button" class="btn-choose btn-choose-offer" data-choose="${escapeHtml(opts.chooseFor)}" data-offer="${i}"><i class='bx bx-check'></i> Обрати</button>`
+                : chosen
+                  ? `<span class="chosen-badge"><i class='bx bx-check-circle'></i> обрано</span>`
+                  : "";
+            return `
+            <div class="offer-row${cls}">
                 <span class="offer-num">${i + 1}</span>
                 <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}` : "—"}</div>
                 <div class="offer-date">${offerDateHtml(o)}</div>
                 <div class="offer-comment">${escapeHtml(o.comment || "")}</div>
-            </div>`,
-        )
+                <div class="offer-action">${btn}</div>
+            </div>`;
+        })
         .join("");
+}
+
+// Який варіант обрав Sales (номер у списку логіста) — або null
+function chosenOfferIndex(r, a) {
+    const c = r?.chosen_offer;
+    if (!c || !isChosen(r) || String(c.logist_id) !== String(a.logist_id)) return null;
+    return Number.isInteger(c.index) ? c.index : null;
 }
 
 // Блок "Відповіді логістів" в картці запиту
@@ -2045,9 +2067,12 @@ function answerSectionHtml(r) {
                   const chosen =
                       isChosen(r) &&
                       String(r.logistician_id) === String(a.logist_id);
+                  const offers = a.offers || [];
+                  // Кілька варіантів — "Обрати" біля кожного; один або жодного — біля логіста
+                  const perOffer = canChoose && a.logist_id && offers.length > 1;
                   const chooseBtn =
-                      canChoose && a.logist_id && answers.length
-                          ? `<button type="button" class="btn-choose" data-choose="${escapeHtml(a.logist_id)}"><i class='bx bx-check'></i> Обрати</button>`
+                      canChoose && a.logist_id && !perOffer
+                          ? `<button type="button" class="btn-choose" data-choose="${escapeHtml(a.logist_id)}"${offers.length === 1 ? ' data-offer="0"' : ""}><i class='bx bx-check'></i> Обрати</button>`
                           : "";
                   return `
                 <div class="answer-block ${chosen ? "answer-chosen" : ""}">
@@ -2057,7 +2082,7 @@ function answerSectionHtml(r) {
                         ${chosen ? `<span class="chosen-badge"><i class='bx bx-check-circle'></i> обрано</span>` : ""}
                         ${chooseBtn}
                     </div>
-                    ${(a.offers || []).length ? offerRowsHtml(a.offers) : ""}
+                    ${offers.length ? offerRowsHtml(offers, { chooseFor: perOffer ? a.logist_id : null, chosenIndex: chosen ? chosenOfferIndex(r, a) : null }) : ""}
                     ${a.notes ? `<div class="answer-notes"><div class="answer-notes-label">Нотатки</div><div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(a.notes)}</div></div>` : ""}
                 </div>`;
               })
@@ -2082,28 +2107,45 @@ function answerSectionHtml(r) {
 }
 
 // Sales обирає пропозицію логіста → статус "Пошук авто"
-async function chooseAnswer(requestId, logistId) {
+async function chooseAnswer(requestId, logistId, offerIndex = null) {
     const r = requestsCache.find((x) => String(x.id) === String(requestId));
     if (!r) return;
     const a = getAnswers(r).find(
         (x) => String(x.logist_id) === String(logistId),
     );
     if (!a) return;
-    if (
-        !confirm(
-            `Обрати пропозицію логіста «${a.logist}»?\nСтатус зміниться на «${STATUS_CHOSEN}».`,
-        )
-    )
-        return;
+    const o = Number.isInteger(offerIndex) ? (a.offers || [])[offerIndex] : null;
+    const what = o
+        ? `варіант ${offerIndex + 1} логіста «${a.logist}»: ${o.price ? `${formatPrice(o.price)} ${o.currency || ""}` : "без ціни"}${o.date ? `, авто ${formatDesiredDate(o.date, o.date_to)}` : o.date_flexible ? ", плаваюча дата" : ""}`
+        : `пропозицію логіста «${a.logist}»`;
+    if (!confirm(`Обрати ${what}?\nСтатус зміниться на «${STATUS_CHOSEN}».`)) return;
 
-    const { error } = await sbClient
-        .from("requests")
-        .update({
-            status: STATUS_CHOSEN,
-            logistician_id: a.logist_id,
-            logistician: a.logist,
-        })
-        .eq("id", r.id);
+    const update = {
+        status: STATUS_CHOSEN,
+        logistician_id: a.logist_id,
+        logistician: a.logist,
+    };
+    if (o) {
+        update.chosen_offer = {
+            logist_id: a.logist_id,
+            logist: a.logist,
+            index: offerIndex,
+            price: o.price ?? null,
+            currency: o.currency || null,
+            date: o.date || null,
+            date_to: o.date_to || null,
+            date_flexible: !!o.date_flexible,
+            comment: o.comment || null,
+            at: new Date().toISOString(),
+        };
+    }
+    let { error } = await sbClient.from("requests").update(update).eq("id", r.id);
+    if (error && update.chosen_offer && /chosen_offer/.test(error.message || "")) {
+        // Колонку ще не додали (requests_chosen_offer.sql) — обираємо хоча б логіста
+        delete update.chosen_offer;
+        ({ error } = await sbClient.from("requests").update(update).eq("id", r.id));
+        if (!error) alert("Логіста обрано. Щоб запам'ятовувався саме варіант ціни, запустіть requests_chosen_offer.sql у Supabase.");
+    }
     if (error) {
         alert("Помилка Supabase: " + error.message);
         return;
