@@ -362,6 +362,27 @@ async function actionSend(body: Any, me: Any) {
     return { status: 200, data: { ok: true } };
 }
 
+// Тест: чернетка йде в Telegram самого співробітника, перевізнику — нічого.
+// Статус чернетки не змінюється, її можна потім надіслати по-справжньому або відхилити.
+async function actionTestSend(body: Any, me: Any) {
+    const { data: m } = await db.from("agent_messages").select("*").eq("id", String(body.id || "")).maybeSingle();
+    if (!m || m.direction !== "out") return { status: 404, data: { error: "Чернетку не знайдено" } };
+    const text = String(body.text ?? m.text).trim().slice(0, 3800);
+    if (!text) return { status: 400, data: { error: "Порожній текст" } };
+
+    const { data: s } = await db.from("staff").select("telegram_chat_id").eq("id", me.id).maybeSingle();
+    if (!s?.telegram_chat_id) {
+        return { status: 400, data: { error: "Ваш Telegram не підключений до бота FURA. Натисніть /start у боті." } };
+    }
+    await tg("sendMessage", {
+        chat_id: Number(s.telegram_chat_id),
+        text: `🧪 ТЕСТ — так це побачить «${m.carrier_name || "перевізник"}». Перевізнику нічого не надіслано.`,
+    });
+    const res = await tg("sendMessage", { chat_id: Number(s.telegram_chat_id), text });
+    if (!res?.ok) return { status: 502, data: { error: "Telegram не прийняв повідомлення" } };
+    return { status: 200, data: { ok: true } };
+}
+
 async function actionReject(body: Any, me: Any) {
     const { data, error } = await db
         .from("agent_messages")
@@ -534,6 +555,7 @@ Deno.serve(async (req) => {
             case "invite": out = await actionInvite(body); break;
             case "draft": out = await actionDraft(body, me); break;
             case "send": out = await actionSend(body, me); break;
+            case "test_send": out = await actionTestSend(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             default: out = { status: 400, data: { error: "unknown action" } };
         }

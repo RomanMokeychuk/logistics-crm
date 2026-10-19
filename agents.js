@@ -162,6 +162,7 @@ async function loadQueue() {
                 <textarea id="draft-${m.id}">${escapeHtml(m.text)}</textarea>
                 <div class="ag-item-actions">
                     <button type="button" class="btn-primary" data-send="${m.id}"><i class="bx bx-send"></i> Надіслати</button>
+                    <button type="button" class="btn-secondary" data-test="${m.id}" title="Повідомлення прийде у ваш Telegram, перевізнику — нічого">Надіслати мені (тест)</button>
                     <button type="button" class="btn-secondary" data-reject="${m.id}">Не надсилати</button>
                 </div>
             </article>`;
@@ -170,6 +171,22 @@ async function loadQueue() {
 }
 
 document.getElementById("queueList").addEventListener("click", async (e) => {
+    const testId = e.target.closest("[data-test]")?.dataset.test;
+    if (testId) {
+        const btn = e.target.closest("[data-test]");
+        btn.disabled = true;
+        try {
+            const text = document.getElementById(`draft-${testId}`).value.trim();
+            await agent({ action: "test_send", id: testId, text });
+            toast("Тест надіслано у ваш Telegram. Перевізнику нічого не пішло.");
+        } catch (err) {
+            toast(err.message, true);
+        } finally {
+            btn.disabled = false;
+        }
+        return;
+    }
+
     const sendId = e.target.closest("[data-send]")?.dataset.send;
     const rejectId = e.target.closest("[data-reject]")?.dataset.reject;
     const id = sendId || rejectId;
