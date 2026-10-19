@@ -1169,3 +1169,16 @@
     .offer-row { grid-template-columns: 32px 1fr; }
     .offer-action { grid-column: 2; justify-content: flex-start; }
 }
+
+/* «Повторити запит» у шапці картки — спокійніша за «Редагувати» */
+.btn-card-edit.btn-card-repeat {
+    background: #fff;
+    color: #13203f;
+    border: 1px solid #d5dbe5;
+    margin-right: 6px;
+}
+
+.btn-card-edit.btn-card-repeat:hover {
+    background: #f1f5fe;
+    border-color: #1d5bd8;
+}

@@ -505,6 +505,7 @@ function openCarrierCard(id) {
     `;
 
     carrierCardOverlay.classList.add("active");
+    window.furaCarrierHistory?.render(item); // історія рейсів і ставок (carrier-history.js)
 }
 
 /* ================================================================= *

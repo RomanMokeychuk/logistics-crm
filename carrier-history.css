@@ -1,0 +1,158 @@
+/* FURA — Історія в картці перевізника */
+
+.ch {
+    margin: 16px 0 4px;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.ch-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--f-navy, #13203f);
+    background: #f7f8fb;
+    border-bottom: 1px solid var(--f-line, #e4e8ef);
+}
+
+.ch-title i {
+    color: var(--f-orange, #f57c00);
+    font-size: 18px;
+}
+
+.ch-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.ch-empty {
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.ch-tiles {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+@media (max-width: 900px) {
+    .ch-tiles {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.ch-tile {
+    background: #f7f8fb;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.ch-tile span {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.ch-tile b {
+    font-size: 18px;
+    color: var(--f-navy, #13203f);
+}
+
+.ch-tile small {
+    font-size: 11.5px;
+    color: #6b7280;
+}
+
+.ch-routes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.ch-routes span {
+    font-size: 12.5px;
+    background: #eef1f6;
+    color: var(--f-navy, #13203f);
+    border-radius: 6px;
+    padding: 3px 8px;
+}
+
+.ch-list {
+    display: flex;
+    flex-direction: column;
+    border-top: 1px solid #f0f2f6;
+}
+
+.ch-row {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr) auto auto;
+    gap: 12px;
+    align-items: center;
+    padding: 9px 4px;
+    border-bottom: 1px solid #f0f2f6;
+    text-decoration: none;
+    color: var(--f-text, #111827);
+    font-size: 13.5px;
+}
+
+.ch-row:hover {
+    background: #f5f8ff;
+}
+
+.ch-date {
+    color: #4b5563;
+}
+
+.ch-route {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.ch-route small {
+    font-size: 12px;
+    color: #6b7280;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ch-cost {
+    font-weight: 700;
+    color: var(--f-navy, #13203f);
+    white-space: nowrap;
+}
+
+.ch-status {
+    font-size: 12px;
+    color: #4b5563;
+    background: #eef1f6;
+    border-radius: 6px;
+    padding: 2px 8px;
+    white-space: nowrap;
+}
+
+.ch-more {
+    font-size: 12.5px;
+    color: #6b7280;
+}
+
+@media (max-width: 700px) {
+    .ch-row {
+        grid-template-columns: 1fr auto;
+    }
+    .ch-status,
+    .ch-date {
+        display: none;
+    }
+}

@@ -1966,6 +1966,26 @@ function closeRequestCard() {
     window.furaBids?.unmount();
 }
 
+// Повторити запит: нова форма з тими самими даними (клієнт, маршрут, вантаж, авто, митниця).
+// Дату, статус і відповіді логістів не копіюємо — це новий запит.
+function repeatRequest(r) {
+    const copy = { ...r, id: "", desired_date: null, desired_date_to: null, status: null };
+    openRequestModal(copy);
+    setVal("requestId", "");
+    setVal("req_status", REQUEST_STATUSES[0].value);
+    document.getElementById("reqStatusGroup").hidden = true;
+    document.getElementById("requestModalTitle").textContent = "Повторити запит — вкажіть нову дату";
+    dateFromInput.focus();
+}
+
+document
+    .getElementById("repeatFromRequestCardBtn")
+    .addEventListener("click", () => {
+        const r = requestsCache.find((x) => String(x.id) === String(currentCardRequestId));
+        closeRequestCard();
+        if (r) repeatRequest(r);
+    });
+
 // Редагувати з картки: закриваємо картку і відкриваємо форму
 document
     .getElementById("editFromRequestCardBtn")
