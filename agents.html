@@ -17,7 +17,7 @@
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
         <link rel="stylesheet" href="theme.css?v=202610192300" />
-        <link rel="stylesheet" href="agents.css?v=202610192300" />
+        <link rel="stylesheet" href="agents.css?v=202610192345" />
     </head>
     <body>
         <aside class="sidebar">
@@ -45,8 +45,8 @@
                 <div>
                     <h1>AI-агенти</h1>
                     <p class="ag-sub">
-                        Агент ставок пише перевізникам у Telegram. Нічого не
-                        надсилається без вашого «Надіслати».
+                        Агент ставок готує повідомлення перевізникам — у Telegram,
+                        Viber чи WhatsApp. Нічого не надсилається без вас.
                     </p>
                 </div>
             </header>
@@ -75,6 +75,14 @@
                     <div class="ag-card-head">
                         <h2 id="bidsTitle">Відповіді перевізників</h2>
                     </div>
+                    <form id="replyForm" class="ag-reply" hidden>
+                        <p class="ag-hint">Перевізник відповів у Viber чи WhatsApp? Скопіюйте його відповідь сюди — агент сам витягне ставку й дату.</p>
+                        <label class="ag-label" for="replyCarrier">Хто відповів</label>
+                        <select id="replyCarrier"></select>
+                        <label class="ag-label" for="replyText">Відповідь перевізника</label>
+                        <textarea id="replyText" rows="3" placeholder="Напр.: 2150 євро, подача 22-го на 8 ранку"></textarea>
+                        <button type="submit" class="btn-primary" id="replyBtn">Розібрати відповідь</button>
+                    </form>
                     <div id="bidsList" class="ag-list">
                         <p class="ag-empty">Завантаження…</p>
                     </div>
@@ -98,7 +106,7 @@
                         placeholder="Наприклад: Вест-Карго або 12345678" />
                     <label class="ag-check-inline">
                         <input type="checkbox" id="onlyLinked" />
-                        Тільки підключені до Telegram
+                        Тільки з Telegram
                     </label>
                 </div>
                 <div id="carrierResults" class="ag-carriers"></div>
@@ -115,7 +123,7 @@
         <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="agents.js?v=202610192300"></script>
+        <script src="agents.js?v=202610192345"></script>
         <script src="shell.js?v=202610192300"></script>
         <script src="notify.js?v=202610192300"></script>
         <script src="lock.js?v=202610192300"></script>

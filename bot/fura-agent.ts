@@ -118,6 +118,15 @@ function factsText(r: Any): string {
     return Object.entries(factsForCarrier(r)).map(([k, v]) => `${k}: ${v}`).join("\n");
 }
 
+// Перший номер телефону перевізника (для кнопок Viber/WhatsApp на сайті)
+function phoneOf(c: Any): string {
+    for (const raw of [c?.phone_1, c?.phone_2]) {
+        const digits = String(raw || "").replace(/[^\d]/g, "");
+        if (digits.length >= 9) return digits;
+    }
+    return "";
+}
+
 async function getRequest(id: string) {
     const { data } = await db.from("requests").select("*").eq("id", id).maybeSingle();
     return data;
@@ -294,8 +303,9 @@ async function actionDraft(body: Any, me: Any) {
     const ids: string[] = (Array.isArray(body.carrier_ids) ? body.carrier_ids : []).map(String).slice(0, 30);
     if (!ids.length) return { status: 400, data: { error: "Оберіть перевізників" } };
 
-    const { data: carriers } = await db.from("carriers").select("id, name, tg_chat_id").in("id", ids);
-    const linked = (carriers || []).filter((c: Any) => c.tg_chat_id);
+    const { data: carriers } = await db.from("carriers").select("id, name, tg_chat_id, phone_1, phone_2").in("id", ids);
+    // Telegram — надсилає бот; без Telegram, але з телефоном — логіст відкриває Viber/WhatsApp однією кнопкою
+    const linked = (carriers || []).filter((c: Any) => c.tg_chat_id || phoneOf(c));
 
     // Не дублюємо: кому вже є чернетка або надіслано по цьому запиту — пропускаємо
     const { data: existing } = await db
@@ -310,7 +320,7 @@ async function actionDraft(body: Any, me: Any) {
     if (!targets.length) {
         return {
             status: 200,
-            data: { created: 0, skipped: ids.length, note: "Немає нових перевізників, підключених до Telegram" },
+            data: { created: 0, skipped: ids.length, note: "Цим перевізникам уже писали по цьому запиту або в них немає ні Telegram, ні телефону" },
         };
     }
 
@@ -322,6 +332,7 @@ async function actionDraft(body: Any, me: Any) {
         direction: "out",
         status: "draft",
         text,
+        channel: c.tg_chat_id ? "telegram" : "manual",
         created_by: me.id,
     }));
     const { error } = await db.from("agent_messages").insert(rows);
@@ -380,6 +391,37 @@ async function actionTestSend(body: Any, me: Any) {
     });
     const res = await tg("sendMessage", { chat_id: Number(s.telegram_chat_id), text });
     if (!res?.ok) return { status: 502, data: { error: "Telegram не прийняв повідомлення" } };
+    return { status: 200, data: { ok: true } };
+}
+
+// Логіст сам надіслав чернетку у Viber/WhatsApp — позначаємо як надіслану
+async function actionMarkSent(body: Any, me: Any) {
+    const channel = ["viber", "whatsapp", "manual"].includes(String(body.channel)) ? String(body.channel) : "manual";
+    const text = body.text ? String(body.text).trim().slice(0, 4000) : null;
+    const patch: Any = { status: "sent", channel, approved_by: me.id, sent_at: new Date().toISOString() };
+    if (text) patch.text = text;
+    const { data, error } = await db
+        .from("agent_messages")
+        .update(patch)
+        .eq("id", String(body.id || ""))
+        .eq("direction", "out")
+        .eq("status", "draft")
+        .select("id");
+    if (error) return { status: 500, data: { error: error.message } };
+    if (!data?.length) return { status: 409, data: { error: "Це повідомлення вже оброблене" } };
+    return { status: 200, data: { ok: true } };
+}
+
+// Логіст вставив відповідь перевізника з Viber/WhatsApp — агент розбирає її
+async function actionManualReply(body: Any, me: Any) {
+    const r = await getRequest(String(body.request_id || ""));
+    if (!r) return { status: 404, data: { error: "Запит не знайдено" } };
+    const text = String(body.text || "").trim().slice(0, 4000);
+    if (!text) return { status: 400, data: { error: "Вставте текст відповіді перевізника" } };
+    const { data: c } = await db.from("carriers").select("id, name").eq("id", String(body.carrier_id || "")).maybeSingle();
+    if (!c) return { status: 404, data: { error: "Перевізника не знайдено" } };
+    const channel = ["viber", "whatsapp", "telegram"].includes(String(body.channel)) ? String(body.channel) : "manual";
+    await saveReplyAndDraft(r, c, text, channel, null, me.id);
     return { status: 200, data: { ok: true } };
 }
 
@@ -450,6 +492,14 @@ async function internalInbound(body: Any) {
     }
 
     const r = await getRequest(requestId);
+    const extracted = await saveReplyAndDraft(r, c, text, "telegram", body.message_id ?? null, null);
+    await notifyLogists(r, c, extracted);
+    return { handled: true };
+}
+
+// Зберегти відповідь перевізника, витягти ставку і підготувати чернетку відповіді
+async function saveReplyAndDraft(r: Any, c: Any, text: string, channel: string, tgMessageId: unknown, staffId: unknown) {
+    const requestId = r.id;
     const { data: history } = await db
         .from("agent_messages")
         .select("direction, text, status")
@@ -481,7 +531,9 @@ async function internalInbound(body: Any) {
             status: "received",
             text: text.slice(0, 4000),
             extracted,
-            tg_message_id: body.message_id ?? null,
+            channel,
+            created_by: staffId ?? null,
+            tg_message_id: tgMessageId ?? null,
         },
     ]);
 
@@ -495,12 +547,12 @@ async function internalInbound(body: Any) {
                 direction: "out",
                 status: "draft",
                 text: reply.slice(0, 4000),
+                channel: channel === "telegram" ? "telegram" : "manual",
+                created_by: staffId ?? null,
             },
         ]);
     }
-
-    await notifyLogists(r, c, extracted);
-    return { handled: true };
+    return extracted;
 }
 
 async function notifyLogists(r: Any, c: Any, x: Any) {
@@ -556,6 +608,8 @@ Deno.serve(async (req) => {
             case "draft": out = await actionDraft(body, me); break;
             case "send": out = await actionSend(body, me); break;
             case "test_send": out = await actionTestSend(body, me); break;
+            case "mark_sent": out = await actionMarkSent(body, me); break;
+            case "manual_reply": out = await actionManualReply(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             default: out = { status: 400, data: { error: "unknown action" } };
         }

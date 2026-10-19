@@ -33,6 +33,10 @@ create index if not exists agent_messages_request_idx on public.agent_messages (
 create index if not exists agent_messages_status_idx  on public.agent_messages (status, created_at);
 create index if not exists agent_messages_carrier_idx on public.agent_messages (carrier_id, created_at);
 
+-- Канал: telegram (надсилає бот) або viber / whatsapp / manual (логіст надсилає зі свого телефона)
+alter table public.agent_messages
+    add column if not exists channel text not null default 'telegram';
+
 -- 3. Хто активний співробітник (сайт заходить під email співробітника)
 create or replace function public.is_active_staff()
 returns boolean

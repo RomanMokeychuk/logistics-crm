@@ -116,12 +116,46 @@ async function renderRequest() {
         ${date ? `<div><span>Дата:</span> ${escapeHtml(date)}</div>` : ""}
         ${cargo ? `<div><span>Вантаж:</span> ${escapeHtml(cargo)}</div>` : ""}
         <div><span>Клієнт:</span> ${escapeHtml(r.client || "—")} <span class="ag-chip warn">перевізник не бачить</span></div>`;
-    document.getElementById("onlyLinked").checked = true;
     document.getElementById("carriersHint").textContent =
-        "Позначте підключених перевізників і натисніть «Підготувати запит на ставку». Клієнта й ціну агент не називає.";
+        "Позначте перевізників з Telegram або телефоном і натисніть «Підготувати запит на ставку». Клієнта й ціну агент не називає.";
 }
 
 /* ---------------- Черга чернеток ---------------- */
+
+const carriersById = new Map();
+
+async function ensureCarriers(ids) {
+    const missing = [...new Set(ids.map(String))].filter((id) => id && !carriersById.has(id));
+    if (!missing.length) return;
+    const { data } = await sbClient.from("carriers").select("id, name, phone_1, phone_2, tg_chat_id").in("id", missing);
+    (data || []).forEach((c) => carriersById.set(String(c.id), c));
+}
+
+// Телефон перевізника для Viber/WhatsApp: спершу мобільний (Viber працює тільки з мобільними)
+const UA_MOBILE = /^380(39|50|63|66|67|68|73|89|9[1-9])\d{7}$/;
+
+function phoneDigits(c) {
+    const all = [];
+    for (const raw of [c?.phone_1, c?.phone_2]) {
+        for (const m of String(raw || "").match(/\+?\d[\d\s\-().]{7,}\d/g) || []) {
+            let d = m.replace(/\D/g, "");
+            if (d.length === 10 && d.startsWith("0")) d = "38" + d; // 067… → 38067…
+            else if (d.length === 9) d = "380" + d; // 67… → 38067…
+            if (d.length >= 10 && d.length <= 15) all.push(d);
+        }
+    }
+    return all.find((d) => UA_MOBILE.test(d)) || all.find((d) => !d.startsWith("380")) || all[0] || "";
+}
+
+function prettyPhone(d) {
+    return d ? `+${d}` : "";
+}
+
+function chatLink(kind, digits, text) {
+    const t = encodeURIComponent(text);
+    if (kind === "viber") return `viber://chat?number=%2B${digits}&draft=${t}`;
+    return `https://wa.me/${digits}?text=${t}`;
+}
 
 async function loadQueue() {
     let q = sbClient
@@ -145,32 +179,93 @@ async function loadQueue() {
         return;
     }
     await ensureRequests(data.map((m) => m.request_id));
+    await ensureCarriers(data.map((m) => m.carrier_id));
 
-    // Чи це відповідь на повідомлення перевізника (тоді покажемо, на що відповідаємо)
     box.innerHTML = data
         .map((m) => {
             const r = requestsById.get(m.request_id);
+            const c = carriersById.get(String(m.carrier_id));
+            const tg = !!c?.tg_chat_id;
+            const phone = phoneDigits(c);
+            const buttons = [];
+            if (phone) {
+                buttons.push(`<button type="button" class="btn-primary ag-viber" data-open="viber" data-id="${m.id}"><i class="bx bx-phone"></i> Відкрити у Viber</button>`);
+                buttons.push(`<button type="button" class="btn-secondary" data-open="whatsapp" data-id="${m.id}"><i class="bx bxl-whatsapp"></i> WhatsApp</button>`);
+            }
+            if (tg) buttons.push(`<button type="button" class="${phone ? "btn-secondary" : "btn-primary"}" data-send="${m.id}"><i class="bx bx-send"></i> Надіслати в Telegram</button>`);
+            if (tg) buttons.push(`<button type="button" class="btn-secondary" data-test="${m.id}" title="Повідомлення прийде у ваш Telegram, перевізнику — нічого">Мені (тест)</button>`);
+            buttons.push(`<button type="button" class="btn-secondary" data-reject="${m.id}">Не надсилати</button>`);
             return `
             <article class="ag-item" data-id="${m.id}">
                 <div class="ag-item-meta">
                     <strong>${escapeHtml(m.carrier_name || "Перевізник")}</strong>
-                    <span class="ag-chip">Telegram</span>
+                    ${phone ? `<span class="ag-chip">${escapeHtml(prettyPhone(phone))}</span>` : ""}
+                    ${tg ? `<span class="ag-chip good">Telegram</span>` : ""}
                     <a class="ag-link" href="agents.html?request=${encodeURIComponent(m.request_id)}">${escapeHtml(routeOf(r))}</a>
                     <span>${escapeHtml(fmtTime(m.created_at))}</span>
                 </div>
                 <label class="ag-label" for="draft-${m.id}">Чернетка агента — можна виправити</label>
                 <textarea id="draft-${m.id}">${escapeHtml(m.text)}</textarea>
-                <div class="ag-item-actions">
-                    <button type="button" class="btn-primary" data-send="${m.id}"><i class="bx bx-send"></i> Надіслати</button>
-                    <button type="button" class="btn-secondary" data-test="${m.id}" title="Повідомлення прийде у ваш Telegram, перевізнику — нічого">Надіслати мені (тест)</button>
-                    <button type="button" class="btn-secondary" data-reject="${m.id}">Не надсилати</button>
+                <div class="ag-item-actions">${buttons.join("")}</div>
+                <div class="ag-confirm" data-confirm="${m.id}" hidden>
+                    <span>Відкрили чат — натисніть «Надіслати» у месенджері. Текст уже скопійовано: якщо поле порожнє, вставте його (Ctrl+V).</span>
+                    <button type="button" class="btn-primary" data-marked="${m.id}">Я надіслав</button>
                 </div>
+                ${!phone && !tg ? `<span class="ag-hint">У перевізника немає телефону в базі — додайте його в картці перевізника.</span>` : ""}
             </article>`;
         })
         .join("");
 }
 
+async function copyText(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
 document.getElementById("queueList").addEventListener("click", async (e) => {
+    // Viber / WhatsApp: телефон із бази, текст агента — логісту лишається натиснути «Надіслати»
+    const openBtn = e.target.closest("[data-open]");
+    if (openBtn) {
+        const id = openBtn.dataset.id;
+        const kind = openBtn.dataset.open;
+        const card = openBtn.closest(".ag-item");
+        const text = document.getElementById(`draft-${id}`).value.trim();
+        const m = await sbClient.from("agent_messages").select("carrier_id").eq("id", id).maybeSingle();
+        const c = carriersById.get(String(m.data?.carrier_id));
+        const phone = phoneDigits(c);
+        if (!text || !phone) return toast("Немає тексту або телефону", true);
+        await copyText(text);
+        const url = chatLink(kind, phone, text);
+        if (kind === "viber") window.location.href = url;
+        else window.open(url, "_blank", "noopener");
+        const box = card.querySelector("[data-confirm]");
+        box.hidden = false;
+        box.dataset.channel = kind;
+        box.querySelector("[data-marked]").textContent = kind === "viber" ? "Я надіслав у Viber" : "Я надіслав у WhatsApp";
+        return;
+    }
+
+    const markedId = e.target.closest("[data-marked]")?.dataset.marked;
+    if (markedId) {
+        const card = e.target.closest(".ag-item");
+        const channel = card.querySelector("[data-confirm]").dataset.channel || "manual";
+        card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+        try {
+            const text = document.getElementById(`draft-${markedId}`).value.trim();
+            await agent({ action: "mark_sent", id: markedId, channel, text });
+            toast("Позначено як надіслане. Коли перевізник відповість — вставте відповідь праворуч.");
+            refreshAll();
+        } catch (err) {
+            toast(err.message, true);
+            card.querySelectorAll("button").forEach((b) => (b.disabled = false));
+        }
+        return;
+    }
+
     const testId = e.target.closest("[data-test]")?.dataset.test;
     if (testId) {
         const btn = e.target.closest("[data-test]");
@@ -207,6 +302,67 @@ document.getElementById("queueList").addEventListener("click", async (e) => {
     } catch (err) {
         toast(err.message, true);
         card.querySelectorAll("button").forEach((b) => (b.disabled = false));
+    }
+});
+
+/* ---------------- Вставити відповідь перевізника (з Viber / WhatsApp) ---------------- */
+
+async function renderReplyForm() {
+    const form = document.getElementById("replyForm");
+    if (!REQUEST_ID) {
+        form.hidden = true;
+        return;
+    }
+    // Перевізники, яким уже надіслали запит по цьому запиту
+    const { data } = await sbClient
+        .from("agent_messages")
+        .select("carrier_id, carrier_name, channel")
+        .eq("request_id", REQUEST_ID)
+        .eq("direction", "out")
+        .eq("status", "sent")
+        .order("sent_at", { ascending: false });
+    const seen = new Map();
+    (data || []).forEach((m) => {
+        if (!seen.has(String(m.carrier_id))) seen.set(String(m.carrier_id), m);
+    });
+    const sel = document.getElementById("replyCarrier");
+    const keep = sel.value;
+    if (!seen.size) {
+        form.hidden = true;
+        return;
+    }
+    sel.innerHTML = [...seen.values()]
+        .map((m) => `<option value="${escapeHtml(m.carrier_id)}" data-channel="${escapeHtml(m.channel || "manual")}">${escapeHtml(m.carrier_name || "Перевізник")}</option>`)
+        .join("");
+    if (keep && seen.has(keep)) sel.value = keep;
+    form.hidden = false;
+}
+
+document.getElementById("replyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const sel = document.getElementById("replyCarrier");
+    const ta = document.getElementById("replyText");
+    const btn = document.getElementById("replyBtn");
+    const text = ta.value.trim();
+    if (!text) return toast("Вставте текст відповіді перевізника", true);
+    btn.disabled = true;
+    btn.textContent = "Агент читає…";
+    try {
+        await agent({
+            action: "manual_reply",
+            request_id: REQUEST_ID,
+            carrier_id: sel.value,
+            channel: sel.selectedOptions[0]?.dataset.channel || "manual",
+            text,
+        });
+        ta.value = "";
+        toast("Готово: ставку записано, чернетка відповіді — у черзі ліворуч");
+        refreshAll();
+    } catch (err) {
+        toast(err.message, true);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "Розібрати відповідь";
     }
 });
 
@@ -282,7 +438,7 @@ async function searchCarriers() {
         return;
     }
 
-    let q = sbClient.from("carriers").select("id, name, edrpou, city, tg_chat_id, tg_linked_at").limit(25);
+    let q = sbClient.from("carriers").select("id, name, edrpou, city, phone_1, phone_2, tg_chat_id, tg_linked_at").limit(25);
     if (term) q = q.or(`name.ilike.%${term}%,edrpou.ilike.%${term}%`);
     if (onlyLinked) q = q.not("tg_chat_id", "is", null);
     q = q.order("name", { ascending: true });
@@ -301,7 +457,8 @@ async function searchCarriers() {
         .map((c) => {
             const id = String(c.id);
             const linked = !!c.tg_chat_id;
-            const canPick = REQUEST_ID && linked;
+            const phone = phoneDigits(c);
+            const canPick = REQUEST_ID && (linked || phone);
             const info = [c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city].filter(Boolean).join(" · ");
             return `
             <div class="ag-carrier" data-carrier="${escapeHtml(id)}">
@@ -312,6 +469,7 @@ async function searchCarriers() {
                         <span class="muted">${escapeHtml(info)}</span>
                     </span>
                 </label>
+                ${phone ? `<span class="ag-chip">Viber / WhatsApp ${escapeHtml(prettyPhone(phone))}</span>` : `<span class="ag-chip warn">немає телефону</span>`}
                 ${linked
                     ? `<span class="ag-chip good">Telegram підключено</span>`
                     : `<div class="ag-invite"><button type="button" class="btn-secondary" data-invite="${escapeHtml(id)}"><i class="bx bx-link"></i> Запрошення в Telegram</button></div>`}
@@ -393,6 +551,7 @@ document.getElementById("createDraftsBtn").addEventListener("click", async (e) =
 function refreshAll() {
     loadQueue();
     loadBids();
+    renderReplyForm();
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
