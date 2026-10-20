@@ -124,6 +124,11 @@
         cursor: pointer;
     }
 
+    .fura-left {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
     .fura-crumbs {
         flex: 1 1 auto;
         min-width: 0;

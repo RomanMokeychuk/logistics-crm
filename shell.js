@@ -114,10 +114,27 @@
         bar.className = "fura-topbar";
         const dateText = new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" });
         bar.innerHTML = `
-            <button type="button" class="fura-burger" id="furaBurger" aria-label="Меню"><i class="bx bx-menu"></i></button>
-            <div class="fura-crumbs" id="furaCrumbs"></div>
+            <div class="fura-left">
+                <button type="button" class="fura-burger" id="furaBurger" aria-label="Меню"><i class="bx bx-menu"></i></button>
+                <div class="fura-nav-arrows">
+                    <button type="button" id="furaBack" title="Назад">←</button>
+                    <button type="button" id="furaFwd" title="Вперед">→</button>
+                </div>
+                <div class="fura-crumbs" id="furaCrumbs"></div>
+            </div>
             <div class="fura-date"><i class="bx bx-calendar"></i> ${esc(dateText)}</div>`;
         main.prepend(bar);
+        // Стрілки «назад / вперед» — як у браузері, тільки всередині CRM
+        bar.querySelector("#furaBack").addEventListener("click", () => history.back());
+        bar.querySelector("#furaFwd").addEventListener("click", () => history.forward());
+        const nav = window.navigation;
+        const sync = () => {
+            if (!nav || typeof nav.canGoBack !== "boolean") return;
+            bar.querySelector("#furaBack").disabled = !nav.canGoBack;
+            bar.querySelector("#furaFwd").disabled = !nav.canGoForward;
+        };
+        sync();
+        nav?.addEventListener?.("currententrychange", sync);
         // Сторінка могла вже попросити свої «крихти» (напр. № угоди) раніше, ніж з'явилася смуга
         setCrumbs(pendingCrumbs || [activeLabel || document.title.replace(/^FURA\s*—\s*/, "")]);
     }

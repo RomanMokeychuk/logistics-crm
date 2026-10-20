@@ -1142,7 +1142,7 @@ async function duplicateDeal(d) {
     flashSaved(`Копія угоди № ${d.number} створена`);
 }
 
-function openDealCard(id, tab) {
+function openDealCard(id, tab, fromHistory = false) {
     const d = dealsCache.find((x) => String(x.id) === String(id));
     if (!d) return;
     currentCardDealId = d.id;
@@ -1150,16 +1150,20 @@ function openDealCard(id, tab) {
     renderDealView(d);
     listView.hidden = true;
     detailView.hidden = false;
-    history.replaceState(null, "", `?open=${d.id}`);
+    // Кнопки «назад / вперед» повертають між списком і угодами
+    if (!fromHistory) {
+        if (new URLSearchParams(location.search).get("open") === String(d.id)) history.replaceState(null, "", `?open=${d.id}`);
+        else history.pushState(null, "", `?open=${d.id}`);
+    }
     window.furaSetCrumbs?.([{ label: "Угоди", href: "deals.html" }, `№ ${d.number}`]);
 }
 
-function closeDealCard() {
+function closeDealCard(fromHistory = false) {
     currentCardDealId = null;
     detailView.hidden = true;
     detailView.innerHTML = "";
     listView.hidden = false;
-    history.replaceState(null, "", location.pathname);
+    if (fromHistory !== true && location.search) history.pushState(null, "", location.pathname);
     window.furaSetCrumbs?.(["Угоди"]);
 }
 
@@ -1681,4 +1685,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (params.get("open")) openDealCard(params.get("open"));
     else if ([...params.keys()].length) history.replaceState(null, "", location.pathname);
+});
+
+// Назад / вперед у браузері або стрілками CRM: відкриваємо ту угоду, що в адресі
+window.addEventListener("popstate", () => {
+    const id = new URLSearchParams(location.search).get("open");
+    if (id) {
+        if (String(currentCardDealId) !== id) openDealCard(id, undefined, true);
+    } else if (currentCardDealId) closeDealCard(true);
 });

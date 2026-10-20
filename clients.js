@@ -223,7 +223,6 @@ function renderClients() {
                 <td>
                     ${deals.length ? `<b>${deals.length}</b> <span class="client-sub">угод</span>` : `<span class="client-sub">немає</span>`}
                     ${last ? `<div class="client-sub">остання № ${e(last.number)} · ${fmtDate(last.created_at)}</div>` : ""}
-                    ${deals.length && profit ? `<div class="client-profit">${money(profit)}</div>` : ""}
                 </td>
                 <td><button type="button" class="btn-icon" data-edit="${e(c.id)}" title="Редагувати"><i class="bx bx-edit"></i></button></td>
             </tr>`;
@@ -449,7 +448,7 @@ function bindFields(root, c) {
     });
 }
 
-async function openClientView(id, tab) {
+async function openClientView(id, tab, fromHistory = false) {
     const c = clientsCache.find((x) => String(x.id) === String(id));
     if (!c) return;
     currentClientId = c.id;
@@ -458,11 +457,14 @@ async function openClientView(id, tab) {
     renderClientView(c);
     listView.hidden = true;
     detailView.hidden = false;
-    history.replaceState(null, "", `?open=${c.id}`);
+    if (!fromHistory) {
+        if (new URLSearchParams(location.search).get("open") === String(c.id)) history.replaceState(null, "", `?open=${c.id}`);
+        else history.pushState(null, "", `?open=${c.id}`);
+    }
     refreshHead(c);
 }
 
-async function closeClientView() {
+async function closeClientView(fromHistory = false) {
     // Створили «Новий клієнт» і нічого не заповнили — прибираємо порожній запис
     const c = clientsCache.find((x) => String(x.id) === String(currentClientId));
     if (c && c.name === "Новий клієнт" && !c.edrpou && !c.phone && !c.email && !(dealsByLead.get(String(c.id)) || []).length) {
@@ -473,7 +475,7 @@ async function closeClientView() {
     detailView.hidden = true;
     detailView.innerHTML = "";
     listView.hidden = false;
-    history.replaceState(null, "", location.pathname);
+    if (fromHistory !== true && location.search) history.pushState(null, "", location.pathname);
     window.furaSetCrumbs?.(["Клієнти"]);
     renderClients();
 }
@@ -485,7 +487,6 @@ function kpisHtml(c) {
     const expired = c.contract_until && String(c.contract_until) < new Date().toISOString().slice(0, 10);
     return `
         <div class="dv-kpi"><div class="dv-label">Угод</div><div class="dv-kpi-v">${deals.length}</div></div>
-        <div class="dv-kpi"><div class="dv-label">Прибуток з клієнта</div><div class="dv-kpi-v ${profit > 0 ? "green" : ""}">${deals.length ? money(profit) : "—"}</div></div>
         <div class="dv-kpi"><div class="dv-label">Остання угода</div><div class="dv-kpi-v">${last ? `№ ${e(last.number)}` : "—"}</div>${last ? `<div class="client-sub">${fmtDate(last.load_date_plan || last.created_at)}</div>` : ""}</div>
         <div class="dv-kpi"><div class="dv-label">Договір</div><div class="dv-kpi-v ${expired ? "client-neg" : ""}">${c.contract_no ? `№ ${e(c.contract_no)}` : "немає"}</div>
             <div class="client-sub">${c.contract_until ? `${expired ? "закінчився" : "діє до"} ${fmtDate(c.contract_until)}` : c.contract_date ? `від ${fmtDate(c.contract_date)}` : ""}</div></div>`;
@@ -703,7 +704,7 @@ function renderClientTab(c) {
     const deals = dealsByLead.get(String(c.id)) || [];
     box.innerHTML = deals.length
         ? `<table class="client-deals-table">
-            <thead><tr><th>№</th><th>Дата</th><th>Маршрут</th><th>Перевізник / авто</th><th>Статус</th><th>Оплата</th><th>Прибуток</th></tr></thead>
+            <thead><tr><th>№</th><th>Дата</th><th>Маршрут</th><th>Перевізник / авто</th><th>Статус</th><th>Оплата</th></tr></thead>
             <tbody>${deals
                 .map((d) => {
                     const [st, cls] = dealStateLabel(d);
@@ -717,7 +718,6 @@ function renderClientTab(c) {
                         <td>${e(d.carrier_name || "—")}${d.truck_plate ? `<div class="client-sub">${e(d.truck_plate)}</div>` : ""}</td>
                         <td><span class="deal-state ${cls}">${st}</span></td>
                         <td>${d.paid_by_client ? `<span class="client-paid">оплачено</span>` : `<span class="client-sub">очікуємо</span>`}</td>
-                        <td class="${p !== null && p < 0 ? "client-neg" : ""}">${money(p)}</td>
                     </tr>`;
                 })
                 .join("")}</tbody>
@@ -778,4 +778,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const openId = new URLSearchParams(location.search).get("open");
     if (openId) openClientView(openId);
+});
+
+window.addEventListener("popstate", () => {
+    const id = new URLSearchParams(location.search).get("open");
+    if (id) {
+        if (String(currentClientId) !== id) openClientView(id, undefined, true);
+    } else if (currentClientId) closeClientView(true);
 });

@@ -536,3 +536,10 @@ html.fura-embed .modal {
     box-shadow: none;
     border-radius: 0;
 }
+
+/* Стрілки «назад / вперед» у верхній смузі */
+.fura-nav-arrows { display: inline-flex; gap: 2px; margin-right: 6px; flex-shrink: 0; }
+.fura-nav-arrows button { width: 32px; height: 32px; display: inline-grid; place-items: center; border: 1px solid var(--f-line, #e4e8ef); border-radius: 8px; background: #fff; color: #334155; font-size: 17px; font-weight: 600; line-height: 1; cursor: pointer; transition: background .12s, color .12s; }
+.fura-nav-arrows button:hover:not(:disabled) { background: #eff6ff; color: var(--f-blue, #1d5bd8); border-color: #bfdbfe; }
+.fura-nav-arrows button:disabled { color: #cbd5e1; cursor: default; }
+.fura-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
