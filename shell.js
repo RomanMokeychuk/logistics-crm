@@ -204,7 +204,7 @@
         if (window.top === window.self) {
             addScript("global-search.js?v=202610200010");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202610200120");
+            addScript("furik.js?v=202610200830");
         }
     }
 

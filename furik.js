@@ -67,28 +67,81 @@
         } catch (_) {}
     }
     const K_SOUND = "fura_furik_sound";
+    const K_VOICE = "fura_furik_voice";
     let userTouched = false;
-    ["pointerdown", "keydown"].forEach((ev) => document.addEventListener(ev, () => (userTouched = true), { once: true, capture: true }));
+    let pending = []; // що відтворити після першого кліку
+    function onFirstTouch() {
+        if (userTouched) return;
+        userTouched = true;
+        const q = pending;
+        pending = [];
+        q.forEach((fn) => fn());
+    }
+    ["pointerdown", "keydown", "touchstart"].forEach((ev) => document.addEventListener(ev, onFirstTouch, { capture: true, passive: true }));
+    const whenAllowed = (fn) => (userTouched ? fn() : pending.push(fn));
 
     function beep() {
-        if (!store.get(K_SOUND, true) || !userTouched) return;
+        if (!store.get(K_SOUND, true)) return;
+        whenAllowed(playBeep);
+    }
+    function playBeep() {
         try {
             const AC = window.AudioContext || window.webkitAudioContext;
-            const ctx = (beep.ctx = beep.ctx || new AC());
-            const now = ctx.currentTime;
+            const ctx = (playBeep.ctx = playBeep.ctx || new AC());
+            if (ctx.state === "suspended") ctx.resume();
+            const now = ctx.currentTime + 0.03;
             [[660, 0], [880, 0.13]].forEach(([f, t]) => {
                 const o = ctx.createOscillator();
                 const g = ctx.createGain();
                 o.type = "sine";
                 o.frequency.value = f;
                 g.gain.setValueAtTime(0.0001, now + t);
-                g.gain.exponentialRampToValueAtTime(0.12, now + t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.25, now + t + 0.02);
                 g.gain.exponentialRampToValueAtTime(0.0001, now + t + 0.16);
                 o.connect(g).connect(ctx.destination);
                 o.start(now + t);
                 o.stop(now + t + 0.18);
             });
         } catch (_) {}
+    }
+
+    /* ---------------- Голос (вбудований у браузер, безкоштовно) ---------------- */
+
+    let ukVoice = null;
+    function pickVoice() {
+        const all = window.speechSynthesis?.getVoices?.() || [];
+        ukVoice = all.find((v) => /^uk/i.test(v.lang)) || null;
+        return ukVoice;
+    }
+    if (window.speechSynthesis) {
+        pickVoice();
+        window.speechSynthesis.onvoiceschanged = pickVoice;
+    }
+    const voiceOn = () => store.get(K_VOICE, true) && !!window.speechSynthesis;
+    const plain = (html) =>
+        String(html)
+            .replace(/<[^>]+>/g, " ")
+            .replace(/[💡🔔🔕🗣]/gu, "")
+            .replace(/№\s*/g, "номер ")
+            .replace(/→/g, " — ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    function say(html, force) {
+        if (!force && !voiceOn()) return;
+        whenAllowed(() => {
+            try {
+                const synth = window.speechSynthesis;
+                const v = ukVoice || pickVoice();
+                const u = new SpeechSynthesisUtterance(plain(html));
+                u.lang = "uk-UA";
+                if (v) u.voice = v;
+                u.rate = 1.02;
+                u.pitch = 1.1;
+                synth.cancel();
+                synth.speak(u);
+            } catch (_) {}
+        });
     }
 
     function hiddenToday(id) {
@@ -137,6 +190,36 @@
         return has("logist") || !list.includes("sales") ? list[0] : "sales";
     }
     const MODE_NAME = { logist: "Фурик · логіст", sales: "Фурик · Sales" };
+
+    const MOTIVATION = {
+        logist: [
+            "Кожна знайдена машина — це вантаж, який доїде вчасно. Ти робиш так, щоб світ рухався!",
+            "Сьогодні знайдемо найкращих перевізників за найкращою ціною. Поїхали!",
+            "Швидка відповідь логіста — половина виграної угоди. Ти в цьому сильний!",
+            "Дороги ведуть туди, куди їх веде логіст. Гарного рейсу, командо!",
+            "Жодна фура не поїде без тебе. Сьогодні буде продуктивний день!",
+            "Маленький крок — один дзвінок перевізнику. Великий результат — закрита угода.",
+            "Найкращі ставки знаходять ті, хто не здається після першого «ні». Вперед!",
+        ],
+        sales: [
+            "Кожен дзвінок наближає до нової угоди. Сьогодні твій день!",
+            "Клієнти обирають тих, хто відповідає першим. Будь першим!",
+            "Одне «так» від клієнта варте десяти «ні». Шукаймо його!",
+            "Ти — голос Грандару для клієнта. Нехай він сьогодні звучить упевнено!",
+            "Великі угоди починаються з простого «Добрий день». Поїхали!",
+            "Сьогодні — чудовий день, щоб повернути клієнта, який замовк. Ти зможеш!",
+            "Найкращі продажі — це допомога клієнту. Допоможемо сьогодні багатьом!",
+        ],
+    };
+    const WEEKDAY = [
+        "Неділя — але якщо ти тут, ти справжній профі.",
+        "Понеділок — старт тижня. Задаймо темп!",
+        "",
+        "Середина тижня — тримаємо швидкість!",
+        "",
+        "П'ятниця! Закриймо тиждень красиво.",
+        "Субота — дякую, що ти на зв'язку!",
+    ];
 
     // Порада дня — своя для кожного
     const ADVICE = {
@@ -337,7 +420,7 @@
 
     const css = document.createElement("link");
     css.rel = "stylesheet";
-    css.href = "furik.css?v=202610200120";
+    css.href = "furik.css?v=202610200830";
     document.head.appendChild(css);
 
     const root = document.createElement("div");
@@ -356,6 +439,8 @@
             <div class="fk-foot">
                 <button type="button" class="fk-link" data-fk="helper">Знайти перевізника</button>
                 <button type="button" class="fk-link fk-sound" data-fk="sound"></button>
+                <button type="button" class="fk-link fk-sound" data-fk="voice"></button>
+                <button type="button" class="fk-link fk-sound" data-fk="test">▶ Перевірити</button>
                 <button type="button" class="fk-link" data-fk="off">Вимкнути до завтра</button>
             </div>
         </div>
@@ -379,8 +464,12 @@
     function drawSound() {
         const on = store.get(K_SOUND, true);
         const b = root.querySelector("[data-fk='sound']");
-        b.textContent = on ? "🔔 Звук увімк." : "🔕 Звук вимк.";
+        b.textContent = on ? "🔔 Звук" : "🔕 Без звуку";
         b.setAttribute("aria-pressed", String(on));
+        const vb = root.querySelector("[data-fk='voice']");
+        vb.hidden = !window.speechSynthesis;
+        vb.textContent = voiceOn() ? "🗣 Голос" : "🤐 Без голосу";
+        vb.setAttribute("aria-pressed", String(voiceOn()));
     }
 
     let drawnMode = "logist";
@@ -469,6 +558,25 @@
             tick(false, true);
             return;
         }
+        if (act === "voice") {
+            store.set(K_VOICE, !store.get(K_VOICE, true));
+            drawSound();
+            if (voiceOn()) say("Голос увімкнено. Я поруч!", true);
+            else window.speechSynthesis?.cancel();
+        }
+        if (act === "test") {
+            playBeep();
+            const name = me?.firstName ? `, ${me.firstName}` : "";
+            setTimeout(() => say(`Привіт${name}! Це Фурик. Мене чути?`, true), 450);
+            if (window.speechSynthesis && !pickVoice()) {
+                setTimeout(() => {
+                    list.insertAdjacentHTML(
+                        "afterbegin",
+                        `<div class="fk-tip warn"><p>На комп'ютері немає українського голосу, тому говорю з акцентом 🙂 Додайте його: <b>Mac</b> — Системні параметри → Доступність → Озвучений вміст → Системний голос → Керувати голосами → Українська. <b>Windows</b> — Параметри → Час і мова → Мовлення → Додати голоси → Українська. Після цього перезапустіть браузер.</p></div>`,
+                    );
+                }, 300);
+            }
+        }
         if (act === "sound") {
             store.set(K_SOUND, !store.get(K_SOUND, true));
             drawSound();
@@ -517,16 +625,19 @@
             weight: -1,
         });
 
-        // Вранці (один раз на день) — зведення
-        const h = new Date().getHours();
-        if (first && h >= 6 && store.get(K_MORNING, "") !== todayIso()) {
-            store.set(K_MORNING, todayIso());
-            const v = visibleTips();
+        // Початок дня: привітання + мотивація + що на сьогодні. Висить, доки не сховають.
+        const now = new Date();
+        const h = now.getHours();
+        if (h >= 5) {
+            const todo = visibleTips().filter((t) => t.kind !== "calm").length;
             const hello = h < 12 ? "Доброго ранку" : h < 18 ? "Добрий день" : "Добрий вечір";
+            const motiv = MOTIVATION[m][day % MOTIVATION[m].length];
+            const wd = WEEKDAY[now.getDay()];
             tips.unshift({
-                id: `morning-${todayIso()}`,
+                id: `morning-${m}-${todayIso()}`,
                 kind: "calm",
-                text: `${hello}${me.firstName ? `, <b>${esc(me.firstName)}</b>` : ""}! ${v.length ? `На сьогодні в мене ${v.length} ${plural(v.length, "нагадування", "нагадування", "нагадувань")} — нижче.` : "Термінових справ поки немає. Гарного дня!"}`,
+                morning: true,
+                text: `${hello}${me.firstName ? `, <b>${esc(me.firstName)}</b>` : ""}! ${wd ? `${esc(wd)} ` : ""}${esc(motiv)}<br><span class="fk-sub">${todo ? `На сьогодні в мене ${todo} ${plural(todo, "нагадування", "нагадування", "нагадувань")} — нижче.` : "Термінових справ поки немає."}</span>`,
                 weight: 9,
             });
         }
@@ -541,11 +652,19 @@
         fresh.forEach((t) => seenThisSession.add(t.id));
         rememberSeen();
         // Справжні нові справи (порада дня сама по собі пузир не відкриває)
-        const news = fresh.filter((t) => t.kind !== "calm" || t.id.startsWith("morning-"));
+        // Ранкове привітання вистрибує й звучить один раз на день (у будь-якій вкладці)
+        const morningKey = `${m}-${todayIso()}`;
+        const news = fresh.filter((t) => t.kind !== "calm" || (t.morning && store.get(K_MORNING, "") !== morningKey));
+        if (news.some((t) => t.morning)) store.set(K_MORNING, morningKey);
         if (news.length) {
             if (first) driveIn();
             else hop();
-            if (news.some((t) => t.kind !== "calm")) beep();
+            beep();
+            // Голосом: ранкове привітання, інакше — перша важлива справа
+            const morning = news.find((t) => t.morning);
+            const urgent = news.find((t) => t.kind === "warn") || news.find((t) => t.kind !== "calm");
+            if (morning) say(morning.text);
+            else if (urgent) say(urgent.text);
             openBubble(true);
         }
     }

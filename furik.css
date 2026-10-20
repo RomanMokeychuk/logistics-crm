@@ -393,3 +393,14 @@ body:has(.modal-overlay.active) .fk-bubble {
 .fk-look {
     display: block;
 }
+
+.fk-sub {
+    display: inline-block;
+    margin-top: 4px;
+    color: #4b5563;
+    font-size: 13px;
+}
+
+.fk-foot .fk-link[hidden] {
+    display: none;
+}
