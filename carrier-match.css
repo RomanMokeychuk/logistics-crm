@@ -71,6 +71,8 @@ body.cm-modal-open { overflow: hidden; }
 .cm-pl summary::before { content: "▸ "; }
 .cm-pl[open] summary::before { content: "▾ "; }
 .cm-pl[open] summary { margin-bottom: 6px; }
+.cm-list { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: #0f172a; max-height: 220px; overflow-y: auto; }
+.cm-pl + .cm-pl { margin-top: 4px; border-top: none; padding-top: 2px; }
 .cm-plates { display: flex; flex-wrap: wrap; gap: 4px; max-height: 220px; overflow-y: auto; }
 .cm-plates span { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #334155; background: #f1f5f9; border-radius: 5px; padding: 1px 6px; }
 @media (max-width: 1000px) {
