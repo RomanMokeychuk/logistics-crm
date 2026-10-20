@@ -2066,7 +2066,7 @@ function offerRowsHtml(offers, opts = {}) {
                 <span class="offer-num">${i + 1}</span>
                 <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}` : "—"}</div>
                 <div class="offer-date">${offerDateHtml(o)}</div>
-                <div class="offer-comment">${escapeHtml(o.comment || "")}${o.carrier ? `<div class="offer-carrier"><i class='bx bxs-truck'></i> ${o.carrier_id ? `<a href="index.html?open=${encodeURIComponent(o.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника">${escapeHtml(o.carrier)} <i class='bx bx-link-external'></i></a>` : escapeHtml(o.carrier)}</div>` : ""}</div>
+                <div class="offer-comment">${escapeHtml(o.comment || "")}${o.carrier ? `<div class="offer-carrier"><i class='bx bxs-truck'></i> ${o.carrier_id ? `<a href="#" data-carrier-card="${escapeHtml(o.carrier_id)}" title="Відкрити картку перевізника">${escapeHtml(o.carrier)} <i class='bx bx-link-external'></i></a>` : escapeHtml(o.carrier)}</div>` : ""}</div>
                 <div class="offer-action">${btn}</div>
             </div>`;
         })
@@ -2253,12 +2253,20 @@ document.getElementById("answerOptions").addEventListener("input", (e) => {
                     </button>`,
                   )
                   .join("")
-            : `<div class="ans-carrier-none">У реєстрі не знайдено — збережеться як вписано</div>`;
+            : `<div class="ans-carrier-none">У реєстрі не знайдено</div>`;
+        list.innerHTML += `<button type="button" class="ans-carrier-add"><i class='bx bx-plus'></i> Додати «${escapeHtml(q)}» у реєстр перевізників</button>`;
         list.hidden = false;
     }, 250);
 });
 
 document.getElementById("answerOptions").addEventListener("click", (e) => {
+    const add = e.target.closest(".ans-carrier-add");
+    if (add) {
+        const input = add.closest(".ans-carrier-box").querySelector(".ans-carrier");
+        add.closest(".ans-carrier-list").hidden = true;
+        openCarrierQuickAdd(input);
+        return;
+    }
     const item = e.target.closest(".ans-carrier-item");
     if (!item) return;
     const box = item.closest(".ans-carrier-box");
@@ -2273,6 +2281,166 @@ document.addEventListener("click", (e) => {
         document.querySelectorAll(".ans-carrier-list").forEach((l) => (l.hidden = true));
     }
 });
+
+/* ---------- Картка перевізника поверх запиту (без переходу на іншу сторінку) ---------- */
+function ensureCarrierModals() {
+    if (document.getElementById("carrierQuickOverlay")) return;
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `
+        <div class="modal-overlay rq-carrier-overlay" id="carrierQuickOverlay">
+            <div class="modal rq-carrier-modal">
+                <div class="modal-header">
+                    <h2>Картка перевізника</h2>
+                    <button type="button" class="close-btn" data-close="carrierQuickOverlay">&times;</button>
+                </div>
+                <div id="carrierQuickBody" class="rq-carrier-body"></div>
+            </div>
+        </div>
+        <div class="modal-overlay rq-carrier-overlay" id="carrierAddOverlay">
+            <div class="modal rq-carrier-modal">
+                <div class="modal-header">
+                    <h2>Новий перевізник у реєстр</h2>
+                    <button type="button" class="close-btn" data-close="carrierAddOverlay">&times;</button>
+                </div>
+                <form id="carrierAddForm" class="rq-carrier-body">
+                    <div class="form-group"><label>Назва *</label><input type="text" id="qa_name" required /></div>
+                    <div class="form-group"><label>ЄДРПОУ / ІПН</label><input type="text" id="qa_edrpou" inputmode="numeric" /></div>
+                    <div class="form-group"><label>Контактна особа</label><input type="text" id="qa_person" /></div>
+                    <div class="form-group"><label>Телефон</label><input type="tel" id="qa_phone" placeholder="380..." /></div>
+                    <div class="form-group"><label>Тип причепу</label><input type="text" id="qa_trailer" placeholder="ТЕНТ" /></div>
+                    <div class="form-group"><label>Місто</label><input type="text" id="qa_city" /></div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" data-close="carrierAddOverlay">Відміна</button>
+                        <button type="submit" class="btn btn-primary"><i class='bx bx-check'></i> Додати в реєстр</button>
+                    </div>
+                </form>
+            </div>
+        </div>`;
+    document.body.append(...wrap.children);
+    document.querySelectorAll("[data-close]").forEach((b) =>
+        b.addEventListener("click", () => document.getElementById(b.dataset.close).classList.remove("active")),
+    );
+    document.querySelectorAll(".rq-carrier-overlay").forEach((o) =>
+        o.addEventListener("click", (e) => {
+            if (e.target === o) o.classList.remove("active");
+        }),
+    );
+    document.getElementById("carrierAddForm").addEventListener("submit", saveCarrierQuickAdd);
+}
+
+function phoneLineHtml(person, phone) {
+    if (!person && !phone) return "";
+    const digits = String(phone || "").replace(/\D/g, "");
+    const viber = digits
+        ? ` <a href="viber://chat?number=%2B${digits}" class="viber-link" title="Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
+        : "";
+    const tel = phone ? `<a href="tel:+${digits}">${escapeHtml(phone)}</a>` : "";
+    return `<div>${person ? `<b>${escapeHtml(person)}:</b> ` : ""}${tel}${viber}</div>`;
+}
+
+async function openCarrierQuickCard(id) {
+    ensureCarrierModals();
+    const body = document.getElementById("carrierQuickBody");
+    body.innerHTML = `<div class="offer-muted" style="padding:20px">Завантаження…</div>`;
+    document.getElementById("carrierQuickOverlay").classList.add("active");
+    const { data: c, error } = await sbClient.from("carriers").select("*").eq("id", id).maybeSingle();
+    if (error || !c) {
+        body.innerHTML = `<div class="offer-muted" style="padding:20px">Перевізника не знайдено в реєстрі (можливо, його видалили).</div>`;
+        return;
+    }
+    const badges = (v, cls) =>
+        String(v || "")
+            .split(/[;,]/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .map((x) => `<span class="badge ${cls}" style="margin:0 4px 4px 0">${escapeHtml(x)}</span>`)
+            .join("");
+    const stars = c.rating ? "★".repeat(c.rating) + "☆".repeat(5 - c.rating) : "без оцінки";
+    body.innerHTML = `
+        <div class="rq-carrier-title">${escapeHtml(c.name || "—")}</div>
+        <div class="rq-carrier-sub">${escapeHtml([c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city, c.region_ukr].filter(Boolean).join(" · ")) || "—"}</div>
+        <div class="card-section">
+            ${cardRow("Контакти:", phoneLineHtml(c.contact_person_1, c.phone_1) + phoneLineHtml(c.contact_person_2, c.phone_2) || "—")}
+            ${cardRow("Тип причепу:", badges(c.trailer_type, "badge-warning") || "—")}
+            ${cardRow("Напрямки:", badges(c.destinations, "badge-country") || "—")}
+            ${cardRow("Оцінка:", `<span class="rq-stars">${stars}</span>`)}
+            ${cardRow("Замітки:", c.notes ? `<div style="white-space:pre-wrap">${escapeHtml(c.notes)}</div>` : "—")}
+        </div>
+        <div class="form-actions">
+            <a class="btn btn-secondary" href="index.html?open=${encodeURIComponent(c.id)}"><i class='bx bx-edit'></i> Редагувати в реєстрі</a>
+            <button type="button" class="btn btn-primary" data-close-quick>Готово</button>
+        </div>`;
+    body.querySelector("[data-close-quick]").addEventListener("click", () =>
+        document.getElementById("carrierQuickOverlay").classList.remove("active"),
+    );
+}
+
+// Клік по перевізнику у варіанті ціни (картка запиту)
+document.addEventListener("click", (e) => {
+    const link = e.target.closest("[data-carrier-card]");
+    if (!link) return;
+    e.preventDefault();
+    openCarrierQuickCard(link.dataset.carrierCard);
+});
+
+let carrierAddTarget = null;
+function openCarrierQuickAdd(input) {
+    ensureCarrierModals();
+    carrierAddTarget = input;
+    const q = input.value.trim();
+    const digits = q.replace(/\D/g, "");
+    document.getElementById("carrierAddForm").reset();
+    if (digits.length >= 8 && digits.length === q.replace(/\s/g, "").length) document.getElementById("qa_edrpou").value = digits;
+    else document.getElementById("qa_name").value = q;
+    document.getElementById("carrierAddOverlay").classList.add("active");
+    setTimeout(() => document.getElementById("qa_name").focus(), 50);
+}
+
+async function saveCarrierQuickAdd(e) {
+    e.preventDefault();
+    const v = (id) => document.getElementById(id).value.trim();
+    const name = v("qa_name");
+    const edrpou = v("qa_edrpou").replace(/\D/g, "");
+    if (!name) return;
+    const btn = e.target.querySelector("button[type=submit]");
+    btn.disabled = true;
+    try {
+        // Такий уже є? (за ЄДРПОУ або точною назвою) — не дублюємо
+        let { data: found } = edrpou
+            ? await sbClient.from("carriers").select("id, name").eq("edrpou", edrpou).limit(1)
+            : await sbClient.from("carriers").select("id, name").ilike("name", name).limit(1);
+        let carrier = found?.[0];
+        if (carrier) {
+            alert(`Перевізник уже є в реєстрі: «${carrier.name}». Його й підставлено.`);
+        } else {
+            let phone = v("qa_phone").replace(/\D/g, "");
+            if (phone.length === 10 && phone.startsWith("0")) phone = "38" + phone;
+            const { data, error } = await sbClient
+                .from("carriers")
+                .insert([{
+                    name,
+                    edrpou: edrpou || null,
+                    contact_person_1: v("qa_person") || null,
+                    phone_1: phone || null,
+                    trailer_type: v("qa_trailer").toUpperCase() || null,
+                    city: v("qa_city") || null,
+                }])
+                .select("id, name")
+                .single();
+            if (error) throw error;
+            carrier = data;
+        }
+        if (carrierAddTarget) {
+            carrierAddTarget.value = carrier.name;
+            carrierAddTarget.dataset.carrierId = carrier.id;
+        }
+        document.getElementById("carrierAddOverlay").classList.remove("active");
+    } catch (err) {
+        alert("Не вдалося додати перевізника: " + (err.message || err));
+    } finally {
+        btn.disabled = false;
+    }
+}
 
 // Один блок "Варіант N" у формі відповіді
 function offerFormRowHtml(i, o = {}) {
@@ -2424,6 +2592,19 @@ answerForm.addEventListener("submit", async (e) => {
 
     if (dateError) {
         alert(dateError);
+        return;
+    }
+
+    // Перевізник має бути з реєстру — інакше пропонуємо додати
+    const notInRegistry = [...document.querySelectorAll("#answerOptions .ans-carrier")].find(
+        (i) => i.value.trim() && !i.dataset.carrierId,
+    );
+    if (notInRegistry) {
+        if (confirm(`Перевізника «${notInRegistry.value.trim()}» немає в реєстрі.\nДодати його зараз? (без цього відповідь не збережеться)`)) {
+            openCarrierQuickAdd(notInRegistry);
+        } else {
+            notInRegistry.focus();
+        }
         return;
     }
 
