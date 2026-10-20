@@ -1210,3 +1210,5 @@
 .rq-carrier-body a.btn-secondary { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
 .ans-carrier-add { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px 12px; border: none; border-top: 1px solid #f1f5f9; background: #eff6ff; color: #1d4ed8; font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; text-align: left; }
 .ans-carrier-add:hover { background: #dbeafe; }
+.btn-match { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin-right: 8px; border-radius: 8px; background: #fff; border: 1px solid #c7d2fe; color: #3730a3; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.btn-match:hover { background: #eef2ff; }

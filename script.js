@@ -515,6 +515,7 @@ function openCarrierCard(id) {
 
     carrierCardOverlay.classList.add("active");
     window.furaCarrierHistory?.render(item); // історія рейсів і ставок (carrier-history.js)
+    window.furaCarrierRoutes?.renderCard(item); // напрямки з митних даних (carrier-match.js)
 }
 
 /* ================================================================= *

@@ -2080,6 +2080,18 @@ function chosenOfferIndex(r, a) {
     return Number.isInteger(c.index) ? c.index : null;
 }
 
+// Кнопка «Підібрати перевізників» — відкриває реєстр з підбором за митними даними
+function matchLinkHtml(r) {
+    const ua = (c) => String(c || "").toUpperCase() === "УКРАЇНА";
+    let dir = "", country = "";
+    if (ua(r.unload_country) && r.load_country && !ua(r.load_country)) [dir, country] = ["Імпорт", r.load_country];
+    else if (ua(r.load_country) && r.unload_country && !ua(r.unload_country)) [dir, country] = ["Експорт", r.unload_country];
+    if (!country) return "";
+    const trailer = splitTypes(r.transport_type)[0] || "";
+    const q = new URLSearchParams({ match: "1", dir, country, ...(trailer ? { trailer } : {}) });
+    return `<a class="btn-match" href="index.html?${q.toString()}" title="Хто реально возить цим напрямком (митні дані)">🎯 Підібрати перевізників</a>`;
+}
+
 // Блок "Відповіді логістів" в картці запиту
 function answerSectionHtml(r) {
     const answers = getAnswers(r);
@@ -2125,6 +2137,7 @@ function answerSectionHtml(r) {
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
                 <span><i class='bx bx-dollar-circle'></i> ${title}</span>
+                ${matchLinkHtml(r)}
                 <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
                     <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
                 </button>
