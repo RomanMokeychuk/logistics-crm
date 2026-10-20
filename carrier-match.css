@@ -43,8 +43,20 @@
 .cm-cities b { font-weight: 600; }
 .cm-more { margin-top: 6px; border: 1px solid #e2e8f0; background: #f8fafc; color: #1d4ed8; font: inherit; font-size: 12.5px; font-weight: 600; padding: 3px 10px; border-radius: 8px; cursor: pointer; }
 .cm-more:hover { background: #eff6ff; }
-.cm-details { margin-top: 8px; }
-.cm-details[hidden] { display: none; }
+.cm-modal { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .55); display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; }
+.cm-modal[hidden] { display: none; }
+.cm-modal-box { background: #f8fafc; border-radius: 14px; width: min(1200px, 100%); max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(15, 23, 42, .3); }
+.cm-modal-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 18px; background: #fff; border-bottom: 1px solid #e4e8ef; border-radius: 14px 14px 0 0; }
+.cm-modal-title { flex: 1; min-width: 0; }
+.cm-modal-name { font-size: 17px; font-weight: 800; color: #0f172a; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cm-modal-name code { font-size: 12px; font-weight: 500; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; color: #475569; }
+.cm-modal-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; font-size: 13.5px; color: #334155; margin-top: 4px; }
+.cm-modal-sub a { color: #2563eb; text-decoration: none; }
+.cm-modal-sub .cm-more { margin-top: 0; }
+.cm-modal-x { border: none; background: none; font-size: 28px; line-height: 1; color: #94a3b8; cursor: pointer; padding: 0 4px; }
+.cm-modal-x:hover { color: #0f172a; }
+.cm-modal-body { padding: 14px 18px 18px; overflow-y: auto; }
+body.cm-modal-open { overflow: hidden; }
 .cm-dcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
 .cm-dcard { border: 1px solid #e4e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font-size: 13px; }
 .cm-dcard.cm-focus { border-color: #93c5fd; box-shadow: 0 0 0 2px #dbeafe; }

@@ -236,8 +236,7 @@
                                 ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
                             </div>
-                            <button type="button" class="cm-more" data-cm-details="${esc(a.code)}">▾ Деталі: усі напрямки, міста, номери</button>
-                            <div class="cm-details" hidden></div>
+                            <button type="button" class="cm-more" data-cm-details="${esc(a.code)}" data-cm-name="${esc(c ? c.name || c.company || "" : "")}" data-cm-id="${esc(c?.id || "")}" data-cm-phone="${esc(phone)}" data-cm-person="${esc(c?.contact_person_1 || "")}">🔎 Деталі: усі напрямки, міста, номери</button>
                         </div>
                         <div class="cm-contact">
                             ${c?.contact_person_1 ? `<div class="cm-person">${esc(c.contact_person_1)}</div>` : ""}
@@ -297,25 +296,59 @@
             .join("")}</div>`;
     }
 
+    /* ---------- Вікно «Деталі» поверх сторінки ---------- */
+    function modal() {
+        let m = document.getElementById("cmModal");
+        if (m) return m;
+        m = document.createElement("div");
+        m.id = "cmModal";
+        m.className = "cm-modal";
+        m.hidden = true;
+        m.innerHTML = `<div class="cm-modal-box" role="dialog" aria-modal="true">
+                <div class="cm-modal-head"><div class="cm-modal-title"></div><button type="button" class="cm-modal-x" title="Закрити (Esc)">×</button></div>
+                <div class="cm-modal-body"></div>
+            </div>`;
+        document.body.appendChild(m);
+        const close = () => {
+            m.hidden = true;
+            document.body.classList.remove("cm-modal-open");
+        };
+        m.addEventListener("click", (e) => {
+            if (e.target === m || e.target.closest(".cm-modal-x")) close();
+            const open = e.target.closest("[data-cm-card]");
+            if (open && typeof openCarrierCard === "function") {
+                close();
+                openCarrierCard(open.dataset.cmCard);
+            }
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" && !m.hidden) close();
+        });
+        return m;
+    }
+
     async function toggleDetails(btn) {
-        const box = btn.nextElementSibling;
-        if (!box) return;
-        if (!box.hidden) {
-            box.hidden = true;
-            btn.textContent = "▾ Деталі: усі напрямки, міста, номери";
-            return;
-        }
-        box.hidden = false;
-        btn.textContent = "▴ Сховати деталі";
-        if (box.dataset.loaded) return;
-        box.innerHTML = `<div class="cm-empty">Завантаження…</div>`;
-        const { data, error } = await loadRoutes(btn.dataset.cmDetails);
+        const m = modal();
+        const d = btn.dataset;
+        const digits = (d.cmPhone || "").replace(/\D/g, "");
+        m.querySelector(".cm-modal-title").innerHTML = `
+            <div class="cm-modal-name">${esc(d.cmName || "Немає в реєстрі")} <code>${esc(d.cmDetails)}</code></div>
+            <div class="cm-modal-sub">
+                ${d.cmPerson ? `<span>${esc(d.cmPerson)}</span>` : ""}
+                ${digits ? `<a href="tel:+${digits}">${esc(d.cmPhone)}</a> <a class="viber-link" href="viber://chat?number=%2B${digits}" title="Viber"><i class="bx bxs-message-rounded-dots"></i></a>` : `<span class="cm-sub">телефону немає</span>`}
+                ${d.cmId && typeof openCarrierCard === "function" ? `<button type="button" class="cm-more" data-cm-card="${esc(d.cmId)}">Картка перевізника →</button>` : ""}
+            </div>`;
+        const body = m.querySelector(".cm-modal-body");
+        body.innerHTML = `<div class="cm-empty">Завантаження…</div>`;
+        m.hidden = false;
+        document.body.classList.add("cm-modal-open");
+        const { data, error } = await loadRoutes(d.cmDetails);
+        if (m.hidden) return;
         if (error) {
-            box.innerHTML = `<div class="cm-empty">Помилка: ${esc(error.message)}</div>`;
+            body.innerHTML = `<div class="cm-empty">Помилка: ${esc(error.message)}</div>`;
             return;
         }
-        box.dataset.loaded = "1";
-        box.innerHTML = (data || []).length ? routesHtml(data, document.getElementById("cmCountry").value) : `<div class="cm-empty">Немає даних.</div>`;
+        body.innerHTML = (data || []).length ? routesHtml(data, document.getElementById("cmCountry").value) : `<div class="cm-empty">Немає даних.</div>`;
     }
 
     /* ---------- Блок у картці перевізника ---------- */
