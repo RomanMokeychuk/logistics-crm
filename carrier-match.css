@@ -7,7 +7,7 @@
 .cm-sub { font-size: 12px; color: #64748b; }
 .cm-close { margin-left: auto; border: none; background: none; font-size: 22px; line-height: 1; color: #94a3b8; cursor: pointer; }
 .cm-close:hover { color: #0f172a; }
-.cm-form { display: grid; grid-template-columns: 170px 1fr 1fr 150px 150px auto; gap: 10px; align-items: end; }
+.cm-form { display: grid; grid-template-columns: 170px 1fr 1fr 140px 140px 170px auto; gap: 10px; align-items: end; }
 .cm-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #475569; }
 .cm-form label i { color: #dc2626; font-style: normal; }
 .cm-form select, .cm-form input { height: 38px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 14px; background: #fff; }
@@ -100,3 +100,4 @@ body.cm-modal-open { overflow: hidden; }
 .cm-pg:disabled { opacity: .4; cursor: default; }
 .cm-pg.cm-pg-on { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .cm-pg-gap { color: #94a3b8; padding: 0 4px; }
+.cm-hit { background: #fef08a; color: #0f172a; border-radius: 3px; padding: 0 2px; }

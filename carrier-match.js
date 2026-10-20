@@ -37,6 +37,21 @@
                 if (name) map.set(name, (map.get(name) || 0) + (m ? Number(m[2]) : 1));
             });
     }
+    // міста зі збігом із пошуком — першими й підсвічені
+    function cityList(map, n, q) {
+        const needle = String(q || "").toLowerCase();
+        const items = [...map.entries()].sort((x, y) => {
+            const mx = needle && x[0].toLowerCase().includes(needle), my = needle && y[0].toLowerCase().includes(needle);
+            return my - mx || y[1] - x[1];
+        });
+        return items
+            .slice(0, n)
+            .map(([k, v]) => {
+                const t = esc(v > 1 ? `${k} (${v})` : k);
+                return needle && k.toLowerCase().includes(needle) ? `<mark class="cm-hit">${t}</mark>` : t;
+            })
+            .join(", ");
+    }
     const topCounts = (map, n) =>
         [...map.entries()]
             .sort((x, y) => y[1] - x[1])
@@ -111,6 +126,9 @@
                 <label>Кордон
                     <input type="text" id="cmBorder" placeholder="напр. Ягодин" />
                 </label>
+                <label>Місто
+                    <input type="text" id="cmCity" placeholder="напр. Бухарест, Lublin, Вінниця" title="Місто за кордоном або в Україні (як у деклараціях — кирилицею чи латиницею)" />
+                </label>
                 <button type="submit" class="btn btn-primary">Знайти</button>
             </form>
             <div class="cm-results" id="cmResults"></div>`;
@@ -146,12 +164,14 @@
         const region = document.getElementById("cmRegion").value;
         const trailer = document.getElementById("cmTrailer").value;
         const border = document.getElementById("cmBorder").value.trim();
+        const city = document.getElementById("cmCity").value.trim().replace(/[,()%*"\\]/g, " ").replace(/\s+/g, " ");
         const out = document.getElementById("cmResults");
         if (!country) return;
         out.innerHTML = `<div class="cm-empty">Шукаю…</div>`;
 
         // Supabase віддає максимум 1000 рядків за запит — тягнемо всі сторінки
         const query = async (cols) => {
+            const withCities = cols.includes("cities");
             const PAGE = 1000;
             const rows = [];
             for (let from = 0; from < 50000; from += PAGE) {
@@ -160,6 +180,7 @@
                 if (region) q = q.eq("ua_region", region);
                 if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
                 if (border) q = q.ilike("border", `%${border}%`);
+                if (city && withCities) q = q.or(`cities.ilike."*${city}*",ua_cities.ilike."*${city}*"`);
                 const { data, error } = await q.order("id", { ascending: true }).range(from, from + PAGE - 1);
                 if (error) return { data: null, error };
                 rows.push(...(data || []));
@@ -208,7 +229,7 @@
             .sort((x, y) => y.score - x.score);
 
         if (!list.length) {
-            out.innerHTML = `<div class="cm-empty">За цими умовами в митних даних нікого немає. Приберіть область, причіп або кордон.</div>`;
+            out.innerHTML = `<div class="cm-empty">За цими умовами в митних даних нікого немає. Приберіть область, причіп, кордон або місто${city ? " (місто може бути записане інакше — спробуйте латиницею/кирилицею або частину назви, напр. «Bucur»)" : ""}.</div>`;
             return;
         }
 
@@ -236,8 +257,8 @@
                                 ${regions.length ? `<span>📍 ${esc(regions.join(", "))}</span>` : ""}
                                 ${borderTop ? `<span>🛂 ${esc(borderTop)}</span>` : ""}
                             </div>
-                            ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Звідки (місто)" : "Куди (місто)") : "Міста"}: <b>${esc(topCounts(a.cities, 6))}</b></span></div>` : `<div class="cm-facts cm-light"><span>🏁 Місто ${[...a.dirs][0] === "Імпорт" ? "відправлення" : "призначення"} в деклараціях не вказане</span></div>`}
-                            ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Куди в Україні" : "Звідки в Україні") : "В Україні"}: ${esc(topCounts(a.uaCities, 5))}</span></div>` : ""}
+                            ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Звідки (місто)" : "Куди (місто)") : "Міста"}: <b>${cityList(a.cities, 6, city)}</b></span></div>` : `<div class="cm-facts cm-light"><span>🏁 Місто ${[...a.dirs][0] === "Імпорт" ? "відправлення" : "призначення"} в деклараціях не вказане</span></div>`}
+                            ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Куди в Україні" : "Звідки в Україні") : "В Україні"}: ${cityList(a.uaCities, 5, city)}</span></div>` : ""}
                             <div class="cm-facts cm-light">
                                 ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
@@ -280,6 +301,7 @@
             rowsBox.innerHTML = list.slice(from, from + PAGE).map((a, k) => rowHtml(a, from + k)).join("");
             out.querySelector(".cm-count").textContent =
                 `Знайдено ${list.length} перевізників${pages > 1 ? ` · ${from + 1}–${Math.min(from + PAGE, list.length)}` : ""}. ` +
+                (city ? `Місто: «${city}». ` : "") +
                 (sortKey === "best" ? "Спершу — хто частіше їздив, працював з нами і має телефон." : `Сортування: ${SORTS[sortKey].label.toLowerCase()}.`);
             pager.hidden = pages <= 1;
             pager.innerHTML =
@@ -461,6 +483,7 @@
             set("cmCountry", (p.get("country") || "").toUpperCase());
             set("cmRegion", (p.get("region") || "").toUpperCase());
             set("cmTrailer", (p.get("trailer") || "").toUpperCase());
+            set("cmCity", p.get("city") || "");
             // Чекаємо, поки завантажиться реєстр (щоб знати телефони й назви)
             let tries = 0;
             const t = setInterval(() => {
