@@ -1306,8 +1306,9 @@ if (addCarrierForm) {
                 .from("carriers")
                 .update(payload)
                 .eq("id", carrierId)
-                .select("id");
+                .select("*");
             error = res.error;
+            window.__lastCarrierSave = res.data;
             // База може «мовчки» не зберегти (немає прав) — тоді рядків 0
             if (!error && Array.isArray(res.data) && res.data.length === 0) {
                 error = { message: "зміни не збереглися — у вас немає прав змінювати цього перевізника або його вже видалили. Оновіть сторінку (Cmd+Shift+R) і спробуйте ще раз." };
@@ -1320,6 +1321,26 @@ if (addCarrierForm) {
         if (error) {
             alert("Помилка Supabase: " + error.message);
             console.error(error);
+        } else if (carrierId) {
+            // Редагування: оновлюємо цей рядок на місці — та сама сторінка, те саме місце в списку
+            const saved = (window.__lastCarrierSave || [])[0] || { ...existingCarrier, ...payload };
+            const idx = allCarriersCache.findIndex((c) => String(c.id) === String(carrierId));
+            if (idx >= 0) {
+                const merged = { ...allCarriersCache[idx], ...saved };
+                merged._search = [merged.name, merged.company, merged.edrpou, merged.destinations, merged.city,
+                    merged.fleet_params, merged.trailer_type, merged.quadrant, merged.notes, merged.ukraine_directions,
+                    merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2]
+                    .filter(Boolean).join(" ").toLowerCase();
+                allCarriersCache[idx] = merged;
+            }
+            const box = document.querySelector(".table-card");
+            const keepTop = box ? box.scrollTop : 0;
+            const keepWin = window.scrollY;
+            resetForm();
+            closeModal();
+            renderCarriers();
+            if (box) box.scrollTop = keepTop;
+            window.scrollTo(0, keepWin);
         } else {
             resetForm();
             closeModal();
