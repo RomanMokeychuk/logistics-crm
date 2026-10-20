@@ -1108,9 +1108,11 @@ function bindSide(d) {
 }
 
 // Нова угода: створюється одразу і відкривається — поля заповнюються прямо на сторінці
-async function createDeal() {
+async function createDeal(lead = null) {
     const me = currentStaff;
     const payload = { deal_kind: "FTL" };
+    // З картки клієнта: deals.html?new=1&lead=ID — одразу з цим клієнтом
+    if (lead) Object.assign(payload, { lead_id: lead.id, client: lead.name });
     if (me && hasRole(me, ["sales", "head"])) Object.assign(payload, { sales_id: me.id, sales: me.full_name });
     if (me && hasRole(me, ["logist"])) Object.assign(payload, { logist_id: me.id, logist_name: me.full_name, logist_phone: me.phone ? cleanPhone(me.phone) : null });
     const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
@@ -1663,7 +1665,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     const params = new URLSearchParams(location.search);
-    if (params.get("new") === "1") createDeal();
+    if (params.get("new") === "1") {
+        const leadId = params.get("lead");
+        if (leadId) {
+            sbClient.from("leads").select("id, name").eq("id", leadId).maybeSingle().then(({ data }) => createDeal(data || null));
+        } else createDeal();
+        history.replaceState(null, "", location.pathname);
+    }
     if (params.get("open")) openDealCard(params.get("open"));
     else if ([...params.keys()].length) history.replaceState(null, "", location.pathname);
 });

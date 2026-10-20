@@ -1,0 +1,55 @@
+/* FURA — Клієнти */
+.clients-table .client-name { font-weight: 700; color: #0f172a; }
+.client-code { font-size: 12px; background: #f1f5f9; padding: 1px 6px; border-radius: 4px; color: #475569; }
+.client-sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+.client-cargo { max-width: 260px; font-size: 13px; color: #334155; white-space: normal; }
+.client-profit { font-size: 12px; font-weight: 700; color: #15803d; margin-top: 2px; }
+.clients-table .phone-line { display: block; white-space: nowrap; }
+
+.client-modal { max-width: 1040px !important; width: 100%; }
+.client-head-actions { display: flex; align-items: center; gap: 10px; }
+.client-body { padding: 0 24px 24px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: calc(100vh - 140px); }
+.client-hero { display: flex; gap: 16px; align-items: center; padding-top: 4px; }
+.client-hero-icon { width: 64px; height: 64px; border-radius: 14px; background: #eff6ff; color: #2563eb; display: grid; place-items: center; font-size: 32px; flex: 0 0 64px; }
+.client-hero-name { font-size: 20px; font-weight: 800; color: #0f172a; line-height: 1.25; }
+.client-hero-sub { font-size: 13px; color: #64748b; margin-top: 4px; }
+.client-hero-badges { margin-top: 6px; }
+.client-body .card-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.client-body .card-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.client-body .phone-line { display: block; }
+.client-deals-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.client-deals-title .btn { text-decoration: none; }
+.client-deals-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.client-deals-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #64748b; padding: 10px 14px; border-bottom: 1px solid #e2e8f0; }
+.client-deals-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.client-deals-table tbody tr { cursor: pointer; }
+.client-deals-table tbody tr:hover { background: #f8fafc; }
+.client-paid { color: #15803d; font-weight: 600; font-size: 12px; }
+.client-neg { color: #b91c1c; }
+.client-empty { padding: 18px; color: #94a3b8; font-size: 13.5px; text-align: center; }
+
+.client-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; }
+.client-form-grid .span-2 { grid-column: 1 / -1; }
+.client-docs-row { display: flex; gap: 10px; align-items: center; }
+.client-docs-row input[type="text"] { flex: 1; }
+.client-docs-row .date-range-toggle { white-space: nowrap; }
+.client-docs-row input:disabled { background: #f1f5f9; color: #64748b; }
+.client-geo { display: grid; grid-template-columns: 1fr 1.3fr; gap: 8px; }
+.client-contacts-edit { display: flex; flex-direction: column; gap: 8px; }
+.client-contacts-edit:empty { display: none; }
+.client-contact-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.2fr) 36px; gap: 6px; }
+.client-form-grid > * { min-width: 0; }
+.client-body a, .clients-table a { color: #2563eb; text-decoration: none; }
+.client-body a:hover, .clients-table a:hover { text-decoration: underline; }
+.client-body a.btn { color: #fff; }
+
+@media (max-width: 800px) {
+    .client-body .card-columns,
+    .client-form-grid { grid-template-columns: minmax(0, 1fr); }
+    .client-contact-row { grid-template-columns: 1fr 1fr; }
+    .client-contact-row .pack-del { grid-column: 2; justify-self: end; }
+    .client-deals-table thead { display: none; }
+    .client-deals-table, .client-deals-table tbody, .client-deals-table tr, .client-deals-table td { display: block; width: 100%; }
+    .client-deals-table tr { border-bottom: 1px solid #e2e8f0; padding: 8px 0; }
+    .client-deals-table td { border: none; padding: 2px 14px; }
+}

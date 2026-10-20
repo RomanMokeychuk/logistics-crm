@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Клієнти</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202610201522" />
+        <link rel="stylesheet" href="requests.css?v=202610201522" />
+        <link rel="stylesheet" href="leads.css?v=202610201522" />
+        <link rel="stylesheet" href="clients.css?v=202610201522" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202610201522" />
+    </head>
+    <body>
+        <aside class="sidebar"></aside>
+
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <h1>Клієнти</h1>
+                <button class="btn btn-primary" id="newClientBtn"><i class="bx bx-plus"></i> Новий клієнт</button>
+            </header>
+
+            <div class="filters-bar lead-filters">
+                <input type="text" id="clientsSearch" class="search-input" placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, пошта, адреса, вантаж..." />
+                <select id="clientsTradeFilter" class="lead-select">
+                    <option value="">Імпорт / експорт</option>
+                    <option value="Експорт">Експорт</option>
+                    <option value="Імпорт">Імпорт</option>
+                    <option value="По Україні">По Україні</option>
+                </select>
+                <select id="clientsSalesFilter" class="lead-select"></select>
+            </div>
+
+            <section class="table-card" id="tableScrollArea">
+                <table class="requests-table clients-table">
+                    <thead>
+                        <tr>
+                            <th>Клієнт / код</th>
+                            <th>Менеджер</th>
+                            <th>Контакти</th>
+                            <th>Напрямок</th>
+                            <th>Що возить / виробляє</th>
+                            <th>Угоди</th>
+                            <th style="width: 60px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="clientsTableBody"></tbody>
+                </table>
+            </section>
+            <div id="clientsCountBar" class="carriers-count-bar"></div>
+        </main>
+
+        <!-- Картка клієнта -->
+        <div class="modal-overlay" id="clientCardOverlay">
+            <div class="modal client-modal">
+                <div class="modal-header">
+                    <h2 id="clientCardTitle">Картка клієнта</h2>
+                    <div class="client-head-actions">
+                        <button type="button" class="btn btn-secondary" id="clientEditBtn"><i class="bx bx-edit"></i> Редагувати</button>
+                        <button type="button" class="close-btn" id="clientCardClose">&times;</button>
+                    </div>
+                </div>
+                <div id="clientCardBody" class="client-body"></div>
+            </div>
+        </div>
+
+        <!-- Форма клієнта -->
+        <div class="modal-overlay" id="clientFormOverlay">
+            <div class="modal client-modal">
+                <div class="modal-header">
+                    <h2 id="clientFormTitle">Новий клієнт</h2>
+                    <button type="button" class="close-btn" id="clientFormClose">&times;</button>
+                </div>
+                <form id="clientForm">
+                    <input type="hidden" id="c_id" />
+                    <div class="modal-body client-form-grid">
+                        <div class="form-section-title span-2"><i class="bx bx-buildings"></i> Компанія</div>
+                        <div class="form-group">
+                            <label>Код (ЄДРПОУ / ІПН)</label>
+                            <input type="text" id="c_edrpou" inputmode="numeric" placeholder="12345678" />
+                        </div>
+                        <div class="form-group">
+                            <label>Коротка назва *</label>
+                            <input type="text" id="c_name" required placeholder="ТОВ «Таврія-В»" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Повне найменування</label>
+                            <input type="text" id="c_full_name" placeholder="ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ «…»" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Фактична адреса</label>
+                            <input type="text" id="c_address" placeholder="Місто, вулиця, будинок (склад / офіс)" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Юридична адреса</label>
+                            <input type="text" id="c_legal_address" placeholder="Як у виписці з ЄДР" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Адреса для відправки оригіналів документів</label>
+                            <div class="client-docs-row">
+                                <input type="text" id="c_docs_address" placeholder="Нова пошта №…, місто / адреса, отримувач, телефон" />
+                                <label class="date-range-toggle"><input type="checkbox" id="c_docs_same" /> як юридична</label>
+                            </div>
+                        </div>
+
+                        <div class="form-section-title span-2"><i class="bx bx-user"></i> Контакти</div>
+                        <div class="form-group">
+                            <label>Контактна особа</label>
+                            <input type="text" id="c_contact_person" placeholder="Ім'я, посада" />
+                        </div>
+                        <div class="form-group">
+                            <label>Телефон</label>
+                            <input type="tel" id="c_phone" placeholder="380…" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Електронна пошта</label>
+                            <input type="email" id="c_email" placeholder="name@company.com" />
+                        </div>
+                        <div class="form-group span-2">
+                            <div id="c_contacts" class="client-contacts-edit"></div>
+                            <button type="button" class="pack-add" id="c_add_contact"><i class="bx bx-plus"></i> Ще контакт (бухгалтерія, логіст, директор…)</button>
+                        </div>
+
+                        <div class="form-section-title span-2"><i class="bx bx-transfer-alt"></i> Що і куди возить</div>
+                        <div class="form-group span-2">
+                            <label>Напрямок</label>
+                            <div class="trade-picker" id="c_trade_picker"></div>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Звідки → куди</label>
+                            <input type="text" id="c_directions" placeholder="наприклад: Польща → Україна, Україна → Молдова" />
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Що возить або виробляє</label>
+                            <input type="text" id="c_cargo" placeholder="наприклад: молочна продукція, РЕФ, 10–15 авто на місяць" />
+                        </div>
+
+                        <div class="form-section-title span-2"><i class="bx bx-id-card"></i> Менеджер</div>
+                        <div class="form-group">
+                            <label>Чий клієнт (Sales)</label>
+                            <select id="c_sales"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Країна / місто</label>
+                            <div class="client-geo">
+                                <select id="c_country"></select>
+                                <input type="text" id="c_city" placeholder="Луцьк" />
+                            </div>
+                        </div>
+                        <div class="form-group span-2">
+                            <label>Нотатки</label>
+                            <textarea id="c_notes" rows="3" placeholder="Що важливо знати про клієнта: умови оплати, особливості, контакти на складі…"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" id="clientFormCancel">Відміна</button>
+                        <button type="submit" class="btn btn-primary"><i class="bx bx-check"></i> Зберегти</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="clients.js?v=202610201522"></script>
+        <script src="shell.js?v=202610201522"></script>
+        <script src="notify.js?v=202610201522"></script>
+        <script src="lock.js?v=202610201522"></script>
+    </body>
+</html>

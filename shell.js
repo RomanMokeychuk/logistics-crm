@@ -27,6 +27,7 @@
         {
             group: "Довідники",
             items: [
+                { href: "clients.html", icon: "bx-buildings", label: "Клієнти" },
                 { href: "leads.html", icon: "bx-briefcase-alt-2", label: "Ліди" },
                 { href: "index.html", icon: "bx-group", label: "Перевізники" },
             ],
