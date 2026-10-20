@@ -1142,6 +1142,7 @@ async function duplicateDeal(d) {
     flashSaved(`Копія угоди № ${d.number} створена`);
 }
 
+let replaceNextOpen = false;
 function openDealCard(id, tab, fromHistory = false) {
     const d = dealsCache.find((x) => String(x.id) === String(id));
     if (!d) return;
@@ -1152,7 +1153,10 @@ function openDealCard(id, tab, fromHistory = false) {
     detailView.hidden = false;
     // Кнопки «назад / вперед» повертають між списком і угодами
     if (!fromHistory) {
-        if (new URLSearchParams(location.search).get("open") === String(d.id)) history.replaceState(null, "", `?open=${d.id}`);
+        if (replaceNextOpen || new URLSearchParams(location.search).get("open") === String(d.id)) {
+            replaceNextOpen = false;
+            history.replaceState(null, "", `?open=${d.id}`);
+        }
         else history.pushState(null, "", `?open=${d.id}`);
     }
     window.furaSetCrumbs?.([{ label: "Угоди", href: "deals.html" }, `№ ${d.number}`]);
@@ -1189,7 +1193,7 @@ function renderDealView(d) {
                 <div class="dv-field"><div class="dv-label">Тип угоди</div>
                     <select class="dv-in" data-f="deal_type">${optList(DEAL_TYPES, d.deal_type, "Оберіть…")}</select></div>
                 <div class="dv-field deal-pick"><div class="dv-label">Клієнт <i class='req'>*</i>
-                    ${d.lead_id ? `<a href="leads.html?open=${e(d.lead_id)}" class="dv-mini-link" title="Відкрити в Лідах"><i class="bx bx-link-external"></i></a>` : ""}</div>
+                    ${d.lead_id ? `<a href="clients.html?open=${e(d.lead_id)}" class="dv-mini-link" title="Відкрити картку клієнта"><i class="bx bx-link-external"></i></a>` : ""}</div>
                     <input class="dv-in" id="dvClient" value="${e(d.client || "")}" placeholder="Почніть вводити назву або ЄДРПОУ…" autocomplete="off" />
                     <div class="deal-suggest" id="dvClientSg" hidden></div></div>
                 <div class="dv-field"><div class="dv-label">Договір</div>
@@ -1681,7 +1685,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (leadId) {
             sbClient.from("leads").select("*").eq("id", leadId).maybeSingle().then(({ data }) => createDeal(data || null));
         } else createDeal();
-        history.replaceState(null, "", location.pathname);
+        // Нова угода відкриється на місці цього запису історії — «назад» поверне туди, звідки прийшли
+        replaceNextOpen = true;
     }
     if (params.get("open")) openDealCard(params.get("open"));
     else if ([...params.keys()].length) history.replaceState(null, "", location.pathname);

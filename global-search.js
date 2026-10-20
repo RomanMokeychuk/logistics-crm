@@ -133,7 +133,7 @@
                     .or(conds.join(","))
                     .limit(5);
                 return (data || []).map((l) => ({
-                    href: `leads.html?open=${encodeURIComponent(l.id)}`,
+                    href: l.status === "Працюємо" ? `clients.html?open=${encodeURIComponent(l.id)}` : `leads.html?open=${encodeURIComponent(l.id)}`,
                     title: l.name || "Лід",
                     sub: [l.edrpou && `ЄДРПОУ ${l.edrpou}`, l.contact_person, l.city, l.status].filter(Boolean).join(" · "),
                 }));
