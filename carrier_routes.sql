@@ -18,6 +18,11 @@ create table if not exists public.carrier_routes (
     plates        text                    -- номери авто
 );
 
+-- Міста (з вер 2026): за кордоном / в Україні, усі пункти пропуску з кількістю рейсів
+alter table public.carrier_routes add column if not exists cities    text;   -- «Бухарест (3), Констанца»
+alter table public.carrier_routes add column if not exists ua_cities text;   -- «Ладижин (2), Вінниця»
+alter table public.carrier_routes add column if not exists borders   text;   -- «Порубне – Сірет (3), Дякове – Халмеу»
+
 create index if not exists carrier_routes_country_idx on public.carrier_routes (country, direction);
 create index if not exists carrier_routes_edrpou_idx  on public.carrier_routes (edrpou);
 
