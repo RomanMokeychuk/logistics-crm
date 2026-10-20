@@ -25,6 +25,24 @@
         return mm ? `${names[Number(mm) - 1]} ${y.slice(2)}` : m;
     };
     const fmtDate = (v) => (v ? String(v).slice(0, 10).split("-").reverse().join(".") : "");
+    // «Бухарест (3), Констанца» -> Map{Бухарест:3, Констанца:1}
+    function addCounts(map, txt) {
+        String(txt || "")
+            .split(/,\s*(?![^()]*\))/)
+            .map((x) => x.trim())
+            .filter(Boolean)
+            .forEach((x) => {
+                const m = x.match(/^(.*?)\s*\((\d+)\)$/);
+                const name = (m ? m[1] : x).trim();
+                if (name) map.set(name, (map.get(name) || 0) + (m ? Number(m[2]) : 1));
+            });
+    }
+    const topCounts = (map, n) =>
+        [...map.entries()]
+            .sort((x, y) => y[1] - x[1])
+            .slice(0, n)
+            .map(([k, v]) => (v > 1 ? `${k} (${v})` : k))
+            .join(", ");
 
     /* ---------- Угоди з нами (для рейтингу) ---------- */
     let dealsByCarrier = null;
@@ -108,6 +126,12 @@
             search();
         });
         document.getElementById("cmResults").addEventListener("click", (e) => {
+            const more = e.target.closest("[data-cm-details]");
+            if (more) {
+                e.preventDefault();
+                toggleDetails(more);
+                return;
+            }
             const open = e.target.closest("[data-cm-open]");
             if (open && typeof openCarrierCard === "function") {
                 e.preventDefault();
@@ -126,16 +150,17 @@
         if (!country) return;
         out.innerHTML = `<div class="cm-empty">Шукаю…</div>`;
 
-        let q = client
-            .from("carrier_routes")
-            .select("edrpou, direction, country, ua_region, month, trucks, records, trailer_types, border, goods")
-            .eq("country", country)
-            .limit(6000);
-        if (dir) q = q.eq("direction", dir);
-        if (region) q = q.eq("ua_region", region);
-        if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
-        if (border) q = q.ilike("border", `%${border}%`);
-        const [{ data, error }] = await Promise.all([q, loadDealsStats()]);
+        const query = (cols) => {
+            let q = client.from("carrier_routes").select(cols).eq("country", country).limit(6000);
+            if (dir) q = q.eq("direction", dir);
+            if (region) q = q.eq("ua_region", region);
+            if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
+            if (border) q = q.ilike("border", `%${border}%`);
+            return q;
+        };
+        const BASE = "edrpou, direction, country, ua_region, month, trucks, records, trailer_types, border, goods";
+        let [{ data, error }] = await Promise.all([query(BASE + ", cities, ua_cities"), loadDealsStats()]);
+        if (error && /cities|column/i.test(error.message || "")) ({ data, error } = await query(BASE)); // колонок міст ще немає
         if (error) {
             out.innerHTML = `<div class="cm-empty">${/carrier_routes/.test(error.message || "") ? "Ще не завантажені митні напрямки: запустіть carrier_routes.sql і завантажте carrier_routes.csv у Supabase." : "Помилка: " + esc(error.message)}</div>`;
             return;
@@ -146,7 +171,9 @@
         const by = new Map();
         for (const r of data || []) {
             const k = keyCode(r.edrpou);
-            const a = by.get(k) || { code: r.edrpou, trucks: 0, records: 0, months: new Set(), regions: new Map(), borders: new Map(), trailers: new Set(), goods: new Set(), dirs: new Set() };
+            const a = by.get(k) || { code: r.edrpou, trucks: 0, records: 0, months: new Set(), regions: new Map(), borders: new Map(), trailers: new Set(), goods: new Set(), dirs: new Set(), cities: new Map(), uaCities: new Map() };
+            addCounts(a.cities, r.cities);
+            addCounts(a.uaCities, r.ua_cities);
             a.trucks += r.trucks || 0;
             a.records += r.records || 0;
             a.months.add(r.month);
@@ -203,10 +230,14 @@
                                 ${regions.length ? `<span>📍 ${esc(regions.join(", "))}</span>` : ""}
                                 ${borderTop ? `<span>🛂 ${esc(borderTop)}</span>` : ""}
                             </div>
+                            ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 Куди/звідки: <b>${esc(topCounts(a.cities, 6))}</b></span></div>` : ""}
+                            ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 В Україні: ${esc(topCounts(a.uaCities, 5))}</span></div>` : ""}
                             <div class="cm-facts cm-light">
                                 ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
                             </div>
+                            <button type="button" class="cm-more" data-cm-details="${esc(a.code)}">▾ Деталі: усі напрямки, міста, номери</button>
+                            <div class="cm-details" hidden></div>
                         </div>
                         <div class="cm-contact">
                             ${c?.contact_person_1 ? `<div class="cm-person">${esc(c.contact_person_1)}</div>` : ""}
@@ -215,6 +246,76 @@
                     </div>`;
                 })
                 .join("");
+    }
+
+    /* ---------- Деталі перевізника (усі напрямки з містами) ---------- */
+    async function loadRoutes(code) {
+        const c = String(code || "").replace(/\D/g, "");
+        const codes = [...new Set([c, c.replace(/^0+/, ""), c.padStart(8, "0")])];
+        const BASE = "direction, country, ua_region, month, trucks, records, trailer_types, border, goods, plates";
+        const q = (cols) => client.from("carrier_routes").select(cols).in("edrpou", codes).limit(1000);
+        const res = await q(BASE + ", borders, cities, ua_cities");
+        if (res.error && /cities|borders|column/i.test(res.error.message || "")) return q(BASE); // колонок міст ще немає
+        return res;
+    }
+
+    function routesHtml(data, focusCountry) {
+        const by = new Map();
+        for (const r of data) {
+            const k = r.direction + "|" + r.country;
+            const a = by.get(k) || { dir: r.direction, country: r.country, trucks: 0, records: 0, months: new Set(), regions: new Map(), borders: new Map(), trailers: new Set(), cities: new Map(), uaCities: new Map(), plates: new Set(), goods: new Set() };
+            a.trucks += r.trucks || 0;
+            a.records += r.records || 0;
+            a.months.add(r.month);
+            if (r.ua_region) a.regions.set(cap(r.ua_region.replace(" ОБЛ.", "")) + " обл.", (a.regions.get(cap(r.ua_region.replace(" ОБЛ.", "")) + " обл.") || 0) + (r.records || 0));
+            if (r.borders) addCounts(a.borders, r.borders);
+            else if (r.border) a.borders.set(r.border, (a.borders.get(r.border) || 0) + (r.records || 0));
+            String(r.trailer_types || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((x) => a.trailers.add(x));
+            addCounts(a.cities, r.cities);
+            addCounts(a.uaCities, r.ua_cities);
+            String(r.plates || "").split(/[,;]\s*/).map((x) => x.trim()).filter(Boolean).forEach((x) => a.plates.add(x));
+            String(r.goods || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((x) => a.goods.add(x));
+            by.set(k, a);
+        }
+        const rows = [...by.values()].sort((x, y) => (y.country === focusCountry) - (x.country === focusCountry) || y.records - x.records);
+        return `<div class="cm-dcards">${rows
+            .map(
+                (a) => `<div class="cm-dcard${a.country === focusCountry ? " cm-focus" : ""}">
+                    <div class="cm-dhead"><span class="cm-dir ${a.dir === "Імпорт" ? "imp" : "exp"}">${a.dir === "Імпорт" ? "→ UA" : "UA →"}</span>
+                        <b>${esc(cap(a.country))}</b>
+                        <span class="cm-sub">${a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span></div>
+                    <dl>
+                        <dt>🏁 Міста</dt><dd>${a.cities.size ? esc(topCounts(a.cities, 12)) : `<span class="cm-sub">місто не вказане в декларації</span>`}</dd>
+                        <dt>🇺🇦 В Україні</dt><dd>${esc(topCounts(a.regions, 4))}${a.uaCities.size ? `<div class="cm-sub">${esc(topCounts(a.uaCities, 10))}</div>` : ""}</dd>
+                        <dt>🛂 Кордон</dt><dd>${esc(topCounts(a.borders, 5)) || "—"}</dd>
+                        ${a.trailers.size ? `<dt>🚚 Причіп</dt><dd>${[...a.trailers].map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join(" ")}</dd>` : ""}
+                        ${a.goods.size ? `<dt>📦 Везли</dt><dd>${esc([...a.goods].slice(0, 4).join("; "))}</dd>` : ""}
+                        ${a.plates.size ? `<dt>🔢 Тягачі</dt><dd class="cm-plates">${esc([...a.plates].slice(0, 30).join(", "))}${a.plates.size > 30 ? ` … ще ${a.plates.size - 30}` : ""}</dd>` : ""}
+                    </dl>
+                </div>`,
+            )
+            .join("")}</div>`;
+    }
+
+    async function toggleDetails(btn) {
+        const box = btn.nextElementSibling;
+        if (!box) return;
+        if (!box.hidden) {
+            box.hidden = true;
+            btn.textContent = "▾ Деталі: усі напрямки, міста, номери";
+            return;
+        }
+        box.hidden = false;
+        btn.textContent = "▴ Сховати деталі";
+        if (box.dataset.loaded) return;
+        box.innerHTML = `<div class="cm-empty">Завантаження…</div>`;
+        const { data, error } = await loadRoutes(btn.dataset.cmDetails);
+        if (error) {
+            box.innerHTML = `<div class="cm-empty">Помилка: ${esc(error.message)}</div>`;
+            return;
+        }
+        box.dataset.loaded = "1";
+        box.innerHTML = (data || []).length ? routesHtml(data, document.getElementById("cmCountry").value) : `<div class="cm-empty">Немає даних.</div>`;
     }
 
     /* ---------- Блок у картці перевізника ---------- */
@@ -232,12 +333,7 @@
         if (hist) hist.insertAdjacentElement("beforebegin", box);
         else body.appendChild(box);
 
-        const code = String(item.edrpou).replace(/\D/g, "");
-        const { data, error } = await client
-            .from("carrier_routes")
-            .select("direction, country, ua_region, month, trucks, records, trailer_types, border")
-            .in("edrpou", [...new Set([code, code.replace(/^0+/, ""), code.padStart(8, "0")])])
-            .limit(500);
+        const { data, error } = await loadRoutes(item.edrpou);
         if (my !== seq) return;
         const out = box.querySelector(".ch-body");
         if (error) {
@@ -248,30 +344,7 @@
             out.innerHTML = `<div class="ch-empty">У митних даних цього перевізника немає.</div>`;
             return;
         }
-        const by = new Map();
-        for (const r of data) {
-            const k = r.direction + "|" + r.country;
-            const a = by.get(k) || { dir: r.direction, country: r.country, trucks: 0, records: 0, months: new Set(), regions: new Set(), borders: new Set(), trailers: new Set() };
-            a.trucks += r.trucks || 0;
-            a.records += r.records || 0;
-            a.months.add(r.month);
-            if (r.ua_region) a.regions.add(cap(r.ua_region.replace(" ОБЛ.", "")));
-            if (r.border) a.borders.add(r.border);
-            String(r.trailer_types || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((x) => a.trailers.add(x));
-            by.set(k, a);
-        }
-        const rows = [...by.values()].sort((x, y) => y.records - x.records);
-        out.innerHTML = `<div class="cm-routes">${rows
-            .slice(0, 12)
-            .map(
-                (a) => `<div class="cm-route">
-                    <span class="cm-dir ${a.dir === "Імпорт" ? "imp" : "exp"}">${a.dir === "Імпорт" ? "→ UA" : "UA →"}</span>
-                    <b>${esc(cap(a.country))}</b>
-                    <span class="cm-sub">${a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span>
-                    <span class="cm-sub">${esc([...a.regions].slice(0, 3).join(", "))}${a.borders.size ? ` · 🛂 ${esc([...a.borders][0])}` : ""}${a.trailers.size ? ` · ${esc([...a.trailers].slice(0, 3).join(", "))}` : ""}</span>
-                </div>`,
-            )
-            .join("")}</div>${rows.length > 12 ? `<div class="ch-more">ще ${rows.length - 12} напрямків</div>` : ""}`;
+        out.innerHTML = routesHtml(data, "");
     }
 
     window.furaCarrierRoutes = { renderCard, search };
