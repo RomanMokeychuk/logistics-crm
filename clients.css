@@ -68,3 +68,32 @@
 .client-files-actions { display: flex; align-items: center; gap: 10px; padding: 10px 18px 14px; }
 .client-upload { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .client-bad { border-color: #ef4444 !important; background: #fef2f2 !important; }
+
+/* Картка клієнта як сторінка угоди (редагування на місці) */
+.client-code-lg { font-size: 14px; padding: 3px 8px; }
+.cv-grid-2 { grid-template-columns: 1fr 1fr !important; }
+.cv-span-2 { grid-column: span 2; }
+.dv-area { resize: vertical; min-height: 44px; line-height: 1.4; font-weight: 500; }
+textarea.dv-in { white-space: pre-wrap; }
+.cv-docs { margin: 4px 0 6px; }
+.cv-same { float: right; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; color: #2563eb; cursor: pointer; text-transform: none; letter-spacing: 0; }
+.dv-in:disabled { color: #64748b; background: #f8fafc; }
+.cv-copy { margin-top: 8px; }
+.cv-contacts { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.cv-contacts:empty { display: none; }
+.cv-contact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 36px; gap: 10px; align-items: center; padding: 4px 0; border-bottom: 1px dashed #eef1f5; }
+.cv-contact .dv-in { font-size: 14px; }
+.cv-trade { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.dv-tab-count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #e3ebfc; color: #1d5bd8; font-size: 11px; line-height: 18px; text-align: center; }
+.cv-drop { border: 2px dashed transparent; border-radius: 10px; transition: border-color .15s, background .15s; }
+.cv-drop.over { border-color: #2563eb; background: #eff6ff; }
+#clientDetailView .client-files { padding: 4px 0 0; }
+#clientDetailView .client-files-actions { padding: 10px 0; }
+@media (max-width: 800px) {
+    .cv-grid-2 { grid-template-columns: minmax(0, 1fr) !important; }
+    .cv-span-2 { grid-column: auto; }
+    .cv-contact { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+.dv-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+#clientDetailView .client-file a { color: #2563eb; text-decoration: none; }
+#clientDetailView .client-file a:hover { text-decoration: underline; }
