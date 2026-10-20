@@ -150,13 +150,22 @@
         if (!country) return;
         out.innerHTML = `<div class="cm-empty">Шукаю…</div>`;
 
-        const query = (cols) => {
-            let q = client.from("carrier_routes").select(cols).eq("country", country).limit(6000);
-            if (dir) q = q.eq("direction", dir);
-            if (region) q = q.eq("ua_region", region);
-            if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
-            if (border) q = q.ilike("border", `%${border}%`);
-            return q;
+        // Supabase віддає максимум 1000 рядків за запит — тягнемо всі сторінки
+        const query = async (cols) => {
+            const PAGE = 1000;
+            const rows = [];
+            for (let from = 0; from < 50000; from += PAGE) {
+                let q = client.from("carrier_routes").select(cols).eq("country", country);
+                if (dir) q = q.eq("direction", dir);
+                if (region) q = q.eq("ua_region", region);
+                if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
+                if (border) q = q.ilike("border", `%${border}%`);
+                const { data, error } = await q.order("id", { ascending: true }).range(from, from + PAGE - 1);
+                if (error) return { data: null, error };
+                rows.push(...(data || []));
+                if (!data || data.length < PAGE) break;
+            }
+            return { data: rows, error: null };
         };
         const BASE = "edrpou, direction, country, ua_region, month, trucks, records, trailer_types, border, goods";
         let [{ data, error }] = await Promise.all([query(BASE + ", cities, ua_cities"), loadDealsStats()]);
@@ -203,11 +212,8 @@
             return;
         }
 
-        const top = list.slice(0, 60);
-        out.innerHTML =
-            `<div class="cm-count">Знайдено ${list.length} перевізників${list.length > 60 ? " · показано 60 найкращих" : ""}. Спершу — хто частіше їздив, працював з нами і має телефон.</div>` +
-            top
-                .map((a, i) => {
+        const PAGE = 60;
+        const rowHtml = (a, i) => {
                     const c = a.c;
                     const regions = [...a.regions.entries()].sort((x, y) => y[1] - x[1]).slice(0, 2).map(([r]) => cap(r.replace(" ОБЛ.", "")) + " обл.");
                     const borderTop = [...a.borders.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
@@ -243,8 +249,28 @@
                             ${phone ? `<a href="tel:+${digits}">${esc(phone)}</a> <a class="viber-link" href="viber://chat?number=%2B${digits}" title="Viber"><i class="bx bxs-message-rounded-dots"></i></a>` : `<span class="cm-sub">телефону немає</span>`}
                         </div>
                     </div>`;
-                })
-                .join("");
+                };
+        let shown = 0;
+        const head = () =>
+            `Знайдено ${list.length} перевізників${list.length > shown ? ` · показано ${shown}` : ""}. Спершу — хто частіше їздив, працював з нами і має телефон.`;
+        out.innerHTML = `<div class="cm-count"></div><div class="cm-list-rows"></div>
+            <div class="cm-pager"><button type="button" class="cm-more" data-cm-page="more"></button><button type="button" class="cm-more" data-cm-page="all">Показати всіх</button></div>`;
+        const rowsBox = out.querySelector(".cm-list-rows");
+        const pager = out.querySelector(".cm-pager");
+        const showMore = (n) => {
+            const next = list.slice(shown, shown + n);
+            rowsBox.insertAdjacentHTML("beforeend", next.map((a, k) => rowHtml(a, shown + k)).join(""));
+            shown += next.length;
+            out.querySelector(".cm-count").textContent = head();
+            const left = list.length - shown;
+            pager.hidden = left <= 0;
+            pager.querySelector('[data-cm-page="more"]').textContent = `Показати ще ${Math.min(PAGE, left)} (залишилось ${left})`;
+        };
+        pager.addEventListener("click", (e) => {
+            const b = e.target.closest("[data-cm-page]");
+            if (b) showMore(b.dataset.cmPage === "all" ? list.length : PAGE);
+        });
+        showMore(PAGE);
     }
 
     /* ---------- Деталі перевізника (усі напрямки з містами) ---------- */

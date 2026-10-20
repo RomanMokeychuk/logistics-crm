@@ -89,3 +89,6 @@ body.cm-modal-open { overflow: hidden; }
     .cm-row { grid-template-columns: 28px minmax(0, 1fr); }
     .cm-contact { grid-column: 2; text-align: left; }
 }
+.cm-pager { display: flex; gap: 8px; justify-content: center; padding: 12px 0 4px; }
+.cm-pager[hidden] { display: none; }
+.cm-pager .cm-more { margin-top: 0; font-size: 13px; padding: 6px 14px; }
