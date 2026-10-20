@@ -112,6 +112,7 @@
         bar.className = "fura-topbar";
         const dateText = new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" });
         bar.innerHTML = `
+            <button type="button" class="fura-burger" id="furaBurger" aria-label="Меню"><i class="bx bx-menu"></i></button>
             <div class="fura-crumbs" id="furaCrumbs"></div>
             <div class="fura-date"><i class="bx bx-calendar"></i> ${esc(dateText)}</div>`;
         main.prepend(bar);
@@ -195,9 +196,70 @@
         await addScript("helper.js?v=202610192350");
     }
 
+    // Телефон: меню виїжджає зліва по кнопці ☰
+    function setupMobileMenu() {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = "mobile.css?v=202610200610";
+        document.head.appendChild(css);
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "fura-menu-backdrop";
+        document.body.appendChild(backdrop);
+        const open = (on) => document.body.classList.toggle("fura-menu-open", on);
+        document.getElementById("furaBurger")?.addEventListener("click", () => open(true));
+        backdrop.addEventListener("click", () => open(false));
+        document.querySelector("aside.sidebar")?.addEventListener("click", (e) => {
+            if (e.target.closest("a")) open(false);
+        });
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "Escape") open(false);
+        });
+    }
+
+    // Телефон: таблиці показуємо картками — кожній клітинці підпис з шапки колонки
+    function labelTables() {
+        document.querySelectorAll(".table-card table").forEach((table) => {
+            const ths = table.querySelectorAll("thead tr:first-child > th");
+            if (!ths.length) return;
+            const labels = [];
+            ths.forEach((th) => {
+                const c = th.cloneNode(true);
+                c.querySelectorAll(".fura-col-hide, .fura-col-resize, button").forEach((x) => x.remove());
+                const t = c.textContent.replace(/[×✕]/g, "").replace(/\s+/g, " ").trim();
+                for (let i = 0; i < (th.colSpan || 1); i++) labels.push(t);
+            });
+            table.querySelectorAll("tbody tr").forEach((tr) => {
+                [...tr.children].forEach((td, i) => {
+                    if (td.colSpan > 1) {
+                        td.classList.add("m-full");
+                        return;
+                    }
+                    const l = labels[i] || "";
+                    if (td.dataset.label !== l) td.dataset.label = l;
+                    const txt = td.textContent.replace(/\s+/g, " ").trim();
+                    const empty = (txt === "" || txt === "—" || txt === "-") && !td.querySelector("img, button, a, input, select, i.bx");
+                    td.classList.toggle("m-empty", empty);
+                });
+            });
+        });
+    }
+
+    function watchTables() {
+        let t = null;
+        const run = () => {
+            clearTimeout(t);
+            t = setTimeout(labelTables, 60);
+        };
+        new MutationObserver(run).observe(document.body, { childList: true, subtree: true });
+        run();
+    }
+
     function init() {
         const label = buildSidebar();
         buildTopbar(label);
+        setupMobileMenu();
+        watchTables();
         fillUser();
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
