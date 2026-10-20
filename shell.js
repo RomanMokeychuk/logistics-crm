@@ -255,6 +255,30 @@
         run();
     }
 
+    // Вікна (форми) закриваються кліком по темному фону ТІЛЬКИ якщо і натиснули, і відпустили
+    // мишку на фоні. Раніше: виділяєш текст у полі, відпускаєш мишку за межами вікна —
+    // і форма закривалась разом з усім введеним.
+    let downOnOverlay = null;
+    window.addEventListener(
+        "pointerdown",
+        (e) => {
+            downOnOverlay = e.target.classList?.contains("modal-overlay") ? e.target : null;
+        },
+        true,
+    );
+    window.addEventListener(
+        "click",
+        (e) => {
+            const t = e.target;
+            if (t.classList?.contains("modal-overlay") && downOnOverlay !== t) {
+                e.stopImmediatePropagation();
+                e.preventDefault();
+            }
+            downOnOverlay = null;
+        },
+        true,
+    );
+
     function init() {
         const label = buildSidebar();
         buildTopbar(label);
