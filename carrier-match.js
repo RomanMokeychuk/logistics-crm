@@ -230,8 +230,8 @@
                                 ${regions.length ? `<span>📍 ${esc(regions.join(", "))}</span>` : ""}
                                 ${borderTop ? `<span>🛂 ${esc(borderTop)}</span>` : ""}
                             </div>
-                            ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 Куди/звідки: <b>${esc(topCounts(a.cities, 6))}</b></span></div>` : ""}
-                            ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 В Україні: ${esc(topCounts(a.uaCities, 5))}</span></div>` : ""}
+                            ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Звідки (місто)" : "Куди (місто)") : "Міста"}: <b>${esc(topCounts(a.cities, 6))}</b></span></div>` : `<div class="cm-facts cm-light"><span>🏁 Місто ${[...a.dirs][0] === "Імпорт" ? "відправлення" : "призначення"} в деклараціях не вказане</span></div>`}
+                            ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Куди в Україні" : "Звідки в Україні") : "В Україні"}: ${esc(topCounts(a.uaCities, 5))}</span></div>` : ""}
                             <div class="cm-facts cm-light">
                                 ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
@@ -285,8 +285,8 @@
                         <b>${esc(cap(a.country))}</b>
                         <span class="cm-sub">${a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span></div>
                     <dl>
-                        <dt>🏁 Міста</dt><dd>${a.cities.size ? esc(topCounts(a.cities, 12)) : `<span class="cm-sub">місто не вказане в декларації</span>`}</dd>
-                        <dt>🇺🇦 В Україні</dt><dd>${esc(topCounts(a.regions, 4))}${a.uaCities.size ? `<div class="cm-sub">${esc(topCounts(a.uaCities, 10))}</div>` : ""}</dd>
+                        <dt>🏁 ${a.dir === "Імпорт" ? "Звідки" : "Куди"}</dt><dd>${a.cities.size ? esc(topCounts(a.cities, 12)) : `<span class="cm-sub">у деклараціях не вказане</span>`}</dd>
+                        <dt>🇺🇦 ${a.dir === "Імпорт" ? "Куди в UA" : "Звідки в UA"}</dt><dd>${esc(topCounts(a.regions, 4))}${a.uaCities.size ? `<div class="cm-sub">${esc(topCounts(a.uaCities, 10))}</div>` : ""}</dd>
                         <dt>🛂 Кордон</dt><dd>${esc(topCounts(a.borders, 5)) || "—"}</dd>
                         ${a.trailers.size ? `<dt>🚚 Причіп</dt><dd>${[...a.trailers].map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join(" ")}</dd>` : ""}
                         ${a.goods.size ? `<dt>📦 Везли</dt><dd>${esc([...a.goods].slice(0, 4).join("; "))}</dd>` : ""}
