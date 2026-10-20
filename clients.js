@@ -185,7 +185,7 @@ function renderClients() {
         if (q) {
             const extra = (Array.isArray(c.contacts) ? c.contacts : []).map((x) => `${x.name} ${x.phone} ${x.email}`).join(" ");
             const hay = [c.name, c.full_name, c.edrpou, c.contact_person, c.phone, c.email, c.address, c.legal_address,
-                c.city, c.directions, c.cargo, c.sales, c.contract_no, c.bank_iban, c.director, extra].filter(Boolean).join(" ").toLowerCase();
+                c.city, c.directions, c.cargo, c.sales, c.contract_no, c.bank_iban, c.director, routesOf(c).map((r) => `${routeText(r)} ${r.goods || ""}`).join(" "), extra].filter(Boolean).join(" ").toLowerCase();
             if (!hay.includes(q)) return false;
         }
         return true;
@@ -218,7 +218,9 @@ function renderClients() {
                     ${c.email ? `<div class="client-sub">${emailHtml(c.email)}</div>` : ""}
                     ${!c.contact_person && !c.phone && !c.email ? "—" : ""}
                 </td>
-                <td>${tradeBadges(c.trade_types) || ""}${c.directions ? `<div class="client-sub">${e(c.directions)}</div>` : ""}${!(c.trade_types || []).length && !c.directions ? "—" : ""}</td>
+                <td>${routesOf(c).length
+                    ? routesOf(c).slice(0, 3).map((r) => `<div class="client-route">${tradeBadges([r.type])} <span>${e(routeText(r))}</span></div>`).join("") + (routesOf(c).length > 3 ? `<div class="client-sub">ще ${routesOf(c).length - 3}…</div>` : "")
+                    : `${tradeBadges(c.trade_types) || ""}${c.directions ? `<div class="client-sub">${e(c.directions)}</div>` : ""}${!(c.trade_types || []).length && !c.directions ? "—" : ""}`}</td>
                 <td class="client-cargo">${e(c.cargo || "—")}</td>
                 <td>
                     ${deals.length ? `<b>${deals.length}</b> <span class="client-sub">угод</span>` : `<span class="client-sub">немає</span>`}
@@ -384,7 +386,8 @@ async function saveClient(c, patch) {
     const { error } = await sbClient.from("leads").update(patch).eq("id", c.id);
     if (error) {
         const msg = error.message || "";
-        flashSaved(/contract_|bank_|vat_number|director/.test(msg) ? "Потрібно запустити clients_docs.sql у Supabase"
+        flashSaved(/routes/.test(msg) ? "Потрібно запустити clients_routes.sql у Supabase"
+            : /contract_|bank_|vat_number|director/.test(msg) ? "Потрібно запустити clients_docs.sql у Supabase"
             : /full_name|legal_address|docs_address|contacts|address/.test(msg) ? "Потрібно запустити clients.sql у Supabase"
             : "Не збережено: " + msg, true);
         return false;
@@ -484,12 +487,12 @@ function kpisHtml(c) {
     const deals = dealsByLead.get(String(c.id)) || [];
     const profit = deals.reduce((s, d) => s + (dealProfit(d) || 0), 0);
     const last = deals[0];
-    const expired = c.contract_until && String(c.contract_until) < new Date().toISOString().slice(0, 10);
+    const expired = false;
     return `
         <div class="dv-kpi"><div class="dv-label">Угод</div><div class="dv-kpi-v">${deals.length}</div></div>
         <div class="dv-kpi"><div class="dv-label">Остання угода</div><div class="dv-kpi-v">${last ? `№ ${e(last.number)}` : "—"}</div>${last ? `<div class="client-sub">${fmtDate(last.load_date_plan || last.created_at)}</div>` : ""}</div>
         <div class="dv-kpi"><div class="dv-label">Договір</div><div class="dv-kpi-v ${expired ? "client-neg" : ""}">${c.contract_no ? `№ ${e(c.contract_no)}` : "немає"}</div>
-            <div class="client-sub">${c.contract_until ? `${expired ? "закінчився" : "діє до"} ${fmtDate(c.contract_until)}` : c.contract_date ? `від ${fmtDate(c.contract_date)}` : ""}</div></div>`;
+            <div class="client-sub">${c.contract_date ? `від ${fmtDate(c.contract_date)}` : ""}</div></div>`;
 }
 
 function renderClientView(c) {
@@ -656,7 +659,6 @@ function renderClientTab(c) {
             <div class="dv-grid">
                 ${fld("№ договору", "contract_no", c, "наприклад: 15/10-2026")}
                 ${fld("Дата договору", "contract_date", c, "", "date")}
-                ${fld("Діє до", "contract_until", c, "", "date")}
             </div>
             <div class="dv-block-title">Підписаний договір (скан / PDF)</div>
             <div class="client-files" id="clientFiles">${filesHtml(c)}</div>
@@ -681,21 +683,64 @@ function renderClientTab(c) {
     }
 
     if (clientTab === "cargo") {
-        const set = new Set(c.trade_types || []);
+        const routes = routesOf(c);
         box.innerHTML = `
-            <div class="dv-block-title">Напрямок</div>
-            <div class="cv-trade" id="cvTrade">
-                ${TRADE_TYPES.map((t) => `<label class="loading-chip"><input type="checkbox" value="${e(t)}"${set.has(t) ? " checked" : ""} /> ${e(t)}</label>`).join("")}
+            <div class="dv-block-head"><div class="dv-block-title">Напрямки перевезень</div>
+                <span class="client-sub">кожен напрямок окремо: імпорт, експорт чи по Україні, звідки і куди</span></div>
+            <div class="cv-routes" id="cvRoutes">${routes.map((r, i) => routeRow(r, i)).join("")}</div>
+            <div class="cv-route-add">
+                <button type="button" class="pack-add" data-add-route="Імпорт"><i class="bx bx-plus"></i> Імпорт</button>
+                <button type="button" class="pack-add" data-add-route="Експорт"><i class="bx bx-plus"></i> Експорт</button>
+                <button type="button" class="pack-add" data-add-route="По Україні"><i class="bx bx-plus"></i> По Україні</button>
             </div>
-            <div class="dv-grid cv-grid-2">
-                ${fld("Звідки → куди", "directions", c, "наприклад: Польща → Україна, Україна → Молдова")}
-                ${fld("Що возить або виробляє", "cargo", c, "наприклад: молочка, РЕФ, 10–15 авто на місяць")}
-            </div>
+            ${!routes.length && c.directions ? `<div class="client-hint"><i class="bx bx-info-circle"></i> Раніше було вписано: «${e(c.directions)}». Додайте напрямки кнопками вище.</div>` : ""}
+
+            <div class="dv-block-title">Що возить або виробляє</div>
+            <input class="dv-in" data-f="cargo" value="${e(c.cargo || "")}" placeholder="наприклад: молочна продукція, корми; РЕФ і тент; 10–15 авто на місяць" />
+
             <div class="dv-block-title">Нотатки</div>
             <textarea class="dv-in dv-area" data-f="notes" rows="5" placeholder="Що важливо знати: умови оплати, особливості завантаження, контакти на складі…">${e(c.notes || "")}</textarea>`;
         bindFields(box, c);
-        $("cvTrade").addEventListener("change", () =>
-            saveClient(c, { trade_types: [...$("cvTrade").querySelectorAll("input:checked")].map((x) => x.value) }),
+        const list = $("cvRoutes");
+        const attachSuggest = (row) => {
+            if (!window.furaAddressSuggest) return;
+            row.querySelectorAll("[data-r$='_place']").forEach((inp) => {
+                const side = inp.dataset.r.startsWith("from") ? "from" : "to";
+                window.furaAddressSuggest(inp, { countrySelect: row.querySelector(`[data-r="${side}_country"]`), mode: "full" });
+            });
+        };
+        list.querySelectorAll(".cv-route").forEach(attachSuggest);
+        const saveRoutes = () => {
+            const rs = [...list.querySelectorAll(".cv-route")]
+                .map((row) => {
+                    const g = (k) => row.querySelector(`[data-r="${k}"]`)?.value.trim() || null;
+                    return { type: g("type"), from_country: g("from_country"), from_place: g("from_place"), to_country: g("to_country"), to_place: g("to_place"), goods: g("goods"), volume: g("volume") };
+                })
+                .filter((r) => r.from_country || r.from_place || r.to_country || r.to_place || r.goods || r.volume);
+            const types = [...new Set(rs.map((r) => r.type).filter(Boolean))];
+            return saveClient(c, { routes: rs, trade_types: types, directions: rs.map(routeText).join("; ") || null });
+        };
+        // Тип напрямку підставляє країну: імпорт — куди Україна, експорт — звідки Україна
+        list.addEventListener("change", (ev) => {
+            const row = ev.target.closest(".cv-route");
+            if (ev.target.dataset.r === "type" && row) applyTypeDefaults(row, ev.target.value);
+            saveRoutes();
+        });
+        list.addEventListener("click", (ev) => {
+            if (!ev.target.closest(".cv-del")) return;
+            ev.target.closest(".cv-route").remove();
+            saveRoutes();
+        });
+        box.querySelectorAll("[data-add-route]").forEach((b) =>
+            b.addEventListener("click", () => {
+                const type = b.dataset.addRoute;
+                list.insertAdjacentHTML("beforeend", routeRow({ type }, list.children.length));
+                const row = list.lastElementChild;
+                applyTypeDefaults(row, type);
+                attachSuggest(row);
+                const first = type === "Імпорт" ? row.querySelector('[data-r="from_country"]') : type === "Експорт" ? row.querySelector('[data-r="to_country"]') : row.querySelector('[data-r="from_place"]');
+                first?.focus();
+            }),
         );
         return;
     }
@@ -737,6 +782,55 @@ function contactRow(x, i) {
             ${d.length >= 9 ? `<a class="dv-viber" href="viber://chat?number=%2B${d}" title="Viber"><i class="bx bxs-message-rounded-dots"></i></a>` : ""}</div>
         <input class="dv-in" type="email" data-c="email" value="${e(x.email || "")}" placeholder="Пошта" />
         <button type="button" class="btn-icon cv-del" title="Прибрати"><i class="bx bx-trash"></i></button>
+    </div>`;
+}
+
+
+/* ---------- Напрямки перевезень клієнта ---------- */
+// Старі записи (тільки галочки + текст) теж показуємо — як порожні напрямки потрібного типу не створюємо
+function routesOf(c) {
+    return Array.isArray(c.routes) ? c.routes : [];
+}
+
+function routeText(r) {
+    const side = (country, place) => [place, country && country !== "УКРАЇНА" ? country : place ? "" : country].filter(Boolean).join(", ") || "—";
+    return `${side(r.from_country, r.from_place)} → ${side(r.to_country, r.to_place)}`;
+}
+
+function applyTypeDefaults(row, type) {
+    const from = row.querySelector('[data-r="from_country"]');
+    const to = row.querySelector('[data-r="to_country"]');
+    if (type === "Імпорт" && !to.value) to.value = "УКРАЇНА";
+    if (type === "Експорт" && !from.value) from.value = "УКРАЇНА";
+    if (type === "По Україні") {
+        from.value = "УКРАЇНА";
+        to.value = "УКРАЇНА";
+    }
+    row.dataset.type = type;
+}
+
+function routeRow(r, i) {
+    const countries = (sel) => opt(COUNTRIES, sel || "", "Країна…");
+    const types = TRADE_TYPES.map((t) => `<option value="${e(t)}"${t === r.type ? " selected" : ""}>${e(t)}</option>`).join("");
+    return `<div class="cv-route" data-type="${e(r.type || "")}">
+        <select class="dv-in cv-route-type" data-r="type">${types}</select>
+        <div class="cv-route-side">
+            <div class="dv-label">Звідки</div>
+            <select class="dv-in" data-r="from_country">${countries(r.from_country)}</select>
+            <input class="dv-in" data-r="from_place" value="${e(r.from_place || "")}" placeholder="місто / область" />
+        </div>
+        <div class="cv-route-arrow">→</div>
+        <div class="cv-route-side">
+            <div class="dv-label">Куди</div>
+            <select class="dv-in" data-r="to_country">${countries(r.to_country)}</select>
+            <input class="dv-in" data-r="to_place" value="${e(r.to_place || "")}" placeholder="місто / область" />
+        </div>
+        <div class="cv-route-side cv-route-goods">
+            <div class="dv-label">Що / скільки</div>
+            <input class="dv-in" data-r="goods" value="${e(r.goods || "")}" placeholder="вантаж" />
+            <input class="dv-in" data-r="volume" value="${e(r.volume || "")}" placeholder="авто на місяць" />
+        </div>
+        <button type="button" class="btn-icon cv-del" title="Прибрати напрямок"><i class="bx bx-trash"></i></button>
     </div>`;
 }
 

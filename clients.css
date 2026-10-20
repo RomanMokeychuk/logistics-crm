@@ -97,3 +97,25 @@ textarea.dv-in { white-space: pre-wrap; }
 .dv-actions a.btn { text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
 #clientDetailView .client-file a { color: #2563eb; text-decoration: none; }
 #clientDetailView .client-file a:hover { text-decoration: underline; }
+
+/* Напрямки перевезень */
+.cv-routes { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.cv-routes:empty { display: none; }
+.cv-route { display: grid; grid-template-columns: 130px minmax(0, 1fr) 20px minmax(0, 1fr) minmax(0, 1fr) 36px; gap: 10px; align-items: end; padding: 10px 12px; border: 1px solid #e8edf3; border-left: 4px solid #94a3b8; border-radius: 10px; background: #fbfcfe; }
+.cv-route[data-type="Імпорт"] { border-left-color: #10b981; }
+.cv-route[data-type="Експорт"] { border-left-color: #2563eb; }
+.cv-route[data-type="По Україні"] { border-left-color: #f59e0b; }
+.cv-route-type { font-size: 14px; align-self: center; }
+.cv-route-side { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cv-route-side .dv-in { font-size: 14px; }
+.cv-route-arrow { align-self: center; color: #94a3b8; font-size: 18px; text-align: center; }
+.cv-route .cv-del { align-self: center; }
+.cv-route-add { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.client-route { display: flex; align-items: baseline; gap: 6px; font-size: 12.5px; color: #334155; margin-bottom: 2px; }
+.client-route .trade-badge { flex-shrink: 0; }
+@media (max-width: 1000px) {
+    .cv-route { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .cv-route-arrow { display: none; }
+    .cv-route-type { grid-column: 1 / -1; }
+}
+#clientDetailView .dv-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
