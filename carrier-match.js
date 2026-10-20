@@ -250,27 +250,56 @@
                         </div>
                     </div>`;
                 };
-        let shown = 0;
-        const head = () =>
-            `Знайдено ${list.length} перевізників${list.length > shown ? ` · показано ${shown}` : ""}. Спершу — хто частіше їздив, працював з нами і має телефон.`;
-        out.innerHTML = `<div class="cm-count"></div><div class="cm-list-rows"></div>
-            <div class="cm-pager"><button type="button" class="cm-more" data-cm-page="more"></button><button type="button" class="cm-more" data-cm-page="all">Показати всіх</button></div>`;
+        const SORTS = {
+            best: { label: "Найкращі", fn: (x, y) => y.score - x.score },
+            trucks: { label: "Більше машин", fn: (x, y) => y.trucks - x.trucks || y.records - x.records },
+            records: { label: "Більше рейсів", fn: (x, y) => y.records - x.records || y.trucks - x.trucks },
+        };
+        let sortKey = (() => { try { return localStorage.getItem("cmSort") || "best"; } catch (e) { return "best"; } })();
+        if (!SORTS[sortKey]) sortKey = "best";
+        const pages = Math.ceil(list.length / PAGE);
+        out.innerHTML = `<div class="cm-topbar"><div class="cm-count"></div>
+                <label class="cm-sort">Сортувати: <select>${Object.entries(SORTS).map(([k, v]) => `<option value="${k}"${k === sortKey ? " selected" : ""}>${v.label}</option>`).join("")}</select></label></div>
+            <div class="cm-list-rows"></div><div class="cm-pager"></div>`;
         const rowsBox = out.querySelector(".cm-list-rows");
         const pager = out.querySelector(".cm-pager");
-        const showMore = (n) => {
-            const next = list.slice(shown, shown + n);
-            rowsBox.insertAdjacentHTML("beforeend", next.map((a, k) => rowHtml(a, shown + k)).join(""));
-            shown += next.length;
-            out.querySelector(".cm-count").textContent = head();
-            const left = list.length - shown;
-            pager.hidden = left <= 0;
-            pager.querySelector('[data-cm-page="more"]').textContent = `Показати ще ${Math.min(PAGE, left)} (залишилось ${left})`;
+        // номери сторінок: 1 … 4 5 [6] 7 8 … 28
+        const pageNums = (cur) => {
+            const set = new Set([1, pages, cur - 2, cur - 1, cur, cur + 1, cur + 2].filter((n) => n >= 1 && n <= pages));
+            const arr = [...set].sort((a, b) => a - b);
+            const res = [];
+            arr.forEach((n, k) => {
+                if (k && n - arr[k - 1] > 1) res.push("…");
+                res.push(n);
+            });
+            return res;
+        };
+        const showPage = (n, scroll) => {
+            const cur = Math.min(Math.max(1, n), pages);
+            const from = (cur - 1) * PAGE;
+            rowsBox.innerHTML = list.slice(from, from + PAGE).map((a, k) => rowHtml(a, from + k)).join("");
+            out.querySelector(".cm-count").textContent =
+                `Знайдено ${list.length} перевізників${pages > 1 ? ` · ${from + 1}–${Math.min(from + PAGE, list.length)}` : ""}. ` +
+                (sortKey === "best" ? "Спершу — хто частіше їздив, працював з нами і має телефон." : `Сортування: ${SORTS[sortKey].label.toLowerCase()}.`);
+            pager.hidden = pages <= 1;
+            pager.innerHTML =
+                `<button type="button" class="cm-pg" data-cm-pg="${cur - 1}" ${cur === 1 ? "disabled" : ""} title="Попередня">‹</button>` +
+                pageNums(cur).map((p) => (p === "…" ? `<span class="cm-pg-gap">…</span>` : `<button type="button" class="cm-pg${p === cur ? " cm-pg-on" : ""}" data-cm-pg="${p}">${p}</button>`)).join("") +
+                `<button type="button" class="cm-pg" data-cm-pg="${cur + 1}" ${cur === pages ? "disabled" : ""} title="Наступна">›</button>`;
+            if (scroll) out.scrollTop = 0;
         };
         pager.addEventListener("click", (e) => {
-            const b = e.target.closest("[data-cm-page]");
-            if (b) showMore(b.dataset.cmPage === "all" ? list.length : PAGE);
+            const b = e.target.closest("[data-cm-pg]");
+            if (b && !b.disabled) showPage(Number(b.dataset.cmPg), true);
         });
-        showMore(PAGE);
+        out.querySelector(".cm-sort select").addEventListener("change", (e) => {
+            sortKey = e.target.value;
+            try { localStorage.setItem("cmSort", sortKey); } catch (err) { /* без збереження */ }
+            list.sort(SORTS[sortKey].fn);
+            showPage(1, true);
+        });
+        list.sort(SORTS[sortKey].fn);
+        showPage(1, false);
     }
 
     /* ---------- Деталі перевізника (усі напрямки з містами) ---------- */
