@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — AI-продажі</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202610201151" />
+        <link
+            href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
+            rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202610201151" />
+        <link rel="stylesheet" href="agents.css?v=202610201151" />
+        <link rel="stylesheet" href="sales-agent.css?v=202610201151" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img src="logo.svg" alt="" width="28" height="28" style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
+                <a href="sales-agent.html" class="active"><i class="bx bx-envelope"></i> AI-продажі</a>
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content agents-page sa-page">
+            <header class="top-bar">
+                <div>
+                    <h1>AI-продажі</h1>
+                    <p class="ag-sub">
+                        Агенти знаходять контакти клієнтів з митної бази й готують перші листи.
+                        Жоден лист не йде клієнту без вашого «Надіслати».
+                    </p>
+                </div>
+            </header>
+
+            <!-- Стан: що підключено -->
+            <section class="sa-status" id="saStatus">Перевіряю налаштування…</section>
+
+            <!-- Воронка -->
+            <section class="sa-funnel" id="saFunnel"></section>
+
+            <nav class="sa-tabs" role="tablist">
+                <button type="button" class="sa-tab active" data-tab="approve">
+                    <i class="bx bx-check-shield"></i> На схвалення <span class="ag-count" id="cntApprove">0</span>
+                </button>
+                <button type="button" class="sa-tab" data-tab="pool">
+                    <i class="bx bx-data"></i> Пул клієнтів <span class="ag-count" id="cntPool">0</span>
+                </button>
+                <button type="button" class="sa-tab" data-tab="replies">
+                    <i class="bx bx-message-dots"></i> Відповіді <span class="ag-count" id="cntReplies">0</span>
+                </button>
+                <button type="button" class="sa-tab" data-tab="sent">
+                    <i class="bx bx-send"></i> Надіслані
+                </button>
+            </nav>
+
+            <!-- 1. На схвалення -->
+            <section class="ag-card sa-panel" data-panel="approve">
+                <div class="ag-card-head">
+                    <h2>Листи на схвалення</h2>
+                    <span class="ag-hint" id="limitHint"></span>
+                </div>
+                <div id="approveList" class="ag-list"><p class="ag-empty">Завантаження…</p></div>
+            </section>
+
+            <!-- 2. Пул клієнтів -->
+            <section class="ag-card sa-panel" data-panel="pool" hidden>
+                <div class="ag-card-head">
+                    <h2>Пул клієнтів</h2>
+                    <span class="ag-hint">Файл «Лиди_…xlsx» з аналізу митної бази. Повторне завантаження оновлює дані, етапи не скидає.</span>
+                </div>
+
+                <div class="sa-import">
+                    <label class="btn btn-secondary sa-file">
+                        <i class="bx bx-upload"></i>
+                        <span id="fileLabel">Обрати Excel…</span>
+                        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden />
+                    </label>
+                    <select id="importTrade" title="Експорт чи імпорт">
+                        <option value="">Тип — визначити з файлу</option>
+                        <option>Експорт</option>
+                        <option>Імпорт</option>
+                        <option>По Україні</option>
+                    </select>
+                    <input type="month" id="importPeriod" title="Місяць митної бази" />
+                    <button type="button" class="btn btn-primary" id="importBtn" disabled>
+                        <i class="bx bx-import"></i> Завантажити в пул
+                    </button>
+                    <span class="ag-hint" id="importInfo"></span>
+                </div>
+
+                <div class="sa-filters">
+                    <input type="search" id="poolSearch" placeholder="Компанія, ЄДРПОУ, вантаж, країна…" />
+                    <select id="poolStage"></select>
+                    <select id="poolTrade">
+                        <option value="">Експорт та імпорт</option>
+                        <option>Експорт</option>
+                        <option>Імпорт</option>
+                    </select>
+                    <select id="poolSegment"><option value="">Усі сегменти</option></select>
+                    <label class="ag-check-inline">Score від <input type="number" id="poolMinScore" min="0" max="10" step="0.5" value="0" /></label>
+                </div>
+
+                <div class="sa-bulk">
+                    <label class="ag-check-inline"><input type="checkbox" id="poolAll" /> Обрати показані</label>
+                    <button type="button" class="btn btn-primary" id="enqueueBtn" disabled>
+                        <i class="bx bx-search-alt"></i> Шукати контакти (<span id="selCount">0</span>)
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="skipBtn" disabled>
+                        <i class="bx bx-block"></i> Не наш клієнт
+                    </button>
+                    <span class="ag-hint">Агент шукає ~20 компаній на годину, спершу — з найвищим score. Платні бази — тільки для score ≥ <b id="paidMin">7</b>.</span>
+                </div>
+
+                <div class="sa-table-wrap">
+                    <table class="sa-table">
+                        <thead>
+                            <tr>
+                                <th></th>
+                                <th>Компанія</th>
+                                <th>Score</th>
+                                <th>Тип</th>
+                                <th>Машин</th>
+                                <th>Куди / звідки</th>
+                                <th>Вантаж</th>
+                                <th>Етап</th>
+                            </tr>
+                        </thead>
+                        <tbody id="poolBody"></tbody>
+                    </table>
+                </div>
+                <p class="ag-hint" id="poolMore"></p>
+            </section>
+
+            <!-- 3. Відповіді -->
+            <section class="ag-card sa-panel" data-panel="replies" hidden>
+                <div class="ag-card-head">
+                    <h2>Відповіді клієнтів</h2>
+                    <span class="ag-hint">Агент читає відповідь, оновлює картку в «Ліди» і пише Sales у Telegram.</span>
+                </div>
+                <div id="repliesList" class="ag-list"></div>
+            </section>
+
+            <!-- 4. Надіслані -->
+            <section class="ag-card sa-panel" data-panel="sent" hidden>
+                <div class="ag-card-head">
+                    <h2>Надіслані й заплановані</h2>
+                    <span class="ag-hint">Нагадування: на 4-й і 10-й день, якщо клієнт мовчить. Будь-яка відповідь їх скасовує.</span>
+                </div>
+                <div id="sentList" class="ag-list"></div>
+            </section>
+        </main>
+
+        <!-- Картка клієнта -->
+        <div class="modal-overlay" id="cardOverlay">
+            <div class="modal sa-modal" role="dialog" aria-modal="true">
+                <div class="modal-header">
+                    <h2 id="cardTitle">Клієнт</h2>
+                    <button type="button" class="sa-close" id="cardClose" title="Закрити"><i class="bx bx-x"></i></button>
+                </div>
+                <div class="sa-card-body" id="cardBody"></div>
+            </div>
+        </div>
+
+        <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="sales-agent.js?v=202610201151"></script>
+        <script src="shell.js?v=202610201151"></script>
+        <script src="notify.js?v=202610201151"></script>
+        <script src="lock.js?v=202610201151"></script>
+    </body>
+</html>

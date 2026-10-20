@@ -21,6 +21,7 @@
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
+                { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
             ],
         },
         {

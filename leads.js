@@ -34,6 +34,7 @@ const LEAD_SOURCES = [
     "Viber / Telegram",
     "Email",
     "Виставка",
+    "AI-агент (митна база)",
     "Інше",
 ];
 

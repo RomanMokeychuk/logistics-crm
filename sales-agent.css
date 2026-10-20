@@ -1,0 +1,339 @@
+/* FURA — сторінка «AI-продажі». Базові картки й чипи — з agents.css, кольори — з theme.css (--f-*). */
+
+.sa-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    font-size: 13px;
+    color: var(--f-muted, #6b7280);
+    background: var(--f-card, #fff);
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+.sa-st {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.sa-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #c4c9d4;
+    display: inline-block;
+}
+.sa-dot.good {
+    background: #2e9d5b;
+}
+.sa-dot.bad {
+    background: #d64545;
+}
+
+.sa-funnel {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+}
+.sa-step {
+    background: var(--f-card, #fff);
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 10px;
+}
+.sa-step i {
+    grid-row: span 2;
+    font-size: 22px;
+    color: #f57c00;
+}
+.sa-step b {
+    font-size: 20px;
+    color: var(--f-navy, #13203f);
+    line-height: 1.1;
+}
+.sa-step span {
+    font-size: 12px;
+    color: var(--f-muted, #6b7280);
+}
+@media (max-width: 1100px) {
+    .sa-funnel {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+@media (max-width: 600px) {
+    .sa-funnel {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+.sa-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-bottom: 1px solid var(--f-line, #e4e8ef);
+}
+.sa-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: none;
+    background: none;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--f-muted, #6b7280);
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+}
+.sa-tab.active {
+    color: var(--f-navy, #13203f);
+    border-bottom-color: #f57c00;
+}
+.sa-panel[hidden] {
+    display: none;
+}
+
+.sa-import,
+.sa-filters,
+.sa-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+}
+.sa-import select,
+.sa-import input,
+.sa-filters select,
+.sa-filters input,
+.sa-add input,
+.sa-add select {
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    background: var(--f-card, #fff);
+    color: inherit;
+}
+.sa-filters input[type="search"] {
+    flex: 1 1 260px;
+}
+.sa-filters input[type="number"] {
+    width: 70px;
+    margin-left: 6px;
+}
+.sa-file {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sa-table-wrap {
+    overflow-x: auto;
+}
+.sa-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.sa-table th {
+    text-align: left;
+    font-weight: 600;
+    color: var(--f-muted, #6b7280);
+    padding: 8px;
+    border-bottom: 1px solid var(--f-line, #e4e8ef);
+    white-space: nowrap;
+}
+.sa-table td {
+    padding: 8px;
+    border-bottom: 1px solid var(--f-line, #eef1f6);
+    vertical-align: top;
+}
+.sa-table a {
+    color: var(--f-blue, #1d5bd8);
+    font-weight: 600;
+    text-decoration: none;
+}
+.sa-cargo {
+    max-width: 280px;
+}
+.sa-muted {
+    font-size: 12px;
+    color: var(--f-muted, #6b7280);
+}
+
+.ag-chip.bad {
+    background: #fdecec;
+    color: #9b1c1c;
+}
+.ag-chip.hot {
+    background: #fff1e0;
+    color: #a14a00;
+}
+
+.sa-to {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+.sa-subject {
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    font-weight: 600;
+    background: var(--f-card, #fff);
+    color: inherit;
+}
+.sa-summary {
+    font-size: 13px;
+    background: #f4f7fd;
+    border-radius: 8px;
+    padding: 8px 10px;
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+}
+
+/* Картка клієнта */
+.sa-modal {
+    width: min(1100px, 96vw);
+    max-height: 92vh;
+    overflow: auto;
+}
+.sa-close {
+    border: none;
+    background: none;
+    font-size: 26px;
+    cursor: pointer;
+    color: var(--f-muted, #6b7280);
+}
+.sa-card-body {
+    padding: 4px 20px 20px;
+}
+.sa-card-body h3 {
+    font-size: 14px;
+    margin: 18px 0 8px;
+    color: var(--f-navy, #13203f);
+}
+.sa-card-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 24px;
+}
+@media (max-width: 900px) {
+    .sa-card-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+.sa-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 6px 12px;
+    margin: 0 0 12px;
+    font-size: 13px;
+}
+.sa-facts dt {
+    color: var(--f-muted, #6b7280);
+}
+.sa-facts dd {
+    margin: 0;
+    word-break: break-word;
+}
+.sa-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}
+.sa-actions a {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.sa-log {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.sa-log .sa-bad {
+    color: #9b1c1c;
+}
+.sa-star {
+    color: #f57c00;
+}
+.sa-link-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 16px;
+    color: var(--f-muted, #6b7280);
+}
+.sa-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+.sa-add input {
+    flex: 1 1 120px;
+    min-width: 0;
+}
+.sa-msg {
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+}
+.sa-msg.in {
+    background: #fbfcfe;
+    border-left: 3px solid #f57c00;
+}
+.sa-reply {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 10px;
+}
+.sa-reply textarea {
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font: inherit;
+    font-size: 13px;
+    resize: vertical;
+    background: var(--f-card, #fff);
+    color: inherit;
+}
+.sa-reply button {
+    align-self: flex-start;
+}
+
+@media (max-width: 600px) {
+    .sa-card-body {
+        padding: 4px 12px 16px;
+    }
+    .sa-tab {
+        padding: 8px 10px;
+        font-size: 13px;
+    }
+}
+
+.sa-modal .btn,
+.sa-panel .btn {
+    min-height: 38px;
+}
+.sa-add .ag-check-inline {
+    white-space: nowrap;
+}
