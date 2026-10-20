@@ -60,7 +60,16 @@ body.cm-modal-open { overflow: hidden; }
 .cm-dcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
 .cm-dcard { border: 1px solid #e4e8ef; border-radius: 10px; padding: 10px 12px; background: #fff; font-size: 13px; }
 .cm-dcard.cm-focus { border-color: #93c5fd; box-shadow: 0 0 0 2px #dbeafe; }
-.cm-dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.cm-dcards { align-items: start; }
+.cm-dhead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; user-select: none; }
+.cm-dhead::-webkit-details-marker { display: none; }
+.cm-dhead::before { content: "▸"; color: #94a3b8; font-size: 12px; }
+.cm-dcard[open] > .cm-dhead::before { content: "▾"; }
+.cm-dcard[open] > .cm-dhead { margin-bottom: 8px; }
+.cm-dcard:not([open]):hover { border-color: #93c5fd; }
+.cm-dtools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cm-dtools .cm-sub { margin-right: auto; }
+.cm-dtools .cm-more { margin-top: 0; }
 .cm-dhead b { font-size: 14px; color: #0f172a; }
 .cm-dcard dl { display: grid; grid-template-columns: 96px 1fr; gap: 4px 8px; margin: 0; }
 .cm-dcard dt { color: #64748b; font-size: 12px; }

@@ -277,12 +277,14 @@
             by.set(k, a);
         }
         const rows = [...by.values()].sort((x, y) => (y.country === focusCountry) - (x.country === focusCountry) || y.records - x.records);
-        return `<div class="cm-dcards">${rows
+        return `<div class="cm-dtools"><span class="cm-sub">Напрямків: ${rows.length} · натисніть на напрямок, щоб розгорнути</span>
+                <button type="button" class="cm-more" data-cm-all="1">Розгорнути всі</button><button type="button" class="cm-more" data-cm-all="0">Згорнути всі</button></div>
+            <div class="cm-dcards">${rows
             .map(
-                (a) => `<div class="cm-dcard${a.country === focusCountry ? " cm-focus" : ""}">
-                    <div class="cm-dhead"><span class="cm-dir ${a.dir === "Імпорт" ? "imp" : "exp"}">${a.dir === "Імпорт" ? "→ UA" : "UA →"}</span>
+                (a) => `<details class="cm-dcard${a.country === focusCountry ? " cm-focus" : ""}">
+                    <summary class="cm-dhead"><span class="cm-dir ${a.dir === "Імпорт" ? "imp" : "exp"}">${a.dir === "Імпорт" ? "→ UA" : "UA →"}</span>
                         <b>${esc(cap(a.country))}</b>
-                        <span class="cm-sub">${a.plates.size || a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span></div>
+                        <span class="cm-sub">${a.plates.size || a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span></summary>
                     <dl>
                         <dt>🏁 ${a.dir === "Імпорт" ? "Звідки" : "Куди"}</dt><dd>${a.cities.size ? esc(topCounts(a.cities, 12)) : `<span class="cm-sub">у деклараціях не вказане</span>`}</dd>
                         <dt>🇺🇦 ${a.dir === "Імпорт" ? "Куди в UA" : "Звідки в UA"}</dt><dd>${esc(topCounts(a.regions, 4))}${a.uaCities.size ? `<div class="cm-sub">${esc(topCounts(a.uaCities, 10))}</div>` : ""}</dd>
@@ -291,10 +293,17 @@
                     ${a.borders.size ? `<details class="cm-pl"><summary>🛂 Кордон: <b>${a.borders.size}</b> — показати</summary><div class="cm-list">${[...a.borders.entries()].sort((x, y) => y[1] - x[1]).map(([b, n]) => `<div>${esc(b)}${n > 1 ? ` <span class="cm-sub">(${n})</span>` : ""}</div>`).join("")}</div></details>` : ""}
                     ${a.goods.size ? `<details class="cm-pl"><summary>📦 Везли — показати</summary><div class="cm-list">${[...a.goods].map((g) => `<div>${esc(g)}</div>`).join("")}</div></details>` : ""}
                     ${a.plates.size ? `<details class="cm-pl"><summary>🔢 Тягачі: <b>${a.plates.size}</b> — показати номери</summary><div class="cm-plates">${[...a.plates].sort().map((p) => `<span>${esc(p)}</span>`).join("")}</div></details>` : ""}
-                </div>`,
+                </details>`,
             )
             .join("")}</div>`;
     }
+
+    document.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-cm-all]");
+        if (!b) return;
+        const wrap = b.closest(".cm-dtools")?.nextElementSibling;
+        wrap?.querySelectorAll(":scope > .cm-dcard").forEach((d) => (d.open = b.dataset.cmAll === "1"));
+    });
 
     /* ---------- Вікно «Деталі» поверх сторінки ---------- */
     function modal() {
