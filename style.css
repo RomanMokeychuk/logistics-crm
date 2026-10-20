@@ -1213,3 +1213,7 @@ body,
 /* Замітки в таблиці перевізників — коротко і дрібно */
 .notes-cell { max-width: 200px; white-space: normal; word-break: break-word; font-size: 12px; line-height: 1.35; color: #475569; }
 .notes-cell .notes-label { color: #94a3b8; }
+
+/* Лічильник і сторінки не ховаються під кнопкою «Помічник» справа внизу */
+.carriers-count-bar { padding-right: 190px; }
+@media (max-width: 700px) { .carriers-count-bar { padding-right: 0; padding-bottom: 70px; } }

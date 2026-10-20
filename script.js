@@ -860,7 +860,7 @@ function renderCarriers() {
         const profileLinkHtml = renderProfileLink(item.profile_url);
 
         row.innerHTML = `
-        <td style="text-align: center; color: #94a3b8; font-size: 13px;">${rowNumber}</td>
+        <td style="text-align: center; color: #94a3b8; font-size: 13px; white-space: nowrap;">${rowNumber}</td>
         <td>${avatarHtml}</td>
         <td>${destBadges}</td>
         <td>
