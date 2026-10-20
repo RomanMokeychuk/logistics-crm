@@ -1217,3 +1217,4 @@ body,
 /* Лічильник і сторінки не ховаються під кнопкою «Помічник» справа внизу */
 .carriers-count-bar { padding-right: 190px; }
 @media (max-width: 700px) { .carriers-count-bar { padding-right: 0; padding-bottom: 70px; } }
+.phone-line { display: block; white-space: nowrap; }

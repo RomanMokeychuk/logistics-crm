@@ -203,12 +203,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Іконка веде на viber://chat?number=... — це ВІДКРИВАЄ ЧАТ у Viber
 // (можна побачити ім'я/фото профілю), а не одразу дзвонить.
 function renderContactLine(person, phone) {
-    if (!person) return "";
-    const digitsOnly = (phone || "").replace(/\D/g, "");
-    const viberIcon = digitsOnly
-        ? `<a href="viber://chat?number=%2B${digitsOnly}" target="_blank" class="viber-link" title="Відкрити чат у Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
-        : "";
-    return `<strong>${escapeHtml(person)}:</strong> ${escapeHtml(phone || "")} ${viberIcon}`;
+    if (!person && !phone) return "";
+    // У полі може бути кілька номерів через кому — кожен зі своєю іконкою Viber
+    const phones = String(phone || "")
+        .split(/[,;]/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => {
+            const digits = p.replace(/\D/g, "");
+            const viber = digits.length >= 9
+                ? ` <a href="viber://chat?number=%2B${digits}" target="_blank" class="viber-link" title="Відкрити чат у Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
+                : "";
+            return `<span class="phone-line">${escapeHtml(p)}${viber}</span>`;
+        })
+        .join("");
+    return `${person ? `<strong>${escapeHtml(person)}:</strong> ` : ""}${phones}`;
 }
 
 // Формує HTML для круглого аватара перевізника. Якщо URL фото не вказаний
@@ -418,10 +427,10 @@ function openCarrierCard(id) {
 
     // Контакти
     let contactsHtml = "";
-    if (item.contact_person_1) {
+    if (item.contact_person_1 || item.phone_1) {
         contactsHtml += `<div style="margin-bottom:6px;">${renderContactLine(item.contact_person_1, item.phone_1)}</div>`;
     }
-    if (item.contact_person_2) {
+    if (item.contact_person_2 || item.phone_2) {
         contactsHtml += `<div>${renderContactLine(item.contact_person_2, item.phone_2)}</div>`;
     }
 
@@ -522,12 +531,14 @@ async function loadCarriers() {
         sbClient
             .from("carriers")
             .select("*")
-            .order("created_at", { ascending: false });
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: true });
 
     const first = await sbClient
         .from("carriers")
         .select("*", { count: "exact" })
         .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
         .range(0, CHUNK - 1);
 
     if (first.error) {
@@ -870,9 +881,10 @@ function renderCarriers() {
         <td>${item.region_ukr || "—"}</td>
         <td>${item.city || "—"}</td>
         <td>
-          ${item.contact_person_1 ? renderContactLine(item.contact_person_1, item.phone_1) : ""}
-          ${item.contact_person_2 ? `<br>` + renderContactLine(item.contact_person_2, item.phone_2) : ""}
-          ${!item.contact_person_1 && !item.contact_person_2 ? "—" : ""}
+          ${renderContactLine(item.contact_person_1, item.phone_1)}
+          ${(item.contact_person_1 || item.phone_1) && (item.contact_person_2 || item.phone_2) ? "<br>" : ""}
+          ${renderContactLine(item.contact_person_2, item.phone_2)}
+          ${!item.contact_person_1 && !item.phone_1 && !item.contact_person_2 && !item.phone_2 ? "—" : ""}
         </td>
         <td>
           ${
@@ -1293,8 +1305,13 @@ if (addCarrierForm) {
             const res = await sbClient
                 .from("carriers")
                 .update(payload)
-                .eq("id", carrierId);
+                .eq("id", carrierId)
+                .select("id");
             error = res.error;
+            // База може «мовчки» не зберегти (немає прав) — тоді рядків 0
+            if (!error && Array.isArray(res.data) && res.data.length === 0) {
+                error = { message: "зміни не збереглися — у вас немає прав змінювати цього перевізника або його вже видалили. Оновіть сторінку (Cmd+Shift+R) і спробуйте ще раз." };
+            }
         } else {
             const res = await sbClient.from("carriers").insert([payload]);
             error = res.error;
