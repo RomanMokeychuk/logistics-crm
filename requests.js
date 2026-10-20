@@ -2066,7 +2066,7 @@ function offerRowsHtml(offers, opts = {}) {
                 <span class="offer-num">${i + 1}</span>
                 <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}` : "—"}</div>
                 <div class="offer-date">${offerDateHtml(o)}</div>
-                <div class="offer-comment">${escapeHtml(o.comment || "")}</div>
+                <div class="offer-comment">${escapeHtml(o.comment || "")}${o.carrier ? `<div class="offer-carrier"><i class='bx bxs-truck'></i> ${escapeHtml(o.carrier)}</div>` : ""}</div>
                 <div class="offer-action">${btn}</div>
             </div>`;
         })
@@ -2163,6 +2163,8 @@ async function chooseAnswer(requestId, logistId, offerIndex = null) {
             date_to: o.date_to || null,
             date_flexible: !!o.date_flexible,
             comment: o.comment || null,
+            carrier: o.carrier || null,
+            carrier_id: o.carrier_id || null,
             at: new Date().toISOString(),
         };
     }
@@ -2217,6 +2219,61 @@ document.getElementById("answerOptions").addEventListener("change", (e) => {
     }
 });
 
+// Перевізник у варіанті: підказки з реєстру (можна вписати й того, кого там немає)
+let carrierSuggestTimer = null;
+document.getElementById("answerOptions").addEventListener("input", (e) => {
+    const input = e.target.closest(".ans-carrier");
+    if (!input) return;
+    input.dataset.carrierId = ""; // змінили текст — зв'язок з реєстром скидаємо
+    const list = input.parentElement.querySelector(".ans-carrier-list");
+    const q = input.value.trim();
+    clearTimeout(carrierSuggestTimer);
+    if (q.length < 2) {
+        list.hidden = true;
+        return;
+    }
+    carrierSuggestTimer = setTimeout(async () => {
+        const safe = q.replace(/[%,()]/g, " ").trim();
+        const digits = safe.replace(/\D/g, "");
+        const conds = [`name.ilike.%${safe}%`];
+        if (digits.length >= 4) conds.push(`edrpou.ilike.%${digits}%`, `phone_1.ilike.%${digits}%`, `phone_2.ilike.%${digits}%`);
+        const { data } = await sbClient
+            .from("carriers")
+            .select("id, name, edrpou, city, phone_1")
+            .or(conds.join(","))
+            .limit(8);
+        if (input.value.trim() !== q) return; // поки шукали — ввели інше
+        const rows = data || [];
+        list.innerHTML = rows.length
+            ? rows
+                  .map(
+                      (c) => `<button type="button" class="ans-carrier-item" data-id="${escapeHtml(c.id)}" data-name="${escapeHtml(c.name || "")}">
+                        <b>${escapeHtml(c.name || "—")}</b>
+                        <span>${escapeHtml([c.edrpou, c.city, c.phone_1].filter(Boolean).join(" · "))}</span>
+                    </button>`,
+                  )
+                  .join("")
+            : `<div class="ans-carrier-none">У реєстрі не знайдено — збережеться як вписано</div>`;
+        list.hidden = false;
+    }, 250);
+});
+
+document.getElementById("answerOptions").addEventListener("click", (e) => {
+    const item = e.target.closest(".ans-carrier-item");
+    if (!item) return;
+    const box = item.closest(".ans-carrier-box");
+    const input = box.querySelector(".ans-carrier");
+    input.value = item.dataset.name;
+    input.dataset.carrierId = item.dataset.id;
+    box.querySelector(".ans-carrier-list").hidden = true;
+});
+
+document.addEventListener("click", (e) => {
+    if (!e.target.closest(".ans-carrier-box")) {
+        document.querySelectorAll(".ans-carrier-list").forEach((l) => (l.hidden = true));
+    }
+});
+
 // Один блок "Варіант N" у формі відповіді
 function offerFormRowHtml(i, o = {}) {
     const currencyOptions = CURRENCIES.map(
@@ -2256,6 +2313,14 @@ function offerFormRowHtml(i, o = {}) {
                 <div class="form-group answer-comment">
                     <label>Коментар</label>
                     <input type="text" class="ans-comment" value="${escapeHtml(o.comment || "")}" placeholder="наприклад: ТЕНТ 92 м³, ЕКМТ" />
+                </div>
+
+                <div class="form-group answer-carrier">
+                    <label>Перевізник <span class="label-hint">— хто дав ціну / дає машину</span></label>
+                    <div class="ans-carrier-box">
+                        <input type="text" class="ans-carrier" autocomplete="off" value="${escapeHtml(o.carrier || "")}" data-carrier-id="${escapeHtml(o.carrier_id || "")}" placeholder="Почніть вводити назву, ЄДРПОУ або телефон" />
+                        <div class="ans-carrier-list" hidden></div>
+                    </div>
                 </div>
             </div>
         </div>`;
@@ -2333,6 +2398,9 @@ answerForm.addEventListener("submit", async (e) => {
             const date = row.querySelector(".ans-date").value;
             let dateTo = period ? row.querySelector(".ans-date-to").value : "";
             const comment = row.querySelector(".ans-comment").value.trim();
+            const carrierInput = row.querySelector(".ans-carrier");
+            const carrier = carrierInput.value.trim();
+            const carrierId = carrier ? carrierInput.dataset.carrierId || "" : "";
 
             if (dateTo && !date) {
                 dateError = `Варіант ${idx + 1}: вкажіть початкову дату періоду.`;
@@ -2341,13 +2409,15 @@ answerForm.addEventListener("submit", async (e) => {
             }
             if (dateTo === date) dateTo = "";
 
-            if (price || date || comment) {
+            if (price || date || comment || carrier) {
                 offers.push({
                     price,
                     currency,
                     date: date || null,
                     date_to: dateTo || null,
                     comment,
+                    carrier: carrier || null,
+                    carrier_id: carrierId || null,
                 });
             }
         });
