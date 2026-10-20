@@ -1112,7 +1112,14 @@ async function createDeal(lead = null) {
     const me = currentStaff;
     const payload = { deal_kind: "FTL" };
     // З картки клієнта: deals.html?new=1&lead=ID — одразу з цим клієнтом
-    if (lead) Object.assign(payload, { lead_id: lead.id, client: lead.name });
+    if (lead) {
+        Object.assign(payload, { lead_id: lead.id, client: lead.name });
+        // Договір клієнта — одразу в угоду
+        if (lead.contract_no) {
+            const dt = lead.contract_date ? String(lead.contract_date).slice(0, 10).split("-").reverse().join(".") : "";
+            payload.contract = `№ ${lead.contract_no}${dt ? ` від ${dt}` : ""}`;
+        }
+    }
     if (me && hasRole(me, ["sales", "head"])) Object.assign(payload, { sales_id: me.id, sales: me.full_name });
     if (me && hasRole(me, ["logist"])) Object.assign(payload, { logist_id: me.id, logist_name: me.full_name, logist_phone: me.phone ? cleanPhone(me.phone) : null });
     const { data, error } = await sbClient.from("deals").insert([payload]).select().single();
@@ -1668,7 +1675,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (params.get("new") === "1") {
         const leadId = params.get("lead");
         if (leadId) {
-            sbClient.from("leads").select("id, name").eq("id", leadId).maybeSingle().then(({ data }) => createDeal(data || null));
+            sbClient.from("leads").select("*").eq("id", leadId).maybeSingle().then(({ data }) => createDeal(data || null));
         } else createDeal();
         history.replaceState(null, "", location.pathname);
     }

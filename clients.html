@@ -12,12 +12,12 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202610201522" />
-        <link rel="stylesheet" href="requests.css?v=202610201522" />
-        <link rel="stylesheet" href="leads.css?v=202610201522" />
-        <link rel="stylesheet" href="clients.css?v=202610201522" />
+        <link rel="stylesheet" href="style.css?v=202610201526" />
+        <link rel="stylesheet" href="requests.css?v=202610201526" />
+        <link rel="stylesheet" href="leads.css?v=202610201526" />
+        <link rel="stylesheet" href="clients.css?v=202610201526" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202610201522" />
+        <link rel="stylesheet" href="theme.css?v=202610201526" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -115,6 +115,45 @@
                             </div>
                         </div>
 
+                        <div class="form-group">
+                            <label>Керівник / підписант</label>
+                            <input type="text" id="c_director" placeholder="Директор Іваненко І.І., діє на підставі Статуту" />
+                        </div>
+                        <div class="form-group">
+                            <label>ІПН платника ПДВ</label>
+                            <input type="text" id="c_vat_number" inputmode="numeric" placeholder="якщо платник ПДВ" />
+                        </div>
+
+                        <div class="form-section-title span-2"><i class="bx bx-file"></i> Договір</div>
+                        <div class="form-group">
+                            <label>№ договору</label>
+                            <input type="text" id="c_contract_no" placeholder="наприклад: 15/10-2026" />
+                        </div>
+                        <div class="form-group">
+                            <label>Дата договору / діє до</label>
+                            <div class="client-geo">
+                                <input type="date" id="c_contract_date" />
+                                <input type="date" id="c_contract_until" title="Діє до" />
+                            </div>
+                        </div>
+                        <div class="form-group span-2 client-hint">
+                            <i class="bx bx-info-circle"></i> Скан підписаного договору завантажується в картці клієнта (блок «Договір» → «Завантажити файл»).
+                        </div>
+
+                        <div class="form-section-title span-2"><i class="bx bx-credit-card"></i> Банківські реквізити (з якого рахунку платять)</div>
+                        <div class="form-group span-2">
+                            <label>Розрахунковий рахунок (IBAN)</label>
+                            <input type="text" id="c_bank_iban" placeholder="UA21 3223 1300 0002 6007 2335 6600 1" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                            <label>Банк</label>
+                            <input type="text" id="c_bank_name" placeholder="АТ КБ «ПриватБанк»" />
+                        </div>
+                        <div class="form-group">
+                            <label>МФО <span class="label-hint">— підставляється з IBAN</span></label>
+                            <input type="text" id="c_bank_mfo" inputmode="numeric" placeholder="305299" />
+                        </div>
+
                         <div class="form-section-title span-2"><i class="bx bx-user"></i> Контакти</div>
                         <div class="form-group">
                             <label>Контактна особа</label>
@@ -173,9 +212,9 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="clients.js?v=202610201522"></script>
-        <script src="shell.js?v=202610201522"></script>
-        <script src="notify.js?v=202610201522"></script>
-        <script src="lock.js?v=202610201522"></script>
+        <script src="clients.js?v=202610201526"></script>
+        <script src="shell.js?v=202610201526"></script>
+        <script src="notify.js?v=202610201526"></script>
+        <script src="lock.js?v=202610201526"></script>
     </body>
 </html>

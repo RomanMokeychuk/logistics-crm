@@ -111,6 +111,26 @@ function dealStateLabel(d) {
     return ["Планується", "deal-st-plan"];
 }
 
+// IBAN України: UA + 2 контрольні цифри + 6 цифр МФО + 19 цифр рахунку
+function cleanIban(v) {
+    return String(v || "").replace(/\s+/g, "").toUpperCase();
+}
+function ibanPretty(v) {
+    return cleanIban(v).replace(/(.{4})/g, "$1 ").trim();
+}
+function mfoFromIban(v) {
+    const i = cleanIban(v);
+    return /^UA\d{27}$/.test(i) ? i.slice(4, 10) : "";
+}
+function ibanValid(v) {
+    const i = cleanIban(v);
+    if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(i)) return false;
+    const r = (i.slice(4) + i.slice(0, 4)).replace(/[A-Z]/g, (ch) => String(ch.charCodeAt(0) - 55));
+    let m = 0;
+    for (const ch of r) m = (m * 10 + Number(ch)) % 97;
+    return m === 1;
+}
+
 const money = (v) => (v === null || v === undefined ? "—" : `${v < 0 ? "−" : ""}$${Math.abs(v).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}`);
 
 /* ---------------- Завантаження ---------------- */
@@ -167,7 +187,7 @@ function renderClients() {
         if (q) {
             const extra = (Array.isArray(c.contacts) ? c.contacts : []).map((x) => `${x.name} ${x.phone} ${x.email}`).join(" ");
             const hay = [c.name, c.full_name, c.edrpou, c.contact_person, c.phone, c.email, c.address, c.legal_address,
-                c.city, c.directions, c.cargo, c.sales, extra].filter(Boolean).join(" ").toLowerCase();
+                c.city, c.directions, c.cargo, c.sales, c.contract_no, c.bank_iban, c.director, extra].filter(Boolean).join(" ").toLowerCase();
             if (!hay.includes(q)) return false;
         }
         return true;
@@ -268,6 +288,14 @@ function openClientCard(id) {
                     ${row("Оригінали документів:", docsSame ? "на юридичну адресу" : e(c.docs_address))}
                 </div>
                 <div class="card-section">
+                    <div class="card-section-title">Банківські реквізити</div>
+                    ${row("Р/р (IBAN):", c.bank_iban ? `<code class="client-iban">${e(ibanPretty(c.bank_iban))}</code> <button type="button" class="btn-icon client-copy" data-copy="${e(cleanIban(c.bank_iban))}" title="Скопіювати"><i class="bx bx-copy"></i></button>` : "")}
+                    ${row("Банк:", e(c.bank_name))}
+                    ${row("МФО:", e(c.bank_mfo || mfoFromIban(c.bank_iban)))}
+                    ${row("ІПН платника ПДВ:", e(c.vat_number))}
+                    ${row("Керівник / підписант:", e(c.director))}
+                </div>
+                <div class="card-section">
                     <div class="card-section-title">Що і куди возить</div>
                     ${row("Напрямок:", tradeBadges(c.trade_types))}
                     ${row("Звідки → куди:", e(c.directions))}
@@ -283,6 +311,19 @@ function openClientCard(id) {
                     ${extra
                         .map((x) => row(`${e(x.position || "Контакт")}:`, `${x.name ? `<b>${e(x.name)}</b>` : ""}${phoneHtml(x.phone)}${x.email ? `<div>${emailHtml(x.email)}</div>` : ""}`))
                         .join("")}
+                </div>
+                <div class="card-section">
+                    <div class="card-section-title">Договір</div>
+                    ${row("№ договору:", c.contract_no ? `<b>${e(c.contract_no)}</b>` : "")}
+                    ${row("Дата:", fmtDate(c.contract_date))}
+                    ${row("Діє до:", c.contract_until ? `${fmtDate(c.contract_until)}${String(c.contract_until) < new Date().toISOString().slice(0, 10) ? ` <span class="client-expired">закінчився</span>` : ""}` : "")}
+                    <div class="client-files" id="clientFiles">${filesHtml(c)}</div>
+                    <div class="client-files-actions">
+                        <label class="btn btn-secondary btn-sm client-upload"><i class="bx bx-upload"></i> Завантажити файл
+                            <input type="file" id="clientFileInput" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple hidden />
+                        </label>
+                        <span class="client-sub">PDF, фото або Word, до 20 МБ</span>
+                    </div>
                 </div>
                 <div class="card-section">
                     <div class="card-section-title">Менеджер і нотатки</div>
@@ -321,10 +362,98 @@ function openClientCard(id) {
                 : `<div class="client-empty">Угод з цим клієнтом ще немає. Натисніть «Нова угода» — клієнт підставиться сам.</div>`}
         </div>`;
 
+    bindFiles(c);
+    $("clientFileInput").addEventListener("change", (ev) => uploadClientFiles(c, [...ev.target.files]));
+    $("clientCardBody").querySelectorAll("[data-copy]").forEach((b) =>
+        b.addEventListener("click", () => {
+            navigator.clipboard?.writeText(b.dataset.copy);
+            b.innerHTML = "<i class='bx bx-check'></i>";
+            setTimeout(() => (b.innerHTML = "<i class='bx bx-copy'></i>"), 1200);
+        }),
+    );
     $("clientCardBody").querySelectorAll("tr[data-deal]").forEach((tr) =>
         tr.addEventListener("click", () => (location.href = `deals.html?open=${encodeURIComponent(tr.dataset.deal)}`)),
     );
     $("clientCardOverlay").classList.add("active");
+}
+
+/* ---------- Файли договору (Supabase Storage, закрите сховище client-docs) ---------- */
+const FILE_BUCKET = "client-docs";
+
+function filesHtml(c) {
+    const files = Array.isArray(c.contract_files) ? c.contract_files : [];
+    if (!files.length) return `<div class="client-sub client-nofiles">Файлів договору ще немає</div>`;
+    return files
+        .map(
+            (f, i) => `<div class="client-file">
+                <i class="bx ${/\.pdf$/i.test(f.name) ? "bxs-file-pdf" : /\.(jpe?g|png)$/i.test(f.name) ? "bx-image" : "bx-file"}"></i>
+                <a href="#" data-file="${i}" title="Відкрити">${e(f.name)}</a>
+                <span class="client-sub">${fmtDate(f.uploaded_at)}${f.by ? ` · ${e(f.by)}` : ""}</span>
+                <button type="button" class="btn-icon" data-file-del="${i}" title="Видалити файл"><i class="bx bx-trash"></i></button>
+            </div>`,
+        )
+        .join("");
+}
+
+function bindFiles(c) {
+    const box = $("clientFiles");
+    if (!box) return;
+    box.onclick = async (ev) => {
+        const files = Array.isArray(c.contract_files) ? c.contract_files : [];
+        const open = ev.target.closest("[data-file]");
+        const del = ev.target.closest("[data-file-del]");
+        if (open) {
+            ev.preventDefault();
+            const f = files[Number(open.dataset.file)];
+            const win = window.open("", "_blank");
+            const { data, error } = await sbClient.storage.from(FILE_BUCKET).createSignedUrl(f.path, 600);
+            if (error || !data?.signedUrl) {
+                win?.close();
+                return alert("Не вдалося відкрити файл: " + (error?.message || ""));
+            }
+            if (win) win.location = data.signedUrl;
+            else location.href = data.signedUrl;
+        }
+        if (del) {
+            const f = files[Number(del.dataset.fileDel)];
+            if (!confirm(`Видалити файл «${f.name}»?`)) return;
+            await sbClient.storage.from(FILE_BUCKET).remove([f.path]);
+            const next = files.filter((_, i) => i !== Number(del.dataset.fileDel));
+            const { error } = await sbClient.from("leads").update({ contract_files: next }).eq("id", c.id);
+            if (error) return alert("Не вдалося зберегти: " + error.message);
+            c.contract_files = next;
+            box.innerHTML = filesHtml(c);
+        }
+    };
+}
+
+async function uploadClientFiles(c, list) {
+    if (!list.length) return;
+    const box = $("clientFiles");
+    const files = Array.isArray(c.contract_files) ? [...c.contract_files] : [];
+    for (const file of list) {
+        if (file.size > 20 * 1024 * 1024) {
+            alert(`«${file.name}» більший за 20 МБ — зменшіть файл.`);
+            continue;
+        }
+        box.insertAdjacentHTML("beforeend", `<div class="client-sub client-uploading">Завантаження «${e(file.name)}»…</div>`);
+        const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+        const path = `${c.id}/${Date.now()}_${safe}`;
+        const { error } = await sbClient.storage.from(FILE_BUCKET).upload(path, file, { contentType: file.type || undefined });
+        if (error) {
+            box.querySelector(".client-uploading")?.remove();
+            alert(/bucket|not found/i.test(error.message || "")
+                ? "Сховище файлів ще не створене: один раз запустіть clients_docs.sql у Supabase."
+                : "Не вдалося завантажити: " + error.message);
+            continue;
+        }
+        files.push({ path, name: file.name, size: file.size, uploaded_at: new Date().toISOString(), by: currentStaff?.full_name || null });
+    }
+    const { error } = await sbClient.from("leads").update({ contract_files: files }).eq("id", c.id);
+    if (error) alert("Файл завантажено, але не записано в картку: " + error.message);
+    else c.contract_files = files;
+    box.innerHTML = filesHtml(c);
+    $("clientFileInput").value = "";
 }
 
 function closeClientCard() {
@@ -392,6 +521,14 @@ function openClientForm(c = null) {
     set("c_docs_address", c?.docs_address);
     $("c_docs_same").checked = !!(c?.docs_address && c?.legal_address && c.docs_address.trim() === c.legal_address.trim());
     syncDocsSame();
+    set("c_director", c?.director);
+    set("c_vat_number", c?.vat_number);
+    set("c_contract_no", c?.contract_no);
+    set("c_contract_date", c?.contract_date ? String(c.contract_date).slice(0, 10) : "");
+    set("c_contract_until", c?.contract_until ? String(c.contract_until).slice(0, 10) : "");
+    set("c_bank_iban", c?.bank_iban ? ibanPretty(c.bank_iban) : "");
+    set("c_bank_name", c?.bank_name);
+    set("c_bank_mfo", c?.bank_mfo);
     set("c_contact_person", c?.contact_person);
     set("c_phone", c?.phone);
     set("c_email", c?.email);
@@ -414,6 +551,14 @@ function syncDocsSame() {
     if (same) $("c_docs_address").value = $("c_legal_address").value;
 }
 $("c_docs_same").addEventListener("change", syncDocsSame);
+$("c_bank_iban").addEventListener("input", () => {
+    const mfo = mfoFromIban($("c_bank_iban").value);
+    if (mfo) $("c_bank_mfo").value = mfo;
+    $("c_bank_iban").classList.toggle("client-bad", !!cleanIban($("c_bank_iban").value) && cleanIban($("c_bank_iban").value).length >= 29 && !ibanValid($("c_bank_iban").value));
+});
+$("c_bank_iban").addEventListener("blur", () => {
+    if ($("c_bank_iban").value) $("c_bank_iban").value = ibanPretty($("c_bank_iban").value);
+});
 $("c_legal_address").addEventListener("input", () => {
     if ($("c_docs_same").checked) $("c_docs_address").value = $("c_legal_address").value;
 });
@@ -444,6 +589,14 @@ $("clientForm").addEventListener("submit", async (ev) => {
         address: v("c_address"),
         legal_address: v("c_legal_address"),
         docs_address: $("c_docs_same").checked ? v("c_legal_address") : v("c_docs_address"),
+        director: v("c_director"),
+        vat_number: digits($("c_vat_number").value) || null,
+        contract_no: v("c_contract_no"),
+        contract_date: v("c_contract_date"),
+        contract_until: v("c_contract_until"),
+        bank_iban: cleanIban($("c_bank_iban").value) || null,
+        bank_name: v("c_bank_name"),
+        bank_mfo: digits($("c_bank_mfo").value) || mfoFromIban($("c_bank_iban").value) || null,
         contact_person: v("c_contact_person"),
         phone: v("c_phone"),
         email: v("c_email"),
@@ -459,6 +612,9 @@ $("clientForm").addEventListener("submit", async (ev) => {
         updated_at: new Date().toISOString(),
     };
     if (!payload.name) return alert("Вкажіть назву клієнта.");
+    if (payload.bank_iban && !ibanValid(payload.bank_iban)) {
+        if (!confirm("IBAN виглядає неправильним (помилка в цифрах).\nВсе одно зберегти?")) return;
+    }
 
     const btn = ev.target.querySelector("button[type=submit]");
     btn.disabled = true;
@@ -485,7 +641,9 @@ $("clientForm").addEventListener("submit", async (ev) => {
         }
         if (res.error) {
             const msg = res.error.message || "";
-            alert(/full_name|legal_address|docs_address|contacts|address/.test(msg)
+            alert(/contract_|bank_|vat_number|director/.test(msg)
+                ? "Потрібно один раз запустити clients_docs.sql у Supabase (договір і реквізити)."
+                : /full_name|legal_address|docs_address|contacts|address/.test(msg)
                 ? "Потрібно один раз запустити clients.sql у Supabase (нові поля картки клієнта)."
                 : "Не вдалося зберегти: " + msg);
             return;
