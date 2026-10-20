@@ -1195,3 +1195,6 @@
 .offer-carrier { margin-top: 2px; font-size: 13px; color: #334155; font-weight: 600; }
 .offer-carrier i { color: #f97316; }
 .ans-carrier-box input.ans-carrier { width: 100%; box-sizing: border-box; }
+.offer-carrier a { color: inherit; text-decoration: none; }
+.offer-carrier a:hover { color: #2563eb; text-decoration: underline; }
+.offer-carrier a .bx-link-external { color: #2563eb; font-size: 14px; vertical-align: -1px; }
