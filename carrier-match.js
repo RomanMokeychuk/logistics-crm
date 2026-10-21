@@ -561,32 +561,122 @@
         if (!body || !item?.edrpou) return;
         const my = ++seq;
         body.querySelector("#carrierRoutesBox")?.remove();
+        body.querySelector("#carrierFleetBox")?.remove();
+        const fleet = document.createElement("div");
+        fleet.id = "carrierFleetBox";
+        fleet.className = "ch cm-card";
+        fleet.innerHTML = `<div class="ch-title">🚛 Тягачі (митні дані)</div><div class="ch-body"><div class="ch-empty">Завантаження…</div></div>`;
         const box = document.createElement("div");
         box.id = "carrierRoutesBox";
         box.className = "ch cm-card";
         box.innerHTML = `<div class="ch-title">🧭 Напрямки за митними даними</div><div class="ch-body"><div class="ch-empty">Завантаження…</div></div>`;
         const hist = body.querySelector("#carrierHistory");
-        if (hist) hist.insertAdjacentElement("beforebegin", box);
-        else body.appendChild(box);
+        if (hist) {
+            hist.insertAdjacentElement("beforebegin", fleet);
+            hist.insertAdjacentElement("beforebegin", box);
+        } else {
+            body.appendChild(fleet);
+            body.appendChild(box);
+        }
+        applyCollapsed(body);
 
         const { data, error } = await loadRoutes(item.edrpou);
         if (my !== seq) return;
         const out = box.querySelector(".ch-body");
+        const fout = fleet.querySelector(".ch-body");
         if (error) {
             out.innerHTML = `<div class="ch-empty">Митні напрямки ще не завантажені (carrier_routes.sql + CSV).</div>`;
+            fout.innerHTML = `<div class="ch-empty">—</div>`;
             return;
         }
         if (!(data || []).length) {
             out.innerHTML = `<div class="ch-empty">У митних даних цього перевізника немає.</div>`;
+            fout.innerHTML = `<div class="ch-empty">У митних даних тягачів цього перевізника немає.</div>`;
             return;
         }
         out.innerHTML = routesHtml(data, "");
+        fout.innerHTML = fleetHtml(data);
+    }
+
+    /* ---------- Тягачі перевізника: скільки й які, по місяцях ---------- */
+    function fleetHtml(data) {
+        const plates = new Map(); // номер -> {months:Set, countries:Map, dirs:Set}
+        const byMonth = new Map(); // місяць -> Set(номерів)
+        for (const r of data) {
+            String(r.plates || "")
+                .split(/[,;]\s*/)
+                .map((x) => x.trim().toUpperCase())
+                .filter(Boolean)
+                .forEach((pl) => {
+                    const a = plates.get(pl) || { months: new Set(), countries: new Map(), dirs: new Set() };
+                    a.months.add(r.month);
+                    a.dirs.add(r.direction);
+                    a.countries.set(r.country, (a.countries.get(r.country) || 0) + 1);
+                    plates.set(pl, a);
+                    (byMonth.get(r.month) || byMonth.set(r.month, new Set()).get(r.month)).add(pl);
+                });
+        }
+        if (!plates.size) return `<div class="ch-empty">Номерів тягачів у митних даних немає.</div>`;
+        const months = [...byMonth.keys()].sort().reverse();
+        const list = [...plates.entries()].sort((x, y) => y[1].months.size - x[1].months.size || x[0].localeCompare(y[0]));
+        return `<div class="cm-fleet-sum">
+                <div class="cm-fleet-total"><b>${plates.size}</b><span>тягачів усього</span></div>
+                ${months.map((m) => `<div class="cm-fleet-m"><b>${byMonth.get(m).size}</b><span>${monthName(m)}</span></div>`).join("")}
+            </div>
+            <input type="text" class="cm-fleet-q" placeholder="Знайти номер…" />
+            <div class="cm-fleet-list">${list
+                .map(
+                    ([pl, a]) => `<div class="cm-fleet-row" data-plate="${esc(pl)}">
+                        <code>${esc(pl)}</code>
+                        <span class="cm-sub">${[...a.months].sort().reverse().map(monthName).join(", ")}</span>
+                        <span class="cm-sub">${esc([...a.countries.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k]) => cName(k)).join(", "))}</span>
+                    </div>`,
+                )
+                .join("")}</div>`;
+    }
+    document.addEventListener("input", (e) => {
+        if (!e.target.matches(".cm-fleet-q")) return;
+        const t = e.target.value.trim().toUpperCase().replace(/[\s\-]/g, "");
+        e.target.nextElementSibling.querySelectorAll(".cm-fleet-row").forEach((r) => (r.hidden = t && !r.dataset.plate.includes(t)));
+    });
+
+    /* ---------- Розділи картки перевізника згортаються кліком по заголовку (стан пам'ятається) ---------- */
+    const COLL_KEY = "furaCardCollapsed";
+    const collSaved = () => {
+        try { return JSON.parse(localStorage.getItem(COLL_KEY) || "{}"); } catch (e) { return {}; }
+    };
+    const secKey = (title) => title.textContent.replace(/\s+/g, " ").trim().slice(0, 40);
+    function applyCollapsed(root) {
+        const saved = collSaved();
+        root.querySelectorAll(".card-section-title, .ch-title").forEach((t) => {
+            const sec = t.parentElement;
+            sec.classList.add("cm-coll");
+            sec.classList.toggle("cm-collapsed", !!saved[secKey(t)]);
+        });
+    }
+    document.addEventListener("click", (e) => {
+        const t = e.target.closest("#carrierCardBody .card-section-title, #carrierCardBody .ch-title");
+        if (!t) return;
+        const sec = t.parentElement;
+        sec.classList.add("cm-coll");
+        const now = sec.classList.toggle("cm-collapsed");
+        const saved = collSaved();
+        if (now) saved[secKey(t)] = 1;
+        else delete saved[secKey(t)];
+        try { localStorage.setItem(COLL_KEY, JSON.stringify(saved)); } catch (err) { /* без збереження */ }
+    });
+    // картка перемальовується повністю при кожному відкритті — застосовуємо збережений стан
+    function watchCard() {
+        const body = document.getElementById("carrierCardBody");
+        if (!body) return;
+        new MutationObserver(() => applyCollapsed(body)).observe(body, { childList: true });
     }
 
     window.furaCarrierRoutes = { renderCard, search };
 
     function init() {
         buildPanel();
+        watchCard();
         const p = new URLSearchParams(location.search);
         if (p.get("match") === "1") {
             document.getElementById("cmPanel").hidden = false;
