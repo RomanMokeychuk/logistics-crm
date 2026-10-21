@@ -101,3 +101,37 @@ body.cm-modal-open { overflow: hidden; }
 .cm-pg.cm-pg-on { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .cm-pg-gap { color: #94a3b8; padding: 0 4px; }
 .cm-hit { background: #fef08a; color: #0f172a; border-radius: 3px; padding: 0 2px; }
+
+/* кілька країн */
+.cm-ms { position: relative; }
+.cm-ms-btn { box-sizing: border-box; width: 100%; height: 38px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 30px 0 10px; font: inherit; font-size: 14px; font-weight: 600; color: #0f172a; background: #fff; text-align: left; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; position: relative; }
+.cm-ms-btn::after { content: "▾"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #64748b; }
+.cm-ms-btn.cm-ms-empty { color: #94a3b8; font-weight: 500; }
+.cm-ms-pop { position: absolute; z-index: 50; top: 42px; left: 0; width: max(100%, 280px); background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.15); padding: 8px; }
+.cm-ms-pop[hidden] { display: none; }
+.cm-ms-q { box-sizing: border-box; width: 100%; height: 34px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13.5px; margin-bottom: 6px; }
+.cm-ms-list { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; }
+.cm-ms-item { display: flex !important; flex-direction: row !important; align-items: center; gap: 8px !important; font-size: 13.5px !important; font-weight: 500 !important; color: #0f172a !important; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.cm-ms-item:hover { background: #f1f5f9; }
+.cm-ms-item[hidden] { display: none !important; }
+.cm-ms-item input { width: 16px; height: 16px; margin: 0; }
+.cm-ms-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 6px; padding-top: 6px; border-top: 1px solid #f1f5f9; }
+.cm-ms-foot .cm-more { margin-top: 0; }
+.cm-ms-done { height: 30px !important; padding: 0 14px; font-size: 13px; }
+/* посилання на Lardi / профіль */
+.cm-lardi { font-size: 11.5px; font-weight: 700; color: #15803d; background: #dcfce7; border-radius: 8px; padding: 1px 8px; text-decoration: none; white-space: nowrap; }
+.cm-lardi:hover { background: #bbf7d0; }
+
+/* компактніше по вертикалі (сторінка «Перевізники») */
+.main-content .top-bar { margin-bottom: 10px; }
+.main-content .filters-bar { margin-bottom: 10px; display: flex; gap: 10px; align-items: center; }
+.main-content .filters-bar .search-input { flex: 1; }
+.cm-open { flex-shrink: 0; }
+.cm-panel { padding: 10px 14px; margin-bottom: 10px; }
+.cm-head { margin-bottom: 6px; }
+.cm-results { margin-top: 8px; max-height: 68vh; }
+.cm-row { padding: 6px 4px; gap: 10px; }
+.cm-facts { margin-top: 2px; gap: 2px 12px; }
+.cm-more { margin-top: 3px; padding: 2px 9px; }
+.cm-count, .cm-topbar { margin-bottom: 4px; }
+.cm-pager { padding: 8px 0 2px; }

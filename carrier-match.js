@@ -90,6 +90,98 @@
         return `<option value="">${ph}</option>` + list.map((x) => `<option value="${esc(x)}"${x === sel ? " selected" : ""}>${esc(cap(x))}</option>`).join("");
     }
 
+    /* ---------- Кілька країн ---------- */
+    // у базі «ПОЛЬША» (так пише митниця) — показуємо по-українському, шукаємо за обома
+    const C_NAMES = { "ПОЛЬША": "Польща", "ВЕЛИКОБРИТАНІЯ": "Велика Британія", "ОБ ЄДНАНІ АРАБСЬКІ ЕМІРАТИ": "ОАЕ (Об'єднані Арабські Емірати)", "В ЄТНАМ": "В'єтнам" };
+    const cName = (x) => C_NAMES[x] || cap(x);
+    const getCountries = () => [...document.querySelectorAll("#cmCountryBox .cm-ms-list input:checked")].map((i) => i.value);
+    function setCountries(list) {
+        const want = new Set(list);
+        const box = document.querySelector("#cmCountryBox .cm-ms-list");
+        // країна, якої немає в списку (з посилання), — додаємо
+        list.filter((x) => x && ![...box.querySelectorAll("input")].some((i) => i.value === x)).forEach((x) =>
+            box.insertAdjacentHTML("afterbegin", `<label class="cm-ms-item" data-alt="${esc(x.toLowerCase())}"><input type="checkbox" value="${esc(x)}" /> ${esc(cName(x))}</label>`),
+        );
+        box.querySelectorAll("input").forEach((i) => (i.checked = want.has(i.value)));
+        countriesLabel();
+    }
+    function countriesLabel() {
+        const list = getCountries();
+        const b = document.getElementById("cmCountryBtn");
+        b.textContent = !list.length ? "Оберіть країни…" : list.length <= 3 ? list.map(cName).join(", ") : `${list.slice(0, 2).map(cName).join(", ")} +${list.length - 2}`;
+        b.classList.toggle("cm-ms-empty", !list.length);
+        // обрані — нагору списку
+        const box = document.querySelector("#cmCountryBox .cm-ms-list");
+        [...box.querySelectorAll("input:checked")].reverse().forEach((i) => box.prepend(i.closest("label")));
+    }
+    function wireCountries() {
+        const wrap = document.getElementById("cmCountryBox");
+        const pop = wrap.querySelector(".cm-ms-pop");
+        const q = wrap.querySelector(".cm-ms-q");
+        const close = () => {
+            pop.hidden = true;
+            countriesLabel();
+        };
+        document.getElementById("cmCountryBtn").addEventListener("click", () => {
+            pop.hidden = !pop.hidden;
+            if (!pop.hidden) {
+                q.value = "";
+                q.dispatchEvent(new Event("input"));
+                q.focus();
+            } else countriesLabel();
+        });
+        q.addEventListener("input", () => {
+            const t = q.value.trim().toLowerCase();
+            wrap.querySelectorAll(".cm-ms-item").forEach((l) => (l.hidden = t && !l.textContent.toLowerCase().includes(t) && !(l.dataset.alt || "").includes(t)));
+        });
+        q.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                const first = [...wrap.querySelectorAll(".cm-ms-item")].find((l) => !l.hidden);
+                if (first) first.querySelector("input").checked = true;
+                q.value = "";
+                q.dispatchEvent(new Event("input"));
+                countriesLabel();
+            }
+            if (e.key === "Escape") close();
+        });
+        wrap.addEventListener("click", (e) => {
+            const b = e.target.closest("[data-ms]");
+            if (!b) return;
+            if (b.dataset.ms === "clear") wrap.querySelectorAll(".cm-ms-list input").forEach((i) => (i.checked = false));
+            if (b.dataset.ms === "done") close();
+            countriesLabel();
+        });
+        wrap.querySelector(".cm-ms-list").addEventListener("change", () => {
+            const list = getCountries();
+            document.getElementById("cmCountryBtn").textContent = list.length ? `Обрано: ${list.length}` : "Оберіть країни…";
+        });
+        document.addEventListener("click", (e) => {
+            if (!pop.hidden && !wrap.contains(e.target)) close();
+        });
+    }
+
+    /* ---------- Стан підбору в адресі сторінки (оновлення сторінки його не скидає) ---------- */
+    const STATE_KEYS = ["match", "dir", "country", "region", "trailer", "border", "city", "page"];
+    function saveState(page) {
+        const p = new URLSearchParams(location.search);
+        STATE_KEYS.forEach((k) => p.delete(k));
+        const panel = document.getElementById("cmPanel");
+        if (panel && !panel.hidden) {
+            p.set("match", "1");
+            p.set("dir", document.getElementById("cmDir").value);
+            const val = (k, v) => v && p.set(k, v);
+            val("country", getCountries().join("|"));
+            val("region", document.getElementById("cmRegion").value);
+            val("trailer", document.getElementById("cmTrailer").value);
+            val("border", document.getElementById("cmBorder").value.trim());
+            val("city", document.getElementById("cmCity").value.trim());
+            if (page > 1) p.set("page", String(page));
+        }
+        const qs = p.toString();
+        history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+    }
+
     function buildPanel() {
         const bar = document.querySelector(".filters-bar");
         if (!bar || document.getElementById("cmPanel")) return;
@@ -114,8 +206,15 @@
                 <label>Напрямок
                     <select id="cmDir"><option value="Імпорт">Імпорт → в Україну</option><option value="Експорт">Експорт → з України</option><option value="">Будь-який</option></select>
                 </label>
-                <label><span>Країна <i>*</i></span>
-                    <select id="cmCountry" required>${opts(COUNTRIES, "", "Оберіть країну…")}</select>
+                <label><span>Країни <i>*</i></span>
+                    <div class="cm-ms" id="cmCountryBox">
+                        <button type="button" class="cm-ms-btn" id="cmCountryBtn">Оберіть країни…</button>
+                        <div class="cm-ms-pop" hidden>
+                            <input type="text" class="cm-ms-q" placeholder="Пошук країни…" />
+                            <div class="cm-ms-list">${COUNTRIES.map((x) => `<label class="cm-ms-item" data-alt="${esc(x.toLowerCase())}"><input type="checkbox" value="${esc(x)}" /> ${esc(cName(x))}</label>`).join("")}</div>
+                            <div class="cm-ms-foot"><button type="button" class="cm-more" data-ms="clear">Очистити</button><button type="button" class="btn btn-primary cm-ms-done" data-ms="done">Готово</button></div>
+                        </div>
+                    </div>
                 </label>
                 <label>Область України
                     <select id="cmRegion">${opts(OBLASTS, "", "Будь-яка")}</select>
@@ -136,9 +235,15 @@
 
         btn.addEventListener("click", () => {
             panel.hidden = !panel.hidden;
-            if (!panel.hidden) document.getElementById("cmCountry").focus();
+            if (!panel.hidden && !getCountries().length) document.getElementById("cmCountryBtn").click();
+            saveState();
         });
-        panel.querySelector(".cm-close").addEventListener("click", () => (panel.hidden = true));
+        panel.querySelector(".cm-close").addEventListener("click", () => {
+            panel.hidden = true;
+            saveState();
+        });
+        wireCountries();
+        document.getElementById("cmForm").addEventListener("change", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
             search();
@@ -160,13 +265,19 @@
 
     async function search() {
         const dir = document.getElementById("cmDir").value;
-        const country = document.getElementById("cmCountry").value;
+        const countries = getCountries();
         const region = document.getElementById("cmRegion").value;
         const trailer = document.getElementById("cmTrailer").value;
         const border = document.getElementById("cmBorder").value.trim();
         const city = document.getElementById("cmCity").value.trim().replace(/[,()%*"\\]/g, " ").replace(/\s+/g, " ");
         const out = document.getElementById("cmResults");
-        if (!country) return;
+        if (!countries.length) {
+            out.innerHTML = `<div class="cm-empty">Оберіть хоча б одну країну.</div>`;
+            return;
+        }
+        const startPage = search.restorePage || 1;
+        search.restorePage = 0;
+        saveState(startPage);
         out.innerHTML = `<div class="cm-empty">Шукаю…</div>`;
 
         // Supabase віддає максимум 1000 рядків за запит — тягнемо всі сторінки
@@ -175,7 +286,7 @@
             const PAGE = 1000;
             const rows = [];
             for (let from = 0; from < 50000; from += PAGE) {
-                let q = client.from("carrier_routes").select(cols).eq("country", country);
+                let q = client.from("carrier_routes").select(cols).in("country", countries);
                 if (dir) q = q.eq("direction", dir);
                 if (region) q = q.eq("ua_region", region);
                 if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
@@ -208,6 +319,7 @@
             a.records += r.records || 0;
             a.months.add(r.month);
             a.dirs.add(r.direction);
+            (a.countries || (a.countries = new Map())).set(r.country, (a.countries.get(r.country) || 0) + (r.records || 0));
             if (r.ua_region) a.regions.set(r.ua_region, (a.regions.get(r.ua_region) || 0) + (r.records || 0));
             if (r.border) a.borders.set(r.border, (a.borders.get(r.border) || 0) + (r.records || 0));
             String(r.trailer_types || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((x) => a.trailers.add(x));
@@ -248,11 +360,13 @@
                                 ${a.active ? `<span class="cm-tag cm-active">активний</span>` : ""}
                                 ${a.ds.count ? `<span class="cm-tag cm-ours">з нами: ${a.ds.count} рейс.${a.ds.last ? ` · ${fmtDate(a.ds.last)}` : ""}</span>` : ""}
                                 ${c?.rating ? `<span class="cm-stars">${"★".repeat(c.rating)}</span>` : ""}
+                                ${c?.profile_url ? `<a class="cm-lardi" href="${esc(c.profile_url)}" target="_blank" rel="noopener" title="${esc(c.profile_url)}">✓ ${/lardi/i.test(c.profile_url) ? "Lardi" : "Профіль"} ↗</a>` : ""}
                             </div>
                             <div class="cm-facts">
                                 <span>🚛 <b>${a.trucks}</b> маш.</span>
                                 <span>📄 ${a.records} відпр.</span>
                                 <span>📅 ${[...a.months].sort().map(monthName).join(", ")}</span>
+                                ${countries.length > 1 ? `<span>🌍 ${esc([...a.countries.entries()].sort((x, y) => y[1] - x[1]).map(([k]) => cName(k)).join(", "))}</span>` : ""}
                                 ${[...a.dirs].length > 1 || !document.getElementById("cmDir").value ? `<span>${[...a.dirs].join(" + ")}</span>` : ""}
                                 ${regions.length ? `<span>📍 ${esc(regions.join(", "))}</span>` : ""}
                                 ${borderTop ? `<span>🛂 ${esc(borderTop)}</span>` : ""}
@@ -263,7 +377,7 @@
                                 ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
                             </div>
-                            <button type="button" class="cm-more" data-cm-details="${esc(a.code)}" data-cm-name="${esc(c ? c.name || c.company || "" : "")}" data-cm-id="${esc(c?.id || "")}" data-cm-phone="${esc(phone)}" data-cm-person="${esc(c?.contact_person_1 || "")}">🔎 Деталі: усі напрямки, міста, номери</button>
+                            <button type="button" class="cm-more" data-cm-details="${esc(a.code)}" data-cm-name="${esc(c ? c.name || c.company || "" : "")}" data-cm-id="${esc(c?.id || "")}" data-cm-phone="${esc(phone)}" data-cm-person="${esc(c?.contact_person_1 || "")}" data-cm-url="${esc(c?.profile_url || "")}">🔎 Деталі: усі напрямки, міста, номери</button>
                         </div>
                         <div class="cm-contact">
                             ${c?.contact_person_1 ? `<div class="cm-person">${esc(c.contact_person_1)}</div>` : ""}
@@ -309,6 +423,7 @@
                 pageNums(cur).map((p) => (p === "…" ? `<span class="cm-pg-gap">…</span>` : `<button type="button" class="cm-pg${p === cur ? " cm-pg-on" : ""}" data-cm-pg="${p}">${p}</button>`)).join("") +
                 `<button type="button" class="cm-pg" data-cm-pg="${cur + 1}" ${cur === pages ? "disabled" : ""} title="Наступна">›</button>`;
             if (scroll) out.scrollTop = 0;
+            saveState(cur);
         };
         pager.addEventListener("click", (e) => {
             const b = e.target.closest("[data-cm-pg]");
@@ -321,7 +436,7 @@
             showPage(1, true);
         });
         list.sort(SORTS[sortKey].fn);
-        showPage(1, false);
+        showPage(startPage, false);
     }
 
     /* ---------- Деталі перевізника (усі напрямки з містами) ---------- */
@@ -336,6 +451,7 @@
     }
 
     function routesHtml(data, focusCountry) {
+        const focus = new Set([].concat(focusCountry || []));
         const by = new Map();
         for (const r of data) {
             const k = r.direction + "|" + r.country;
@@ -353,14 +469,14 @@
             String(r.goods || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((x) => a.goods.add(x));
             by.set(k, a);
         }
-        const rows = [...by.values()].sort((x, y) => (y.country === focusCountry) - (x.country === focusCountry) || y.records - x.records);
+        const rows = [...by.values()].sort((x, y) => focus.has(y.country) - focus.has(x.country) || y.records - x.records);
         return `<div class="cm-dtools"><span class="cm-sub">Напрямків: ${rows.length} · натисніть на напрямок, щоб розгорнути</span>
                 <button type="button" class="cm-more" data-cm-all="1">Розгорнути всі</button><button type="button" class="cm-more" data-cm-all="0">Згорнути всі</button></div>
             <div class="cm-dcards">${rows
             .map(
-                (a) => `<details class="cm-dcard${a.country === focusCountry ? " cm-focus" : ""}">
+                (a) => `<details class="cm-dcard${focus.has(a.country) ? " cm-focus" : ""}">
                     <summary class="cm-dhead"><span class="cm-dir ${a.dir === "Імпорт" ? "imp" : "exp"}">${a.dir === "Імпорт" ? "→ UA" : "UA →"}</span>
-                        <b>${esc(cap(a.country))}</b>
+                        <b>${esc(cName(a.country))}</b>
                         <span class="cm-sub">${a.plates.size || a.trucks} маш. · ${a.records} відпр. · ${[...a.months].sort().map(monthName).join(", ")}</span></summary>
                     <dl>
                         <dt>🏁 ${a.dir === "Імпорт" ? "Звідки" : "Куди"}</dt><dd>${a.cities.size ? esc(topCounts(a.cities, 12)) : `<span class="cm-sub">у деклараціях не вказане</span>`}</dd>
@@ -421,6 +537,7 @@
             <div class="cm-modal-name">${esc(d.cmName || "Немає в реєстрі")} <code>${esc(d.cmDetails)}</code></div>
             <div class="cm-modal-sub">
                 ${d.cmPerson ? `<span>${esc(d.cmPerson)}</span>` : ""}
+                ${d.cmUrl ? `<a class="cm-lardi" href="${esc(d.cmUrl)}" target="_blank" rel="noopener">✓ ${/lardi/i.test(d.cmUrl) ? "Lardi" : "Профіль"} ↗</a>` : ""}
                 ${digits ? `<a href="tel:+${digits}">${esc(d.cmPhone)}</a> <a class="viber-link" href="viber://chat?number=%2B${digits}" title="Viber"><i class="bx bxs-message-rounded-dots"></i></a>` : `<span class="cm-sub">телефону немає</span>`}
                 ${d.cmId && typeof openCarrierCard === "function" ? `<button type="button" class="cm-more" data-cm-card="${esc(d.cmId)}">Картка перевізника →</button>` : ""}
             </div>`;
@@ -434,7 +551,7 @@
             body.innerHTML = `<div class="cm-empty">Помилка: ${esc(error.message)}</div>`;
             return;
         }
-        body.innerHTML = (data || []).length ? routesHtml(data, document.getElementById("cmCountry").value) : `<div class="cm-empty">Немає даних.</div>`;
+        body.innerHTML = (data || []).length ? routesHtml(data, getCountries()) : `<div class="cm-empty">Немає даних.</div>`;
     }
 
     /* ---------- Блок у картці перевізника ---------- */
@@ -480,7 +597,8 @@
                 el.value = v;
             };
             set("cmDir", p.get("dir") ?? "Імпорт");
-            set("cmCountry", (p.get("country") || "").toUpperCase());
+            setCountries((p.get("country") || "").toUpperCase().split("|").filter(Boolean));
+            set("cmBorder", p.get("border") || "");
             set("cmRegion", (p.get("region") || "").toUpperCase());
             set("cmTrailer", (p.get("trailer") || "").toUpperCase());
             set("cmCity", p.get("city") || "");
@@ -489,7 +607,8 @@
             const t = setInterval(() => {
                 if ((typeof allCarriersCache !== "undefined" && allCarriersCache.length) || ++tries > 40) {
                     clearInterval(t);
-                    if (document.getElementById("cmCountry").value) search();
+                    search.restorePage = Number(p.get("page")) || 1;
+                    if (getCountries().length) search();
                 }
             }, 250);
         }
