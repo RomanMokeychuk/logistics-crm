@@ -200,7 +200,103 @@
         bordersMS.set(list.map((x) => BORDERS.find((b) => b === x) || BORDERS.find((b) => b.toLowerCase().includes(x.toLowerCase())) || x));
     }
 
+    // тип причепу з картки перевізника (якщо заповнений — він важливіший за митні дані)
+    const cardTrailers = (c) =>
+        String(c?.trailer_type || "")
+            .split(/[;,]/)
+            .map((x) => x.trim().toUpperCase())
+            .filter(Boolean);
+    // «Не підходить»: приховано вручну (з причиною і, можливо, до дати)
+    const today = () => new Date().toISOString().slice(0, 10);
+    const isHidden = (c) => !!(c && c.match_hidden_reason && (!c.match_hidden_until || String(c.match_hidden_until).slice(0, 10) >= today()));
+    // Відгук після дзвінка: результат одним кліком + коментар; негативні — одразу пропонує сховати з підбору
+    const OUTCOMES = [
+        { v: "Є машина", ico: "✅" },
+        { v: "Немає вільних машин", ico: "⏳" },
+        { v: "Немає такого причепу", ico: "🚫", hide: true },
+        { v: "Зараз не працює", ico: "🛑", hide: true },
+        { v: "Передзвонити", ico: "🔁" },
+        { v: "Не відповів", ico: "📵" },
+        { v: "Дорого", ico: "💰" },
+    ];
+    const outcomeIco = (v) => (OUTCOMES.find((o) => o.v === v) || { ico: "📞" }).ico;
+    function hideFormHtml(id) {
+        return `<div class="cm-hide-form" data-id="${esc(id)}">
+            <div class="cm-sub">Що відповів перевізник:</div>
+            <div class="cm-fb-outcomes">${OUTCOMES.map((o) => `<button type="button" class="cm-fb-o" data-v="${esc(o.v)}" data-hide="${o.hide ? 1 : ""}">${o.ico} ${esc(o.v)}</button>`).join("")}</div>
+            <input type="text" class="cm-hide-other cm-fb-comment" placeholder="Коментар (необов'язково): напр. «рефи будуть у грудні», «ставка 1800 €»" />
+            <div class="cm-hide-period"><label><input type="checkbox" class="cm-fb-hide" /> Сховати з підбору</label>
+                <select class="cm-hide-until"><option value="30">на місяць</option><option value="90">на 3 місяці</option><option value="">назавжди</option></select>
+                <button type="button" class="btn btn-primary cm-hide-save" disabled>Зберегти відгук</button><button type="button" class="cm-more cm-hide-cancel">Скасувати</button></div>
+        </div>`;
+    }
+    let meCache = null;
+    async function me() {
+        if (meCache) return meCache;
+        try {
+            const { data: { session } } = await client.auth.getSession();
+            const email = (session?.user?.email || "").toLowerCase();
+            const { data } = await client.from("staff").select("full_name").ilike("email", email).limit(1);
+            meCache = { email, name: data?.[0]?.full_name || email.split("@")[0] };
+        } catch (e) {
+            meCache = { email: "", name: "" };
+        }
+        return meCache;
+    }
+    async function addFeedback(id, outcome, comment) {
+        const c = (typeof allCarriersCache !== "undefined" ? allCarriersCache : []).find((x) => String(x.id) === String(id));
+        const u = await me();
+        const { error } = await client.from("carrier_feedback").insert({
+            carrier_id: String(id), edrpou: c?.edrpou || null, outcome, comment: comment || null, author_email: u.email || null, author_name: u.name || null,
+        });
+        if (error) {
+            alert(/carrier_feedback/.test(error.message || "")
+                ? "У базі ще немає таблиці відгуків. Supabase → SQL Editor → виконайте carriers_feedback.sql і спробуйте ще раз."
+                : "Не вдалося зберегти відгук: " + error.message);
+            return false;
+        }
+        return true;
+    }
+    // останні відгуки для перевізників на сторінці
+    async function fillFeedback(root) {
+        const boxes = [...root.querySelectorAll("[data-fb-id]")];
+        const ids = [...new Set(boxes.map((b) => b.dataset.fbId).filter(Boolean))];
+        if (!ids.length) return;
+        const { data, error } = await client.from("carrier_feedback").select("carrier_id, outcome, comment, author_name, created_at").in("carrier_id", ids).order("created_at", { ascending: false }).limit(1000);
+        if (error || !data) return;
+        const by = new Map();
+        data.forEach((f) => (by.get(f.carrier_id) || by.set(f.carrier_id, []).get(f.carrier_id)).push(f));
+        boxes.forEach((b) => {
+            const list = by.get(b.dataset.fbId);
+            if (!list) return;
+            const f = list[0];
+            b.innerHTML = `<span class="cm-fb-last" title="${esc(list.map((x) => `${fmtDate(x.created_at)} ${x.outcome}${x.comment ? " — " + x.comment : ""}${x.author_name ? " (" + x.author_name + ")" : ""}`).join("\n"))}">📞 ${fmtDate(f.created_at)} · ${outcomeIco(f.outcome)} <b>${esc(f.outcome)}</b>${f.comment ? ` — ${esc(f.comment)}` : ""}${f.author_name ? ` <span class="cm-sub">(${esc(f.author_name)})</span>` : ""}${list.length > 1 ? ` <span class="cm-sub">· ще ${list.length - 1}</span>` : ""}</span>`;
+        });
+    }
+    function feedbackListHtml(list) {
+        if (!list.length) return `<div class="ch-empty">Ще ніхто не залишав відгуків після дзвінків.</div>`;
+        return `<div class="cm-fb-list">${list
+            .map((f) => `<div class="cm-fb-item"><span class="cm-sub">${fmtDate(f.created_at)}</span> ${outcomeIco(f.outcome)} <b>${esc(f.outcome)}</b>${f.comment ? ` — ${esc(f.comment)}` : ""}${f.author_name ? ` <span class="cm-sub">· ${esc(f.author_name)}</span>` : ""}</div>`)
+            .join("")}</div>`;
+    }
+    async function setHidden(id, reason, until) {
+        const c = (typeof allCarriersCache !== "undefined" ? allCarriersCache : []).find((x) => String(x.id) === String(id));
+        const patch = reason
+            ? { match_hidden_reason: reason, match_hidden_until: until || null, match_hidden_at: new Date().toISOString() }
+            : { match_hidden_reason: null, match_hidden_until: null, match_hidden_at: null };
+        const { data, error } = await client.from("carriers").update(patch).eq("id", id).select("id");
+        if (error || !data || !data.length) {
+            alert(error && /match_hidden/.test(error.message || "")
+                ? "У базі ще немає полів для «Не підходить». Supabase → SQL Editor → виконайте carriers_match_hidden.sql і спробуйте ще раз."
+                : "Не вдалося зберегти: " + (error?.message || "немає прав змінювати цього перевізника"));
+            return false;
+        }
+        if (c) Object.assign(c, patch);
+        return true;
+    }
+
     // перевізник, з яким працювали останнім (картка/редагування) — у адресі ?last=<id>
+    const currentPage = () => Number(new URLSearchParams(location.search).get("page")) || 1;
     const lastId = () => new URLSearchParams(location.search).get("last") || "";
 
     /* ---------- Стан підбору в адресі сторінки (оновлення сторінки його не скидає) ---------- */
@@ -284,9 +380,61 @@
         document.getElementById("cmForm").addEventListener("change", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
+            search.showHidden = false;
             search();
         });
-        document.getElementById("cmResults").addEventListener("click", (e) => {
+        document.getElementById("cmResults").addEventListener("click", async (e) => {
+            const tgl = e.target.closest("[data-cm-hidden-toggle]");
+            if (tgl) {
+                search.showHidden = !search.showHidden;
+                search();
+                return;
+            }
+            const hideBtn = e.target.closest("[data-cm-hide]");
+            if (hideBtn) {
+                const box = hideBtn.closest(".cm-main").querySelector(".cm-hide-box");
+                box.hidden = !box.hidden;
+                if (!box.hidden) box.innerHTML = hideFormHtml(hideBtn.dataset.cmHide);
+                return;
+            }
+            const ob = e.target.closest(".cm-fb-o");
+            if (ob) {
+                const f = ob.closest(".cm-hide-form");
+                f.querySelectorAll(".cm-fb-o").forEach((x) => x.classList.toggle("on", x === ob));
+                f.querySelector(".cm-fb-hide").checked = !!ob.dataset.hide;
+                f.querySelector(".cm-hide-save").disabled = false;
+                return;
+            }
+            if (e.target.closest(".cm-hide-cancel")) {
+                e.target.closest(".cm-hide-box").hidden = true;
+                return;
+            }
+            const save = e.target.closest(".cm-hide-save");
+            if (save) {
+                const f = save.closest(".cm-hide-form");
+                const outcome = f.querySelector(".cm-fb-o.on")?.dataset.v;
+                if (!outcome) return;
+                const comment = f.querySelector(".cm-fb-comment").value.trim();
+                const days = f.querySelector(".cm-hide-until").value;
+                const until = days ? new Date(Date.now() + Number(days) * 864e5).toISOString().slice(0, 10) : null;
+                save.disabled = true;
+                let ok = await addFeedback(f.dataset.id, outcome, comment);
+                if (ok && f.querySelector(".cm-fb-hide").checked) ok = await setHidden(f.dataset.id, outcome + (comment ? " — " + comment : ""), until);
+                if (ok) {
+                    search.restorePage = currentPage();
+                    search();
+                } else save.disabled = false;
+                return;
+            }
+            const unhide = e.target.closest("[data-cm-unhide]");
+            if (unhide) {
+                unhide.disabled = true;
+                if (await setHidden(unhide.dataset.cmUnhide, null, null)) {
+                    search.restorePage = currentPage();
+                    search();
+                } else unhide.disabled = false;
+                return;
+            }
             const more = e.target.closest("[data-cm-details]");
             if (more) {
                 e.preventDefault();
@@ -328,7 +476,7 @@
                 if (dir) q = q.eq("direction", dir);
                 if (regions.length) q = q.in("ua_region", regions);
                 // причіп, кордон і місто — кожне «будь-що з …»; кілька разом — одним фільтром and(…)
-                const orT = trailers.map((t) => `trailer_types.ilike."*${t}*"`).join(",");
+                const orT = ""; // причіп фільтруємо після запиту: тип із картки перевізника важливіший за митні дані
                 const orB = borders.length ? borders.map((b) => `border.ilike."*${borderKey(b)}*"` + (withCities ? `,borders.ilike."*${borderKey(b)}*"` : "")).join(",") : "";
                 const orC = city && withCities ? `cities.ilike."*${city}*",ua_cities.ilike."*${city}*"` : "";
                 const ors = [orT, orB, orC].filter(Boolean);
@@ -380,9 +528,21 @@
                 if (c && /^\s*$/.test(c.phone_1 || "") && /^\s*$/.test(c.phone_2 || "")) score *= 0.8; // немає телефону
                 return { ...a, c, ds, active, score };
             })
-            .sort((x, y) => y.score - x.score);
+            .sort((x, y) => y.score - x.score)
+            .filter((a) => {
+                if (!trailers.length) return true;
+                const own = cardTrailers(a.c);
+                const have = own.length ? own : [...a.trailers];
+                return trailers.some((t) => have.some((x) => x.includes(t)));
+            });
+        // «Не підходить» (приховані вручну) — окремо
+        const hiddenList = list.filter((a) => isHidden(a.c));
+        const visibleList = list.filter((a) => !isHidden(a.c));
+        if (search.showHidden && !hiddenList.length) search.showHidden = false; // прихованих більше немає — назад до підбору
+        list.length = 0;
+        list.push(...(search.showHidden ? hiddenList : visibleList));
 
-        if (!list.length) {
+        if (!list.length && !hiddenList.length) {
             out.innerHTML = `<div class="cm-empty">За цими умовами в митних даних нікого немає. Приберіть область, причіп, кордон або місто${city ? " (місто може бути записане інакше — спробуйте латиницею/кирилицею або частину назви, напр. «Bucur»)" : ""}.</div>`;
             return;
         }
@@ -416,10 +576,17 @@
                             ${a.cities.size ? `<div class="cm-facts cm-cities"><span>🏁 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Звідки (місто)" : "Куди (місто)") : "Міста"}: <b>${cityList(a.cities, 6, city)}</b></span></div>` : `<div class="cm-facts cm-light"><span>🏁 Місто ${[...a.dirs][0] === "Імпорт" ? "відправлення" : "призначення"} в деклараціях не вказане</span></div>`}
                             ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Куди в Україні" : "Звідки в Україні") : "В Україні"}: ${cityList(a.uaCities, 5, city)}</span></div>` : ""}
                             <div class="cm-facts cm-light">
-                                ${[...a.trailers].slice(0, 4).map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join("")}
+                                ${(cardTrailers(c).length ? cardTrailers(c) : [...a.trailers]).slice(0, 4).map((t) => `<span class="cm-trailer"${cardTrailers(c).length ? ' title="з картки перевізника"' : ' title="за митними даними (за товаром)"'}>${esc(t)}</span>`).join("")}
                                 ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
                             </div>
+                            ${c?.notes ? `<div class="cm-facts cm-note" title="${esc(c.notes)}">📝 ${esc(String(c.notes).replace(/\s+/g, " ").slice(0, 160))}${String(c.notes).length > 160 ? "…" : ""}</div>` : ""}
+                            ${c ? `<div class="cm-facts cm-fb" data-fb-id="${esc(c.id)}"></div>` : ""}
+                            ${isHidden(c) ? `<div class="cm-facts"><span class="cm-hidden-tag">🚫 ${esc(c.match_hidden_reason)}${c.match_hidden_until ? ` · до ${fmtDate(c.match_hidden_until)}` : " · назавжди"}</span></div>` : ""}
+                            <div class="cm-row-actions">
                             <button type="button" class="cm-more" data-cm-details="${esc(a.code)}" data-cm-name="${esc(c ? c.name || c.company || "" : "")}" data-cm-id="${esc(c?.id || "")}" data-cm-phone="${esc(phone)}" data-cm-person="${esc(c?.contact_person_1 || "")}" data-cm-url="${esc(c?.profile_url || "")}">🔎 Деталі: усі напрямки, міста, номери</button>
+                            ${c ? (isHidden(c) ? `<button type="button" class="cm-more cm-hide" data-cm-hide="${esc(c.id)}">📞 Відгук</button><button type="button" class="cm-more cm-unhide" data-cm-unhide="${esc(c.id)}">↩ Повернути в підбір</button>` : `<button type="button" class="cm-more cm-hide" data-cm-hide="${esc(c.id)}">📞 Відгук після дзвінка</button>`) : ""}
+                            </div>
+                            <div class="cm-hide-box" hidden></div>
                         </div>
                         <div class="cm-contact">
                             ${c?.contact_person_1 ? `<div class="cm-person">${esc(c.contact_person_1)}</div>` : ""}
@@ -434,8 +601,9 @@
         };
         let sortKey = (() => { try { return localStorage.getItem("cmSort") || "best"; } catch (e) { return "best"; } })();
         if (!SORTS[sortKey]) sortKey = "best";
-        const pages = Math.ceil(list.length / PAGE);
+        const pages = Math.max(1, Math.ceil(list.length / PAGE));
         out.innerHTML = `<div class="cm-topbar"><div class="cm-count"></div>
+                ${hiddenList.length || search.showHidden ? `<button type="button" class="cm-more cm-hidden-toggle" data-cm-hidden-toggle="1">${search.showHidden ? `← До підбору (${visibleList.length})` : `🚫 Приховані: ${hiddenList.length}`}</button>` : ""}
                 <label class="cm-sort">Сортувати: <select>${Object.entries(SORTS).map(([k, v]) => `<option value="${k}"${k === sortKey ? " selected" : ""}>${v.label}</option>`).join("")}</select></label></div>
             <div class="cm-list-rows"></div><div class="cm-pager"></div>`;
         const rowsBox = out.querySelector(".cm-list-rows");
@@ -455,7 +623,7 @@
             const cur = Math.min(Math.max(1, n), pages);
             const from = (cur - 1) * PAGE;
             rowsBox.innerHTML = list.slice(from, from + PAGE).map((a, k) => rowHtml(a, from + k)).join("");
-            out.querySelector(".cm-count").textContent =
+            out.querySelector(".cm-count").textContent = (search.showHidden ? "Приховані вручну («Не підходить»): " : "") +
                 `Знайдено ${list.length} перевізників${pages > 1 ? ` · ${from + 1}–${Math.min(from + PAGE, list.length)}` : ""}. ` +
                 (city ? `Місто: «${city}». ` : "") +
                 (sortKey === "best" ? "Спершу — хто частіше їздив, працював з нами і має телефон." : `Сортування: ${SORTS[sortKey].label.toLowerCase()}.`);
@@ -466,6 +634,7 @@
                 `<button type="button" class="cm-pg" data-cm-pg="${cur + 1}" ${cur === pages ? "disabled" : ""} title="Наступна">›</button>`;
             if (scroll) out.scrollTop = 0;
             saveState(cur);
+            fillFeedback(rowsBox);
         };
         pager.addEventListener("click", (e) => {
             const b = e.target.closest("[data-cm-pg]");
@@ -610,10 +779,15 @@
     let seq = 0;
     async function renderCard(item) {
         const body = document.getElementById("carrierCardBody");
-        if (!body || !item?.edrpou) return;
+        if (!body || !item) return;
         const my = ++seq;
         body.querySelector("#carrierRoutesBox")?.remove();
         body.querySelector("#carrierFleetBox")?.remove();
+        body.querySelector("#carrierFeedbackBox")?.remove();
+        const fbBox = document.createElement("div");
+        fbBox.id = "carrierFeedbackBox";
+        fbBox.className = "ch cm-card";
+        fbBox.innerHTML = `<div class="ch-title">📞 Відгуки після дзвінків</div><div class="ch-body"><div class="ch-empty">Завантаження…</div></div>`;
         const fleet = document.createElement("div");
         fleet.id = "carrierFleetBox";
         fleet.className = "ch cm-card";
@@ -624,14 +798,28 @@
         box.innerHTML = `<div class="ch-title">🧭 Напрямки за митними даними</div><div class="ch-body"><div class="ch-empty">Завантаження…</div></div>`;
         const hist = body.querySelector("#carrierHistory");
         if (hist) {
+            hist.insertAdjacentElement("beforebegin", fbBox);
             hist.insertAdjacentElement("beforebegin", fleet);
             hist.insertAdjacentElement("beforebegin", box);
         } else {
+            body.appendChild(fbBox);
             body.appendChild(fleet);
             body.appendChild(box);
         }
         applyCollapsed(body);
 
+        if (item.id != null) {
+            client.from("carrier_feedback").select("outcome, comment, author_name, created_at").eq("carrier_id", String(item.id)).order("created_at", { ascending: false }).limit(100)
+                .then(({ data: fb, error: fe }) => {
+                    if (my !== seq) return;
+                    fbBox.querySelector(".ch-body").innerHTML = fe ? `<div class="ch-empty">Відгуки ще не підключені (carriers_feedback.sql).</div>` : feedbackListHtml(fb || []);
+                });
+        }
+        if (!item.edrpou) {
+            box.querySelector(".ch-body").innerHTML = `<div class="ch-empty">Немає ЄДРПОУ — митних даних не знайти.</div>`;
+            fleet.querySelector(".ch-body").innerHTML = `<div class="ch-empty">—</div>`;
+            return;
+        }
         const { data, error } = await loadRoutes(item.edrpou);
         if (my !== seq) return;
         const out = box.querySelector(".ch-body");

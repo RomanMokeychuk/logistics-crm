@@ -155,3 +155,34 @@ body.cm-modal-open { overflow: hidden; }
 .cm-fleet-row[hidden] { display: none; }
 .cm-fleet-row code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 600; color: #0f172a; }
 .cm-row-last { background: #fffbeb; box-shadow: inset 3px 0 0 #f59e0b; border-radius: 6px; }
+
+/* «Не підходить» */
+.cm-row-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-hide { color: #1d4ed8 !important; }
+.cm-unhide { color: #15803d !important; }
+.cm-hidden-tag { background: #fee2e2; color: #b91c1c; font-weight: 700; font-size: 11.5px; padding: 1px 8px; border-radius: 8px; }
+.cm-hidden-toggle { margin-top: 0 !important; }
+.cm-note { color: #92400e; font-size: 12.5px; }
+.cm-hide-box { margin-top: 6px; }
+.cm-hide-box[hidden] { display: none; }
+.cm-hide-form { border: 1px solid #fecaca; background: #fff7f7; border-radius: 8px; padding: 8px 10px; font-size: 13px; display: flex; flex-direction: column; gap: 6px; }
+.cm-hide-reasons { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.cm-hide-reasons label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.cm-hide-other { height: 26px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12.5px; }
+.cm-hide-period { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cm-hide-period select { height: 28px; border: 1px solid #e2e8f0; border-radius: 6px; font: inherit; font-size: 13px; }
+.cm-hide-save { height: 28px !important; padding: 0 12px; font-size: 13px; }
+.cm-hide-period .cm-more { margin-top: 0; }
+
+/* відгук після дзвінка */
+.cm-fb-outcomes { display: flex; flex-wrap: wrap; gap: 6px; }
+.cm-fb-o { border: 1px solid #e2e8f0; background: #fff; border-radius: 16px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.cm-fb-o:hover { border-color: #93c5fd; }
+.cm-fb-o.on { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.cm-fb-comment { width: 100%; box-sizing: border-box; height: 30px !important; }
+.cm-hide-period label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.cm-hide-save:disabled { opacity: .5; }
+.cm-fb:empty { display: none; }
+.cm-fb-last { font-size: 12.5px; background: #eef2ff; color: #1e293b; border-radius: 8px; padding: 1px 8px; }
+.cm-fb-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.cm-fb-item { padding: 3px 0; border-bottom: 1px dashed #eef1f5; }
