@@ -116,10 +116,31 @@ if (modalOverlay) {
 // ПРИВ'ЯЗКА ФІЛЬТРІВ І ПОШУКУ
 // Пошук фільтрує вже завантажений список (без нового запиту до бази)
 // і чекає 250 мс після останньої літери, щоб не перемальовувати на кожну.
+// Номер тягача → перевізник (з митних даних carrier_routes.plates)
+let plateHits = { q: "", codes: new Set() };
+const PLATE_CYR2LAT = { А: "A", В: "B", С: "C", Е: "E", Н: "H", І: "I", К: "K", М: "M", О: "O", Р: "P", Т: "T", Х: "X" };
+async function lookupPlate(q) {
+    const up = String(q || "").toUpperCase().replace(/[\s\-]/g, "");
+    if (up.length < 4 || !/\d/.test(up) || !/[A-ZА-ЯІЇЄ]/.test(up) || !/^[A-ZА-ЯІЇЄ0-9]+$/.test(up)) {
+        plateHits = { q: "", codes: new Set() };
+        return;
+    }
+    const lat = up.replace(/[АВСЕНІКМОРТХ]/g, (ch) => PLATE_CYR2LAT[ch] || ch);
+    try {
+        const { data } = await sbClient.from("carrier_routes").select("edrpou").ilike("plates", `%${lat}%`).limit(300);
+        plateHits = { q, codes: new Set((data || []).map((r) => String(r.edrpou || "").replace(/\D/g, "").replace(/^0+/, ""))) };
+    } catch (e) {
+        plateHits = { q: "", codes: new Set() };
+    }
+}
+const plateMatch = (item, q) =>
+    plateHits.q === q && plateHits.codes.size > 0 && plateHits.codes.has(String(item.edrpou || "").replace(/\D/g, "").replace(/^0+/, ""));
+
 if (searchInput) {
     searchInput.addEventListener("input", () => {
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
+        searchTimer = setTimeout(async () => {
+            await lookupPlate(searchInput.value.trim());
             currentPage = 1;
             renderCarriers();
         }, 250);
@@ -668,7 +689,7 @@ function renderCarriers() {
 
         // Пошук за загальним рядком
         if (searchQuery) {
-            if (!(item._search || "").includes(searchQuery.toLowerCase()))
+            if (!(item._search || "").includes(searchQuery.toLowerCase()) && !plateMatch(item, searchQuery))
                 return false;
         }
 

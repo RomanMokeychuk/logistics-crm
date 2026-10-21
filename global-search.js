@@ -40,6 +40,27 @@
         return [...new Set([gap(lat), gap(cyr)])];
     }
 
+    // Перевізник за номером тягача — з митних даних (carrier_routes.plates)
+    async function carriersByPlate(plates, cols) {
+        if (!plates.length) return [];
+        const { data: rt } = await client
+            .from("carrier_routes")
+            .select("edrpou, plates")
+            .or(plates.map((p) => like("plates", p)).join(","))
+            .limit(40);
+        if (!rt || !rt.length) return [];
+        const re = new RegExp(plates[0].replace(/%/g, "\\s*"), "i");
+        const plateOf = new Map();
+        rt.forEach((r) => {
+            const k = String(r.edrpou || "").replace(/\D/g, "").replace(/^0+/, "");
+            const hit = String(r.plates || "").split(/[,;]\s*/).find((x) => re.test(x));
+            if (k && !plateOf.has(k)) plateOf.set(k, hit || "");
+        });
+        const codes = [...plateOf.keys()].flatMap((k) => [k, k.padStart(8, "0")]);
+        const { data } = await client.from("carriers").select(cols).in("edrpou", [...new Set(codes)]).limit(10);
+        return (data || []).map((c) => ({ c, plate: plateOf.get(String(c.edrpou || "").replace(/\D/g, "").replace(/^0+/, "")) }));
+    }
+
     /* ---------------- Пошук по всіх розділах ---------------- */
 
     const SECTIONS = [
@@ -90,16 +111,20 @@
             async run(q, plates, digits) {
                 const conds = [like("name", q), like("edrpou", q), like("contact_person_1", q)];
                 if (digits.length >= 6) conds.push(like("phone_1", digits.slice(-7)), like("phone_2", digits.slice(-7)));
-                const { data } = await client
-                    .from("carriers")
-                    .select("id, name, edrpou, city, trailer_type, phone_1")
-                    .or(conds.join(","))
-                    .limit(6);
-                return (data || []).map((c) => ({
-                    href: `index.html?open=${encodeURIComponent(c.id)}`,
-                    title: c.name || "Без назви",
-                    sub: [c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city, c.trailer_type, c.phone_1].filter(Boolean).join(" · "),
-                }));
+                const cols = "id, name, edrpou, city, trailer_type, phone_1";
+                const [{ data }, byPlate] = await Promise.all([
+                    client.from("carriers").select(cols).or(conds.join(",")).limit(6),
+                    carriersByPlate(plates, cols),
+                ]);
+                const seen = new Set();
+                return [...byPlate, ...(data || []).map((c) => ({ c }))]
+                    .filter((x) => !seen.has(x.c.id) && seen.add(x.c.id))
+                    .slice(0, 8)
+                    .map(({ c, plate }) => ({
+                        href: `index.html?open=${encodeURIComponent(c.id)}`,
+                        title: c.name || "Без назви",
+                        sub: [plate && `🚛 возив ${plate}`, c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city, c.trailer_type, c.phone_1].filter(Boolean).join(" · "),
+                    }));
             },
         },
         {
