@@ -189,6 +189,8 @@
         return BORDER_KEY_FIX[w] || w;
     };
     const oblName = (x) => (x.startsWith("М. ") ? "м. " + cap(x.slice(3)) : cap(x.replace(/\s*ОБЛ\.?$/, "")) + " обл.");
+    const trailersMS = multiSelect("cmTrailerBox", "cmTrailerBtn", (x) => cap(x), "Будь-який");
+    const getTrailers = () => trailersMS.get();
     const regionsMS = multiSelect("cmRegionBox", "cmRegionBtn", oblName, "Будь-яка");
     const getRegions = () => regionsMS.get();
     const bordersMS = multiSelect("cmBorderBox", "cmBorderBtn", (x) => x, "Будь-який");
@@ -197,6 +199,9 @@
         // зі старого посилання могло прийти «Порубне» — підбираємо пункт зі списку
         bordersMS.set(list.map((x) => BORDERS.find((b) => b === x) || BORDERS.find((b) => b.toLowerCase().includes(x.toLowerCase())) || x));
     }
+
+    // перевізник, з яким працювали останнім (картка/редагування) — у адресі ?last=<id>
+    const lastId = () => new URLSearchParams(location.search).get("last") || "";
 
     /* ---------- Стан підбору в адресі сторінки (оновлення сторінки його не скидає) ---------- */
     const STATE_KEYS = ["match", "dir", "country", "region", "trailer", "border", "city", "page"];
@@ -210,7 +215,7 @@
             const val = (k, v) => v && p.set(k, v);
             val("country", getCountries().join("|"));
             val("region", getRegions().join("|"));
-            val("trailer", document.getElementById("cmTrailer").value);
+            val("trailer", getTrailers().join("|"));
             val("border", getBorders().join("|"));
             val("city", document.getElementById("cmCity").value.trim());
             if (page > 1) p.set("page", String(page));
@@ -250,7 +255,7 @@
                     ${regionsMS.html(OBLASTS, (x) => x)}
                 </label>
                 <label>Тип причепу
-                    <select id="cmTrailer">${opts(TRAILERS, "", "Будь-який")}</select>
+                    ${trailersMS.html(TRAILERS.concat(["ЛІСОВОЗ", "КОНТЕЙНЕРОВОЗ"]), (x) => x)}
                 </label>
                 <label>Кордон
                     ${bordersMS.html(BORDERS, (x) => x + " " + borderKey(x))}
@@ -275,6 +280,7 @@
         countriesMS.wire(() => saveState());
         bordersMS.wire(() => saveState());
         regionsMS.wire(() => saveState());
+        trailersMS.wire(() => saveState());
         document.getElementById("cmForm").addEventListener("change", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
@@ -299,7 +305,7 @@
         const dir = document.getElementById("cmDir").value;
         const countries = getCountries();
         const regions = getRegions();
-        const trailer = document.getElementById("cmTrailer").value;
+        const trailers = getTrailers();
         const borders = getBorders();
         const city = document.getElementById("cmCity").value.trim().replace(/[,()%*"\\]/g, " ").replace(/\s+/g, " ");
         const out = document.getElementById("cmResults");
@@ -321,12 +327,13 @@
                 let q = client.from("carrier_routes").select(cols).in("country", countries);
                 if (dir) q = q.eq("direction", dir);
                 if (regions.length) q = q.in("ua_region", regions);
-                if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
-                // кордон і місто — кожне «будь-що з …»; разом передаємо одним фільтром (and)
+                // причіп, кордон і місто — кожне «будь-що з …»; кілька разом — одним фільтром and(…)
+                const orT = trailers.map((t) => `trailer_types.ilike."*${t}*"`).join(",");
                 const orB = borders.length ? borders.map((b) => `border.ilike."*${borderKey(b)}*"` + (withCities ? `,borders.ilike."*${borderKey(b)}*"` : "")).join(",") : "";
                 const orC = city && withCities ? `cities.ilike."*${city}*",ua_cities.ilike."*${city}*"` : "";
-                if (orB && orC) q = q.or(`and(or(${orB}),or(${orC}))`);
-                else if (orB || orC) q = q.or(orB || orC);
+                const ors = [orT, orB, orC].filter(Boolean);
+                if (ors.length === 1) q = q.or(ors[0]);
+                else if (ors.length > 1) q = q.or(`and(${ors.map((o) => `or(${o})`).join(",")})`);
                 const { data, error } = await q.order("id", { ascending: true }).range(from, from + PAGE - 1);
                 if (error) return { data: null, error };
                 rows.push(...(data || []));
@@ -387,7 +394,7 @@
                     const borderTop = [...a.borders.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
                     const phone = c?.phone_1 ? String(c.phone_1).split(/[,;]/)[0].trim() : "";
                     const digits = phone.replace(/\D/g, "");
-                    return `<div class="cm-row">
+                    return `<div class="cm-row${c && String(c.id) === lastId() ? " cm-row-last" : ""}" data-cid="${esc(c?.id || "")}">
                         <div class="cm-rank">${i + 1}</div>
                         <div class="cm-main">
                             <div class="cm-name">${c ? `<a href="#" data-cm-open="${esc(c.id)}">${esc(c.name || c.company || "—")}</a>` : `<span class="cm-unknown">Немає в реєстрі</span>`}
@@ -472,6 +479,10 @@
         });
         list.sort(SORTS[sortKey].fn);
         showPage(startPage, false);
+        // після оновлення сторінки — прокрутити до перевізника, з яким працювали
+        const last = out.querySelector(".cm-row-last");
+        if (last && search.scrollToLast) last.scrollIntoView({ block: "center" });
+        search.scrollToLast = false;
     }
 
     /* ---------- Деталі перевізника (усі напрямки з містами) ---------- */
@@ -725,7 +736,7 @@
             setCountries((p.get("country") || "").toUpperCase().split("|").filter(Boolean));
             setBorders((p.get("border") || "").split("|").filter(Boolean));
             regionsMS.set((p.get("region") || "").toUpperCase().split("|").filter(Boolean));
-            set("cmTrailer", (p.get("trailer") || "").toUpperCase());
+            trailersMS.set((p.get("trailer") || "").toUpperCase().split("|").filter(Boolean));
             set("cmCity", p.get("city") || "");
             // Чекаємо, поки завантажиться реєстр (щоб знати телефони й назви)
             let tries = 0;
@@ -733,6 +744,7 @@
                 if ((typeof allCarriersCache !== "undefined" && allCarriersCache.length) || ++tries > 40) {
                     clearInterval(t);
                     search.restorePage = Number(p.get("page")) || 1;
+                    search.scrollToLast = true;
                     if (getCountries().length) search();
                 }
             }, 250);
