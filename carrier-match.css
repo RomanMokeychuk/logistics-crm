@@ -135,3 +135,22 @@ body.cm-modal-open { overflow: hidden; }
 .cm-more { margin-top: 3px; padding: 2px 9px; }
 .cm-count, .cm-topbar { margin-bottom: 4px; }
 .cm-pager { padding: 8px 0 2px; }
+
+/* розділи картки перевізника: згортаються кліком по заголовку */
+.cm-coll > .card-section-title, .cm-coll > .ch-title { cursor: pointer; user-select: none; position: relative; padding-right: 34px; }
+.cm-coll > .card-section-title::after, .cm-coll > .ch-title::after { content: "▾"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 13px; }
+.cm-coll.cm-collapsed > .card-section-title::after, .cm-coll.cm-collapsed > .ch-title::after { content: "▸"; }
+.cm-coll.cm-collapsed > :not(.card-section-title):not(.ch-title) { display: none !important; }
+.cm-coll > .card-section-title:hover, .cm-coll > .ch-title:hover { filter: brightness(.97); }
+/* тягачі в картці */
+.cm-fleet-sum { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.cm-fleet-sum > div { background: #f8fafc; border: 1px solid #e4e8ef; border-radius: 8px; padding: 6px 12px; display: flex; flex-direction: column; min-width: 80px; }
+.cm-fleet-sum b { font-size: 18px; color: #0f172a; }
+.cm-fleet-sum span { font-size: 11.5px; color: #64748b; }
+.cm-fleet-total { background: #eff6ff !important; border-color: #bfdbfe !important; }
+.cm-fleet-total b { color: #1d4ed8 !important; }
+.cm-fleet-q { box-sizing: border-box; width: 100%; height: 32px; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px; font: inherit; font-size: 13px; margin-bottom: 6px; }
+.cm-fleet-list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; }
+.cm-fleet-row { display: grid; grid-template-columns: 100px 120px 1fr; gap: 8px; align-items: baseline; padding: 3px 4px; border-bottom: 1px dashed #eef1f5; font-size: 12.5px; }
+.cm-fleet-row[hidden] { display: none; }
+.cm-fleet-row code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 600; color: #0f172a; }
