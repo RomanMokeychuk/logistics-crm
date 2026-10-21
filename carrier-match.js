@@ -478,10 +478,16 @@
             showPage(1, true);
         });
         list.sort(SORTS[sortKey].fn);
-        showPage(startPage, false);
+        // після оновлення — сторінка, на якій перевізник, з яким працювали (навіть якщо він «переїхав»)
+        let pageToShow = startPage;
+        if (search.scrollToLast && lastId()) {
+            const idx = list.findIndex((a) => a.c && String(a.c.id) === lastId());
+            if (idx >= 0) pageToShow = Math.floor(idx / PAGE) + 1;
+        }
+        showPage(pageToShow, false);
         // після оновлення сторінки — прокрутити до перевізника, з яким працювали
         const last = out.querySelector(".cm-row-last");
-        if (last && search.scrollToLast) last.scrollIntoView({ block: "center" });
+        if (last && search.scrollToLast) requestAnimationFrame(() => last.scrollIntoView({ block: "center" }));
         search.scrollToLast = false;
     }
 
