@@ -154,3 +154,4 @@ body.cm-modal-open { overflow: hidden; }
 .cm-fleet-row { display: grid; grid-template-columns: 100px 120px 1fr; gap: 8px; align-items: baseline; padding: 3px 4px; border-bottom: 1px dashed #eef1f5; font-size: 12.5px; }
 .cm-fleet-row[hidden] { display: none; }
 .cm-fleet-row code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; font-weight: 600; color: #0f172a; }
+.cm-row-last { background: #fffbeb; box-shadow: inset 3px 0 0 #f59e0b; border-radius: 6px; }

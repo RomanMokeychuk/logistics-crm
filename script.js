@@ -360,6 +360,17 @@ if (carrierCardOverlay) {
 function closeCarrierCard() {
     if (carrierCardOverlay) carrierCardOverlay.classList.remove("active");
     currentCardCarrierId = null;
+    setCarrierUrlParam("open", null);
+}
+
+// ?open=<id> — відкрита картка, ?last=<id> — з ким працювали останнім:
+// після оновлення сторінки (напр. після збереження) повертаємось до того ж перевізника
+function setCarrierUrlParam(key, val) {
+    const p = new URLSearchParams(location.search);
+    if (val) p.set(key, val);
+    else p.delete(key);
+    const qs = p.toString();
+    history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
 }
 
 // Редагувати з картки: закриваємо картку і відкриваємо форму редагування
@@ -431,6 +442,8 @@ function openCarrierCard(id) {
     if (!item || !carrierCardOverlay) return;
 
     currentCardCarrierId = item.id;
+    setCarrierUrlParam("open", item.id);
+    setCarrierUrlParam("last", item.id);
 
     const name = escapeHtml(item.name || item.company || "—");
     const locationText = [item.city, item.region_ukr]
@@ -1399,6 +1412,7 @@ function resetForm() {
 }
 
 async function editCarrier(id) {
+    setCarrierUrlParam("last", id);
     const { data, error } = await sbClient
         .from("carriers")
         .select("*")
