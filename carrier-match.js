@@ -188,6 +188,9 @@
         const w = b.split(" – ")[0].replace(/\(.*?\)/g, "").trim().split(/[\s-]+/)[0];
         return BORDER_KEY_FIX[w] || w;
     };
+    const oblName = (x) => (x.startsWith("М. ") ? "м. " + cap(x.slice(3)) : cap(x.replace(/\s*ОБЛ\.?$/, "")) + " обл.");
+    const regionsMS = multiSelect("cmRegionBox", "cmRegionBtn", oblName, "Будь-яка");
+    const getRegions = () => regionsMS.get();
     const bordersMS = multiSelect("cmBorderBox", "cmBorderBtn", (x) => x, "Будь-який");
     const getBorders = () => bordersMS.get();
     function setBorders(list) {
@@ -206,7 +209,7 @@
             p.set("dir", document.getElementById("cmDir").value);
             const val = (k, v) => v && p.set(k, v);
             val("country", getCountries().join("|"));
-            val("region", document.getElementById("cmRegion").value);
+            val("region", getRegions().join("|"));
             val("trailer", document.getElementById("cmTrailer").value);
             val("border", getBorders().join("|"));
             val("city", document.getElementById("cmCity").value.trim());
@@ -244,7 +247,7 @@
                     ${countriesMS.html(COUNTRIES, (x) => x)}
                 </label>
                 <label>Область України
-                    <select id="cmRegion">${opts(OBLASTS, "", "Будь-яка")}</select>
+                    ${regionsMS.html(OBLASTS, (x) => x)}
                 </label>
                 <label>Тип причепу
                     <select id="cmTrailer">${opts(TRAILERS, "", "Будь-який")}</select>
@@ -271,6 +274,7 @@
         });
         countriesMS.wire(() => saveState());
         bordersMS.wire(() => saveState());
+        regionsMS.wire(() => saveState());
         document.getElementById("cmForm").addEventListener("change", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
@@ -294,7 +298,7 @@
     async function search() {
         const dir = document.getElementById("cmDir").value;
         const countries = getCountries();
-        const region = document.getElementById("cmRegion").value;
+        const regions = getRegions();
         const trailer = document.getElementById("cmTrailer").value;
         const borders = getBorders();
         const city = document.getElementById("cmCity").value.trim().replace(/[,()%*"\\]/g, " ").replace(/\s+/g, " ");
@@ -316,7 +320,7 @@
             for (let from = 0; from < 50000; from += PAGE) {
                 let q = client.from("carrier_routes").select(cols).in("country", countries);
                 if (dir) q = q.eq("direction", dir);
-                if (region) q = q.eq("ua_region", region);
+                if (regions.length) q = q.in("ua_region", regions);
                 if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
                 // кордон і місто — кожне «будь-що з …»; разом передаємо одним фільтром (and)
                 const orB = borders.length ? borders.map((b) => `border.ilike."*${borderKey(b)}*"` + (withCities ? `,borders.ilike."*${borderKey(b)}*"` : "")).join(",") : "";
@@ -720,7 +724,7 @@
             set("cmDir", p.get("dir") ?? "Імпорт");
             setCountries((p.get("country") || "").toUpperCase().split("|").filter(Boolean));
             setBorders((p.get("border") || "").split("|").filter(Boolean));
-            set("cmRegion", (p.get("region") || "").toUpperCase());
+            regionsMS.set((p.get("region") || "").toUpperCase().split("|").filter(Boolean));
             set("cmTrailer", (p.get("trailer") || "").toUpperCase());
             set("cmCity", p.get("city") || "");
             // Чекаємо, поки завантажиться реєстр (щоб знати телефони й назви)
