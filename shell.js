@@ -13,6 +13,27 @@
         return;
     }
 
+    /* ---------- Згорнуте бічне меню пам'ятаємо між оновленнями й сторінками ---------- */
+    (function rememberSidebar() {
+        const KEY = "furaSidebarCollapsed";
+        const syncIcon = () => {
+            const collapsed = document.body.classList.contains("sidebar-collapsed");
+            document.querySelectorAll("#sidebarToggleBtn i, .sidebar-toggle-btn i").forEach((i) => {
+                i.classList.toggle("bx-chevron-left", !collapsed);
+                i.classList.toggle("bx-chevron-right", collapsed);
+            });
+        };
+        let saved = false;
+        try { saved = localStorage.getItem(KEY) === "1"; } catch (e) { /* без збереження */ }
+        if (saved) document.body.classList.add("sidebar-collapsed");
+        syncIcon();
+        // кнопка на кожній сторінці лише перемикає клас — ловимо зміну й запам'ятовуємо
+        new MutationObserver(() => {
+            const collapsed = document.body.classList.contains("sidebar-collapsed");
+            try { localStorage.setItem(KEY, collapsed ? "1" : "0"); } catch (e) { /* без збереження */ }
+        }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    })();
+
     const MENU = [
         {
             group: "Робота",
