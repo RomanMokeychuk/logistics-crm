@@ -94,71 +94,105 @@
     // у базі «ПОЛЬША» (так пише митниця) — показуємо по-українському, шукаємо за обома
     const C_NAMES = { "ПОЛЬША": "Польща", "ВЕЛИКОБРИТАНІЯ": "Велика Британія", "ОБ ЄДНАНІ АРАБСЬКІ ЕМІРАТИ": "ОАЕ (Об'єднані Арабські Емірати)", "В ЄТНАМ": "В'єтнам" };
     const cName = (x) => C_NAMES[x] || cap(x);
-    const getCountries = () => [...document.querySelectorAll("#cmCountryBox .cm-ms-list input:checked")].map((i) => i.value);
-    function setCountries(list) {
-        const want = new Set(list);
-        const box = document.querySelector("#cmCountryBox .cm-ms-list");
-        // країна, якої немає в списку (з посилання), — додаємо
-        list.filter((x) => x && ![...box.querySelectorAll("input")].some((i) => i.value === x)).forEach((x) =>
-            box.insertAdjacentHTML("afterbegin", `<label class="cm-ms-item" data-alt="${esc(x.toLowerCase())}"><input type="checkbox" value="${esc(x)}" /> ${esc(cName(x))}</label>`),
-        );
-        box.querySelectorAll("input").forEach((i) => (i.checked = want.has(i.value)));
-        countriesLabel();
-    }
-    function countriesLabel() {
-        const list = getCountries();
-        const b = document.getElementById("cmCountryBtn");
-        b.textContent = !list.length ? "Оберіть країни…" : list.length <= 3 ? list.map(cName).join(", ") : `${list.slice(0, 2).map(cName).join(", ")} +${list.length - 2}`;
-        b.classList.toggle("cm-ms-empty", !list.length);
-        // обрані — нагору списку
-        const box = document.querySelector("#cmCountryBox .cm-ms-list");
-        [...box.querySelectorAll("input:checked")].reverse().forEach((i) => box.prepend(i.closest("label")));
-    }
-    function wireCountries() {
-        const wrap = document.getElementById("cmCountryBox");
-        const pop = wrap.querySelector(".cm-ms-pop");
-        const q = wrap.querySelector(".cm-ms-q");
-        const close = () => {
-            pop.hidden = true;
-            countriesLabel();
-        };
-        document.getElementById("cmCountryBtn").addEventListener("click", () => {
-            pop.hidden = !pop.hidden;
-            if (!pop.hidden) {
+    // Випадний список із галочками й пошуком (країни, кордони)
+    function multiSelect(boxId, btnId, nameOf, emptyText) {
+        const sel = () => document.getElementById(boxId);
+        const itemHtml = (x, alt) => `<label class="cm-ms-item" data-alt="${esc((alt || x).toLowerCase())}"><input type="checkbox" value="${esc(x)}" /> ${esc(nameOf(x))}</label>`;
+        const html = (list, alt) => `<div class="cm-ms" id="${boxId}">
+                <button type="button" class="cm-ms-btn" id="${btnId}">${emptyText}</button>
+                <div class="cm-ms-pop" hidden>
+                    <input type="text" class="cm-ms-q" placeholder="Пошук…" />
+                    <div class="cm-ms-list">${list.map((x) => itemHtml(x, alt && alt(x))).join("")}</div>
+                    <div class="cm-ms-foot"><button type="button" class="cm-more" data-ms="clear">Очистити</button><button type="button" class="btn btn-primary cm-ms-done" data-ms="done">Готово</button></div>
+                </div>
+            </div>`;
+        const get = () => [...sel().querySelectorAll(".cm-ms-list input:checked")].map((i) => i.value);
+        function label() {
+            const list = get();
+            const b = document.getElementById(btnId);
+            b.textContent = !list.length ? emptyText : list.length <= 3 ? list.map(nameOf).join(", ") : `${list.slice(0, 2).map(nameOf).join(", ")} +${list.length - 2}`;
+            b.classList.toggle("cm-ms-empty", !list.length);
+            const box = sel().querySelector(".cm-ms-list");
+            [...box.querySelectorAll("input:checked")].reverse().forEach((i) => box.prepend(i.closest("label")));
+        }
+        function set(list) {
+            const want = new Set(list);
+            const box = sel().querySelector(".cm-ms-list");
+            list.filter((x) => x && ![...box.querySelectorAll("input")].some((i) => i.value === x)).forEach((x) => box.insertAdjacentHTML("afterbegin", itemHtml(x)));
+            box.querySelectorAll("input").forEach((i) => (i.checked = want.has(i.value)));
+            label();
+        }
+        function wire(onChange) {
+            const wrap = sel();
+            const pop = wrap.querySelector(".cm-ms-pop");
+            const q = wrap.querySelector(".cm-ms-q");
+            const close = () => {
+                if (pop.hidden) return;
+                pop.hidden = true;
+                label();
+                onChange && onChange();
+            };
+            document.getElementById(btnId).addEventListener("click", () => {
+                if (!pop.hidden) return close();
+                pop.hidden = false;
                 q.value = "";
                 q.dispatchEvent(new Event("input"));
                 q.focus();
-            } else countriesLabel();
-        });
-        q.addEventListener("input", () => {
-            const t = q.value.trim().toLowerCase();
-            wrap.querySelectorAll(".cm-ms-item").forEach((l) => (l.hidden = t && !l.textContent.toLowerCase().includes(t) && !(l.dataset.alt || "").includes(t)));
-        });
-        q.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                const first = [...wrap.querySelectorAll(".cm-ms-item")].find((l) => !l.hidden);
-                if (first) first.querySelector("input").checked = true;
-                q.value = "";
-                q.dispatchEvent(new Event("input"));
-                countriesLabel();
-            }
-            if (e.key === "Escape") close();
-        });
-        wrap.addEventListener("click", (e) => {
-            const b = e.target.closest("[data-ms]");
-            if (!b) return;
-            if (b.dataset.ms === "clear") wrap.querySelectorAll(".cm-ms-list input").forEach((i) => (i.checked = false));
-            if (b.dataset.ms === "done") close();
-            countriesLabel();
-        });
-        wrap.querySelector(".cm-ms-list").addEventListener("change", () => {
-            const list = getCountries();
-            document.getElementById("cmCountryBtn").textContent = list.length ? `Обрано: ${list.length}` : "Оберіть країни…";
-        });
-        document.addEventListener("click", (e) => {
-            if (!pop.hidden && !wrap.contains(e.target)) close();
-        });
+            });
+            q.addEventListener("input", () => {
+                const t = q.value.trim().toLowerCase();
+                wrap.querySelectorAll(".cm-ms-item").forEach((l) => (l.hidden = t && !l.textContent.toLowerCase().includes(t) && !(l.dataset.alt || "").includes(t)));
+            });
+            q.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    const first = [...wrap.querySelectorAll(".cm-ms-item")].find((l) => !l.hidden);
+                    if (first) first.querySelector("input").checked = true;
+                    q.value = "";
+                    q.dispatchEvent(new Event("input"));
+                    label();
+                }
+                if (e.key === "Escape") close();
+            });
+            wrap.addEventListener("click", (e) => {
+                const b = e.target.closest("[data-ms]");
+                if (!b) return;
+                if (b.dataset.ms === "clear") wrap.querySelectorAll(".cm-ms-list input").forEach((i) => (i.checked = false));
+                if (b.dataset.ms === "done") close();
+                else label();
+            });
+            wrap.querySelector(".cm-ms-list").addEventListener("change", () => {
+                const n = get().length;
+                document.getElementById(btnId).textContent = n ? `Обрано: ${n}` : emptyText;
+            });
+            document.addEventListener("click", (e) => {
+                if (!pop.hidden && !wrap.contains(e.target)) close();
+            });
+        }
+        return { html, get, set, wire };
+    }
+
+    const countriesMS = multiSelect("cmCountryBox", "cmCountryBtn", (x) => cName(x), "Оберіть країни…");
+    const getCountries = () => countriesMS.get();
+    const setCountries = (l) => countriesMS.set(l);
+
+    // Пункти пропуску: у даних бувають «Порубне – Сірет» і старе «ПОРУБНЕ» — шукаємо за ключовим словом
+    const BORDERS = ["Ягодин – Дорогуськ", "Краківець – Корчова", "Рава-Руська – Хребенне", "Шегині – Медика", "Устилуг – Зосин",
+        "Угринів – Долгобичув", "Грушів – Будомєж", "Смільниця – Кросьценко", "Порубне – Сірет", "Дяківці – Раковець",
+        "Красноїльськ – Вікову де Сус", "Мамалига – Крива", "Росошани – Бричень", "Чоп (Тиса) – Захонь", "Лужанка – Берегшурань",
+        "Ужгород – Вишнє Нємецьке", "Малий Березний – Убля", "Дякове – Халмеу", "Могилів-Подільський – Отач", "Старокозаче – Тудора",
+        "Рені – Джурджулешти", "Орлівка – Ісакча", "Виноградівка – Вулканешти", "Табаки – Мирне", "Серпневе 1 – Басарабяска",
+        "Малоярославець 1 – Чадир-Лунга", "Нові Трояни – Чадир-Лунга", "Маяки-Удобне – Паланка", "Сокиряни – Окниця"];
+    const BORDER_KEY_FIX = { "Малий": "Березний", "Нові": "Трояни", "Малі": "Селменці", "Серпневе": "Серпнев", "Малоярославець": "Малоярослав" };
+    const borderKey = (b) => {
+        const w = b.split(" – ")[0].replace(/\(.*?\)/g, "").trim().split(/[\s-]+/)[0];
+        return BORDER_KEY_FIX[w] || w;
+    };
+    const bordersMS = multiSelect("cmBorderBox", "cmBorderBtn", (x) => x, "Будь-який");
+    const getBorders = () => bordersMS.get();
+    function setBorders(list) {
+        // зі старого посилання могло прийти «Порубне» — підбираємо пункт зі списку
+        bordersMS.set(list.map((x) => BORDERS.find((b) => b === x) || BORDERS.find((b) => b.toLowerCase().includes(x.toLowerCase())) || x));
     }
 
     /* ---------- Стан підбору в адресі сторінки (оновлення сторінки його не скидає) ---------- */
@@ -174,7 +208,7 @@
             val("country", getCountries().join("|"));
             val("region", document.getElementById("cmRegion").value);
             val("trailer", document.getElementById("cmTrailer").value);
-            val("border", document.getElementById("cmBorder").value.trim());
+            val("border", getBorders().join("|"));
             val("city", document.getElementById("cmCity").value.trim());
             if (page > 1) p.set("page", String(page));
         }
@@ -207,14 +241,7 @@
                     <select id="cmDir"><option value="Імпорт">Імпорт → в Україну</option><option value="Експорт">Експорт → з України</option><option value="">Будь-який</option></select>
                 </label>
                 <label><span>Країни <i>*</i></span>
-                    <div class="cm-ms" id="cmCountryBox">
-                        <button type="button" class="cm-ms-btn" id="cmCountryBtn">Оберіть країни…</button>
-                        <div class="cm-ms-pop" hidden>
-                            <input type="text" class="cm-ms-q" placeholder="Пошук країни…" />
-                            <div class="cm-ms-list">${COUNTRIES.map((x) => `<label class="cm-ms-item" data-alt="${esc(x.toLowerCase())}"><input type="checkbox" value="${esc(x)}" /> ${esc(cName(x))}</label>`).join("")}</div>
-                            <div class="cm-ms-foot"><button type="button" class="cm-more" data-ms="clear">Очистити</button><button type="button" class="btn btn-primary cm-ms-done" data-ms="done">Готово</button></div>
-                        </div>
-                    </div>
+                    ${countriesMS.html(COUNTRIES, (x) => x)}
                 </label>
                 <label>Область України
                     <select id="cmRegion">${opts(OBLASTS, "", "Будь-яка")}</select>
@@ -223,7 +250,7 @@
                     <select id="cmTrailer">${opts(TRAILERS, "", "Будь-який")}</select>
                 </label>
                 <label>Кордон
-                    <input type="text" id="cmBorder" placeholder="напр. Ягодин" />
+                    ${bordersMS.html(BORDERS, (x) => x + " " + borderKey(x))}
                 </label>
                 <label>Місто
                     <input type="text" id="cmCity" placeholder="напр. Бухарест, Lublin, Вінниця" title="Місто за кордоном або в Україні (як у деклараціях — кирилицею чи латиницею)" />
@@ -242,7 +269,8 @@
             panel.hidden = true;
             saveState();
         });
-        wireCountries();
+        countriesMS.wire(() => saveState());
+        bordersMS.wire(() => saveState());
         document.getElementById("cmForm").addEventListener("change", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
@@ -268,7 +296,7 @@
         const countries = getCountries();
         const region = document.getElementById("cmRegion").value;
         const trailer = document.getElementById("cmTrailer").value;
-        const border = document.getElementById("cmBorder").value.trim();
+        const borders = getBorders();
         const city = document.getElementById("cmCity").value.trim().replace(/[,()%*"\\]/g, " ").replace(/\s+/g, " ");
         const out = document.getElementById("cmResults");
         if (!countries.length) {
@@ -290,8 +318,11 @@
                 if (dir) q = q.eq("direction", dir);
                 if (region) q = q.eq("ua_region", region);
                 if (trailer) q = q.ilike("trailer_types", `%${trailer}%`);
-                if (border) q = q.ilike("border", `%${border}%`);
-                if (city && withCities) q = q.or(`cities.ilike."*${city}*",ua_cities.ilike."*${city}*"`);
+                // кордон і місто — кожне «будь-що з …»; разом передаємо одним фільтром (and)
+                const orB = borders.length ? borders.map((b) => `border.ilike."*${borderKey(b)}*"` + (withCities ? `,borders.ilike."*${borderKey(b)}*"` : "")).join(",") : "";
+                const orC = city && withCities ? `cities.ilike."*${city}*",ua_cities.ilike."*${city}*"` : "";
+                if (orB && orC) q = q.or(`and(or(${orB}),or(${orC}))`);
+                else if (orB || orC) q = q.or(orB || orC);
                 const { data, error } = await q.order("id", { ascending: true }).range(from, from + PAGE - 1);
                 if (error) return { data: null, error };
                 rows.push(...(data || []));
@@ -688,7 +719,7 @@
             };
             set("cmDir", p.get("dir") ?? "Імпорт");
             setCountries((p.get("country") || "").toUpperCase().split("|").filter(Boolean));
-            set("cmBorder", p.get("border") || "");
+            setBorders((p.get("border") || "").split("|").filter(Boolean));
             set("cmRegion", (p.get("region") || "").toUpperCase());
             set("cmTrailer", (p.get("trailer") || "").toUpperCase());
             set("cmCity", p.get("city") || "");
