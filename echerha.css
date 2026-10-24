@@ -1,0 +1,97 @@
+/* ===================== Сторінка «Черга» ===================== */
+
+.eq-page .eq-head { margin-bottom: 14px; }
+.eq-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.eq-logo {
+    display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
+    background: var(--f-orange, #f57c00); color: #fff; border-radius: 10px;
+    font-size: 20px; font-weight: 800; letter-spacing: 0.01em;
+    box-shadow: 0 6px 16px rgba(245, 124, 0, 0.25);
+}
+.eq-sub { color: var(--f-muted, #6b7280); font-size: 13px; }
+.eq-sync { font-size: 13px; color: #334155; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.eq-muted { color: #94a3b8; }
+.eq-warn { color: #b45309; }
+.eq-bad { color: #dc2626; }
+.eq-sm { font-size: 11.5px; margin-top: 2px; }
+.eq-nw { white-space: nowrap; }
+.eq-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.eq-clip { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.eq-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; }
+
+.eq-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.eq-kpi { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.eq-kpi b { display: block; font-size: 22px; color: var(--f-text, #111827); }
+.eq-kpi span { font-size: 12px; color: var(--f-muted, #6b7280); }
+.eq-kpi-hl { border-color: #fdba74; background: #fff7ed; }
+.eq-kpi-hl b { color: #c2410c; }
+
+.eq-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.eq-views { display: inline-flex; background: #e9edf4; border-radius: 10px; padding: 3px; }
+.eq-views button {
+    border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    color: #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
+}
+.eq-views button.active { background: #fff; color: var(--f-orange, #f57c00); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.eq-search { flex: 1; min-width: 220px; position: relative; }
+.eq-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 18px; }
+.eq-search input { width: 100%; box-sizing: border-box; padding: 9px 12px 9px 34px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; }
+
+.eq-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.eq-filters select, .eq-msel-btn {
+    padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; font-size: 13px; color: #1e293b; cursor: pointer; max-width: 260px;
+}
+.eq-msel-btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eq-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.eq-chips button { border: 1px solid #cbd5e1; background: #fff; border-radius: 14px; padding: 4px 10px; font-size: 12px; cursor: pointer; color: #334155; }
+.eq-chips button.on { background: var(--f-orange, #f57c00); border-color: var(--f-orange, #f57c00); color: #fff; }
+.eq-check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #334155; cursor: pointer; }
+.eq-link { border: 0; background: none; color: #2563eb; cursor: pointer; font-size: 13px; }
+
+.eq-msel { position: relative; }
+.eq-msel-panel {
+    position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; width: 420px; max-width: calc(100vw - 32px); max-height: 420px; overflow-y: auto;
+    background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); padding: 8px;
+}
+.eq-msel-panel.hidden { display: none; }
+.eq-mtop { display: flex; gap: 4px; flex-wrap: wrap; position: sticky; top: -8px; background: #fff; padding: 2px 0 8px; }
+.eq-mtop input { flex: 1 1 140px; min-width: 0; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 13px; }
+.eq-mtop button { border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 7px; padding: 5px 8px; font-size: 12px; cursor: pointer; }
+.eq-mtop .eq-ok { background: var(--f-orange, #f57c00); border-color: var(--f-orange, #f57c00); color: #fff; }
+.eq-mgrp { padding: 8px 2px 2px; border-top: 1px solid #f1f5f9; font-size: 13px; }
+.eq-mitem { display: flex; gap: 6px; align-items: center; padding: 3px 2px 3px 18px; font-size: 12.5px; cursor: pointer; }
+.eq-mitem span:first-of-type { flex: 1; min-width: 0; }
+
+.eq-card { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; overflow: hidden; }
+.eq-table-wrap { overflow-x: auto; }
+.eq-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.eq-table th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; background: #f8fafc; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; position: sticky; top: 0; }
+.eq-table td { padding: 9px 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+.eq-table tbody tr:hover { background: #fafbfd; }
+.eq-cprow { cursor: pointer; }
+.eq-empty { text-align: center; color: #94a3b8; padding: 28px !important; }
+.eq-body { display: inline-block; background: #eef2ff; color: #3730a3; border-radius: 6px; padding: 1px 7px; font-size: 12px; }
+.eq-new { display: inline-block; background: #dcfce7; color: #15803d; border-radius: 6px; padding: 0 6px; font-size: 11px; font-weight: 600; }
+.eq-in { color: #15803d; text-decoration: none; font-weight: 600; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+.eq-add {
+    border: 1px solid var(--f-orange, #f57c00); color: var(--f-orange, #f57c00); background: #fff; border-radius: 8px;
+    padding: 4px 9px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;
+}
+.eq-add:hover { background: #fff7ed; }
+.eq-add:disabled { opacity: 0.5; cursor: default; }
+.eq-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; color: #475569; flex-wrap: wrap; }
+
+/* Блок «Зараз у черзі на кордоні» в картці перевізника */
+.eqc { margin-top: 16px; border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 12px 14px; }
+.eqc-title { display: flex; align-items: center; gap: 8px; font-weight: 700; color: #9a3412; margin-bottom: 8px; flex-wrap: wrap; }
+.eqc-title a { margin-left: auto; font-weight: 600; font-size: 12.5px; color: #c2410c; }
+.eqc-row { display: flex; gap: 12px; font-size: 13px; padding: 4px 0; border-top: 1px dashed #fed7aa; flex-wrap: wrap; }
+.eqc-row:first-of-type { border-top: 0; }
+.eqc-row b { min-width: 0; }
+
+@media (max-width: 900px) {
+    .eq-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .eq-search { min-width: 0; flex-basis: 100%; }
+    .eq-filters select, .eq-msel-btn { max-width: 100%; }
+}

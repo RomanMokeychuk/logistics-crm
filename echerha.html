@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Черга</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202610202003" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202610241600" />
+        <link rel="stylesheet" href="echerha.css?v=202610241600" />
+    </head>
+    <body>
+        <aside class="sidebar"></aside>
+
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content eq-page">
+            <header class="top-bar eq-head">
+                <div class="eq-title">
+                    <span class="eq-logo">Черга</span>
+                    <span class="eq-sub">машини на кордоні зараз · з «Эчерги»</span>
+                </div>
+                <div class="eq-sync" id="eqSync">Завантаження…</div>
+            </header>
+
+            <div class="eq-scroll">
+                <div class="eq-kpis" id="eqKpis"></div>
+
+                <div class="eq-toolbar">
+                    <div class="eq-views" id="eqViews">
+                        <button type="button" data-v="trucks" class="active"><i class="bx bxs-truck"></i> Машини</button>
+                        <button type="button" data-v="carriers"><i class="bx bx-buildings"></i> Перевізники</button>
+                        <button type="button" data-v="cps"><i class="bx bx-map-pin"></i> Пункти</button>
+                    </div>
+                    <div class="eq-search">
+                        <i class="bx bx-search"></i>
+                        <input id="eqQ" type="search" placeholder="Номер, перевізник, ЄДРПОУ, керівник…" autocomplete="off" />
+                    </div>
+                </div>
+
+                <div class="eq-filters" id="eqFilters">
+                    <div class="eq-msel" id="eqCp">
+                        <button type="button" class="eq-msel-btn" id="eqCpBtn">Усі пункти ▾</button>
+                        <div class="eq-msel-panel hidden" id="eqCpPanel"></div>
+                    </div>
+                    <select id="eqCountry"><option value="">Усі країни</option></select>
+                    <select id="eqQtype"><option value="">Будь-яка черга</option></select>
+                    <div class="eq-chips" id="eqBodies"></div>
+                    <label class="eq-check"><input type="checkbox" id="eqUa" checked /> Лише українські тягачі</label>
+                    <label class="eq-check"><input type="checkbox" id="eqNotInFura" /> Немає у FURA</label>
+                    <label class="eq-check"><input type="checkbox" id="eqNew" /> Нові перевізники</label>
+                    <button type="button" class="eq-link" id="eqReset">Скинути</button>
+                </div>
+
+                <div class="eq-card">
+                    <div class="eq-table-wrap"><table class="eq-table" id="eqTable"></table></div>
+                    <div class="eq-foot">
+                        <span id="eqCount"></span>
+                        <div class="pager" id="eqPager"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="echerha.js?v=202610241600"></script>
+        <script src="shell.js?v=202610241600"></script>
+        <script src="notify.js?v=202610202003"></script>
+        <script src="lock.js?v=202610202003"></script>
+    </body>
+</html>

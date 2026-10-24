@@ -42,6 +42,7 @@
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
+                { href: "echerha.html", svg: "cherga", label: "Черга" },
                 { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
             ],
         },
@@ -72,6 +73,14 @@
         <path d="M12 52h40" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
     </svg>`;
 
+    // Своя іконка «Черга»: квадратик з літерою «Ч» (колір — як у тексту пункту меню)
+    const ICONS = {
+        cherga: `<svg class="fura-nav-svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="19" height="19" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M8.5 7v4.2a2.6 2.6 0 0 0 2.6 2.6H15.5M15.5 7v10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>`,
+    };
+
     const ROLE_LABELS = { admin: "Адмін", head: "Керівник", sales: "Sales", logist: "Логіст" };
 
     const esc = (s) =>
@@ -95,7 +104,8 @@
                     if (it.href === "#shlyah") {
                         return `<a href="#" class="fura-nav-item" data-shlyah="1"><i class="bx ${it.icon}"></i><span>${it.label}</span></a>`;
                     }
-                    return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}"><i class="bx ${it.icon}"></i><span>${it.label}</span></a>`;
+                    const ico = it.svg ? ICONS[it.svg] : `<i class="bx ${it.icon}"></i>`;
+                    return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}">${ico}<span>${it.label}</span></a>`;
                 })
                 .join("");
             return `<div class="fura-nav-group"><div class="fura-nav-title">${g.group}</div>${links}</div>`;
@@ -331,6 +341,8 @@
             addScript("global-search.js?v=202610210930");
             // Фурик — персонаж із нагадуваннями (furik.js)
             addScript("furik.js?v=202610200830");
+            // «Зараз у FURA» — хто з колег онлайн (presence.js)
+            addScript("presence.js?v=202610241500");
         }
     }
 

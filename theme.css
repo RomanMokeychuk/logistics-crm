@@ -543,3 +543,12 @@ html.fura-embed .modal {
 .fura-nav-arrows button:hover:not(:disabled) { background: #eff6ff; color: var(--f-blue, #1d5bd8); border-color: #bfdbfe; }
 .fura-nav-arrows button:disabled { color: #cbd5e1; cursor: default; }
 .fura-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* Своя іконка пункту меню (svg замість boxicons), напр. «Черга» */
+.fura-nav-item .fura-nav-svg {
+    flex-shrink: 0;
+    color: #c3cee6;
+}
+.fura-nav-item.active .fura-nav-svg {
+    color: #fff;
+}
