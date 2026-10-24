@@ -9,7 +9,7 @@
     if (!document.querySelector('link[href^="echerha.css"]')) {
         const l = document.createElement("link");
         l.rel = "stylesheet";
-        l.href = "echerha.css?v=202610241600";
+        l.href = "echerha.css?v=202610241650";
         document.head.appendChild(l);
     }
     const esc = (s) =>
