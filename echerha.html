@@ -15,7 +15,7 @@
         <link rel="stylesheet" href="style.css?v=202610202003" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
         <link rel="stylesheet" href="theme.css?v=202610241600" />
-        <link rel="stylesheet" href="echerha.css?v=202610241600" />
+        <link rel="stylesheet" href="echerha.css?v=202610241650" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -63,17 +63,21 @@
                 </div>
 
                 <div class="eq-card">
+                    <div class="eq-foot eq-foot-top">
+                        <div class="pager" id="eqPagerTop"></div>
+                        <span id="eqCountTop" class="eq-muted"></span>
+                    </div>
                     <div class="eq-table-wrap"><table class="eq-table" id="eqTable"></table></div>
                     <div class="eq-foot">
-                        <span id="eqCount"></span>
                         <div class="pager" id="eqPager"></div>
+                        <span id="eqCount"></span>
                     </div>
                 </div>
             </div>
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="echerha.js?v=202610241600"></script>
+        <script src="echerha.js?v=202610241650"></script>
         <script src="shell.js?v=202610241600"></script>
         <script src="notify.js?v=202610202003"></script>
         <script src="lock.js?v=202610202003"></script>

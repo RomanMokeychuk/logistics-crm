@@ -18,7 +18,7 @@
 .eq-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
 .eq-clip { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.eq-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 20px; }
+.eq-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 110px; } /* місце під «Помічник» і Фурика */
 
 .eq-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
 .eq-kpi { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; padding: 12px 14px; min-width: 0; }
@@ -80,7 +80,7 @@
 }
 .eq-add:hover { background: #fff7ed; }
 .eq-add:disabled { opacity: 0.5; cursor: default; }
-.eq-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; color: #475569; flex-wrap: wrap; }
+.eq-foot { display: flex; justify-content: flex-start; align-items: center; gap: 10px; padding: 10px 12px; font-size: 13px; color: #475569; flex-wrap: wrap; }
 
 /* Блок «Зараз у черзі на кордоні» в картці перевізника */
 .eqc { margin-top: 16px; border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 12px 14px; }
@@ -95,3 +95,5 @@
     .eq-search { min-width: 0; flex-basis: 100%; }
     .eq-filters select, .eq-msel-btn { max-width: 100%; }
 }
+.eq-foot-top { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; }
+.eq-foot-top:has(.pager:empty) { display: none; }

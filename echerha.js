@@ -243,11 +243,14 @@ const EQ = (() => {
     function pager(total) {
         const pages = Math.max(1, Math.ceil(total / PAGE));
         if (st.page >= pages) st.page = pages - 1;
-        $("#eqPager").innerHTML = pages > 1
+        const html = pages > 1
             ? `<button class="pager-btn" data-p="${st.page - 1}" ${st.page ? "" : "disabled"}><i class="bx bx-chevron-left"></i></button>` +
               `<span class="eq-muted">${st.page + 1} / ${pages}</span>` +
               `<button class="pager-btn" data-p="${st.page + 1}" ${st.page < pages - 1 ? "" : "disabled"}><i class="bx bx-chevron-right"></i></button>`
             : "";
+        $("#eqPager").innerHTML = html;
+        $("#eqPagerTop").innerHTML = html;
+        $("#eqCountTop").textContent = pages > 1 ? `показано ${st.page * PAGE + 1}–${Math.min(total, st.page * PAGE + PAGE)} з ${total.toLocaleString("uk-UA")}` : "";
     }
 
     function renderTrucks(list) {
@@ -312,6 +315,8 @@ const EQ = (() => {
             </tr>`).join("") || `<tr><td colspan="6" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Пунктів: ${cps.length} · натисніть на пункт, щоб побачити його машини`;
         $("#eqPager").innerHTML = "";
+        $("#eqPagerTop").innerHTML = "";
+        $("#eqCountTop").textContent = "";
     }
 
     function renderTable() {
@@ -393,13 +398,15 @@ const EQ = (() => {
         $("#eqCpPanel").addEventListener("click", (e) => { e.stopPropagation(); onCpClick(e); });
         document.addEventListener("click", () => $("#eqCpPanel").classList.add("hidden"));
         document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#eqCpPanel").classList.add("hidden"); });
-        $("#eqPager").addEventListener("click", (e) => {
+        const onPage = (e) => {
             const b = e.target.closest("[data-p]");
             if (!b || b.disabled) return;
             st.page = +b.dataset.p;
             renderTable();
-            document.querySelector(".eq-table-wrap").scrollTop = 0;
-        });
+            document.querySelector(".eq-card").scrollIntoView({ block: "start" });
+        };
+        $("#eqPager").addEventListener("click", onPage);
+        $("#eqPagerTop").addEventListener("click", onPage);
         $("#eqTable").addEventListener("click", (e) => {
             const add = e.target.closest("[data-add]");
             if (add) return addCarrier(add);
