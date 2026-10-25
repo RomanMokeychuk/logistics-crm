@@ -81,7 +81,10 @@ Deno.serve(async (req) => {
             carriers: Number(body.carriers) || null,
             sync_id: syncId,
         });
-        return json(200, { ok: true, rows: count ?? 0 });
+        // Нових перевізників з черги — у «Перевізники», наявним — нові типи причепа (echerha_carriers.sql)
+        const sync = await db.rpc("sync_echerha_carriers");
+        if (sync.error) console.error("sync_echerha_carriers:", sync.error.message);
+        return json(200, { ok: true, rows: count ?? 0, carriers: sync.data ?? null });
     }
 
     // Відправку перервали — прибираємо недовантажене
