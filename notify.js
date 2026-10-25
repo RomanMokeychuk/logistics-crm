@@ -119,7 +119,7 @@
         }
     }
 
-    function notify({ kind, icon, title, text, requestId }) {
+    function notify({ kind, icon, title, text, requestId, href }) {
         const el = document.createElement("div");
         el.className = `fura-toast ${kind || ""}`;
         el.innerHTML = `
@@ -142,7 +142,8 @@
         });
         el.addEventListener("click", () => {
             close();
-            openRequest(requestId);
+            if (href) window.location.href = href;
+            else openRequest(requestId);
         });
 
         toastBox().appendChild(el);
@@ -437,6 +438,9 @@
             }, 250);
         }
     }
+
+    // Для інших модулів (напр. «Черга» — обрані машини): furaToast({icon, title, text, href})
+    window.furaToast = (o) => notify({ kind: o.kind || "new", icon: o.icon || "🔔", title: o.title, text: o.text, requestId: o.tag || "", href: o.href });
 
     // Перевірка вручну: у консолі браузера набрати furaNotifyTest()
     window.furaNotifyTest = () =>
