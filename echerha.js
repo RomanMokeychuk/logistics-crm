@@ -1,6 +1,6 @@
 /* ================================================================= *
  * FURA — «ЧЕРГА»: машини в черзі на кордоні зараз                     *
- * Дані: таблиці echerha_* (заповнює застосунок «Эчерга» з Mac через   *
+ * Дані: таблиці echerha_* (заповнює застосунок «Черга» з Mac через   *
  * Edge Function fura-echerha). Тут лише перегляд + «Додати у FURA».   *
  * ================================================================= */
 
@@ -104,7 +104,7 @@ const EQ = (() => {
             return;
         }
         if (!sync?.sync_id) {
-            $("#eqSync").innerHTML = `<span class="eq-warn">Эчерга ще не надсилала дані. Увімкніть «Відправляти чергу у FURA» в її налаштуваннях.</span>`;
+            $("#eqSync").innerHTML = `<span class="eq-warn">Черга ще не надсилала дані. Увімкніть «Відправляти чергу у FURA» в її налаштуваннях.</span>`;
             renderAll();
             return;
         }
@@ -118,7 +118,7 @@ const EQ = (() => {
         const old = Date.now() - new Date(sync.synced_at).getTime() > 3 * 3600 * 1000;
         $("#eqSync").innerHTML =
             `<i class="bx bx-refresh"></i> Оновлено <b>${esc(new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</b>` +
-            ` <span class="${old ? "eq-warn" : "eq-muted"}">(${ago(sync.synced_at)}${old ? " — Mac з Эчергою, мабуть, вимкнений" : ""})</span>`;
+            ` <span class="${old ? "eq-warn" : "eq-muted"}">(${ago(sync.synced_at)}${old ? " — Mac з Чергою, мабуть, вимкнений" : ""})</span>`;
         fillSelects();
         renderAll();
     }
@@ -445,6 +445,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error(e);
         document.getElementById("eqSync").textContent = "Помилка завантаження: " + (e.message || e);
     }
-    // дані з Эчерги приходять раз на ~30 хв — підтягуємо раз на 5 хв
+    // дані з Черги приходять раз на ~30 хв — підтягуємо раз на 5 хв
     setInterval(() => EQ.load().catch(() => {}), 5 * 60 * 1000);
 });

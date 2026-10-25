@@ -52,7 +52,7 @@
                     ${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : ""}
                     ${r.note ? `<span class="eq-muted">${esc(r.note)}</span>` : ""}
                 </div>`).join("") +
-                `<div class="eq-muted eq-sm" style="margin-top:6px">Дані «Эчерги» на ${new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
+                `<div class="eq-muted eq-sm" style="margin-top:6px">Дані «Черги» на ${new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
             // одразу під шапкою картки — щоб було видно без прокрутки
             const head = body.querySelector(".card-header-block");
             head ? head.after(box) : body.prepend(box);

@@ -1,4 +1,4 @@
--- FURA: вкладка «Черга» — машини в черзі на кордоні з застосунку «Эчерга» (єЧерга + «Шлях» + carplates).
+-- FURA: вкладка «Черга» — машини в черзі на кордоні з застосунку «Черга» (єЧерга + «Шлях» + carplates).
 -- Дані приходять з Mac через Edge Function "fura-echerha" (bot/fura-echerha.ts) кожні ~30 хв.
 -- Виконати один раз: Supabase → SQL Editor → New query → вставити → Run.
 
@@ -22,7 +22,7 @@ create table if not exists public.echerha_queue (
     trailer_body  text,                   -- тент / реф / автовоз / …
     trailer_kind  text,
     note          text,                   -- статус (для стоянок Hopa)
-    is_new        boolean default false,  -- новий перевізник у базі Эчерги
+    is_new        boolean default false,  -- новий перевізник у базі Черги
     updated_at    timestamptz default now()
 );
 create index if not exists echerha_queue_edrpou_idx on public.echerha_queue (edrpou);
@@ -35,11 +35,11 @@ create table if not exists public.echerha_checkpoints (
     country       text,
     qtype         text,
     in_queue      integer default 0,
-    selected      boolean default false,  -- з галочкою в Эчерзі (оновлюються частіше)
+    selected      boolean default false,  -- з галочкою в Черзі (оновлюються частіше)
     last_scraped  text
 );
 
--- Коли Эчерга востаннє надсилала дані
+-- Коли Черга востаннє надсилала дані
 create table if not exists public.echerha_sync (
     id         integer primary key default 1,
     synced_at  timestamptz,
@@ -71,5 +71,5 @@ drop policy if exists "echerha_sync_read" on public.echerha_sync;
 create policy "echerha_sync_read" on public.echerha_sync for select to authenticated
     using (exists (select 1 from public.staff s where lower(s.email) = lower(auth.jwt() ->> 'email') and s.active));
 
--- Перевірка: таблиці є (поки порожні — заповняться після першої відправки з Эчерги)
+-- Перевірка: таблиці є (поки порожні — заповняться після першої відправки з Черги)
 select (select count(*) from public.echerha_queue) as queue, (select count(*) from public.echerha_checkpoints) as checkpoints;
