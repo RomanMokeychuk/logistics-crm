@@ -343,6 +343,8 @@
             addScript("furik.js?v=202610200830");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
             addScript("presence.js?v=202610241500");
+            // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
+            addScript("watch-notify.js?v=202610251500");
         }
     }
 

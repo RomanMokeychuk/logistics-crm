@@ -37,7 +37,11 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, page: 0, sort: "entry" };
+    let WATCH = new Map(); // номер тягача -> мій запис echerha_watch
+    const plateKey = (v) =>
+        String(v || "").toUpperCase().replace(/\s|-/g, "")
+            .replace(/[АВЕІКМНОРСТХ]/g, (c) => ({ А: "A", В: "B", Е: "E", І: "I", К: "K", М: "M", Н: "H", О: "O", Р: "P", С: "C", Т: "T", Х: "X" })[c]);
 
     /* ---------- дати ---------- */
     const dShort = (v) => {
@@ -96,6 +100,40 @@ const EQ = (() => {
         }));
     }
 
+    async function loadWatch() {
+        const { data, error } = await sbClient.from("echerha_watch").select("*").order("created_at", { ascending: false });
+        if (error) { console.warn("Обрані:", error.message); return; }
+        WATCH = new Map((data || []).map((w) => [w.plate, w]));
+        const n = $("#eqWatchN");
+        if (n) n.textContent = WATCH.size ? WATCH.size : "";
+    }
+
+    async function toggleStar(plate) {
+        const r = ROWS.find((x) => x.tractor === plate);
+        if (WATCH.has(plate)) {
+            const w = WATCH.get(plate);
+            WATCH.delete(plate);
+            renderTable();
+            await sbClient.from("echerha_watch").delete().eq("id", w.id);
+        } else {
+            const row = {
+                plate, status: r ? "waiting" : "pending",
+                checkpoint: r?.checkpoint || null, entry_at: r?.entry_at || null, queue_no: r?.queue_no || null,
+                trailer: r?.trailer || null, carrier: r?.carrier || null, edrpou: r?.edrpou || null, note: r?.note || null,
+                last_seen: r ? new Date().toISOString() : null,
+            };
+            WATCH.set(plate, row);
+            renderTable();
+            const { data, error } = await sbClient.from("echerha_watch").upsert(row, { onConflict: "user_id,plate" }).select("*");
+            if (error) {
+                WATCH.delete(plate);
+                alert("Не вдалося додати в обрані: " + error.message + (/relation|does not exist|schema cache/.test(error.message) ? "\nВиконайте echerha_watch.sql у Supabase." : ""));
+            } else if (data?.[0]) WATCH.set(plate, data[0]);
+        }
+        await loadWatch();
+        renderTable();
+    }
+
     async function load() {
         const { data: sync, error } = await sbClient.from("echerha_sync").select("*").eq("id", 1).maybeSingle();
         if (error) {
@@ -112,6 +150,7 @@ const EQ = (() => {
             fetchAll("echerha_queue", "*", (q) => q.eq("sync_id", sync.sync_id).order("entry_at", { ascending: true })),
             fetchAll("echerha_checkpoints", "*"),
             loadFura().catch((e) => console.warn("FURA carriers:", e)),
+            loadWatch(),
         ]);
         ROWS = rows;
         CPS = cps.sort((a, b) => b.in_queue - a.in_queue || String(a.name).localeCompare(b.name, "uk"));
@@ -133,6 +172,7 @@ const EQ = (() => {
         $("#eqUa").checked = st.ua;
         $("#eqNotInFura").checked = st.notInFura;
         $("#eqNew").checked = st.isNew;
+        $("#eqStarred").checked = st.starred;
         $("#eqQ").value = st.q;
         document.querySelectorAll("#eqViews button").forEach((b) => b.classList.toggle("active", b.dataset.v === st.view));
         paintCp();
@@ -214,6 +254,7 @@ const EQ = (() => {
             if (st.qtype && r.qtype !== st.qtype) return false;
             if (st.bodies.size && !st.bodies.has(bodyOf(r))) return false;
             if (st.isNew && !r.is_new) return false;
+            if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint].join(" ")).includes(q)) return false;
             return true;
@@ -253,11 +294,49 @@ const EQ = (() => {
         $("#eqCountTop").textContent = pages > 1 ? `показано ${st.page * PAGE + 1}–${Math.min(total, st.page * PAGE + PAGE)} з ${total.toLocaleString("uk-UA")}` : "";
     }
 
+    const starBtn = (plate) =>
+        `<button type="button" class="eq-star ${WATCH.has(plate) ? "on" : ""}" data-star="${esc(plate)}" title="${WATCH.has(plate) ? "Прибрати з обраних" : "Стежити: сповіщу, коли пройде кордон"}">${WATCH.has(plate) ? "★" : "☆"}</button>`;
+
+    function watchStatus(w) {
+        if (w.status === "passed") return `<span class="eq-pass">✅ Пройшла кордон</span><div class="eq-muted eq-sm">${w.passed_at ? new Date(w.passed_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""} · ${esc(cpShort(w.checkpoint))}</div>`;
+        if (w.status === "waiting") return `<span class="eq-wait">🚚 У черзі</span><div class="eq-muted eq-sm">${esc(cpShort(w.checkpoint))} · в'їзд ${dShort(w.entry_at)}${w.queue_no ? " · № " + esc(w.queue_no) : ""}</div>${w.note ? `<div class="eq-muted eq-sm">${esc(w.note)}</div>` : ""}`;
+        return `<span class="eq-muted">⏳ Ще не в черзі — чекаю, коли з'явиться</span>`;
+    }
+
+    function renderWatch() {
+        const list = [...WATCH.values()].sort((a, b) => ({ passed: 0, waiting: 1, pending: 2 })[a.status] - ({ passed: 0, waiting: 1, pending: 2 })[b.status] || String(b.passed_at || b.created_at).localeCompare(String(a.passed_at || a.created_at)));
+        $("#eqTable").innerHTML =
+            `<thead><tr><th class="eq-star-th">★</th><th>Тягач</th><th>Статус</th><th>Причіп</th><th>Перевізник</th><th>Стежу з</th></tr></thead><tbody>` +
+            `<tr class="eq-addrow"><td></td><td colspan="5"><form id="eqWatchForm" class="eq-watch-form"><input id="eqWatchPlate" placeholder="Номер тягача, напр. BC1234AB" autocomplete="off"><button type="submit" class="eq-add"><i class="bx bx-plus"></i> Стежити</button><span class="eq-muted eq-sm">Сповіщення прийде в FURA${" "}і в Telegram (якщо підключений до бота FURA), коли машина пройде кордон.</span></form></td></tr>` +
+            (list.map((w) => `<tr class="${w.status === "passed" ? "eq-passed" : ""}">
+                <td>${starBtn(w.plate)}</td>
+                <td class="eq-mono"><b>${esc(w.plate)}</b></td>
+                <td>${watchStatus(w)}</td>
+                <td class="eq-mono">${esc(w.trailer || "—")}</td>
+                <td>${esc(w.carrier || "—")}${w.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(w.edrpou)}</div>` : ""}</td>
+                <td class="eq-nw eq-muted">${w.created_at ? new Date(w.created_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+            </tr>`).join("") || `<tr><td colspan="6" class="eq-empty">Ще немає обраних. Натисніть ☆ біля машини у вкладці «Машини» або впишіть номер вище.</td></tr>`) + "</tbody>";
+        $("#eqCount").textContent = `Обраних: ${list.length} · у черзі: ${list.filter((w) => w.status === "waiting").length} · пройшли: ${list.filter((w) => w.status === "passed").length}`;
+        $("#eqPager").innerHTML = "";
+        $("#eqPagerTop").innerHTML = "";
+        $("#eqCountTop").textContent = "";
+        $("#eqWatchForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const plate = plateKey($("#eqWatchPlate").value);
+            if (!/^[A-Z]{2}\d{4}[A-Z]{2}$/.test(plate) && !confirm(`«${plate}» не схожий на український номер. Все одно стежити?`)) return;
+            if (plate && !WATCH.has(plate)) await toggleStar(plate);
+        });
+        // хто вже пройшов кордон — сповіщення показано
+        const unseen = list.filter((w) => w.status === "passed" && !w.seen).map((w) => w.id);
+        if (unseen.length) sbClient.from("echerha_watch").update({ seen: true }).in("id", unseen).then(() => {});
+    }
+
     function renderTrucks(list) {
         const rows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         $("#eqTable").innerHTML =
-            `<thead><tr><th>Пункт</th><th>В'їзд</th><th>Тягач</th><th>Причіп</th><th>Кузов</th><th>Перевізник</th><th>Керівник</th><th>FURA</th></tr></thead><tbody>` +
-            (rows.map((r) => `<tr>
+            `<thead><tr><th class="eq-star-th" title="Обрані">★</th><th>Пункт</th><th>В'їзд</th><th>Тягач</th><th>Причіп</th><th>Кузов</th><th>Перевізник</th><th>Керівник</th><th>FURA</th></tr></thead><tbody>` +
+            (rows.map((r) => `<tr class="${WATCH.has(r.tractor) ? "eq-starred" : ""}">
+                <td>${starBtn(r.tractor)}</td>
                 <td><b>${esc(cpShort(r.checkpoint))}</b><div class="eq-muted eq-sm">${esc(cpNote(r.checkpoint))}${r.note ? " · " + esc(r.note) : ""}</div></td>
                 <td class="eq-nw">${dShort(r.entry_at)}<div class="eq-muted eq-sm">№ ${esc(r.queue_no || "—")}</div></td>
                 <td class="eq-mono">${esc(r.tractor)}</td>
@@ -266,7 +345,7 @@ const EQ = (() => {
                 <td>${esc(r.carrier || "—")}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}</td>
                 <td>${esc(r.boss || "—")}</td>
                 <td>${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</td>
-            </tr>`).join("") || `<tr><td colspan="8" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
+            </tr>`).join("") || `<tr><td colspan="9" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Машин: ${list.length.toLocaleString("uk-UA")}`;
         pager(list.length);
     }
@@ -322,7 +401,8 @@ const EQ = (() => {
     function renderTable() {
         const list = filtered();
         kpis(list);
-        if (st.view === "carriers") renderCarriers(list);
+        if (st.view === "watch") renderWatch();
+        else if (st.view === "carriers") renderCarriers(list);
         else if (st.view === "cps") renderCps(list);
         else renderTrucks(list);
     }
@@ -384,10 +464,10 @@ const EQ = (() => {
             st.page = 0;
             renderAll();
         });
-        [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"]].forEach(([id, k]) =>
+        [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, page: 0 });
+            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, page: 0 });
             fillSelects();
             renderAll();
         });
@@ -408,6 +488,8 @@ const EQ = (() => {
         $("#eqPager").addEventListener("click", onPage);
         $("#eqPagerTop").addEventListener("click", onPage);
         $("#eqTable").addEventListener("click", (e) => {
+            const star = e.target.closest("[data-star]");
+            if (star) return toggleStar(star.dataset.star);
             const add = e.target.closest("[data-add]");
             if (add) return addCarrier(add);
             const cp = e.target.closest("[data-cp]");
@@ -421,7 +503,21 @@ const EQ = (() => {
         });
     }
 
-    return { restore, bind, load, fillSelects };
+    // Зміни моїх обраних (напр. «пройшла кордон») — одразу оновити список
+    function live() {
+        sbClient.auth.getSession().then(({ data: { session } }) => {
+            if (!session) return;
+            sbClient
+                .channel("eq-watch-page")
+                .on("postgres_changes", { event: "*", schema: "public", table: "echerha_watch", filter: `user_id=eq.${session.user.id}` }, async () => {
+                    await loadWatch();
+                    renderTable();
+                })
+                .subscribe();
+        });
+    }
+
+    return { restore, bind, load, fillSelects, live, setView: (v) => { st.view = v; } };
 })();
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -437,6 +533,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (event === "SIGNED_OUT") window.location.href = "login.html";
     });
     EQ.restore();
+    const v = new URLSearchParams(location.search).get("view");
+    if (v) EQ.setView(v);
     EQ.fillSelects();
     EQ.bind();
     try {
@@ -445,6 +543,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error(e);
         document.getElementById("eqSync").textContent = "Помилка завантаження: " + (e.message || e);
     }
+    EQ.live();
     // дані з Черги приходять раз на ~30 хв — підтягуємо раз на 5 хв
     setInterval(() => EQ.load().catch(() => {}), 5 * 60 * 1000);
 });

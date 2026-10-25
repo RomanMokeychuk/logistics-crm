@@ -97,3 +97,19 @@
 }
 .eq-foot-top { border-bottom: 1px solid #e2e8f0; padding: 8px 12px; }
 .eq-foot-top:has(.pager:empty) { display: none; }
+
+/* Обрані машини ★ */
+.eq-star-th { width: 34px; text-align: center !important; color: #f59e0b !important; }
+.eq-star { border: 0; background: none; cursor: pointer; font-size: 20px; line-height: 1; color: #cbd5e1; padding: 2px 4px; }
+.eq-star:hover { color: #f59e0b; transform: scale(1.15); }
+.eq-star.on { color: #f59e0b; }
+.eq-starred { background: #fffbeb; }
+.eq-star-ico { color: #f59e0b; }
+.eq-watch-n { background: #f59e0b; color: #fff; border-radius: 9px; padding: 0 6px; font-size: 11px; }
+.eq-watch-n:empty { display: none; }
+.eq-watch-form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.eq-watch-form input { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; width: 230px; max-width: 100%; text-transform: uppercase; }
+.eq-addrow td { background: #f8fafc; }
+.eq-pass { color: #15803d; font-weight: 700; }
+.eq-wait { color: #b45309; font-weight: 700; }
+.eq-passed { background: #f0fdf4; }
