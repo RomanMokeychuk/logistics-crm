@@ -5,7 +5,7 @@
 .btn-qmatch + .btn-match { margin-left: 0; }
 
 .qm-overlay { z-index: 1100; }
-.qm-modal { max-width: 1040px; display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; }
+.qm-modal { max-width: 1040px; display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; overflow: hidden; }
 .qm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .qm-head h2 { margin: 0; font-size: 19px; color: var(--f-navy, #13203f); }
 .qm-sub { margin-top: 4px; font-size: 13px; color: var(--f-muted, #6b7280); }
@@ -20,7 +20,9 @@
 .qm-body input { margin: 0; }
 .qm-note { font-size: 12px; color: var(--f-muted, #6b7280); }
 
-.qm-list { display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.qm-list { display: flex; flex-direction: column; gap: 8px; min-height: 120px; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.qm-head, .qm-filters, .qm-note, .qm-foot { flex: 0 0 auto; }
+.qm-cname { min-width: 0; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qm-empty { color: var(--f-muted, #6b7280); font-size: 14px; margin: 16px 4px; }
 .qm-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; padding: 10px 12px; }
 .qm-row:has(input:checked) { border-color: #93c5fd; background: #f8fbff; }
@@ -38,10 +40,11 @@
 .qm-chip.hot { background: #fff1e0; color: #a14a00; }
 .qm-chip.bad { background: #fdecec; color: #9b1c1c; }
 
-.qm-foot { position: sticky; bottom: -20px; background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0 2px; border-top: 1px solid var(--f-line, #e4e8ef); font-size: 13px; color: var(--f-muted, #6b7280); }
+.qm-foot { background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0 2px; border-top: 1px solid var(--f-line, #e4e8ef); font-size: 13px; color: var(--f-muted, #6b7280); }
 
 @media (max-width: 640px) {
     .qm-modal { padding: 14px; }
+    .qm-cname { max-width: 100%; white-space: normal; }
     .qm-row { grid-template-columns: 24px minmax(0, 1fr); }
     .qm-score { grid-column: 2; text-align: left; font-size: 14px; }
     .qm-foot { flex-direction: column; align-items: stretch; }

@@ -506,7 +506,7 @@
                 return `<div class="qm-row ${x.g.best.off > 1 ? "qm-dim" : ""}">
                     <label class="qm-pick">${can ? `<input type="checkbox" data-pick="${esc(c.id)}" ${picked.has(String(c.id)) ? "checked" : ""} />` : `<input type="checkbox" disabled title="Немає ні Telegram, ні телефону" />`}</label>
                     <div class="qm-main">
-                        <div class="qm-name"><span class="qm-rank">${i + 1}</span> ${esc(name)} ${chips}</div>
+                        <div class="qm-name"><span class="qm-rank">${i + 1}</span><span class="qm-cname" title="${esc(name)}">${esc(name)}</span> ${chips}</div>
                         <div class="qm-truck">${esc(b.tractor)}${b.trailer ? " / " + esc(b.trailer) : ""}${b.trailer_model ? ` · ${esc(b.trailer_model)}` : ""}${b.boss ? ` · керівник: ${esc(b.boss)}` : ""}</div>
                         <div class="qm-why">${x.why.map(esc).join(" · ")}</div>
                     </div>
