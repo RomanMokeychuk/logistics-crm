@@ -22,7 +22,7 @@
     const DAY = 86400000;
     const isUA = (c) => /^УКРА/i.test(String(c || "").trim());
     const nice = (c) => { const x = String(c || "").toLowerCase().replace(/^польша$/, "польща"); return x.charAt(0).toUpperCase() + x.slice(1); };
-    const cpShort = (n) => String(n || "").replace(/\s*\((для|Туреччина)[^)]*\)\s*$/i, "");
+    const cpShort = (n) => String(n || "").replace(/\.\s*Товари.*$/i, "").replace(/\s*\((для|Туреччина|≥)[^)]*\)/gi, "").trim();
 
     /* ---------- Довідники ---------- */
 
@@ -343,8 +343,8 @@
             why.push(b.passed ? `проїхав ${cpShort(b.t.checkpoint)} ${fmtDT(b.crossed)}` : `у черзі ${cpShort(b.t.checkpoint)}, в'їзд ~${fmtDT(b.crossed)}`);
             if (b.loaded && b.dest) {
                 const pct = Math.round(b.dest.conf * 100);
-                why.push(`везе, ймовірно, в ${nice(b.dest.country)}${b.dest.cities.length ? " (" + b.dest.cities.join(", ") + ")" : ""} — ${pct}% ${b.dest.own ? "рейсів цього тягача" : "рейсів перевізника"}`);
-                why.push(b.sameCountry ? `розвантажиться в країні завантаження → вільний ~${fmtDay(b.ready)}` : `звідти ~${Math.round(b.repoKm)} км до ${nice(p.load)} → вільний ~${fmtDay(b.ready)}`);
+                why.push(`везе, ймовірно: ${nice(b.dest.country)}${b.dest.cities.length ? " (" + b.dest.cities.join(", ") + ")" : ""} — ${pct}% ${b.dest.own ? "рейсів цього тягача" : "рейсів перевізника"}`);
+                why.push(b.sameCountry ? `розвантажиться в країні завантаження → вільний ~${fmtDay(b.ready)}` : `звідти ~${Math.round(b.repoKm)} км до країни завантаження → вільний ~${fmtDay(b.ready)}`);
                 if (b.cityHit) why.push(`часто буває в ${b.cityHit} — поруч із завантаженням`);
             } else {
                 why.push(b.loaded ? `з вантажем, куди — невідомо → вільний ~${fmtDay(b.ready)}` : `порожній → може бути на завантаженні ~${fmtDay(b.ready)}`);
@@ -476,7 +476,7 @@
 
         note.textContent =
             `Машин: у черзі ${t.queue.length}, проїхали за ${opt.passedHours} год — ${t.passed.length}. Перевізників: ${total}${total > 60 ? " (показую 60 найкращих)" : ""}. ` +
-            `Для машин з вантажем місце розвантаження прогнозується за експортною історією перевізника (номер тягача, пункт пропуску); дата готовності = кордон + дорога до країни розвантаження + 1 дн. + перегін до ${nice(p.load)} (~${KM_PER_DAY} км/день).` +
+            `Для машин з вантажем місце розвантаження прогнозується за експортною історією перевізника (номер тягача, пункт пропуску); дата готовності = кордон + дорога до країни розвантаження + 1 дн. + перегін до країни завантаження (~${KM_PER_DAY} км/день).` +
             (t.passedMissing ? " ⚠ Історію «проїхали кордон» ще не ввімкнено — виконайте echerha_passed.sql." : "");
         current.list = list;
         render();
