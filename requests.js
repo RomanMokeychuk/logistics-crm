@@ -2389,10 +2389,11 @@ async function openCarrierQuickCard(id) {
     );
 }
 
-// Клік по перевізнику у варіанті ціни (картка запиту)
+// Клік по перевізнику у варіанті ціни (картка запиту) — повна картка у вікні (carrier-popup.js);
+// стара коротка картка лишається запасною, якщо carrier-popup.js не завантажився
 document.addEventListener("click", (e) => {
     const link = e.target.closest("[data-carrier-card]");
-    if (!link) return;
+    if (!link || window.furaCarrierPopup) return;
     e.preventDefault();
     openCarrierQuickCard(link.dataset.carrierCard);
 });

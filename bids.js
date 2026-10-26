@@ -62,7 +62,7 @@
                 return `
                 <div class="bd-row${r.id === best ? " best" : ""}${refused ? " refused" : ""}" data-id="${r.id}">
                     <div class="bd-who">
-                        <b>${r.carrier_id ? `<a href="index.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank">${esc(r.carrier_name)}</a>` : esc(r.carrier_name)}</b>
+                        <b>${r.carrier_id ? `<a href="index.html?open=${encodeURIComponent(r.carrier_id)}" data-carrier-card="${esc(r.carrier_id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(r.carrier_name)}</a>` : esc(r.carrier_name)}</b>
                         <span>${phone ? `+${phone}` : "немає мобільного"}${r.id === best ? ` · <strong class="bd-best">найкраща</strong>` : ""}</span>
                     </div>
                     <div class="bd-chat">

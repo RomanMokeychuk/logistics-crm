@@ -153,7 +153,7 @@ async function loadClients() {
         sbClient.from("leads").select("*").order("name"),
         sbClient
             .from("deals")
-            .select("id, number, lead_id, client, created_at, load_country, load_address, unload_country, unload_address, load_date_plan, load_date, unload_date, carrier_name, truck_plate, services, paid_by_client")
+            .select("id, number, lead_id, client, created_at, load_country, load_address, unload_country, unload_address, load_date_plan, load_date, unload_date, carrier_name, carrier_id, carrier_edrpou, truck_plate, services, paid_by_client")
             .order("number", { ascending: false }),
     ]);
     if (error) {
@@ -760,7 +760,7 @@ function renderClientTab(c) {
                         <td><b>№ ${e(d.number)}</b></td>
                         <td>${fmtDate(d.load_date_plan || d.created_at)}</td>
                         <td>${e(from || "—")} → ${e(to || "—")}</td>
-                        <td>${e(d.carrier_name || "—")}${d.truck_plate ? `<div class="client-sub">${e(d.truck_plate)}</div>` : ""}</td>
+                        <td>${d.carrier_name && (d.carrier_id || d.carrier_edrpou) ? `<a href="#" ${d.carrier_id ? `data-carrier-card="${e(d.carrier_id)}"` : `data-carrier-code="${e(d.carrier_edrpou)}"`} class="fura-clink" title="Відкрити картку перевізника">${e(d.carrier_name)}</a>` : e(d.carrier_name || "—")}${d.truck_plate ? `<div class="client-sub">${e(d.truck_plate)}</div>` : ""}</td>
                         <td><span class="deal-state ${cls}">${st}</span></td>
                         <td>${d.paid_by_client ? `<span class="client-paid">оплачено</span>` : `<span class="client-sub">очікуємо</span>`}</td>
                     </tr>`;

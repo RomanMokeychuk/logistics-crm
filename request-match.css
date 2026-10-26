@@ -21,7 +21,18 @@
 .qm-note { font-size: 12px; color: var(--f-muted, #6b7280); }
 
 .qm-list { display: flex; flex-direction: column; gap: 8px; min-height: 120px; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
-.qm-head, .qm-filters, .qm-note, .qm-foot { flex: 0 0 auto; }
+.qm-head, .qm-filters, .qm-note, .qm-phone { margin-top: 6px; }
+.qm-phone-btn { border: 1px dashed #93c5fd; background: #f5f9ff; color: #1d5bd8; border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.qm-phone-btn:hover { background: #e8f1ff; }
+.qm-phone-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.qm-phone-form[hidden] { display: none; }
+.qm-phone-form input { border: 1px solid var(--f-line, #e4e8ef); border-radius: 8px; padding: 6px 8px; font-size: 13px; min-width: 0; }
+.qm-phone-form input[name=phone] { width: 170px; }
+.qm-phone-form input[name=person] { width: 200px; }
+.qm-phone-form .btn { padding: 6px 12px; font-size: 13px; }
+.qm-phone-msg { font-size: 12px; color: #9b1c1c; }
+a.qm-cname { color: inherit; }
+.qm-foot { flex: 0 0 auto; }
 .qm-cname { min-width: 0; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qm-empty { color: var(--f-muted, #6b7280); font-size: 14px; margin: 16px 4px; }
 .qm-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; padding: 10px 12px; }
@@ -45,6 +56,7 @@
 @media (max-width: 640px) {
     .qm-modal { padding: 14px; }
     .qm-cname { max-width: 100%; white-space: normal; }
+    .qm-phone-form input[name=phone], .qm-phone-form input[name=person] { width: 100%; }
     .qm-row { grid-template-columns: 24px minmax(0, 1fr); }
     .qm-score { grid-column: 2; text-align: left; font-size: 14px; }
     .qm-foot { flex-direction: column; align-items: stretch; }

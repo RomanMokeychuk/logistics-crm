@@ -122,6 +122,7 @@
                     .slice(0, 8)
                     .map(({ c, plate }) => ({
                         href: `index.html?open=${encodeURIComponent(c.id)}`,
+                        carrier: c.id,
                         title: c.name || "Без назви",
                         sub: [plate && `🚛 возив ${plate}`, c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city, c.trailer_type, c.phone_1].filter(Boolean).join(" · "),
                     }));
@@ -227,7 +228,7 @@
                     const rows = r
                         .map((it) => {
                             items.push(it);
-                            return `<a class="gs-item" role="option" href="${esc(it.href)}">
+                            return `<a class="gs-item" role="option" href="${esc(it.href)}"${it.carrier ? ` data-carrier-card="${esc(it.carrier)}"` : ""}>
                                 <i class="bx ${s.icon}" aria-hidden="true"></i>
                                 <span><b>${esc(it.title)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</span>
                             </a>`;
@@ -259,7 +260,11 @@
                 const target = items[active >= 0 ? active : 0];
                 if (target) {
                     e.preventDefault();
-                    window.location.href = target.href;
+                    if (target.carrier && window.furaCarrierPopup) {
+                        show("");
+                        input.blur();
+                        window.furaCarrierPopup.open(target.carrier);
+                    } else window.location.href = target.href;
                 }
             } else if (e.key === "Escape") {
                 show("");

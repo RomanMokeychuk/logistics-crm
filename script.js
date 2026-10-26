@@ -204,6 +204,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const openCarrierId = new URLSearchParams(location.search).get("open");
     loadCarriers().then(() => {
         if (openCarrierId) openCarrierCard(openCarrierId);
+        if (CARRIER_POPUP) carrierPopupReady(openCarrierId);
     });
     setupScrollTopButton();
     renderDirectionSelects();
@@ -561,7 +562,17 @@ function openCarrierCard(id) {
 // і кладе в кеш. Викликається тільки при відкритті сторінки та після
 // додавання / зміни / видалення. Пошук, фільтри, сортування і сторінки
 // працюють з кешем — миттєво, без звернень до бази.
+// Картка відкрита у вікні поверх іншої сторінки (carrier-popup.js): index.html?cpop=1&open=<id>
+const CARRIER_POPUP = new URLSearchParams(location.search).get("cpop") === "1";
+
 async function loadCarriers() {
+    if (CARRIER_POPUP) {
+        const id = new URLSearchParams(location.search).get("open");
+        const { data, error } = await sbClient.from("carriers").select("*").eq("id", id).limit(1);
+        if (error) console.error("Помилка завантаження:", error);
+        allCarriersCache = data || [];
+        return;
+    }
     const CHUNK = 1000;
     const base = () =>
         sbClient
@@ -1739,4 +1750,24 @@ function notesShortHtml(notes) {
     }
     const short = text.replace(/\s+/g, " ");
     return escapeHtml(short.length > 80 ? short.slice(0, 80) + "…" : short);
+}
+
+
+/* ================================================================= *
+ * Картка у вікні поверх іншої сторінки (carrier-popup.js)            *
+ * Коли не лишилось жодного відкритого вікна (картку закрили, форму    *
+ * зберегли чи скасували) — просимо сторінку-батька закрити вікно.     *
+ * ================================================================= */
+function carrierPopupReady(id) {
+    const post = (type) => window.parent.postMessage({ type, id }, location.origin);
+    if (!allCarriersCache.some((c) => String(c.id) === String(id))) return post("fura-cpop-missing");
+    post("fura-cpop-ready");
+    let t = null;
+    const check = () => {
+        clearTimeout(t);
+        t = setTimeout(() => {
+            if (!document.querySelector(".modal-overlay.active")) post("fura-cpop-close");
+        }, 250);
+    };
+    new MutationObserver(check).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
 }

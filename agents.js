@@ -201,7 +201,7 @@ async function loadQueue() {
             return `
             <article class="ag-item" data-id="${m.id}">
                 <div class="ag-item-meta">
-                    <strong>${escapeHtml(m.carrier_name || "Перевізник")}</strong>
+                    <strong>${m.carrier_id ? `<a href="#" data-carrier-card="${escapeHtml(m.carrier_id)}" class="fura-clink" title="Відкрити картку перевізника">${escapeHtml(m.carrier_name || "Перевізник")}</a>` : escapeHtml(m.carrier_name || "Перевізник")}</strong>
                     ${phone ? `<span class="ag-chip">${escapeHtml(prettyPhone(phone))}</span>` : ""}
                     ${tg ? `<span class="ag-chip good">Telegram</span>` : ""}
                     <a class="ag-link" href="agents.html?request=${encodeURIComponent(m.request_id)}">${escapeHtml(routeOf(r))}</a>
@@ -434,7 +434,7 @@ async function loadBids() {
             return `
             <article class="ag-item reply">
                 <div class="ag-item-meta">
-                    <strong>${escapeHtml(m.carrier_name || "Перевізник")}</strong>
+                    <strong>${m.carrier_id ? `<a href="#" data-carrier-card="${escapeHtml(m.carrier_id)}" class="fura-clink" title="Відкрити картку перевізника">${escapeHtml(m.carrier_name || "Перевізник")}</a>` : escapeHtml(m.carrier_name || "Перевізник")}</strong>
                     ${chip}
                     <a class="ag-link" href="agents.html?request=${encodeURIComponent(m.request_id)}">${escapeHtml(routeOf(r))}</a>
                     <span>${escapeHtml(fmtTime(m.created_at))}</span>
@@ -492,7 +492,7 @@ async function searchCarriers() {
                 <label>
                     ${canPick ? `<input type="checkbox" data-pick="${escapeHtml(id)}" ${selectedCarriers.has(id) ? "checked" : ""} />` : ""}
                     <span>
-                        <span class="name">${escapeHtml(c.name || "Без назви")}</span><br />
+                        <span class="name">${escapeHtml(c.name || "Без назви")}</span> <a href="#" data-carrier-card="${escapeHtml(id)}" class="ag-card-link" title="Відкрити картку перевізника"><i class="bx bx-link-external"></i></a><br />
                         <span class="muted">${escapeHtml(info)}</span>
                     </span>
                 </label>

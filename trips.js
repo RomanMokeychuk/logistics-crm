@@ -494,7 +494,7 @@ function renderDetail(keepMap = false) {
 
             <div class="td-grid">
                 ${field("Водій", `${escapeHtml(t.driver_name)}`, t.driver_phone ? `<a href="tel:${escapeHtml(t.driver_phone)}">${escapeHtml(t.driver_phone)}</a>` : "")}
-                ${field("Перевізник", escapeHtml(t.carrier_name || "—"))}
+                ${field("Перевізник", t.carrier_name && t.carrier_id ? `<a href="#" data-carrier-card="${escapeHtml(t.carrier_id)}" class="fura-clink" title="Відкрити картку перевізника">${escapeHtml(t.carrier_name)}</a>` : escapeHtml(t.carrier_name || "—"))}
                 ${field("Авто", escapeHtml([t.truck_plate, t.trailer_plate].filter(Boolean).join(" / ") || "—"), "", true)}
                 ${field("Остання точка", t.last_point_at ? ago(t.last_point_at) : "—", t.last_point_at ? fmtDT(t.last_point_at) : "")}
                 ${field("Швидкість", t.last_speed_kmh != null && active ? `${Math.round(t.last_speed_kmh)} км/год` : "—", standing != null && standing > 10 && active ? `стоїть ${fmtDur(standing)}` : "")}

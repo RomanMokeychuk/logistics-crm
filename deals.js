@@ -217,7 +217,7 @@ function renderDeals() {
                 <div class="deal-arrow">↓ ${d.border_crossing ? escapeHtml(d.border_crossing) : ""}</div>
                 <div>${escapeHtml(place(d.unload_country, cityOf(d.unload_address))) || "—"}</div>
             </td>
-            <td><strong>${escapeHtml(d.carrier_name) || "—"}</strong>${d.trailer_type ? `<div class="lead-sub">${escapeHtml(d.trailer_type)}</div>` : ""}</td>
+            <td><strong>${d.carrier_name && (d.carrier_id || d.carrier_edrpou) ? `<a href="#" ${d.carrier_id ? `data-carrier-card="${escapeHtml(d.carrier_id)}"` : `data-carrier-code="${escapeHtml(d.carrier_edrpou)}"`} class="fura-clink" title="Відкрити картку перевізника">${escapeHtml(d.carrier_name)}</a>` : escapeHtml(d.carrier_name) || "—"}</strong>${d.trailer_type ? `<div class="lead-sub">${escapeHtml(d.trailer_type)}</div>` : ""}</td>
             <td>
                 ${d.truck_plate || d.trailer_plate ? `<div class="deal-plates">${escapeHtml([d.truck_plate, d.trailer_plate].filter(Boolean).join(" / "))}</div>` : ""}
                 ${d.driver_name ? `<div>${escapeHtml(d.driver_name)}</div>` : ""}
@@ -1198,7 +1198,8 @@ function renderDealView(d) {
                     <div class="deal-suggest" id="dvClientSg" hidden></div></div>
                 <div class="dv-field"><div class="dv-label">Договір</div>
                     <input class="dv-in" data-f="contract" value="${e(d.contract || "")}" placeholder="№ і дата договору" /></div>
-                <div class="dv-field deal-pick"><div class="dv-label">Перевізник <i class='req'>*</i> <small>(з реєстру)</small></div>
+                <div class="dv-field deal-pick"><div class="dv-label">Перевізник <i class='req'>*</i> <small>(з реєстру)</small>
+                    ${d.carrier_id ? `<a href="#" data-carrier-card="${e(d.carrier_id)}" class="dv-mini-link" title="Відкрити картку перевізника"><i class="bx bx-link-external"></i></a>` : ""}</div>
                     <input class="dv-in" id="dvCarrier" value="${e(d.carrier_name || "")}" placeholder="Назва або ЄДРПОУ перевізника…" autocomplete="off" />
                     <span class="dv-code" id="dvCarrierCode">${e(d.carrier_edrpou || "")}</span>
                     <div class="deal-suggest" id="dvCarrierSg" hidden></div></div>

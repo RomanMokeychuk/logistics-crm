@@ -266,7 +266,7 @@ const EQ = (() => {
         const k = codeKey(code);
         if (!k) return `<span class="eq-muted">—</span>`;
         const f = FURA.get(k);
-        if (f) return `<a class="eq-in" href="index.html?open=${encodeURIComponent(f.id)}" title="Відкрити картку у FURA"><i class="bx bx-check-circle"></i> Картка</a>`;
+        if (f) return `<a class="eq-in" href="index.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" title="Відкрити картку у FURA"><i class="bx bx-check-circle"></i> Картка</a>`;
         return `<button type="button" class="eq-add" data-add="${esc(code)}" data-name="${esc(name)}" data-bodies="${esc(bodies || "")}" data-extra="${esc(extra || "")}"><i class="bx bx-plus"></i> Додати</button>`;
     }
 
@@ -367,7 +367,7 @@ const EQ = (() => {
         $("#eqTable").innerHTML =
             `<thead><tr><th>Перевізник</th><th>ЄДРПОУ</th><th>Керівник</th><th>Машин</th><th>Пункти</th><th>Найближчий в'їзд</th><th>Кузови</th><th>FURA</th></tr></thead><tbody>` +
             (rows.map((c) => `<tr>
-                <td><b>${esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}</td>
+                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}</td>
                 <td class="eq-mono">${esc(c.code)}</td>
                 <td>${esc(c.boss || "—")}</td>
                 <td title="${esc(c.trucks.join("\n"))}"><b>${c.trucks.length}</b><div class="eq-muted eq-sm eq-clip eq-mono">${esc(c.trucks.slice(0, 2).join(", "))}${c.trucks.length > 2 ? "…" : ""}</div></td>

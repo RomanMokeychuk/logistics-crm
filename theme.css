@@ -552,3 +552,29 @@ html.fura-embed .modal {
 .fura-nav-item.active .fura-nav-svg {
     color: #fff;
 }
+
+/* Картка перевізника у вікні поверх іншої сторінки (carrier-popup.js): тільки саме вікно */
+html.fura-cpop,
+html.fura-cpop body {
+    background: transparent !important;
+    height: 100% !important;
+    overflow: hidden !important;
+}
+html.fura-cpop .main-content,
+html.fura-cpop .scroll-top-btn {
+    display: none !important;
+}
+html.fura-embed.fura-cpop .modal-overlay {
+    position: fixed;
+    align-items: center;
+    padding: 24px;
+    background: transparent;
+    backdrop-filter: none;
+}
+html.fura-embed.fura-cpop .modal {
+    max-height: 90vh;
+}
+@media (max-width: 768px) {
+    html.fura-embed.fura-cpop .modal-overlay { padding: 8px; }
+    html.fura-embed.fura-cpop .modal { max-height: 95vh; }
+}

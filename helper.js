@@ -76,7 +76,7 @@
 
     function actions(c, phone) {
         const btns = [];
-        if (c.id) btns.push(`<a class="fh-btn" href="index.html?open=${encodeURIComponent(c.id)}">Картка</a>`);
+        if (c.id) btns.push(`<a class="fh-btn" href="index.html?open=${encodeURIComponent(c.id)}" data-carrier-card="${esc(c.id)}">Картка</a>`);
         if (phone) {
             btns.push(`<button type="button" class="fh-btn fh-viber" data-chat="viber" data-phone="${phone}">Viber</button>`);
             btns.push(`<button type="button" class="fh-btn" data-chat="whatsapp" data-phone="${phone}">WhatsApp</button>`);

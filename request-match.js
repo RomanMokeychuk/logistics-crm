@@ -399,6 +399,11 @@
         document.body.appendChild(overlay);
         overlay.addEventListener("click", onClick);
         overlay.addEventListener("change", onChange);
+        overlay.addEventListener("submit", (e) => {
+            if (!e.target.classList.contains("qm-phone-form")) return;
+            e.preventDefault();
+            savePhone(e.target);
+        });
         document.addEventListener("keydown", (e) => {
             if (e.key === "Escape" && overlay.classList.contains("active")) close();
         });
@@ -506,15 +511,89 @@
                 return `<div class="qm-row ${x.g.best.off > 1 ? "qm-dim" : ""}">
                     <label class="qm-pick">${can ? `<input type="checkbox" data-pick="${esc(c.id)}" ${picked.has(String(c.id)) ? "checked" : ""} />` : `<input type="checkbox" disabled title="Немає ні Telegram, ні телефону" />`}</label>
                     <div class="qm-main">
-                        <div class="qm-name"><span class="qm-rank">${i + 1}</span><span class="qm-cname" title="${esc(name)}">${esc(name)}</span> ${chips}</div>
+                        <div class="qm-name"><span class="qm-rank">${i + 1}</span>${c ? `<a href="#" class="qm-cname fura-clink" data-carrier-card="${esc(c.id)}" title="Відкрити картку: ${esc(name)}">${esc(name)}</a>` : `<span class="qm-cname" title="${esc(name)}">${esc(name)}</span>`} ${chips}</div>
                         <div class="qm-truck">${esc(b.tractor)}${b.trailer ? " / " + esc(b.trailer) : ""}${b.trailer_model ? ` · ${esc(b.trailer_model)}` : ""}${b.boss ? ` · керівник: ${esc(b.boss)}` : ""}</div>
                         <div class="qm-why">${x.why.map(esc).join(" · ")}</div>
+                        ${can ? "" : phoneFormHtml(x, i)}
                     </div>
                     <div class="qm-score" title="Бал підбору">${Math.round(x.score)}</div>
                 </div>`;
             })
             .join("");
         updatePicked();
+    }
+
+    // «📞 Додати телефон» — для перевізника без контактів (або якого ще немає в «Перевізниках»)
+    function phoneFormHtml(x, i) {
+        return `<div class="qm-phone" data-qm-phone="${i}">
+            <button type="button" class="qm-phone-btn" data-qm="phone-open">📞 Додати телефон</button>
+            <form class="qm-phone-form" hidden>
+                <input type="tel" name="phone" placeholder="+380 67 123 45 67" autocomplete="off" required />
+                <input type="text" name="person" placeholder="Ім'я контакту (необов'язково)" autocomplete="off" />
+                <button type="submit" class="btn btn-primary">Зберегти</button>
+                <button type="button" class="btn btn-secondary" data-qm="phone-cancel">Скасувати</button>
+                <span class="qm-phone-msg"></span>
+            </form>
+        </div>`;
+    }
+
+    function normPhone(v) {
+        const parts = String(v || "").split(/[,;]/).map((p) => {
+            let d = p.replace(/\D/g, "");
+            if (d.length === 10 && d.startsWith("0")) d = "38" + d;
+            if (d.length === 9) d = "380" + d;
+            return d.length >= 9 ? "+" + d : "";
+        }).filter(Boolean);
+        return parts.join(", ");
+    }
+
+    async function savePhone(form) {
+        const box = form.closest("[data-qm-phone]");
+        const x = (current.list || [])[Number(box.dataset.qmPhone)];
+        const msg = form.querySelector(".qm-phone-msg");
+        const phone = normPhone(form.phone.value);
+        const person = form.person.value.trim();
+        if (!x) return;
+        if (!phone) {
+            msg.textContent = "Перевірте номер";
+            return;
+        }
+        const btn = form.querySelector("button[type=submit]");
+        btn.disabled = true;
+        msg.textContent = "Зберігаю…";
+        try {
+            let c = x.c;
+            if (c) {
+                // Перший вільний слот: phone_1, інакше phone_2
+                const field = String(c.phone_1 || "").replace(/\D/g, "").length >= 9 ? "phone_2" : "phone_1";
+                const patch = { [field]: phone };
+                if (person) patch[field === "phone_1" ? "contact_person_1" : "contact_person_2"] = person;
+                const { data, error } = await client.from("carriers").update(patch).eq("id", c.id).select("id, phone_1, phone_2");
+                if (error) throw error;
+                if (!data || !data.length) throw new Error("немає прав змінювати перевізника");
+                Object.assign(c, data[0]);
+            } else {
+                // Перевізника ще немає в реєстрі — додаємо з даними з Черги
+                const b = x.g.best.t;
+                const code = x.g.code.length < 8 ? x.g.code.padStart(8, "0") : x.g.code;
+                const { data, error } = await client.from("carriers").insert([{
+                    name: b.carrier || "—",
+                    edrpou: code,
+                    contact_person_1: person || b.boss || null,
+                    phone_1: phone,
+                    trailer_type: b.trailer_body ? String(b.trailer_body).toUpperCase() : null,
+                }]).select("id, name, edrpou, phone_1, phone_2, tg_chat_id, rating").single();
+                if (error) throw error;
+                c = data;
+                x.c = c;
+            }
+            x.phone = true;
+            picked.add(String(c.id));
+            render();
+        } catch (err) {
+            msg.textContent = "Не вдалося: " + (err.message || err);
+            btn.disabled = false;
+        }
     }
 
     function updatePicked() {
@@ -537,6 +616,12 @@
         if (e.target === overlay) return close();
         const act = e.target.closest("[data-qm]")?.dataset.qm;
         if (act === "close") close();
+        if (act === "phone-open" || act === "phone-cancel") {
+            const box = e.target.closest("[data-qm-phone]");
+            box.querySelector(".qm-phone-btn").hidden = act === "phone-open";
+            box.querySelector(".qm-phone-form").hidden = act !== "phone-open";
+            if (act === "phone-open") box.querySelector("input[name=phone]").focus();
+        }
         if (act === "refresh") search();
         if (act === "bids" && picked.size) {
             const q = new URLSearchParams({ request: current.r.id, carriers: [...picked].join(",") });
@@ -550,6 +635,20 @@
         if (!b) return;
         e.preventDefault();
         open(b.dataset.qmatch);
+    });
+
+    // Закрили картку перевізника (могли дописати телефон / Telegram) — оновлюємо рядок
+    document.addEventListener("fura-carrier-popup-closed", async (e) => {
+        const id = String(e.detail?.id || "");
+        if (!id || !overlay?.classList.contains("active") || !current?.list) return;
+        const x = current.list.find((y) => y.c && String(y.c.id) === id);
+        if (!x) return;
+        const { data } = await client.from("carriers").select("id, name, edrpou, phone_1, phone_2, tg_chat_id, rating").eq("id", id).limit(1);
+        if (!data || !data[0]) return;
+        Object.assign(x.c, data[0]);
+        x.tg = !!x.c.tg_chat_id;
+        x.phone = [x.c.phone_1, x.c.phone_2].some((p) => String(p || "").replace(/\D/g, "").length >= 9);
+        render();
     });
 
     window.furaQueueMatch = { buttonHtml, open, _test: { paramsOf, rank, parseWhen, normPlate, cpKey } };
