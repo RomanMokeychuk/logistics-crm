@@ -17,6 +17,8 @@ const REQUEST_ID = params.get("request") || "";
 
 const requestsById = new Map();
 const selectedCarriers = new Set();
+// Перевізники, обрані в «Машини з черги» (request-match.js): agents.html?request=…&carriers=1,2,3
+const PRESET_CARRIERS = (params.get("carriers") || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 60);
 
 /* ---------------- Дрібниці ---------------- */
 
@@ -456,12 +458,14 @@ async function searchCarriers() {
     // Символи, які ламають фільтр Supabase, прибираємо
     const term = raw.replace(/[,()%*\\]/g, " ").trim();
 
-    if (!term && !onlyLinked) {
+    const preset = !term && !onlyLinked && PRESET_CARRIERS.length > 0;
+    if (!term && !onlyLinked && !preset) {
         box.innerHTML = `<p class="ag-empty" style="padding:10px 4px">Почніть вводити назву або ЄДРПОУ.</p>`;
         return;
     }
 
-    let q = sbClient.from("carriers").select("id, name, edrpou, city, phone_1, phone_2, tg_chat_id, tg_linked_at").limit(25);
+    let q = sbClient.from("carriers").select("id, name, edrpou, city, phone_1, phone_2, tg_chat_id, tg_linked_at").limit(preset ? 60 : 25);
+    if (preset) q = q.in("id", PRESET_CARRIERS);
     if (term) q = q.or(`name.ilike.%${term}%,edrpou.ilike.%${term}%`);
     if (onlyLinked) q = q.not("tg_chat_id", "is", null);
     q = q.order("name", { ascending: true });
@@ -592,6 +596,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     await renderRequest();
     refreshAll();
+    if (REQUEST_ID && PRESET_CARRIERS.length) {
+        PRESET_CARRIERS.forEach((id) => selectedCarriers.add(id));
+        const hint = document.getElementById("carrierSearch");
+        if (hint) hint.placeholder = `Обрано з «Машини з черги»: ${PRESET_CARRIERS.length}. Пошук — щоб додати ще.`;
+    }
     searchCarriers();
     updateSelected();
 

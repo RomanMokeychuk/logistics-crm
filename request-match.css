@@ -1,0 +1,48 @@
+/* FURA — «Машини з черги» під запит (request-match.js) */
+
+.btn-qmatch { cursor: pointer; border-color: #fed7aa; color: #9a3412; }
+.btn-qmatch:hover { background: #fff7ed; }
+.btn-qmatch + .btn-match { margin-left: 0; }
+
+.qm-overlay { z-index: 1100; }
+.qm-modal { max-width: 1040px; display: flex; flex-direction: column; gap: 12px; padding: 20px 22px; }
+.qm-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.qm-head h2 { margin: 0; font-size: 19px; color: var(--f-navy, #13203f); }
+.qm-sub { margin-top: 4px; font-size: 13px; color: var(--f-muted, #6b7280); }
+.qm-close { border: none; background: none; font-size: 26px; line-height: 1; cursor: pointer; color: var(--f-muted, #6b7280); }
+
+.qm-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; }
+.qm-filters select { border: 1px solid var(--f-line, #e4e8ef); border-radius: 8px; padding: 6px 8px; font-size: 13px; background: #fff; margin-left: 4px; }
+.qm-check { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.qm-bodies { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; }
+.qm-body { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--f-line, #e4e8ef); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 13px; }
+.qm-body:has(input:checked) { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.qm-body input { margin: 0; }
+.qm-note { font-size: 12px; color: var(--f-muted, #6b7280); }
+
+.qm-list { display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.qm-empty { color: var(--f-muted, #6b7280); font-size: 14px; margin: 16px 4px; }
+.qm-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; padding: 10px 12px; }
+.qm-row:has(input:checked) { border-color: #93c5fd; background: #f8fbff; }
+.qm-dim { opacity: 0.6; }
+.qm-pick { padding-top: 2px; }
+.qm-pick input { width: 18px; height: 18px; cursor: pointer; }
+.qm-name { font-weight: 700; font-size: 14px; color: var(--f-navy, #13203f); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.qm-rank { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; border-radius: 6px; background: #eef1f6; font-size: 12px; }
+.qm-truck { font-size: 13px; color: #374151; margin-top: 3px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.qm-why { font-size: 13px; color: var(--f-muted, #6b7280); margin-top: 3px; }
+.qm-score { font-weight: 800; font-size: 18px; color: #1d5bd8; min-width: 34px; text-align: right; }
+
+.qm-chip { font-size: 11px; font-weight: 600; border-radius: 6px; padding: 1px 7px; background: #eef1f6; color: #13203f; }
+.qm-chip.good { background: #e8f6ee; color: #146c3a; }
+.qm-chip.hot { background: #fff1e0; color: #a14a00; }
+.qm-chip.bad { background: #fdecec; color: #9b1c1c; }
+
+.qm-foot { position: sticky; bottom: -20px; background: #fff; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0 2px; border-top: 1px solid var(--f-line, #e4e8ef); font-size: 13px; color: var(--f-muted, #6b7280); }
+
+@media (max-width: 640px) {
+    .qm-modal { padding: 14px; }
+    .qm-row { grid-template-columns: 24px minmax(0, 1fr); }
+    .qm-score { grid-column: 2; text-align: left; font-size: 14px; }
+    .qm-foot { flex-direction: column; align-items: stretch; }
+}

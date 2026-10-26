@@ -146,6 +146,9 @@ Deno.serve(async (req) => {
             await db.from("echerha_checkpoints").delete().neq("sync_id", syncId);
         }
         await checkWatched(syncId).catch((e) => console.error("watch:", e));
+        // Хто зник з черги (проїхав кордон) — у echerha_passed, для підбору під запит (echerha_passed.sql)
+        const passed = await db.rpc("record_echerha_passed", { p_sync: syncId });
+        if (passed.error) console.error("record_echerha_passed:", passed.error.message);
         const del = await db.from("echerha_queue").delete().neq("sync_id", syncId);
         if (del.error) return json(500, { ok: false, error: del.error.message });
         const { count } = await db.from("echerha_queue").select("id", { count: "exact", head: true });

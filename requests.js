@@ -2137,6 +2137,7 @@ function answerSectionHtml(r) {
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
                 <span><i class='bx bx-dollar-circle'></i> ${title}</span>
+                ${window.furaQueueMatch ? window.furaQueueMatch.buttonHtml(r) : ""}
                 ${matchLinkHtml(r)}
                 <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
                     <i class='bx ${mine ? "bx-edit" : "bx-plus"}'></i> ${mine ? "Змінити мою відповідь" : "Дати відповідь"}
