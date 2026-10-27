@@ -28,6 +28,15 @@ const REQUEST_STATUSES = [
 const STATUS_NEW = "Запит";
 const STATUS_QUOTE = "Відповідь";
 const STATUS_CHOSEN = "В роботі";
+const STATUS_REFUSED = "Відмова";
+
+// Причини відмови (кнопка «❌ Відмова» в картці запиту, форма запиту, Telegram-бот)
+const REFUSAL_REASONS = [
+    { value: "Знайшов дешевше", icon: "💸" },
+    { value: "Не підійшла ціна", icon: "🏷️" },
+    { value: "Закрив клієнт", icon: "🤝" },
+    { value: "Не актуально", icon: "🚫" },
+];
 
 // Тип запиту — обирає Sales
 const REQUEST_TYPES = [
@@ -844,7 +853,7 @@ function renderRequests() {
             <td>${typeBadge(r.request_type)}</td>
             <td class="cell-country">${countryBadge(r.load_country)}</td>
             <td class="cell-country">${countryBadge(r.unload_country)}</td>
-            <td>${statusBadge(r.status)}</td>
+            <td>${statusBadge(r.status)}${refusalLine(r, true)}</td>
             <td class="cell-date">${formatDesiredDate(r.desired_date, r.desired_date_to) || "—"}</td>
             <td class="cell-person">${escapeHtml(r.sales) || "—"}</td>
             <td class="cell-person cell-logists">${logistListHtml(r)}</td>
@@ -1197,6 +1206,11 @@ function fillSelects() {
     document.getElementById("req_customs_export_country").innerHTML = countryOptions;
     document.getElementById("req_customs_import_country").innerHTML = countryOptions;
 
+    document.getElementById("req_refusal_reason").innerHTML =
+        `<option value="">— оберіть причину —</option>` +
+        REFUSAL_REASONS.map((x) => `<option value="${escapeHtml(x.value)}">${x.icon} ${escapeHtml(x.value)}</option>`).join("");
+    document.getElementById("req_status").addEventListener("change", toggleRefusalField);
+
     document.getElementById("req_status").innerHTML = REQUEST_STATUSES.map(
         (s) =>
             `<option value="${escapeHtml(s.value)}">${escapeHtml(s.value)}</option>`,
@@ -1499,6 +1513,8 @@ function openRequestModal(request = null) {
     setVal("req_status", request?.status || REQUEST_STATUSES[0].value);
     // Статус змінюється сам (запит → відповідь → в роботі). У формі — лише при редагуванні
     document.getElementById("reqStatusGroup").hidden = !request;
+    setVal("req_refusal_reason", request?.refusal_reason || "");
+    toggleRefusalField();
     renderPackRows(request?.packaging);
     renderExtraRows(request);
     renderLoadingChips(request?.loading_types);
@@ -1648,6 +1664,21 @@ requestForm.addEventListener("submit", async (e) => {
 
     const id = document.getElementById("requestId").value;
 
+    // Відмова через форму — теж з причиною
+    if (existing && payload.status === STATUS_REFUSED) {
+        const reason = getValue("req_refusal_reason");
+        if (!reason && existing.status !== STATUS_REFUSED) {
+            alert("Оберіть причину відмови.");
+            document.getElementById("req_refusal_reason").focus();
+            return;
+        }
+        if (reason && reason !== existing.refusal_reason) {
+            payload.refusal_reason = reason;
+            payload.refused_at = new Date().toISOString();
+            payload.refused_by = currentStaff?.full_name || null;
+        }
+    }
+
     const { error } = id
         ? await sbClient.from("requests").update(payload).eq("id", id)
         : await sbClient.from("requests").insert([payload]);
@@ -1726,7 +1757,9 @@ function openRequestCard(id) {
                 <div class="card-header-badges">
                     ${statusBadge(r.status)}
                     <span class="request-card-created">Запит від Sales: ${formatDateTime(r.created_at) || "—"}</span>
+                    ${canRefuse(r) ? `<button type="button" class="btn-refuse" id="refuseFromCardBtn" title="Клієнт відмовився — вказати причину"><i class='bx bx-x-circle'></i> Відмова</button>` : ""}
                 </div>
+                ${refusalLine(r, false)}
             </div>
         </div>
 
@@ -1800,6 +1833,8 @@ function openRequestCard(id) {
                 ),
             ),
         );
+
+    document.getElementById("refuseFromCardBtn")?.addEventListener("click", () => openRefusalModal(r.id));
 
     document
         .getElementById("openAnswerFromCardBtn")
@@ -2148,6 +2183,106 @@ function answerSectionHtml(r) {
 }
 
 // Sales обирає пропозицію логіста → статус "Пошук авто"
+/* ================================================================= *
+ * ВІДМОВА З ПРИЧИНОЮ                                                 *
+ * Sales (свого запиту), керівник або адмін: «❌ Відмова» → причина.   *
+ * Колонки — requests_refusal.sql                                     *
+ * ================================================================= */
+
+function toggleRefusalField() {
+    const g = document.getElementById("reqRefusalGroup");
+    if (g) g.hidden = document.getElementById("req_status").value !== STATUS_REFUSED || document.getElementById("reqStatusGroup").hidden;
+}
+
+function canRefuse(r) {
+    if (!r || [STATUS_REFUSED, "Виконано"].includes(r.status) || !currentStaff) return false;
+    return hasRole(currentStaff, ["head", "admin"]) || String(r.sales_id || "") === String(currentStaff.id) || (!r.sales_id && hasRole(currentStaff, ["sales"]));
+}
+
+function refusalIcon(reason) {
+    return (REFUSAL_REASONS.find((x) => x.value === reason) || {}).icon || "❌";
+}
+
+// Причина під статусом: коротко в таблиці, з коментарем і автором — у картці
+function refusalLine(r, short) {
+    if (r.status !== STATUS_REFUSED || !r.refusal_reason) return "";
+    if (short) return `<div class="refusal-short" title="${escapeHtml(r.refusal_comment || "")}">${refusalIcon(r.refusal_reason)} ${escapeHtml(r.refusal_reason)}</div>`;
+    const who = [r.refused_by, r.refused_at ? formatDateTime(r.refused_at) : ""].filter(Boolean).join(", ");
+    return `<div class="refusal-note"><b>${refusalIcon(r.refusal_reason)} Відмова: ${escapeHtml(r.refusal_reason)}</b>${r.refusal_comment ? ` — ${escapeHtml(r.refusal_comment)}` : ""}${who ? `<span>${escapeHtml(who)}</span>` : ""}</div>`;
+}
+
+function ensureRefusalModal() {
+    if (document.getElementById("refusalOverlay")) return;
+    const el = document.createElement("div");
+    el.className = "modal-overlay";
+    el.id = "refusalOverlay";
+    el.innerHTML = `
+        <div class="modal refusal-modal" role="dialog" aria-modal="true" aria-labelledby="refusalTitle">
+            <div class="modal-header">
+                <h2 id="refusalTitle">Відмова від запиту</h2>
+                <button type="button" class="close-btn" data-refusal-close>&times;</button>
+            </div>
+            <p class="refusal-sub" id="refusalSub"></p>
+            <form id="refusalForm">
+                <div class="refusal-reasons">
+                    ${REFUSAL_REASONS.map((x, i) => `<label class="refusal-reason"><input type="radio" name="reason" value="${escapeHtml(x.value)}" ${i === 0 ? "required" : ""} /><span>${x.icon} ${escapeHtml(x.value)}</span></label>`).join("")}
+                </div>
+                <div class="form-group">
+                    <label for="refusalComment">Коментар (необов'язково)</label>
+                    <textarea id="refusalComment" rows="2" placeholder="Напр.: клієнт знайшов за 1 800 EUR"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" data-refusal-close>Скасувати</button>
+                    <button type="submit" class="btn btn-danger refusal-save"><i class='bx bx-x-circle'></i> Поставити відмову</button>
+                </div>
+            </form>
+        </div>`;
+    document.body.appendChild(el);
+    el.addEventListener("click", (e) => {
+        if (e.target === el || e.target.closest("[data-refusal-close]")) el.classList.remove("active");
+    });
+    el.querySelector("#refusalForm").addEventListener("submit", saveRefusal);
+}
+
+let refusalRequestId = null;
+function openRefusalModal(id) {
+    const r = requestsCache.find((x) => String(x.id) === String(id));
+    if (!r || !canRefuse(r)) return;
+    ensureRefusalModal();
+    refusalRequestId = r.id;
+    document.getElementById("refusalForm").reset();
+    document.getElementById("refusalSub").textContent = `${r.client || "Запит"} · ${[r.load_country, r.unload_country].filter(Boolean).join(" → ")}. Оберіть причину:`;
+    document.getElementById("refusalOverlay").classList.add("active");
+}
+
+async function saveRefusal(e) {
+    e.preventDefault();
+    const form = e.target;
+    const reason = form.querySelector("input[name=reason]:checked")?.value;
+    if (!reason || !refusalRequestId) return;
+    const btn = form.querySelector(".refusal-save");
+    btn.disabled = true;
+    const update = {
+        status: STATUS_REFUSED,
+        refusal_reason: reason,
+        refusal_comment: document.getElementById("refusalComment").value.trim() || null,
+        refused_at: new Date().toISOString(),
+        refused_by: currentStaff?.full_name || null,
+    };
+    const { error } = await sbClient.from("requests").update(update).eq("id", refusalRequestId);
+    btn.disabled = false;
+    if (error) {
+        alert(/refus/.test(error.message || "")
+            ? "Щоб зберігати причину відмови, спочатку виконайте requests_refusal.sql у Supabase."
+            : "Помилка Supabase: " + error.message);
+        return;
+    }
+    document.getElementById("refusalOverlay").classList.remove("active");
+    const id = refusalRequestId;
+    await loadRequests();
+    openRequestCard(id);
+}
+
 async function chooseAnswer(requestId, logistId, offerIndex = null) {
     const r = requestsCache.find((x) => String(x.id) === String(requestId));
     if (!r) return;

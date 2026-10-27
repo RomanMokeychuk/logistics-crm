@@ -1212,3 +1212,19 @@
 .ans-carrier-add:hover { background: #dbeafe; }
 .btn-match { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; margin-right: 8px; border-radius: 8px; background: #fff; border: 1px solid #c7d2fe; color: #3730a3; font-size: 13px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .btn-match:hover { background: #eef2ff; }
+
+/* ---------- Відмова з причиною ---------- */
+.btn-refuse { display: inline-flex; align-items: center; gap: 4px; border: 1px solid #fecaca; background: #fff; color: #b91c1c;
+    border-radius: 8px; padding: 4px 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-refuse:hover { background: #fef2f2; }
+.refusal-note { margin-top: 8px; padding: 8px 12px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; font-size: 14px; }
+.refusal-note span { display: block; margin-top: 2px; font-size: 12px; color: #9b5c5c; }
+.refusal-short { margin-top: 4px; font-size: 12px; color: #9b1c1c; white-space: nowrap; }
+.refusal-modal { max-width: 460px; }
+.refusal-sub { margin: 0 0 12px; color: var(--f-muted, #6b7280); font-size: 14px; }
+.refusal-reasons { display: grid; gap: 8px; margin-bottom: 14px; }
+.refusal-reason { display: flex; align-items: center; gap: 10px; border: 1px solid var(--f-line, #e4e8ef); border-radius: 10px; padding: 10px 12px; cursor: pointer; font-size: 15px; }
+.refusal-reason:has(input:checked) { border-color: #f87171; background: #fef2f2; }
+.refusal-reason input { width: 18px; height: 18px; margin: 0; }
+.btn-danger { background: #dc2626; color: #fff; border: none; }
+.btn-danger:hover { background: #b91c1c; }

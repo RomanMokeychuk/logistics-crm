@@ -37,6 +37,17 @@ const STATUS_QUOTE = "Відповідь"; // логіст дав ціни
 const STATUS_OK = "В роботі"; // Sales обрав пропозицію
 const STATUS_NO = "Відмова";
 
+// Причини відмови (як у CRM). Код — у кнопці: "no:<запит>:<код>"
+const REFUSAL_REASONS: Record<string, string> = {
+    c: "💸 Знайшов дешевше",
+    p: "🏷️ Не підійшла ціна",
+    k: "🤝 Закрив клієнт",
+    n: "🚫 Не актуально",
+};
+const reasonText = (code: string) => (REFUSAL_REASONS[code] || "").replace(/^\S+\s/, "");
+const refusalLine = (r: Any) =>
+    r.refusal_reason ? `\n<b>Причина:</b> ${esc(r.refusal_reason)}${r.refusal_comment ? ` — ${esc(r.refusal_comment)}` : ""}` : "";
+
 // Тип запиту — обирає Sales
 const REQUEST_TYPES = ["Прорахунок", "Пошук авто", "Завантаження"];
 const TYPE_ICONS: Record<string, string> = {
@@ -584,6 +595,17 @@ async function decide(
     if (!r) return "Запит не знайдено";
     if (!canDecide(me, r)) return "Це не ваш запит";
 
+    // «❌ Відмова» без причини — спершу питаємо причину окремим повідомленням
+    if (kind === "no" && !REFUSAL_REASONS[logistPrefix || ""]) {
+        if (r.status === STATUS_NO) return "Відмову вже поставлено";
+        await send(
+            chatId,
+            `❌ <b>Чому відмова?</b>\n${esc(r.client || "")} · ${route(r)}`,
+            Object.entries(REFUSAL_REASONS).map(([code, text]) => [{ text, callback_data: `no:${r.id}:${code}` }]),
+        );
+        return "Оберіть причину";
+    }
+
     const update: Record<string, unknown> = {};
     if (kind === "ok") {
         const a = getAnswers(r).find((x) =>
@@ -613,8 +635,18 @@ async function decide(
         }
     } else {
         update.status = STATUS_NO;
+        update.refusal_reason = reasonText(logistPrefix || "");
+        update.refused_at = new Date().toISOString();
+        update.refused_by = me.full_name || null;
     }
     let { error } = await db.from("requests").update(update).eq("id", r.id);
+    if (error && update.refusal_reason && /refus/.test(error.message || "")) {
+        // Колонок причини ще немає (requests_refusal.sql) — ставимо відмову без причини
+        delete update.refusal_reason;
+        delete update.refused_at;
+        delete update.refused_by;
+        ({ error } = await db.from("requests").update(update).eq("id", r.id));
+    }
     if (error && update.chosen_offer) {
         // Колонки chosen_offer ще немає — обираємо хоча б логіста
         delete update.chosen_offer;
@@ -637,7 +669,7 @@ async function decide(
     const co = update.chosen_offer as Any;
     return kind === "ok"
         ? `Обрано: ${update.logistician}${co ? ` · ${fmtPrice(co.price)} ${co.currency || ""}` : ""}`
-        : "Відмова збережена";
+        : `Відмова збережена${update.refusal_reason ? `: ${update.refusal_reason}` : ""}`;
 }
 
 /* ================================================================== */
@@ -1021,7 +1053,7 @@ async function handleRequestChange(payload: Any) {
                 r.status === STATUS_OK
                     ? `✅ <b>${esc(STATUS_OK)}</b>\n${head}\n<b>Логіст:</b> ${esc(r.logistician || "—")}${chosenLine(r)}`
                     : r.status === STATUS_NO
-                    ? `❌ <b>Відмова</b>\n${head}`
+                    ? `❌ <b>Відмова</b>\n${head}${refusalLine(r)}`
                     : `🔄 Статус: <b>${esc(r.status)}</b>\n${head}`,
             );
         }
@@ -1036,7 +1068,7 @@ async function handleRequestChange(payload: Any) {
                         ? `✅ <b>Sales обрав вашу пропозицію — запит у роботі</b>\n${head}${chosenLine(r)}${r.sales ? `\n<b>Sales:</b> ${esc(r.sales)}` : ""}`
                         : `ℹ️ <b>Sales обрав іншого логіста</b> (${esc(r.logistician || "—")})\n${head}`;
             } else if (r.status === STATUS_NO) {
-                text = `❌ <b>Sales відмовився від запиту</b>\n${head}`;
+                text = `❌ <b>Sales відмовився від запиту</b>\n${head}${refusalLine(r)}`;
             } else {
                 text = `🔄 Статус: <b>${esc(r.status)}</b>\n${head}`;
             }
