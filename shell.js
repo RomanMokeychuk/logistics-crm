@@ -362,8 +362,27 @@
         setInterval(refresh, 4 * 60 * 1000);
     }
 
+    // Годинник комп'ютера відстає/поспішає (неправильний часовий пояс) — тоді вхід «протерміновується»
+    // щогодини з «JWT expired». Порівнюємо з часом сервера й попереджаємо.
+    async function checkClock() {
+        try {
+            const t0 = Date.now();
+            const res = await fetch(location.href.split("#")[0], { method: "HEAD", cache: "no-store" });
+            const server = Date.parse(res.headers.get("date") || "");
+            if (!server) return;
+            const skew = Math.round((t0 + (Date.now() - t0) / 2 - server) / 60000);
+            if (Math.abs(skew) < 3) return;
+            const bar = document.createElement("div");
+            bar.style.cssText = "position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:2147483002;background:#b91c1c;color:#fff;padding:10px 16px;border-radius:10px;font:600 14px/1.35 system-ui,sans-serif;max-width:calc(100% - 24px);box-shadow:0 10px 30px rgba(0,0,0,.25)";
+            bar.textContent = `⚠ Годинник цього комп'ютера ${skew > 0 ? "поспішає" : "відстає"} на ~${Math.abs(skew)} хв. Через це CRM може «викидати» з помилкою JWT expired. Увімкніть «Встановлювати час автоматично» й часовий пояс (UTC+02:00) Київ.`;
+            bar.addEventListener("click", () => bar.remove());
+            document.body.appendChild(bar);
+        } catch (e) { /* без перевірки */ }
+    }
+
     function init() {
         keepSessionFresh();
+        checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
         if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202610261939");
         const label = buildSidebar();
