@@ -337,7 +337,33 @@
         true,
     );
 
+    // Вхід у CRM не протерміновується «тихо»: коли комп'ютер прокинувся або повернулись на вкладку,
+    // одразу оновлюємо пропуск (інакше запити падають з «JWT expired»)
+    function keepSessionFresh() {
+        const client = () => (typeof sbClient !== "undefined" ? sbClient : null);
+        let busy = false;
+        const refresh = async () => {
+            const c = client();
+            if (!c || busy || document.visibilityState === "hidden") return;
+            busy = true;
+            try {
+                const { data } = await c.auth.getSession(); // протермінований — оновить сам
+                const exp = data?.session?.expires_at;
+                if (exp && exp * 1000 - Date.now() < 5 * 60 * 1000) await c.auth.refreshSession();
+            } catch (e) {
+                console.warn("FURA session:", e);
+            } finally {
+                busy = false;
+            }
+        };
+        document.addEventListener("visibilitychange", refresh);
+        window.addEventListener("focus", refresh);
+        window.addEventListener("online", refresh);
+        setInterval(refresh, 4 * 60 * 1000);
+    }
+
     function init() {
+        keepSessionFresh();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
         if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202610261939");
         const label = buildSidebar();

@@ -136,6 +136,17 @@ const EQ = (() => {
 
     async function load() {
         const { data: sync, error } = await sbClient.from("echerha_sync").select("*").eq("id", 1).maybeSingle();
+        if (error && /jwt|token/i.test(error.message || "") && !load.retried) {
+            // Вхід протермінувався (комп'ютер спав, вкладка довго відкрита) — оновлюємо й пробуємо ще раз
+            load.retried = true;
+            const { error: rErr } = await sbClient.auth.refreshSession();
+            if (!rErr) return load();
+        }
+        load.retried = false;
+        if (error && /jwt|token/i.test(error.message || "")) {
+            $("#eqSync").innerHTML = `<span class="eq-bad">Час входу в CRM закінчився. Оновіть сторінку (F5); якщо не допоможе — вийдіть і увійдіть знову.</span>`;
+            return;
+        }
         if (error) {
             $("#eqSync").innerHTML = `<span class="eq-bad">Немає доступу до таблиць «Черги»: ${esc(error.message)}. Виконайте echerha.sql у Supabase.</span>`;
             renderTable();
