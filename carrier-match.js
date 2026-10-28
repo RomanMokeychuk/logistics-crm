@@ -318,7 +318,16 @@
         }
         const qs = p.toString();
         history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
+        // Запам'ятовуємо підбір і в браузері: перейшли в «Запити» через меню й повернулись — усе на місці.
+        // Закрили панель (×) — забуваємо.
+        try {
+            const keep = new URLSearchParams();
+            STATE_KEYS.forEach((k) => p.has(k) && keep.set(k, p.get(k)));
+            if (keep.get("match") === "1") localStorage.setItem(MATCH_STORE, keep.toString());
+            else localStorage.removeItem(MATCH_STORE);
+        } catch (e) { /* без збереження */ }
     }
+    const MATCH_STORE = "fura_carrier_match";
 
     function buildPanel() {
         const bar = document.querySelector(".filters-bar");
@@ -378,6 +387,7 @@
         regionsMS.wire(() => saveState());
         trailersMS.wire(() => saveState());
         document.getElementById("cmForm").addEventListener("change", () => saveState());
+        document.getElementById("cmCity").addEventListener("input", () => saveState());
         document.getElementById("cmForm").addEventListener("submit", (e) => {
             e.preventDefault();
             search.showHidden = false;
@@ -918,6 +928,16 @@
         buildPanel();
         watchCard();
         const p = new URLSearchParams(location.search);
+        // Адреса без підбору (перейшли з меню) — відновлюємо останній підбір із браузера
+        if (p.get("match") !== "1" && !p.has("cpop")) {
+            try {
+                const saved = new URLSearchParams(localStorage.getItem(MATCH_STORE) || "");
+                if (saved.get("match") === "1") {
+                    saved.forEach((v, k) => p.set(k, v));
+                    history.replaceState(history.state, "", location.pathname + "?" + p.toString() + location.hash);
+                }
+            } catch (e) { /* без збереження */ }
+        }
         if (p.get("match") === "1") {
             document.getElementById("cmPanel").hidden = false;
             const set = (id, v) => {
