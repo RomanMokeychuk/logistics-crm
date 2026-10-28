@@ -39,7 +39,7 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, page: 0, sort: "entry" };
     let WATCH = new Map(); // номер тягача -> мій запис echerha_watch
     const plateKey = (v) =>
         String(v || "").toUpperCase().replace(/\s|-/g, "")
@@ -50,6 +50,21 @@ const EQ = (() => {
         const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}))?/);
         return m ? `${m[3]}.${m[2]}${m[4] ? " " + m[4] : ""}` : esc(v || "—");
     };
+    // «2026-10-28 13:09» (київський час) → Date
+    function entryTime(v) {
+        const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
+        return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+    }
+    // Ймовірно вже проїхала: орієнтовний в'їзд минув понад 3 год тому, а пункт давно не оновлювався
+    // (Черга надсилає останній відомий список пункту, поки не перечитає його знову).
+    // Стоянки (Hopa тощо) зі статусом не чіпаємо — там час означає «стоїть з».
+    const GONE_AFTER = 3 * 3600 * 1000;
+    function likelyGone(r) {
+        if (r.note) return false;
+        const t = entryTime(r.entry_at);
+        return !!t && Date.now() - t.getTime() > GONE_AFTER;
+    }
+
     function ago(iso) {
         const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
         if (min < 1) return "щойно";
@@ -64,14 +79,15 @@ const EQ = (() => {
     /* ---------- збереження фільтрів ---------- */
     function save() {
         try {
-            localStorage.setItem(FKEY, JSON.stringify({ ...st, bodies: [...st.bodies], cps: st.cps ? [...st.cps] : null, page: 0 }));
+            // Текст пошуку не запам'ятовуємо: після оновлення сторінки поле порожнє
+            localStorage.setItem(FKEY, JSON.stringify({ ...st, q: "", showGone: false, bodies: [...st.bodies], cps: st.cps ? [...st.cps] : null, page: 0 }));
         } catch (e) { /* без збереження */ }
     }
     function restore() {
         try {
             const s = JSON.parse(localStorage.getItem(FKEY) || "null");
             if (!s) return;
-            Object.assign(st, s, { bodies: new Set(s.bodies || []), cps: Array.isArray(s.cps) ? new Set(s.cps) : null, page: 0 });
+            Object.assign(st, s, { q: "", showGone: false, bodies: new Set(s.bodies || []), cps: Array.isArray(s.cps) ? new Set(s.cps) : null, page: 0 });
         } catch (e) { /* ігноруємо */ }
     }
 
@@ -186,6 +202,7 @@ const EQ = (() => {
         $("#eqNotInFura").checked = st.notInFura;
         $("#eqNew").checked = st.isNew;
         $("#eqStarred").checked = st.starred;
+        if ($("#eqGone")) $("#eqGone").checked = st.showGone;
         $("#eqQ").value = st.q;
         document.querySelectorAll("#eqViews button").forEach((b) => b.classList.toggle("active", b.dataset.v === st.view));
         paintCp();
@@ -260,7 +277,8 @@ const EQ = (() => {
 
     function filtered() {
         const q = norm(st.q);
-        return ROWS.filter((r) => {
+        let gone = 0;
+        const list = ROWS.filter((r) => {
             if (st.ua && !r.ua) return false;
             if (st.cps && !st.cps.has(r.checkpoint)) return false;
             if (st.country && r.country !== st.country) return false;
@@ -270,8 +288,16 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint].join(" ")).includes(q)) return false;
+            if (!st.showGone && likelyGone(r)) {
+                gone++;
+                return false;
+            }
             return true;
         });
+        filtered.gone = gone;
+        const el = document.getElementById("eqGoneN");
+        if (el) el.textContent = gone ? ` (${gone.toLocaleString("uk-UA")})` : "";
+        return list;
     }
 
     /* ---------- відображення ---------- */
@@ -477,7 +503,7 @@ const EQ = (() => {
             st.page = 0;
             renderAll();
         });
-        [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"]].forEach(([id, k]) =>
+        [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
             Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, page: 0 });
@@ -532,7 +558,7 @@ const EQ = (() => {
 
     // echerha.html?q=AT4287CA (з пошуку вгорі) — показати саме цю машину, без фільтрів, що могли б її сховати
     function focusQuery(q) {
-        Object.assign(st, { view: "trucks", q, cps: null, country: "", qtype: "", bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
+        Object.assign(st, { showGone: true, view: "trucks", q, cps: null, country: "", qtype: "", bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
     }
     return { restore, bind, load, fillSelects, live, focusQuery, setView: (v) => { st.view = v; } };
 })();
@@ -553,7 +579,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const v = new URLSearchParams(location.search).get("view");
     if (v) EQ.setView(v);
     const q = new URLSearchParams(location.search).get("q");
-    if (q) EQ.focusQuery(q);
+    if (q) {
+        EQ.focusQuery(q);
+        // прибираємо ?q з адреси — після оновлення сторінки пошук знову порожній
+        const p = new URLSearchParams(location.search);
+        p.delete("q");
+        history.replaceState(history.state, "", location.pathname + (p.toString() ? "?" + p : "") + location.hash);
+    }
     EQ.fillSelects();
     EQ.bind();
     try {
