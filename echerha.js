@@ -39,7 +39,7 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", page: 0, sort: "entry" };
     let WATCH = new Map(); // номер тягача -> мій запис echerha_watch
     const plateKey = (v) =>
         String(v || "").toUpperCase().replace(/\s|-/g, "")
@@ -59,6 +59,24 @@ const EQ = (() => {
     // (Черга надсилає останній відомий список пункту, поки не перечитає його знову).
     // Стоянки (Hopa тощо) зі статусом не чіпаємо — там час означає «стоїть з».
     const GONE_AFTER = 3 * 3600 * 1000;
+    // Коли машина стала в чергу: reg_at з Черги; якщо його немає — номер у черзі (більший = пізніше)
+    let HAS_REG = true;
+    const regTime = (r) => entryTime(r.reg_at)?.getTime() || null;
+    const queueNum = (r) => Number(String(r.queue_no || "").replace(/\D/g, "")) || 0;
+    function sortTrucks(list) {
+        const byEntry = (a, b) => String(a.entry_at || "").localeCompare(String(b.entry_at || ""));
+        if (st.sort === "late") return [...list].sort((a, b) => byEntry(b, a));
+        if (st.sort === "new") {
+            return [...list].sort((a, b) => {
+                const ra = regTime(a), rb = regTime(b);
+                if (ra && rb && ra !== rb) return rb - ra;
+                if (ra && !rb) return -1;
+                if (!ra && rb) return 1;
+                return queueNum(b) - queueNum(a) || byEntry(b, a);
+            });
+        }
+        return [...list].sort(byEntry);
+    }
     function likelyGone(r) {
         if (r.note) return false;
         const t = entryTime(r.entry_at);
@@ -203,6 +221,13 @@ const EQ = (() => {
         $("#eqNew").checked = st.isNew;
         $("#eqStarred").checked = st.starred;
         if ($("#eqGone")) $("#eqGone").checked = st.showGone;
+        if ($("#eqFresh")) {
+            HAS_REG = ROWS.some((r) => r.reg_at);
+            $("#eqFresh").value = st.fresh || "";
+            $("#eqFresh").disabled = ROWS.length > 0 && !HAS_REG;
+            $("#eqFresh").title = $("#eqFresh").disabled ? "Черга ще не надсилає час, коли машина стала в чергу" : "Скільки часу тому машина стала в чергу";
+        }
+        if ($("#eqSort")) $("#eqSort").value = st.sort || "entry";
         $("#eqQ").value = st.q;
         document.querySelectorAll("#eqViews button").forEach((b) => b.classList.toggle("active", b.dataset.v === st.view));
         paintCp();
@@ -288,6 +313,10 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint].join(" ")).includes(q)) return false;
+            if (st.fresh && HAS_REG) {
+                const t = regTime(r);
+                if (!t || Date.now() - t > Number(st.fresh) * 3600 * 1000) return false;
+            }
             if (!st.showGone && likelyGone(r)) {
                 gone++;
                 return false;
@@ -371,13 +400,14 @@ const EQ = (() => {
     }
 
     function renderTrucks(list) {
+        list = sortTrucks(list);
         const rows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         $("#eqTable").innerHTML =
             `<thead><tr><th class="eq-star-th" title="Обрані">★</th><th>Пункт</th><th>В'їзд</th><th>Тягач</th><th>Причіп</th><th>Кузов</th><th>Перевізник</th><th>Керівник</th><th>FURA</th></tr></thead><tbody>` +
             (rows.map((r) => `<tr class="${WATCH.has(r.tractor) ? "eq-starred" : ""}">
                 <td>${starBtn(r.tractor)}</td>
                 <td><b>${esc(cpShort(r.checkpoint))}</b><div class="eq-muted eq-sm">${esc(cpNote(r.checkpoint))}${r.note ? " · " + esc(r.note) : ""}</div></td>
-                <td class="eq-nw">${dShort(r.entry_at)}<div class="eq-muted eq-sm">№ ${esc(r.queue_no || "—")}</div></td>
+                <td class="eq-nw">${dShort(r.entry_at)}<div class="eq-muted eq-sm">№ ${esc(r.queue_no || "—")}</div>${r.reg_at ? `<div class="eq-muted eq-sm" title="Коли стала в чергу">у черзі з ${dShort(r.reg_at)}</div>` : ""}</td>
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}<div class="eq-muted eq-sm eq-clip" title="${esc(r.trailer_model)}">${esc(r.trailer_model || "")}</div></td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
@@ -495,6 +525,8 @@ const EQ = (() => {
         });
         $("#eqCountry").addEventListener("change", (e) => { st.country = e.target.value; st.page = 0; paintCp(); renderAll(); });
         $("#eqQtype").addEventListener("change", (e) => { st.qtype = e.target.value; st.page = 0; renderAll(); });
+        $("#eqFresh")?.addEventListener("change", (e) => { st.fresh = e.target.value; st.page = 0; renderAll(); });
+        $("#eqSort")?.addEventListener("change", (e) => { st.sort = e.target.value; st.page = 0; renderAll(); });
         $("#eqBodies").addEventListener("click", (e) => {
             const b = e.target.closest("button");
             if (!b) return;
@@ -506,7 +538,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, page: 0 });
+            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", page: 0 });
             fillSelects();
             renderAll();
         });

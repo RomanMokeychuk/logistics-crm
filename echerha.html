@@ -12,10 +12,10 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202610281231" />
+        <link rel="stylesheet" href="style.css?v=202610281236" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202610281231" />
-        <link rel="stylesheet" href="echerha.css?v=202610281231" />
+        <link rel="stylesheet" href="theme.css?v=202610281236" />
+        <link rel="stylesheet" href="echerha.css?v=202610281236" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -56,6 +56,18 @@
                     </div>
                     <select id="eqCountry"><option value="">Усі країни</option></select>
                     <select id="eqQtype"><option value="">Будь-яка черга</option></select>
+                    <select id="eqFresh" title="Скільки часу тому машина стала в чергу">
+                        <option value="">Стали в чергу: будь-коли</option>
+                        <option value="1">Стали в чергу за 1 год</option>
+                        <option value="3">Стали в чергу за 3 год</option>
+                        <option value="6">Стали в чергу за 6 год</option>
+                        <option value="24">Стали в чергу за добу</option>
+                    </select>
+                    <select id="eqSort" title="Порядок списку машин">
+                        <option value="entry">Спершу найближчий в'їзд</option>
+                        <option value="new">Спершу ті, що щойно стали в чергу</option>
+                        <option value="late">Спершу найпізніший в'їзд</option>
+                    </select>
                     <div class="eq-chips" id="eqBodies"></div>
                     <label class="eq-check"><input type="checkbox" id="eqUa" checked /> Лише українські тягачі</label>
                     <label class="eq-check"><input type="checkbox" id="eqNotInFura" /> Немає у FURA</label>
@@ -80,9 +92,9 @@
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="echerha.js?v=202610281231"></script>
-        <script src="shell.js?v=202610281231"></script>
-        <script src="notify.js?v=202610281231"></script>
-        <script src="lock.js?v=202610281231"></script>
+        <script src="echerha.js?v=202610281236"></script>
+        <script src="shell.js?v=202610281236"></script>
+        <script src="notify.js?v=202610281236"></script>
+        <script src="lock.js?v=202610281236"></script>
     </body>
 </html>
