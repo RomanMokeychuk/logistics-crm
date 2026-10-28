@@ -151,17 +151,22 @@
         updateTitle();
         beep();
 
-        // Якщо вкладка не активна — ще й системне сповіщення macOS / Windows
-        if (document.hidden && "Notification" in window && Notification.permission === "granted") {
+        // Ви не дивитесь на CRM (інша вкладка, інша програма, робочий стіл) —
+        // ще й системне сповіщення macOS / Windows у куті екрана
+        const away = document.hidden || !document.hasFocus();
+        if (away && "Notification" in window && Notification.permission === "granted") {
             try {
                 const n = new Notification(`FURA · ${title}`, {
-                    body: text.replace(/<[^>]+>/g, ""),
-                    icon: "logo.svg",
-                    tag: `fura-${requestId}-${kind}`,
+                    body: text.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+                    icon: "apple-touch-icon.png",
+                    tag: `fura-${requestId}-${kind}-${Date.now()}`,
                 });
                 n.onclick = () => {
                     window.focus();
                     n.close();
+                    close();
+                    if (href) window.location.href = href;
+                    else if (requestId) openRequest(requestId);
                 };
             } catch (_) {}
         }
@@ -440,6 +445,75 @@
     }
 
     // Для інших модулів (напр. «Черга» — обрані машини): furaToast({icon, title, text, href})
+    /* ---------------- Кнопка «🔔 Сповіщення на робочий стіл» ---------------- */
+    // Показує, чи дозволено системні сповіщення, і допомагає їх увімкнути
+    function desktopBell() {
+        if (!("Notification" in window)) return;
+        const bar = document.querySelector(".fura-topbar");
+        if (!bar || bar.querySelector(".fura-bell")) return !!bar;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "fura-bell";
+        const paint = () => {
+            const p = Notification.permission;
+            btn.innerHTML = p === "granted" ? "🔔" : "🔕";
+            btn.classList.toggle("off", p !== "granted");
+            btn.title = p === "granted"
+                ? "Сповіщення на робочий стіл увімкнені. Натисніть — тестове сповіщення"
+                : p === "denied"
+                  ? "Сповіщення заблоковані в браузері — натисніть, щоб дізнатися, як увімкнути"
+                  : "Увімкнути сповіщення на робочий стіл (приходитимуть, навіть коли ви в іншій програмі)";
+        };
+        btn.addEventListener("click", async () => {
+            const p = Notification.permission;
+            if (p === "default") {
+                await Notification.requestPermission().catch(() => {});
+                paint();
+                if (Notification.permission !== "granted") return;
+            }
+            if (Notification.permission === "denied") {
+                alert(
+                    "Сповіщення заблоковані.\n\n" +
+                    "1) Натисніть на значок ліворуч від адреси сайту (замочок / повзунки) → «Сповіщення» → «Дозволити», потім оновіть сторінку.\n\n" +
+                    "2) Mac: Системні параметри → Сповіщення → Google Chrome → увімкнути «Дозволити сповіщення» (стиль «Попередження» — не зникатимуть самі).\n" +
+                    "   Windows: Параметри → Система → Сповіщення → Google Chrome → Увімкнено.\n\n" +
+                    "3) Перевірте, що не ввімкнено режим «Не турбувати» / «Фокусування».",
+                );
+                return;
+            }
+            try {
+                const n = new Notification("FURA · Перевірка", {
+                    body: "Сповіщення працюють ✅ Так виглядатимуть нові запити, відповіді й повідомлення.",
+                    icon: "apple-touch-icon.png",
+                });
+                n.onclick = () => { window.focus(); n.close(); };
+            } catch (_) {}
+            setTimeout(() => {
+                if (confirm("З'явилось сповіщення в куті екрана?\n\nOK — так. Скасувати — ні, показати, що перевірити.")) return;
+                alert(
+                    "Браузер дозволив, але система ховає сповіщення:\n\n" +
+                    "Mac: Системні параметри → Сповіщення → Google Chrome → «Дозволити сповіщення».\n" +
+                    "Windows: Параметри → Система → Сповіщення → Google Chrome → Увімкнено.\n\n" +
+                    "І вимкніть «Не турбувати» / «Фокусування».",
+                );
+            }, 1500);
+        });
+        paint();
+        const date = bar.querySelector(".fura-date");
+        if (date) date.insertAdjacentElement("beforebegin", btn);
+        else bar.appendChild(btn);
+        const css = document.createElement("style");
+        css.textContent = `.fura-bell{border:1px solid var(--f-line,#e4e8ef);background:#fff;border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer;flex:0 0 auto;margin-left:8px}
+            .fura-bell.off{background:#fff7ed;border-color:#fdba74;animation:furaBell 2.4s ease-in-out 3}
+            @keyframes furaBell{0%,100%{transform:none}10%{transform:rotate(-12deg)}20%{transform:rotate(12deg)}30%{transform:none}}`;
+        document.head.appendChild(css);
+        return true;
+    }
+    (function waitBar(n = 0) {
+        if (desktopBell() !== false || n > 40) return;
+        setTimeout(() => waitBar(n + 1), 250);
+    })();
+
     window.furaToast = (o) => notify({ kind: o.kind || "new", icon: o.icon || "🔔", title: o.title, text: o.text, requestId: o.tag || "", href: o.href });
 
     // Перевірка вручну: у консолі браузера набрати furaNotifyTest()
