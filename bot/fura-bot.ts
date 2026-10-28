@@ -617,6 +617,7 @@ async function decide(
         update.logistician = a.logist;
         const idx = offerNo !== undefined ? Number(offerNo) : (a.offers || []).length === 1 ? 0 : NaN;
         const o = Number.isInteger(idx) ? (a.offers || [])[idx] : null;
+        if (o?.rejected) return "Цю ціну вже відхилено в CRM — оберіть інший варіант";
         if (o) {
             update.chosen_offer = {
                 logist_id: a.logist_id,

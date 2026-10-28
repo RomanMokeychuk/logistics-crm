@@ -1228,3 +1228,13 @@
 .refusal-reason input { width: 18px; height: 18px; margin: 0; }
 .btn-danger { background: #dc2626; color: #fff; border: none; }
 .btn-danger:hover { background: #b91c1c; }
+
+/* ---------- Скасувати / відхилити / прибрати ціну ---------- */
+.offer-action { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: flex-end; }
+.offer-mini { border: 1px solid var(--f-line, #e4e8ef); background: #fff; color: #374151; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.offer-mini:hover { background: #f3f4f6; }
+.offer-mini-bad { color: #b91c1c; border-color: #fecaca; }
+.offer-mini-bad:hover { background: #fef2f2; }
+.offer-rejected .offer-price { text-decoration: line-through; color: #9ca3af; }
+.offer-rejected { opacity: 0.75; }
+.offer-rej-badge { font-size: 12px; font-weight: 600; color: #b91c1c; background: #fef2f2; border-radius: 6px; padding: 2px 6px; white-space: nowrap; }

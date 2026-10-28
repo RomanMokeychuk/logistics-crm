@@ -1835,6 +1835,10 @@ function openRequestCard(id) {
         );
 
     document.getElementById("refuseFromCardBtn")?.addEventListener("click", () => openRefusalModal(r.id));
+    document.getElementById("cancelChoiceBtn")?.addEventListener("click", () => cancelChoice(r.id));
+    document.querySelectorAll("#requestCardBody [data-offer-act]").forEach((b) =>
+        b.addEventListener("click", () => offerAction(r.id, b.dataset.offerAct, b.dataset.lid, Number(b.dataset.offer))),
+    );
 
     document
         .getElementById("openAnswerFromCardBtn")
@@ -2087,15 +2091,28 @@ function formatPrice(price) {
 //         chosenIndex: номер обраного варіанту (решту приглушуємо) }
 function offerRowsHtml(offers, opts = {}) {
     const hasChosen = Number.isInteger(opts.chosenIndex);
+    const lid = escapeHtml(opts.logistId || "");
     return offers
         .map((o, i) => {
             const chosen = hasChosen && opts.chosenIndex === i;
-            const cls = chosen ? " offer-chosen" : hasChosen ? " offer-dim" : "";
-            const btn = opts.chooseFor
+            const rej = o.rejected;
+            const cls = chosen ? " offer-chosen" : rej ? " offer-rejected" : hasChosen ? " offer-dim" : "";
+            let btn = opts.chooseFor && !rej
                 ? `<button type="button" class="btn-choose btn-choose-offer" data-choose="${escapeHtml(opts.chooseFor)}" data-offer="${i}"><i class='bx bx-check'></i> Обрати</button>`
                 : chosen
                   ? `<span class="chosen-badge"><i class='bx bx-check-circle'></i> обрано</span>`
                   : "";
+            if (rej) btn += `<span class="offer-rej-badge" title="${escapeHtml([rej.by, rej.at ? formatDateTime(rej.at) : ""].filter(Boolean).join(", "))}">✕ ціну відхилено</span>`;
+            // Sales: відхилити ціну / повернути (поки нікого не обрано)
+            if (opts.salesCtl && !chosen) {
+                btn += rej
+                    ? `<button type="button" class="offer-mini" data-offer-act="restore" data-lid="${lid}" data-offer="${i}" title="Повернути ціну">↩ Повернути</button>`
+                    : `<button type="button" class="offer-mini offer-mini-bad" data-offer-act="reject" data-lid="${lid}" data-offer="${i}" title="Ціна не підходить — логіст побачить і зможе дати нову">✕ Відхилити ціну</button>`;
+            }
+            // Логіст: прибрати свій варіант
+            if (opts.mineCtl && !chosen) {
+                btn += `<button type="button" class="offer-mini" data-offer-act="delete" data-lid="${lid}" data-offer="${i}" title="Прибрати цей варіант (решта відповіді лишається)">🗑 Прибрати</button>`;
+            }
             return `
             <div class="offer-row${cls}">
                 <span class="offer-num">${i + 1}</span>
@@ -2144,8 +2161,9 @@ function answerSectionHtml(r) {
                   const offers = a.offers || [];
                   // Кілька варіантів — "Обрати" біля кожного; один або жодного — біля логіста
                   const perOffer = canChoose && a.logist_id && offers.length > 1;
+                  const allRejected = offers.length > 0 && offers.every((o) => o.rejected);
                   const chooseBtn =
-                      canChoose && a.logist_id && !perOffer
+                      canChoose && a.logist_id && !perOffer && !allRejected
                           ? `<button type="button" class="btn-choose" data-choose="${escapeHtml(a.logist_id)}"${offers.length === 1 ? ' data-offer="0"' : ""}><i class='bx bx-check'></i> Обрати</button>`
                           : "";
                   return `
@@ -2154,9 +2172,16 @@ function answerSectionHtml(r) {
                         <span class="answer-logist"><i class='bx bx-user'></i> ${escapeHtml(a.logist || "Логіст")}</span>
                         ${a.at ? `<span class="answer-time">${formatDateTime(a.at)}</span>` : ""}
                         ${chosen ? `<span class="chosen-badge"><i class='bx bx-check-circle'></i> обрано</span>` : ""}
+                        ${chosen && canSalesAct(r) && r.status === STATUS_CHOSEN ? `<button type="button" class="offer-mini" id="cancelChoiceBtn" title="Повернути запит у «Відповідь» — можна буде обрати іншу ціну">↩ Скасувати вибір</button>` : ""}
                         ${chooseBtn}
                     </div>
-                    ${offers.length ? offerRowsHtml(offers, { chooseFor: perOffer ? a.logist_id : null, chosenIndex: chosen ? chosenOfferIndex(r, a) : null }) : ""}
+                    ${offers.length ? offerRowsHtml(offers, {
+                        chooseFor: perOffer ? a.logist_id : null,
+                        chosenIndex: chosen ? chosenOfferIndex(r, a) : null,
+                        logistId: a.logist_id,
+                        salesCtl: canChoose && a.logist_id && canSalesAct(r),
+                        mineCtl: a.logist_id && currentStaff && String(a.logist_id) === String(currentStaff.id) && r.status !== STATUS_REFUSED,
+                    }) : ""}
                     ${a.notes ? `<div class="answer-notes"><div class="answer-notes-label">Нотатки</div><div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(a.notes)}</div></div>` : ""}
                 </div>`;
               })
@@ -2281,6 +2306,95 @@ async function saveRefusal(e) {
     const id = refusalRequestId;
     await loadRequests();
     openRequestCard(id);
+}
+
+/* ================================================================= *
+ * СКАСУВАТИ ЦІНУ, А НЕ ВЕСЬ ЗАПИТ                                    *
+ * • Sales: «↩ Скасувати вибір» — запит знову «Відповідь»             *
+ * • Sales: «✕ Відхилити ціну» біля варіанту — логіст дає нову        *
+ * • Логіст: 🗑 біля свого варіанту — прибрати тільки його            *
+ * Про кожну дію — повідомлення в переписці запиту (і в Telegram).     *
+ * ================================================================= */
+
+function canSalesAct(r) {
+    if (!r || !currentStaff) return false;
+    return hasRole(currentStaff, ["head", "admin"]) || String(r.sales_id || "") === String(currentStaff.id) || (!r.sales_id && hasRole(currentStaff, ["sales"]));
+}
+
+const priceLabel = (o) => (o?.price ? `${formatPrice(o.price)} ${o.currency || ""}`.trim() : "без ціни");
+
+async function chatNote(requestId, text) {
+    try {
+        await sbClient.from("request_messages").insert([{ request_id: requestId, text }]);
+    } catch (e) { /* переписка не обов'язкова */ }
+}
+
+async function reopenCard(id) {
+    await loadRequests();
+    openRequestCard(id);
+}
+
+async function offerAction(requestId, act, logistId, idx) {
+    // Беремо свіжі відповіді з бази — логіст міг щойно щось змінити
+    const { data: fresh, error: e1 } = await sbClient.from("requests").select("*").eq("id", requestId).maybeSingle();
+    if (e1 || !fresh) return alert("Не вдалося прочитати запит: " + (e1?.message || "немає"));
+    const answers = JSON.parse(JSON.stringify(getAnswers(fresh)));
+    const a = answers.find((x) => String(x.logist_id) === String(logistId));
+    const o = a?.offers?.[idx];
+    if (!o) return alert("Цей варіант уже змінили — оновіть картку.");
+    const n = idx + 1;
+    const update = {};
+    let note = "";
+
+    if (act === "reject") {
+        if (!confirm(`Відхилити ціну ${priceLabel(o)} (варіант ${n}, ${a.logist})?\nЗапит лишається відкритим — логіст зможе дати нову ціну.`)) return;
+        o.rejected = { by: currentStaff?.full_name || "Sales", at: new Date().toISOString() };
+        note = `✕ Sales відхилив ціну ${priceLabel(o)} (варіант ${n}, ${a.logist}). Потрібна інша ціна.`;
+    } else if (act === "restore") {
+        delete o.rejected;
+        note = `↩ Ціну ${priceLabel(o)} (варіант ${n}, ${a.logist}) повернуто — її знову можна обрати.`;
+    } else if (act === "delete") {
+        const c = fresh.chosen_offer;
+        if (isChosen(fresh) && c && String(c.logist_id) === String(logistId) && c.index === idx) {
+            return alert("Sales уже обрав цей варіант. Спершу Sales має скасувати вибір.");
+        }
+        if (!confirm(`Прибрати ваш варіант ${n}: ${priceLabel(o)}?\nІнші варіанти й нотатки лишаться.`)) return;
+        a.offers.splice(idx, 1);
+        if (isChosen(fresh) && c && String(c.logist_id) === String(logistId) && Number.isInteger(c.index) && c.index > idx) {
+            update.chosen_offer = { ...c, index: c.index - 1 };
+        }
+        note = `🗑 Логіст ${a.logist} прибрав варіант ${n}: ${priceLabel(o)} (машина вже неактуальна).`;
+    } else return;
+
+    update.answers = answers;
+    const { error } = await sbClient.from("requests").update(update).eq("id", requestId);
+    if (error) return alert("Помилка Supabase: " + error.message);
+    await chatNote(requestId, note);
+    reopenCard(requestId);
+}
+
+async function cancelChoice(requestId) {
+    const r = requestsCache.find((x) => String(x.id) === String(requestId));
+    if (!r || !isChosen(r)) return;
+    const co = r.chosen_offer;
+    const chosenName = r.logistician || "логіст";
+    if (!confirm(`Скасувати вибір${co ? ` ціни ${priceLabel(co)}` : ""} (логіст ${r.logistician || "—"})?\nЗапит повернеться у «${STATUS_QUOTE}» — можна буде обрати іншу ціну. Сам запит не скасовується.`)) return;
+    const ids = logistIdsOf(r);
+    const names = ids.map((id) => staffById(id)?.full_name).filter(Boolean);
+    const update = {
+        status: getAnswers(r).length ? STATUS_QUOTE : STATUS_NEW,
+        chosen_offer: null,
+        logistician_id: ids[0] || r.logistician_id,
+        logistician: names.length ? names.join(", ") : r.logistician,
+    };
+    let { error } = await sbClient.from("requests").update(update).eq("id", r.id);
+    if (error && /chosen_offer/.test(error.message || "")) {
+        delete update.chosen_offer;
+        ({ error } = await sbClient.from("requests").update(update).eq("id", r.id));
+    }
+    if (error) return alert("Помилка Supabase: " + error.message);
+    await chatNote(r.id, `↩ Sales скасував вибір${co ? ` ціни ${priceLabel(co)}` : ""} (${chosenName}). Запит знову відкритий — ціну оберуть заново.`);
+    reopenCard(r.id);
 }
 
 async function chooseAnswer(requestId, logistId, offerIndex = null) {
