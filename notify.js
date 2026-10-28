@@ -314,7 +314,10 @@
             String(r.sales_id || "") === myId ||
             logists.includes(myId) ||
             (!idsOf(r).length && isLogist(me));
-        if (!mine || (shownInCard && !document.hidden)) {
+        // Картка відкрита І ви зараз дивитесь на CRM — досить звуку; інакше (інша програма,
+        // інший робочий стіл, інша вкладка) — повне сповіщення в кут екрана
+        const looking = !document.hidden && document.hasFocus();
+        if (!mine || (shownInCard && looking)) {
             if (shownInCard) beep();
             return;
         }
