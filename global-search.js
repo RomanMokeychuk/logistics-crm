@@ -105,6 +105,27 @@
             },
         },
         {
+            // Машини, що зараз у Черзі на кордоні (тягач або причіп)
+            key: "queue",
+            title: "Черга (на кордоні зараз)",
+            icon: "bx-time-five",
+            async run(q, plates) {
+                if (!plates.length) return [];
+                const conds = [];
+                plates.forEach((p) => conds.push(like("tractor", p), like("trailer", p)));
+                const { data } = await client
+                    .from("echerha_queue")
+                    .select("tractor, trailer, checkpoint, entry_at, carrier, edrpou")
+                    .or(conds.join(","))
+                    .limit(5);
+                return (data || []).map((t) => ({
+                    href: `echerha.html?q=${encodeURIComponent(t.tractor || t.trailer || q)}`,
+                    title: `🚛 ${[t.tractor, t.trailer].filter(Boolean).join(" / ")}`,
+                    sub: [t.carrier, String(t.checkpoint || "").replace(/\.\s*Товари.*$/i, "").replace(/\s*\([^)]*\)/g, ""), t.entry_at && `в'їзд ${t.entry_at}`].filter(Boolean).join(" · "),
+                }));
+            },
+        },
+        {
             key: "carriers",
             title: "Перевізники",
             icon: "bx-group",

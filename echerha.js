@@ -29,7 +29,9 @@ const EQ = (() => {
     const esc = (s) =>
         String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
     const codeKey = (v) => String(v || "").replace(/\D/g, "").replace(/^0+/, "");
-    const norm = (s) => String(s || "").toLowerCase().replace(/[\s\-]/g, "");
+    // Пошук не залежить від розкладки: кирилична «АТ4287СА» = латинська «AT4287CA»
+    const LOOK = { а: "a", в: "b", е: "e", і: "i", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", х: "x", у: "y" };
+    const norm = (s) => String(s || "").toLowerCase().replace(/[\s\-]/g, "").replace(/[авеікмнорстху]/g, (c) => LOOK[c]);
     const PAGE = 100;
     const BODIES = ["тент", "реф", "автовоз", "контейнеровоз", "платформа", "бортовий", "фургон", "самоскид", "цистерна", "інше", "невідомо"];
     const FKEY = "fura_echerha_filters";
@@ -528,7 +530,11 @@ const EQ = (() => {
         });
     }
 
-    return { restore, bind, load, fillSelects, live, setView: (v) => { st.view = v; } };
+    // echerha.html?q=AT4287CA (з пошуку вгорі) — показати саме цю машину, без фільтрів, що могли б її сховати
+    function focusQuery(q) {
+        Object.assign(st, { view: "trucks", q, cps: null, country: "", qtype: "", bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
+    }
+    return { restore, bind, load, fillSelects, live, focusQuery, setView: (v) => { st.view = v; } };
 })();
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -546,6 +552,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     EQ.restore();
     const v = new URLSearchParams(location.search).get("view");
     if (v) EQ.setView(v);
+    const q = new URLSearchParams(location.search).get("q");
+    if (q) EQ.focusQuery(q);
     EQ.fillSelects();
     EQ.bind();
     try {
