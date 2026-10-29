@@ -29,6 +29,9 @@ const EQ = (() => {
     const esc = (s) =>
         String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
     const codeKey = (v) => String(v || "").replace(/\D/g, "").replace(/^0+/, "");
+    // Область перевізника — з його картки у FURA («ЖИТОМИРСЬКА ОБЛ.»)
+    const regionOf = (code) => (FURA.get(codeKey(code)) || {}).region || "";
+    const regionHtml = (code) => (regionOf(code) ? `<div class="eq-sm eq-region">📍 ${esc(regionOf(code))}</div>` : "");
     // Пошук не залежить від розкладки: кирилична «АТ4287СА» = латинська «AT4287CA»
     const LOOK = { а: "a", в: "b", е: "e", і: "i", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", х: "x", у: "y" };
     const norm = (s) => String(s || "").toLowerCase().replace(/[\s\-]/g, "").replace(/[авеікмнорстху]/g, (c) => LOOK[c]);
@@ -39,7 +42,7 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", oblast: "", page: 0, sort: "entry" };
     let WATCH = new Map(); // номер тягача -> мій запис echerha_watch
     const plateKey = (v) =>
         String(v || "").toUpperCase().replace(/\s|-/g, "")
@@ -127,12 +130,12 @@ const EQ = (() => {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
         const parts = await Promise.all(
-            Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select("id, name, edrpou").range(i * 1000, i * 1000 + 999)),
+            Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select("id, name, edrpou, region_ukr").range(i * 1000, i * 1000 + 999)),
         );
         FURA = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            if (k && !FURA.has(k)) FURA.set(k, { id: c.id, name: c.name });
+            if (k && !FURA.has(k)) FURA.set(k, { id: c.id, name: c.name, region: c.region_ukr || "" });
         }));
     }
 
@@ -212,6 +215,10 @@ const EQ = (() => {
     /* ---------- фільтри ---------- */
     function fillSelects() {
         const countries = [...new Set(CPS.map((c) => c.country).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
+        if ($("#eqOblast")) {
+            const obls = [...new Set([...FURA.values()].map((f) => f.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
+            $("#eqOblast").innerHTML = `<option value="">Усі області перевізника</option>` + obls.map((o) => `<option ${o === st.oblast ? "selected" : ""}>${esc(o)}</option>`).join("");
+        }
         $("#eqCountry").innerHTML = `<option value="">Усі країни</option>` + countries.map((c) => `<option ${c === st.country ? "selected" : ""}>${esc(c)}</option>`).join("");
         const qt = [...new Set(CPS.map((c) => c.qtype).filter(Boolean))];
         $("#eqQtype").innerHTML = `<option value="">Будь-яка черга</option>` + qt.map((c) => `<option ${c === st.qtype ? "selected" : ""}>${esc(c)}</option>`).join("");
@@ -307,12 +314,13 @@ const EQ = (() => {
             if (st.ua && !r.ua) return false;
             if (st.cps && !st.cps.has(r.checkpoint)) return false;
             if (st.country && r.country !== st.country) return false;
+            if (st.oblast && regionOf(r.edrpou) !== st.oblast) return false;
             if (st.qtype && r.qtype !== st.qtype) return false;
             if (st.bodies.size && !st.bodies.has(bodyOf(r))) return false;
             if (st.isNew && !r.is_new) return false;
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
-            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint].join(" ")).includes(q)) return false;
+            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, regionOf(r.edrpou)].join(" ")).includes(q)) return false;
             if (st.fresh && HAS_REG) {
                 const t = regTime(r);
                 if (!t || Date.now() - t > Number(st.fresh) * 3600 * 1000) return false;
@@ -411,7 +419,7 @@ const EQ = (() => {
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}<div class="eq-muted eq-sm eq-clip" title="${esc(r.trailer_model)}">${esc(r.trailer_model || "")}</div></td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
-                <td>${esc(r.carrier || "—")}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}</td>
+                <td>${esc(r.carrier || "—")}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}</td>
                 <td>${esc(r.boss || "—")}</td>
                 <td>${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</td>
             </tr>`).join("") || `<tr><td colspan="9" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
@@ -436,7 +444,7 @@ const EQ = (() => {
         $("#eqTable").innerHTML =
             `<thead><tr><th>Перевізник</th><th>ЄДРПОУ</th><th>Керівник</th><th>Машин</th><th>Пункти</th><th>Найближчий в'їзд</th><th>Кузови</th><th>FURA</th></tr></thead><tbody>` +
             (rows.map((c) => `<tr>
-                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}</td>
+                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}${regionHtml(c.code)}</td>
                 <td class="eq-mono">${esc(c.code)}</td>
                 <td>${esc(c.boss || "—")}</td>
                 <td title="${esc(c.trucks.join("\n"))}"><b>${c.trucks.length}</b><div class="eq-muted eq-sm eq-clip eq-mono">${esc(c.trucks.slice(0, 2).join(", "))}${c.trucks.length > 2 ? "…" : ""}</div></td>
@@ -524,6 +532,7 @@ const EQ = (() => {
             renderAll();
         });
         $("#eqCountry").addEventListener("change", (e) => { st.country = e.target.value; st.page = 0; paintCp(); renderAll(); });
+        $("#eqOblast")?.addEventListener("change", (e) => { st.oblast = e.target.value; st.page = 0; renderAll(); });
         $("#eqQtype").addEventListener("change", (e) => { st.qtype = e.target.value; st.page = 0; renderAll(); });
         $("#eqFresh")?.addEventListener("change", (e) => { st.fresh = e.target.value; st.page = 0; renderAll(); });
         $("#eqSort")?.addEventListener("change", (e) => { st.sort = e.target.value; st.page = 0; renderAll(); });
@@ -538,7 +547,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", page: 0 });
+            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", oblast: "", page: 0 });
             fillSelects();
             renderAll();
         });

@@ -113,3 +113,5 @@
 .eq-pass { color: #15803d; font-weight: 700; }
 .eq-wait { color: #b45309; font-weight: 700; }
 .eq-passed { background: #f0fdf4; }
+
+.eq-region { color: #1d5bd8; font-weight: 600; margin-top: 2px; }
