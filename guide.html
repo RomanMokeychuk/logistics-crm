@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Як працювати</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202611022236" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611022236" />
+        <link rel="stylesheet" href="guide.css?v=202611022236" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка"><img src="logo.svg" alt="" width="28" height="28" style="border-radius: 7px" /><span>FURA</span></a>
+            <nav class="menu"></nav>
+        </aside>
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель"><i class="bx bx-chevron-left"></i></button>
+
+        <main class="main-content guide-page">
+            <header class="top-bar"><h1>Як працювати у FURA</h1></header>
+            <div class="gd-wrap">
+                <nav class="gd-tabs" id="gdTabs"></nav>
+                <div id="gdBody"></div>
+            </div>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="guide.js?v=202611022236"></script>
+        <script src="shell.js?v=202611022236"></script>
+        <script src="notify.js?v=202611022236"></script>
+        <script src="lock.js?v=202611022236"></script>
+    </body>
+</html>

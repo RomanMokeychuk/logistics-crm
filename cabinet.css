@@ -371,3 +371,25 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
 /* Орієнтовна ціна в формі запиту */
 .cb-hintbox { display: flex; gap: 10px; background: var(--orange-soft); border: 1px solid #fed7aa; border-radius: 12px; padding: 10px 14px; font-size: 14px; }
 .cb-hintbox > i { font-size: 22px; color: var(--orange); }
+
+/* ---------- Перший вхід і довідка ---------- */
+.cb-welcome { background: #fff; border: 2px solid #fed7aa; border-radius: 16px; padding: 16px 18px; margin: 16px 0 0; }
+.cb-welcome-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; font-size: 16px; }
+.cb-welcome-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 10px; }
+@media (max-width: 800px) { .cb-welcome-steps { grid-template-columns: 1fr; } }
+.cb-welcome-steps > div { position: relative; background: var(--orange-soft); border-radius: 12px; padding: 12px 14px 12px 50px; }
+.cb-welcome-steps span { position: absolute; left: 12px; top: 12px; width: 28px; height: 28px; border-radius: 50%; background: var(--orange); color: #fff; font-weight: 800; display: grid; place-items: center; }
+.cb-welcome-steps i { display: none; }
+.cb-welcome-steps b { display: block; margin-bottom: 2px; }
+.cb-welcome-steps p { margin: 0; font-size: 13px; color: #4b5563; line-height: 1.45; }
+.cb-help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 1000px) { .cb-help-grid { grid-template-columns: 1fr; } }
+.cb-help + .cb-help { margin-top: 14px; }
+.cb-help p { line-height: 1.55; margin: 6px 0; }
+.cb-help-steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 10px; }
+.cb-help-steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; line-height: 1.5; }
+.cb-help-steps li::before { content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 13px; }
+.cb-faq { border-top: 1px solid var(--line); padding: 10px 0; }
+.cb-faq:first-of-type { border-top: 0; }
+.cb-faq summary { font-weight: 700; cursor: pointer; }
+.cb-faq p { margin: 6px 0 0; color: #374151; }

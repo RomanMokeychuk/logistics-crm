@@ -278,6 +278,8 @@
                 { key: "chat", icon: "bx-chat", label: "Чат з менеджером", count: state.unread || 0 },
                 { title: "Аналітика" },
                 { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+                { title: "Допомога" },
+                { key: "help", icon: "bx-help-circle", label: "Як це працює" },
             ];
         }
         return [
@@ -290,6 +292,8 @@
             { key: "chat", icon: "bx-chat", label: "Чат з логістом", count: state.unread || 0 },
             { title: "Аналітика" },
             { key: "reports", icon: "bx-trending-up", label: "Моя ефективність" },
+            { title: "Допомога" },
+            { key: "help", icon: "bx-help-circle", label: "Як це працює" },
         ];
     }
     function renderNav() {
@@ -340,8 +344,8 @@
         window.scrollTo(0, 0);
         const views =
             kind === "client"
-                ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView }
-                : { home: carrierHomeView, offers: offersView, offer: offerView, deals: dealsView, deal: dealView, trucks: trucksView, map: mapView, chat: chatView, reports: reportsView };
+                ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView, help: helpView }
+                : { home: carrierHomeView, offers: offersView, offer: offerView, deals: dealsView, deal: dealView, trucks: trucksView, map: mapView, chat: chatView, reports: reportsView, help: helpView };
         (views[view] || views.home)(id);
     }
 
@@ -370,7 +374,33 @@
     }
     const qc = (icon, color, title, sub, n, href) =>
         `<button type="button" class="cb-qc" data-go="${href}"><i class="bx ${icon} ${color}"></i><div><b>${title}</b><span>${sub}</span></div>${n ? `<span class="cb-qc-n">${n}</span>` : ""}</button>`;
+    // Перший вхід: 3 кроки, як користуватись (можна закрити)
+    const WELCOME_KEY = "fura_cabinet_welcome_closed";
+    function welcomeHtml() {
+        if (store.get(WELCOME_KEY)) return "";
+        const s =
+            kind === "client"
+                ? [
+                      ["bx-plus-circle", "Створіть запит", "Кнопка «Новий запит» угорі: звідки, куди, що веземо, коли. Одразу побачите орієнтовну ціну."],
+                      ["bx-badge-check", "Погодьте ціну", "Менеджер Грандар прорахує і покаже ціну в «Запитах». Натисніть «Погодити» — і ми беремось до роботи."],
+                      ["bx-map-alt", "Стежте за вантажем", "У «Перевезеннях» — етап, карта з машиною, прогноз прибуття, документи. Питання — у «Чат з менеджером»."],
+                  ]
+                : [
+                      ["bx-bell", "Отримайте пропозицію", "Логіст Грандар пропонує рейс — він з'являється в «Пропозиціях рейсів» і приходить у Telegram."],
+                      ["bx-send", "Дайте ставку", "Відкрийте пропозицію: сума, дата подачі, номер тягача → «Надіслати ставку». Або «Не можу»."],
+                      ["bx-trip", "Виконайте рейс", "Підтверджений рейс — у «Моїх рейсах» з адресами, датами і сумою. Питання — у «Чат з логістом»."],
+                  ];
+        return `<div class="cb-welcome" id="cbWelcome">
+            <div class="cb-welcome-head"><b>👋 Як користуватись кабінетом — 3 кроки</b><button type="button" class="cb-link" id="cbWelcomeClose">Зрозуміло, сховати <i class="bx bx-x"></i></button></div>
+            <div class="cb-welcome-steps">${s.map(([i, t, d], n) => `<div><span>${n + 1}</span><i class="bx ${i}"></i><b>${t}</b><p>${d}</p></div>`).join("")}</div>
+            <a href="#/help" class="cb-link">Детальніше — «Як це працює» <i class="bx bx-right-arrow-alt"></i></a></div>`;
+    }
+
     function bindGo(root = app) {
+        $("cbWelcomeClose")?.addEventListener("click", () => {
+            store.set(WELCOME_KEY, "1");
+            $("cbWelcome")?.remove();
+        });
         root.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => (b.dataset.go === "new" ? openRequestForm() : go(b.dataset.go))));
     }
 
@@ -381,6 +411,7 @@
         const act = activeDeals();
         app.innerHTML = `
             ${heroHtml()}
+            ${welcomeHtml()}
             ${lateBanner(act)}
             <h2 class="cb-h2"><i class="bx bxs-zap"></i> Швидкі дії</h2>
             <div class="cb-quick">
@@ -407,6 +438,7 @@
         const act = activeDeals();
         app.innerHTML = `
             ${heroHtml()}
+            ${welcomeHtml()}
             ${lateBanner(act)}
             <div class="cb-kpis" style="margin-top:18px">
                 <div class="cb-kpi"><label>Нові пропозиції</label><b>${open.length}</b></div>
@@ -986,6 +1018,72 @@
         } catch (err) {
             $("cbChat").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`;
         }
+    }
+
+    /* ================================================================ */
+    /* ЯК ЦЕ ПРАЦЮЄ                                                     */
+    /* ================================================================ */
+
+    function helpView() {
+        crumbs(["Як це працює"]);
+        const sec = (icon, title, body) => `<section class="cb-card cb-help"><h3 class="cb-h2" style="margin-top:0;font-size:17px"><i class="bx ${icon}"></i> ${title}</h3>${body}</section>`;
+        const ol = (list) => `<ol class="cb-help-steps">${list.map((x) => `<li>${x}</li>`).join("")}</ol>`;
+        const faq = (list) => list.map(([q, a]) => `<details class="cb-faq"><summary>${q}</summary><p>${a}</p></details>`).join("");
+        const client = kind === "client";
+        app.innerHTML = client
+            ? `
+            <div class="cb-hero" style="margin-bottom:16px"><img src="company-logo.svg" alt="" /><div><h1 class="cb-h1">Як працює кабінет клієнта</h1><div class="cb-muted">Усе про ваші перевезення з Грандар — в одному місці, без дзвінків.</div></div></div>
+            <div class="cb-help-grid">
+            ${sec("bx-plus-circle", "1. Замовити перевезення", ol([
+                "Натисніть <b>«Новий запит»</b> (угорі праворуч).",
+                "Вкажіть країну й місто завантаження та розвантаження, митниці (якщо знаєте), що веземо, вагу, кузов і дату.",
+                "Під формою з'явиться <b>орієнтовна ціна</b> — за нашими перевезеннями цим напрямком. Точну ціну підтвердить менеджер.",
+                "Натисніть <b>«Надіслати запит»</b> — менеджер отримає його одразу.",
+            ]) + `<p class="cb-muted">Той самий маршрут ще раз? Відкрийте старий запит → <b>«Повторити запит»</b> — змініть лише дату.</p>`)}
+            ${sec("bx-badge-check", "2. Погодити ціну", ol([
+                "Коли менеджер прорахує, у розділі <b>«Запити»</b> з'явиться позначка <span class='cb-chip cb-rs-offer'>Є пропозиція — погодьте</span>.",
+                "Натисніть <b>«Погодити»</b> — і ми оформлюємо перевезення. Або <b>«Обговорити»</b> — менеджер зв'яжеться з вами.",
+            ]))}
+            ${sec("bx-trip", "3. Стежити за перевезенням", ol([
+                "Розділ <b>«Перевезення»</b> — усі ваші рейси: №, маршрут, авто, етап, прибуття.",
+                "<span class='cb-chip cb-dev-ok'>за графіком</span> — усе добре. <span class='cb-chip cb-dev-late'>+1 год 25 хв</span> — є запізнення, угорі з'явиться попередження.",
+                "Клік по рейсу — картка: <b>прогноз прибуття</b>, <b>карта з машиною</b>, етапи з планом і фактом, водій і номер авто, документи (CMR), сума й оплата.",
+                "<b>«Карта»</b> — усі ваші машини в дорозі одразу.",
+            ]))}
+            ${sec("bx-chat", "4. Запитати менеджера", `<p>Розділ <b>«Чат з менеджером»</b>, кнопка «Написати» в картці рейсу або в запиті. Менеджер і логіст отримують ваше повідомлення миттєво. Відповідь з'явиться тут — у меню буде помаранчева цифра.</p>`)}
+            </div>
+            ${sec("bx-lock-alt", "Що ви бачите", `<p>Лише запити й перевезення вашої компанії. Дані захищені: кожен клієнт бачить тільки своє. Перевізника ми не показуємо — за перевезення повністю відповідає Грандар.</p>`)}
+            ${sec("bx-help-circle", "Часті питання", faq([
+                ["Як увійти з іншого пристрою?", "Попросіть менеджера надіслати нове посилання для входу або увійдіть за кодом з e-mail (якщо ця можливість увімкнена)."],
+                ["Чому немає машини на карті?", "Карта з'являється, коли водій почав рейс у нашому додатку. До того етап оновлює логіст — він видно в картці."],
+                ["Де рахунки й акти?", "У картці перевезення → вкладка «Розрахунок» / «Документи». Якщо чогось бракує — напишіть менеджеру."],
+                ["Як скасувати запит?", "Відкрийте запит → «Скасувати». Якщо запит уже в роботі — напишіть менеджеру в чат."],
+            ]))}`
+            : `
+            <div class="cb-hero" style="margin-bottom:16px"><img src="company-logo.svg" alt="" /><div><h1 class="cb-h1">Як працює кабінет перевізника</h1><div class="cb-muted">Рейси від Грандар, ваші ставки й оплати — без дзвінків і переписок.</div></div></div>
+            <div class="cb-help-grid">
+            ${sec("bx-bell", "1. Отримати пропозицію рейсу", ol([
+                "Логіст Грандар пропонує вам рейс — він з'являється в <b>«Пропозиціях рейсів»</b> і приходить у Telegram.",
+                "Ви бачите маршрут по країнах, митниці, кордон, вантаж, вагу, кузов і дату. Точні адреси — після підтвердження рейсу.",
+            ]))}
+            ${sec("bx-send", "2. Дати ставку", ol([
+                "Відкрийте пропозицію → впишіть <b>ставку</b>, валюту, <b>дату подачі</b> й <b>номер тягача</b> → «Надіслати ставку».",
+                "Не можете — натисніть <b>«Не можу»</b> (можна вказати причину). Ставку можна змінити, поки рейс не закрито.",
+                "Питання по рейсу — блок «Питання логісту» прямо в пропозиції.",
+            ]))}
+            ${sec("bx-trip", "3. Виконати рейс", ol([
+                "Підтверджений рейс з'являється в <b>«Моїх рейсах»</b>: адреси завантаження й розвантаження, митниці, дати, ваша ставка й статус оплати.",
+                "Водій веде рейс у додатку <b>«FURA Водій»</b> — етапи й позиція оновлюються самі.",
+                "<span class='cb-chip cb-dev-late'>+N хв</span> біля рейсу — запізнення від графіка: попередьте логіста в чаті.",
+            ]))}
+            ${sec("bx-trending-up", "4. Ваша ефективність", `<p>Розділ <b>«Моя ефективність»</b>: вчасні доставки, вчасна подача, як швидко ви відповідаєте — у порівнянні з іншими перевізниками Грандар. <b>Чим кращі показники, тим раніше ви отримуєте вигідні пропозиції.</b></p><p><b>«Мої машини»</b> — ваші тягачі і хто з них зараз стоїть у черзі на кордоні.</p>`)}
+            </div>
+            ${sec("bx-lock-alt", "Що ви бачите", `<p>Лише пропозиції, надіслані вам, і ваші рейси. Ставки інших перевізників і дані клієнта не показуються.</p>`)}
+            ${sec("bx-help-circle", "Часті питання", faq([
+                ["Як відкрити кабінет з телефона?", "У Telegram-боті Грандар надішліть /cabinet — бот дасть кнопку «Відкрити кабінет»."],
+                ["Пропозиція зникла", "Рейс уже закрито (знайшли машину або клієнт скасував). Пропозиції без відповіді старші за 3 тижні ховаються."],
+                ["Коли оплата?", "Статус оплати — у «Моїх рейсах» і в картці рейсу (вкладка «Розрахунок»). Питання — у «Чат з логістом»."],
+            ]))}`;
     }
 
     /* ================================================================ */
