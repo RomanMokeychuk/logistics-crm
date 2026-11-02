@@ -553,6 +553,7 @@ function openCarrierCard(id) {
     window.furaCarrierRoutes?.renderCard(item); // напрямки з митних даних (carrier-match.js)
     window.furaEcherha?.renderCard(item); // зараз у черзі на кордоні (echerha-card.js)
     window.furaCarrierRegistry?.renderCard(item); // телефони й область з реєстру КВЕД 49.41 (carrier-registry.js)
+    window.furaPortalAdmin?.carrierCard(item); // доступ до кабінету перевізника (portal-admin.js)
 }
 
 /* ================================================================= *

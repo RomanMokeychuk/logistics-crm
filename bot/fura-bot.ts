@@ -11,6 +11,7 @@
 //  Переписка по запиту → Sales і логістам запиту, кнопка "✍️ Відповісти"
 //
 //  Перевізник (через /start c_<код>) → його повідомлення читає AI-агент (функція fura-agent)
+//  /cabinet   — кабінет перевізника (Mini App cabinet.html, вхід через Telegram; функція fura-portal)
 //
 // Секрети: TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
 // Необов'язково: CRM_URL, APP_URL (адреса сайту на GitHub Pages)
@@ -96,6 +97,7 @@ type Button = {
 };
 
 const crmButton: Button = { text: "📋 Відкрити в CRM", url: CRM_URL };
+const cabinetButton: Button = { text: "🌐 Відкрити кабінет", web_app: { url: `${APP_URL}/cabinet.html` } };
 const newRequestButton: Button = {
     text: "➕ Новий запит",
     web_app: { url: `${APP_URL}/tg-request.html` },
@@ -811,7 +813,14 @@ async function handleMessage(msg: Any) {
     const invite = text.match(/^\/start\s+c_([A-Za-z0-9]+)/);
     if (invite) {
         await callAgent({ action: "link", chat_id: chatId, code: invite[1] });
+        const { data: linked } = await db.from("carriers").select("id").eq("tg_chat_id", chatId).limit(1);
+        if (linked?.length) await send(chatId, "🌐 Ваші рейси, ставки й перевезення з Грандар — у кабінеті. Відкрити його можна будь-коли командою /cabinet.", [[cabinetButton]]);
         return;
+    }
+
+    // Кабінет перевізника / клієнта (Mini App): /cabinet або посилання t.me/<бот>?start=cabinet
+    if (/^\/(cabinet|кабінет)(@\w+)?$/i.test(text) || /^\/start\s+cabinet/.test(text)) {
+        return send(chatId, "🌐 Кабінет Грандар: запропоновані рейси, ваші ставки й перевезення.", [[cabinetButton]]);
     }
 
     if (text.startsWith("/start")) return handleStart(chatId, username);

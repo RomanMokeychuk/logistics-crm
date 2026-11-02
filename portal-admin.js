@@ -1,0 +1,259 @@
+/* ================================================================= *
+ * FURA — КЕРУВАННЯ КАБІНЕТАМИ З CRM                                   *
+ *  • Клієнти: «🌐 Кабінет клієнта» — видати доступ (посилання), вимкнути *
+ *  • Перевізники: «🌐 Кабінет перевізника» — Telegram або посилання     *
+ *  • Запити: ціна для клієнта, яку він бачить і погоджує в кабінеті    *
+ * Підключається на requests.html, clients.html, index.html.           *
+ * ================================================================= */
+(function () {
+    const client = typeof sbClient !== "undefined" ? sbClient : null;
+    if (!client) return;
+    const FN_URL = "https://prbfscwmemshwigiftha.supabase.co/functions/v1/fura-portal";
+    const esc = (s) =>
+        String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
+    const fmtDT = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+
+    const css = document.createElement("style");
+    css.textContent = `
+        .pa-box { margin: 12px 0; border: 1px solid #fed7aa; background: #fff7ed; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+        .pa-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font-weight: 700; color: #9a3412; margin-bottom: 8px; }
+        .pa-chip { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; background: #ffedd5; color: #9a3412; }
+        .pa-chip.ok { background: #dcfce7; color: #166534; }
+        .pa-chip.wait { background: #fef3c7; color: #92400e; }
+        .pa-chip.off { background: #f1f5f9; color: #64748b; }
+        .pa-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+        .pa-in { border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 8px; font: inherit; font-size: 14px; background: #fff; min-width: 0; }
+        .pa-btn { border: 1px solid #f97316; background: #f97316; color: #fff; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .pa-btn.ghost { background: #fff; color: #c2410c; }
+        .pa-btn:disabled { opacity: .5; }
+        .pa-muted { color: #64748b; font-size: 12px; }
+        .pa-acc { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px dashed #fed7aa; }
+        .pa-acc:first-child { border-top: 0; }
+        .pa-link { margin-top: 8px; background: #fff; border: 1px dashed #f97316; border-radius: 8px; padding: 8px; word-break: break-all; font-size: 12px; }
+        .pa-side { margin-top: 18px; }`;
+    document.head.appendChild(css);
+
+    async function api(action, data = {}) {
+        const { data: s } = await client.auth.getSession();
+        const res = await fetch(FN_URL, {
+            method: "POST",
+            headers: { "content-type": "application/json", authorization: `Bearer ${s?.session?.access_token || ""}` },
+            body: JSON.stringify({ action, ...data }),
+        });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(j.error || "Функція fura-portal недоступна — її ще не розгорнуто?");
+        return j;
+    }
+
+    async function copy(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /* ---------- Доступи (спільне для клієнта і перевізника) ---------- */
+
+    function accountsHtml(list, kind) {
+        if (!list.length) return `<div class="pa-muted">Доступу ще немає.</div>`;
+        return list
+            .map(
+                (a) => `<div class="pa-acc">
+                    <div>${esc(a.name || (a.tg_chat_id ? "через Telegram" : "без імені"))}${a.email ? ` <span class="pa-muted">${esc(a.email)}</span>` : ""}
+                        <div class="pa-muted">${a.last_login_at ? `заходив ${fmtDT(a.last_login_at)}` : "ще не заходив"}${a.tg_chat_id ? " · Telegram" : ""}</div></div>
+                    <div class="pa-row" style="margin:0">
+                        ${a.active ? `<span class="pa-chip ok">активний</span>` : `<span class="pa-chip off">вимкнено</span>`}
+                        ${!a.tg_chat_id || kind === "client" ? `<button type="button" class="pa-btn ghost" data-pa-relink="${esc(a.id)}" title="Нове посилання для входу (старе перестане діяти)">посилання</button>` : ""}
+                        <button type="button" class="pa-btn ghost" data-pa-toggle="${esc(a.id)}" data-on="${a.active ? "0" : "1"}">${a.active ? "вимкнути" : "увімкнути"}</button>
+                    </div>
+                </div>`,
+            )
+            .join("");
+    }
+
+    async function mountAccess(box, kind, refId, intro) {
+        box.innerHTML = `<div class="pa-title"><span>🌐 ${kind === "client" ? "Кабінет клієнта" : "Кабінет перевізника"}</span></div>${intro || ""}<div class="pa-muted">Завантаження…</div>`;
+        let res;
+        try {
+            res = await api("admin_accounts", { kind, ref_id: refId });
+        } catch (err) {
+            box.innerHTML = `<div class="pa-title"><span>🌐 Кабінет</span></div><div class="pa-muted">${esc(err.message)}</div>`;
+            return;
+        }
+        box.innerHTML = `
+            <div class="pa-title"><span>🌐 ${kind === "client" ? "Кабінет клієнта" : "Кабінет перевізника"}</span></div>
+            ${intro || ""}
+            <div data-pa-list>${accountsHtml(res.accounts, kind)}</div>
+            <form class="pa-row" data-pa-new>
+                <input class="pa-in" name="name" placeholder="${kind === "client" ? "Ім'я людини клієнта" : "Ім'я (диспетчер, власник)"}" style="flex:1 1 140px" />
+                <input class="pa-in" name="email" type="email" placeholder="e-mail (необов'язково)" style="flex:1 1 160px" />
+                <button type="submit" class="pa-btn">+ Видати доступ</button>
+            </form>
+            <div data-pa-out></div>
+            <div class="pa-muted" style="margin-top:6px">Посилання діє 7 днів; перший вхід — по ньому, далі кабінет пам'ятає людину 30 днів.${
+                kind === "client" ? " Клієнт бачить свої запити, перевезення, статуси й суми — без перевізника і його ставки." : " Перевізник бачить запропоновані йому рейси (без клієнта) і свої рейси."
+            }</div>`;
+
+        const showLink = async (link) => {
+            const copied = await copy(link);
+            box.querySelector("[data-pa-out]").innerHTML = `<div class="pa-link">${esc(link)}</div><div class="pa-muted">${copied ? "✅ Скопійовано — " : ""}надішліть людині у Viber / e-mail / Telegram.</div>`;
+        };
+        const reload = () => mountAccess(box, kind, refId, intro);
+
+        box.querySelector("[data-pa-new]").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            const f = Object.fromEntries(new FormData(ev.target).entries());
+            const btn = ev.target.querySelector("button");
+            btn.disabled = true;
+            try {
+                const r = await api("admin_invite", { kind, ref_id: refId, name: f.name, email: f.email });
+                await reload();
+                await showLink(r.link);
+            } catch (err) {
+                alert(err.message);
+                btn.disabled = false;
+            }
+        });
+        box.querySelectorAll("[data-pa-relink]").forEach((b) =>
+            b.addEventListener("click", async () => {
+                b.disabled = true;
+                try {
+                    const r = await api("admin_invite", { kind, ref_id: refId, account_id: b.dataset.paRelink });
+                    await showLink(r.link);
+                } catch (err) {
+                    alert(err.message);
+                }
+                b.disabled = false;
+            }),
+        );
+        box.querySelectorAll("[data-pa-toggle]").forEach((b) =>
+            b.addEventListener("click", async () => {
+                const on = b.dataset.on === "1";
+                if (!on && !confirm("Вимкнути доступ? Людину одразу буде розлогінено.")) return;
+                try {
+                    await api("admin_toggle", { account_id: b.dataset.paToggle, active: on });
+                    reload();
+                } catch (err) {
+                    alert(err.message);
+                }
+            }),
+        );
+    }
+
+    /* ---------- Клієнти: блок у лівій колонці картки ---------- */
+
+    if (typeof renderClientView === "function") {
+        const orig = renderClientView;
+        window.renderClientView = function (c) {
+            orig.apply(this, arguments);
+            const side = document.querySelector(".dv-side");
+            if (!side || !c?.id) return;
+            const box = document.createElement("div");
+            box.className = "pa-box pa-side";
+            side.appendChild(box);
+            mountAccess(box, "client", String(c.id));
+        };
+    }
+
+    /* ---------- Перевізники: блок у картці ---------- */
+
+    function carrierCard(item) {
+        const body = document.getElementById("carrierCardBody");
+        body?.querySelector("#paCarrierBox")?.remove();
+        if (!body || !item?.id) return;
+        const box = document.createElement("div");
+        box.id = "paCarrierBox";
+        box.className = "pa-box";
+        const intro = item.tg_chat_id
+            ? `<div class="pa-row" style="margin:0 0 6px"><span class="pa-chip ok">Telegram підключено</span><span class="pa-muted">Перевізник відкриває кабінет у боті командою /cabinet — окреме посилання не потрібне.</span></div>`
+            : `<div class="pa-row" style="margin:0 0 6px"><span class="pa-chip wait">Telegram не підключено</span><span class="pa-muted">Найпростіше — запросити в бот (AI-агент → «Запросити в Telegram»), або видати посилання нижче.</span></div>`;
+        body.appendChild(box); // у кінці картки — основні дані перевізника лишаються вгорі
+        mountAccess(box, "carrier", String(item.id), intro);
+    }
+    window.furaPortalAdmin = { carrierCard };
+
+    /* ---------- Запити: ціна для клієнта в кабінеті ---------- */
+
+    const leadPortal = new Map(); // lead_id → чи є кабінет
+    async function hasPortal(leadId) {
+        if (!leadId) return false;
+        if (leadPortal.has(String(leadId))) return leadPortal.get(String(leadId));
+        const { count } = await client.from("portal_accounts").select("id", { count: "exact", head: true }).eq("lead_id", String(leadId)).eq("active", true);
+        const yes = (count || 0) > 0;
+        leadPortal.set(String(leadId), yes);
+        return yes;
+    }
+
+    function decisionHtml(r) {
+        if (r.client_decision === "accepted") return `<span class="pa-chip ok">✅ клієнт погодив ${fmtDT(r.client_decision_at)}</span>`;
+        if (r.client_decision === "discuss") return `<span class="pa-chip wait">💬 клієнт хоче обговорити ${fmtDT(r.client_decision_at)}</span>`;
+        if (r.client_price) return `<span class="pa-chip wait">чекає рішення клієнта</span>`;
+        return "";
+    }
+
+    async function requestBox(id) {
+        const body = document.getElementById("requestCardBody");
+        if (!body) return;
+        body.querySelector("#paReqBox")?.remove();
+        const r = typeof requestsCache !== "undefined" ? requestsCache.find((x) => String(x.id) === String(id)) : null;
+        if (!r) return;
+        const portal = r.source === "portal" || (await hasPortal(r.lead_id));
+        if (!portal || String(currentCardRequestIdSafe()) !== String(r.id)) return;
+        const box = document.createElement("div");
+        box.id = "paReqBox";
+        box.className = "pa-box";
+        box.innerHTML = `
+            <div class="pa-title"><span>🌐 Кабінет клієнта ${r.source === "portal" ? `<span class="pa-chip">запит створив клієнт</span>` : ""}</span>${decisionHtml(r)}</div>
+            ${r.client_decision_note ? `<div>Коментар клієнта: <b>${esc(r.client_decision_note)}</b></div>` : ""}
+            <div class="pa-muted">Ціна, яку клієнт бачить у кабінеті й може погодити. Ставки перевізників і маржу клієнт не бачить.</div>
+            <form class="pa-row" data-pa-price>
+                <input class="pa-in" name="price" inputmode="decimal" placeholder="Ціна для клієнта" value="${esc(r.client_price ?? "")}" style="width:140px" />
+                <select class="pa-in" name="currency">${["EUR", "USD", "UAH"].map((c) => `<option ${(r.client_currency || "EUR") === c ? "selected" : ""}>${c}</option>`).join("")}</select>
+                <input class="pa-in" name="note" placeholder="Умови: подача, оплата, термін дії…" value="${esc(r.client_price_note || "")}" style="flex:1 1 200px" />
+                <button type="submit" class="pa-btn">${r.client_price ? "Оновити ціну" : "Показати клієнту"}</button>
+                ${r.client_price ? `<button type="button" class="pa-btn ghost" data-pa-clear>Прибрати</button>` : ""}
+            </form>`;
+        const head = body.querySelector(".card-header-block");
+        head ? head.after(box) : body.prepend(box);
+
+        const save = async (patch) => {
+            const { data, error } = await client.from("requests").update(patch).eq("id", r.id).select().single();
+            if (error) return alert("Не вдалося зберегти: " + error.message + (/column/.test(error.message) ? "\n\nВиконайте portal.sql у Supabase." : ""));
+            Object.assign(r, data);
+            requestBox(r.id);
+        };
+        box.querySelector("[data-pa-price]").addEventListener("submit", (ev) => {
+            ev.preventDefault();
+            const f = Object.fromEntries(new FormData(ev.target).entries());
+            const price = Number(String(f.price).replace(",", ".").replace(/\s/g, ""));
+            if (!(price > 0)) return alert("Вкажіть ціну.");
+            const changed = Number(r.client_price) !== price || r.client_currency !== f.currency;
+            save({
+                client_price: price,
+                client_currency: f.currency,
+                client_price_note: f.note.trim() || null,
+                client_price_at: new Date().toISOString(),
+                // нова ціна — клієнт погоджує заново
+                ...(changed ? { client_decision: null, client_decision_at: null, client_decision_note: null } : {}),
+            });
+        });
+        box.querySelector("[data-pa-clear]")?.addEventListener("click", () => {
+            if (confirm("Прибрати ціну з кабінету клієнта?"))
+                save({ client_price: null, client_currency: null, client_price_note: null, client_price_at: null, client_decision: null, client_decision_at: null, client_decision_note: null });
+        });
+    }
+    function currentCardRequestIdSafe() {
+        return typeof currentCardRequestId !== "undefined" ? currentCardRequestId : null;
+    }
+
+    if (typeof openRequestCard === "function") {
+        const orig = openRequestCard;
+        window.openRequestCard = function (id) {
+            const res = orig.apply(this, arguments);
+            requestBox(id);
+            return res;
+        };
+    }
+})();

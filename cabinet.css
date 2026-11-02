@@ -1,0 +1,193 @@
+/* FURA — кабінет клієнта / перевізника. Мобільний насамперед, працює і в Telegram Mini App. */
+:root {
+    --navy: #13203f;
+    --orange: #f57c00;
+    --blue: #1d5bd8;
+    --bg: #f3f5f9;
+    --card: #ffffff;
+    --line: #e4e8ef;
+    --text: #111827;
+    --muted: #6b7280;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --bad: #b91c1c;
+    --bad-bg: #fee2e2;
+    --info-bg: #e0e7ff;
+    --info: #3730a3;
+    --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #0f1522;
+        --card: #182133;
+        --line: #26324a;
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --ok-bg: #12301f;
+        --warn-bg: #3a2a0c;
+        --bad-bg: #3b1515;
+        --info-bg: #1e2550;
+        --info: #c7d2fe;
+        --ok: #4ade80;
+        --warn: #fbbf24;
+        --bad: #f87171;
+    }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+}
+.cb-lock, .cb-lock body { overflow: hidden; }
+a { color: var(--blue); text-decoration: none; }
+[hidden] { display: none !important; }
+
+/* Шапка */
+.cb-top {
+    position: sticky; top: 0; z-index: 20;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top));
+    background: var(--navy); color: #fff;
+}
+.cb-logo { width: 36px; height: 36px; object-fit: contain; background: #fff; border-radius: 10px; padding: 3px; }
+.cb-who { flex: 1; min-width: 0; }
+.cb-company { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cb-role { font-size: 12px; opacity: .75; }
+.cb-icon-btn {
+    border: 0; background: rgba(255,255,255,.12); color: inherit; width: 38px; height: 38px;
+    border-radius: 10px; font-size: 20px; display: grid; place-items: center; cursor: pointer;
+}
+.cb-sheet .cb-icon-btn { background: var(--bg); color: var(--text); }
+
+.cb-main { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; }
+.cb-loading { padding: 40px 0; text-align: center; color: var(--muted); }
+.cb-muted { color: var(--muted); font-size: 13px; }
+.cb-hint { color: var(--muted); font-size: 13px; text-align: center; margin: 10px 0 0; }
+.cb-alert { background: var(--bad-bg); color: var(--bad); padding: 10px 12px; border-radius: 10px; margin: 12px 0; font-size: 14px; }
+
+/* Вхід */
+.cb-login { max-width: 400px; margin: 6vh auto 0; text-align: center; }
+.cb-login-logo { width: 88px; height: 88px; object-fit: contain; }
+.cb-login h1 { margin: 10px 0 4px; font-size: 24px; }
+.cb-login-form { text-align: left; margin: 18px 0 12px; display: grid; gap: 10px; }
+
+/* Кнопки, поля */
+.cb-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text);
+    padding: 10px 14px; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer;
+}
+.cb-btn:disabled { opacity: .55; cursor: default; }
+.cb-btn-primary { background: var(--orange); border-color: var(--orange); color: #fff; }
+.cb-btn-ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+.cb-btn-tg { background: #229ed9; border-color: #229ed9; color: #fff; width: 100%; margin-top: 12px; }
+.cb-btn-big { width: 100%; padding: 14px; font-size: 16px; }
+.cb-link { border: 0; background: none; color: var(--blue); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 0; display: inline-flex; gap: 4px; align-items: center; }
+.cb-danger { color: var(--bad); }
+.cb-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.cb-in {
+    width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--card); color: var(--text); font: inherit; font-size: 16px; /* 16px — без автозуму на iPhone */
+}
+.cb-in:focus { outline: 2px solid var(--blue); outline-offset: -1px; }
+textarea.cb-in { resize: vertical; }
+input[type="date"].cb-in { min-width: 0; -webkit-appearance: none; appearance: none; min-height: 46px; }
+.cb-sheet-body { overflow-x: hidden; }
+.cb-row { display: flex; gap: 8px; }
+.cb-row > * { flex: 1; min-width: 0; }
+.cb-row > .cb-narrow, .cb-narrow { flex: 0 0 76px; }
+.cb-mini { min-width: 0; display: grid; gap: 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
+
+/* Вкладки */
+.cb-hero { margin-bottom: 14px; }
+.cb-tabs { display: flex; gap: 6px; background: var(--card); padding: 4px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 14px; }
+.cb-tab { flex: 1; border: 0; background: none; color: var(--muted); padding: 10px; border-radius: 9px; font: inherit; font-weight: 700; cursor: pointer; }
+.cb-tab.active { background: var(--navy); color: #fff; }
+.cb-count { display: inline-block; min-width: 20px; padding: 0 6px; border-radius: 10px; background: var(--orange); color: #fff; font-size: 12px; line-height: 20px; }
+.cb-seg { display: flex; gap: 8px; margin-bottom: 12px; }
+.cb-seg button { border: 1px solid var(--line); background: var(--card); color: var(--muted); padding: 6px 12px; border-radius: 20px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cb-seg button.active { border-color: var(--navy); color: var(--text); }
+
+.cb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+.cb-stats > div { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+.cb-stats b { display: block; font-size: 20px; }
+.cb-stats span { font-size: 12px; color: var(--muted); }
+
+/* Картки */
+.cb-list { display: grid; gap: 12px; }
+.cb-card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+.cb-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.cb-no { font-weight: 700; color: var(--muted); font-size: 13px; }
+.cb-chip { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--info-bg); color: var(--info); white-space: nowrap; }
+.cb-st-done, .cb-rs-accepted, .cb-os-sent, .cb-paid { background: var(--ok-bg); color: var(--ok); }
+.cb-st-road, .cb-rs-search, .cb-rs-quote { background: var(--info-bg); color: var(--info); }
+.cb-rs-offer, .cb-os-wait, .cb-unpaid, .cb-rs-discuss { background: var(--warn-bg); color: var(--warn); }
+.cb-rs-cancelled, .cb-os-refused, .cb-os-closed { background: var(--bg); color: var(--muted); }
+
+.cb-route { display: grid; gap: 4px; font-weight: 600; margin-bottom: 10px; }
+.cb-route > div { display: flex; gap: 6px; align-items: flex-start; }
+.cb-route i { font-size: 18px; margin-top: 1px; }
+.cb-route-big { font-size: 18px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cb-from { color: var(--orange); }
+.cb-to { color: var(--blue); }
+
+.cb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 14px; font-size: 14px; }
+.cb-grid label, .cb-offer label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 700; }
+.cb-wide { grid-column: 1 / -1; }
+.cb-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 13px; }
+.cb-meta i { vertical-align: -2px; }
+.cb-card-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+
+/* Етапи перевезення */
+.cb-steps { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); padding: 0; margin: 4px 0 12px; }
+.cb-steps li { position: relative; text-align: center; font-size: 10px; color: var(--muted); }
+.cb-steps li span { display: block; height: 6px; margin: 0 1px 4px; border-radius: 3px; background: var(--line); }
+.cb-steps li.done span { background: var(--ok); }
+.cb-steps li.now span { background: var(--orange); }
+.cb-steps li.now em { color: var(--text); font-weight: 700; }
+.cb-steps em { font-style: normal; display: block; line-height: 1.2; }
+@media (max-width: 420px) { .cb-steps em { display: none; } .cb-steps li.now em { display: block; position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; } .cb-steps { margin-bottom: 22px; } .cb-steps li:first-child.now em { left: 0; transform: none; } .cb-steps li:last-child.now em { left: auto; right: 0; transform: none; } }
+.cb-queue { background: var(--warn-bg); color: var(--warn); padding: 8px 10px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; }
+.cb-events { margin-top: 10px; }
+.cb-timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--line); display: grid; gap: 8px; }
+.cb-timeline li { position: relative; display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.cb-timeline li::before { content: ""; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--ok); }
+.cb-timeline span { color: var(--muted); font-size: 13px; white-space: nowrap; }
+
+/* Пропозиція ціни / ставка */
+.cb-offer { margin-top: 12px; padding: 12px; border-radius: 12px; background: var(--bg); display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.cb-offer.pending { background: var(--warn-bg); }
+.cb-price { font-size: 22px; font-weight: 800; }
+.cb-offer-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.cb-bid { display: grid; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
+
+.cb-empty { text-align: center; color: var(--muted); padding: 40px 16px; }
+.cb-empty i { font-size: 40px; opacity: .5; }
+
+/* Форма нового запиту (нижній лист) */
+.cb-sheet { position: fixed; inset: 0; z-index: 50; background: rgba(15, 23, 42, .5); display: flex; align-items: flex-end; justify-content: center; }
+.cb-sheet-body {
+    width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; background: var(--card);
+    border-radius: 18px 18px 0 0; padding: 16px 16px max(20px, env(safe-area-inset-bottom)); display: grid; gap: 12px;
+}
+@media (min-width: 700px) { .cb-sheet { align-items: center; } .cb-sheet-body { border-radius: 18px; } }
+.cb-sheet-head { display: flex; justify-content: space-between; align-items: center; }
+.cb-sheet-head h2 { margin: 0; font-size: 20px; }
+.cb-sheet fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; margin: 0; display: grid; gap: 8px; }
+.cb-sheet legend { font-weight: 700; padding: 0 4px; display: flex; gap: 4px; align-items: center; }
+
+.cb-toast {
+    position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+    background: var(--navy); color: #fff; padding: 11px 16px; border-radius: 12px; font-size: 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25); max-width: calc(100% - 32px); text-align: center;
+}
+.cb-toast.bad { background: var(--bad); }
+
+/* У Telegram — кольори теми Telegram */
+.cb-in-tg body { background: var(--tg-theme-secondary-bg-color, var(--bg)); }
+.cb-in-tg .cb-top { padding-top: 10px; }
