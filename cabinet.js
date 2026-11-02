@@ -114,6 +114,22 @@
         `<ol class="cb-steps">${STEPS.map((s, i) => `<li class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}"><span></span><em>${s}</em></li>`).join("")}</ol>`;
     const miniSteps = (step) => `<div class="cb-mini-steps">${STEPS.map((s, i) => `<span class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}" title="${s}"></span>`).join("")}</div>`;
     const stageChip = (st) => `<span class="cb-chip cb-st-${e(st.key)}">${e(st.label)}</span>`;
+    const devChip = (dv) =>
+        !dv ? `<span class="cb-muted">—</span>` : dv.status === "late" ? `<span class="cb-chip cb-dev-late"><i class="bx bx-error"></i> ${e(dv.text)}</span>` : `<span class="cb-chip cb-dev-ok"><i class="bx bx-check"></i> ${e(dv.text)}</span>`;
+    const arrival = (d) =>
+        d.unload_date ? `<b>${fmtDate(d.unload_date)}</b><div class="cb-sub">факт</div>` : d.eta_at ? `<b>${fmtDT(d.eta_at)}</b><div class="cb-sub">прогноз</div>` : d.unload_date_plan ? `${fmtDate(d.unload_date_plan)}<div class="cb-sub">план</div>` : "—";
+    const ago = (v) => {
+        if (!v) return "";
+        const m = Math.round((Date.now() - new Date(v).getTime()) / 60000);
+        return m < 1 ? "щойно" : m < 60 ? `${m} хв тому` : m < 1440 ? `${Math.floor(m / 60)} год тому` : fmtDT(v);
+    };
+    // Показувати лише винятки: банер про рейси з відхиленням від графіка
+    function lateBanner(list) {
+        const late = list.filter((d) => d.stage.key !== "done" && d.deviation?.status === "late");
+        if (!late.length) return "";
+        return `<div class="cb-banner"><i class="bx bx-error"></i><div><b>${late.length} ${kind === "client" ? (late.length === 1 ? "перевезення йде" : "перевезення йдуть") : late.length === 1 ? "рейс іде" : "рейси йдуть"} з відхиленням від графіка:</b>
+            ${late.map((d) => `<a href="#/deal/${e(d.id)}">№ ${e(d.number)} (${e(d.deviation.text)})</a>`).join(", ")}</div><span class="cb-muted">Причина й новий час — у картці</span></div>`;
+    }
     const payChip = (paid) => `<span class="cb-chip ${paid ? "cb-paid" : "cb-unpaid"}">${paid ? "оплачено" : "очікує оплати"}</span>`;
 
     /* ---------------- Вхід ---------------- */
@@ -273,7 +289,7 @@
             { key: "map", icon: "bx-map-alt", label: "Карта" },
             { key: "chat", icon: "bx-chat", label: "Чат з логістом", count: state.unread || 0 },
             { title: "Аналітика" },
-            { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+            { key: "reports", icon: "bx-trending-up", label: "Моя ефективність" },
         ];
     }
     function renderNav() {
@@ -365,6 +381,7 @@
         const act = activeDeals();
         app.innerHTML = `
             ${heroHtml()}
+            ${lateBanner(act)}
             <h2 class="cb-h2"><i class="bx bxs-zap"></i> Швидкі дії</h2>
             <div class="cb-quick">
                 ${qc("bx-plus-circle", "ic-blue", "Новий запит", "Маршрут, вантаж, дата — за хвилину", 0, "new")}
@@ -390,6 +407,7 @@
         const act = activeDeals();
         app.innerHTML = `
             ${heroHtml()}
+            ${lateBanner(act)}
             <div class="cb-kpis" style="margin-top:18px">
                 <div class="cb-kpi"><label>Нові пропозиції</label><b>${open.length}</b></div>
                 <div class="cb-kpi"><label>Активні рейси</label><b>${act.length}</b></div>
@@ -419,7 +437,7 @@
         if (!list.length) return `<div class="cb-empty"><i class="bx bx-package"></i><p>Перевезень немає.</p></div>`;
         const sumLabel = kind === "client" ? "Вартість" : "Ставка";
         return `<div class="cb-table-wrap"><table class="cb-table">
-            <thead><tr><th>№</th><th>Маршрут</th>${compact ? "" : "<th>Вантаж</th><th>Завантаження</th><th>Розвантаження</th>"}<th>Авто</th><th>Етап</th>${compact ? "" : `<th>${sumLabel}</th>`}</tr></thead>
+            <thead><tr><th>№</th><th>Маршрут</th>${compact ? "" : "<th>Вантаж</th><th>Завантаження</th>"}<th>Авто</th><th>Етап</th><th>Прибуття</th><th>Відхилення</th>${compact ? "" : `<th>${sumLabel}</th>`}</tr></thead>
             <tbody>${list
                 .map(
                     (d) => `<tr data-deal="${e(d.id)}">
@@ -430,11 +448,12 @@
                         compact
                             ? ""
                             : `<td data-label="Вантаж"><div>${e(d.cargo || "—")}<div class="cb-sub">${e(d.trailer_type || "")}</div></div></td>
-                    <td data-label="Завантаження"><div>${d.load_date ? `<b>${fmtDate(d.load_date)}</b>` : d.load_date_plan ? `план ${fmtDate(d.load_date_plan)}` : "—"}</div></td>
-                    <td data-label="Розвантаження"><div>${d.unload_date ? `<b>${fmtDate(d.unload_date)}</b>` : d.unload_date_plan ? `план ${fmtDate(d.unload_date_plan)}` : "—"}</div></td>`
+                    <td data-label="Завантаження"><div>${d.load_date ? `<b>${fmtDate(d.load_date)}</b>` : d.load_date_plan ? `план ${fmtDate(d.load_date_plan)}` : "—"}</div></td>`
                     }
                     <td data-label="Авто"><div>${e(d.truck_plate || "—")}<div class="cb-sub">${e(d.trailer_plate || "")}</div></div></td>
                     <td data-label="Етап"><div>${stageChip(d.stage)}${miniSteps(d.stage.step)}${d.queue ? `<div class="cb-sub">черга: ${e(d.queue.checkpoint)}</div>` : ""}</div></td>
+                    <td data-label="Прибуття"><div>${arrival(d)}</div></td>
+                    <td data-label="Відхилення"><div>${devChip(d.deviation)}</div></td>
                     ${compact ? "" : `<td data-label="${sumLabel}"><div><b>${sumText(d.sum) || "—"}</b><div>${d.sum?.length ? payChip(d.paid) : ""}</div></div></td>`}
                 </tr>`,
                 )
@@ -464,6 +483,7 @@
                         .join("")}
                 </div>
             </div>
+            ${lateBanner(all)}
             <div id="cbDealsBox"></div>`;
         $("cbDealQ").addEventListener("input", (ev) => {
             ui.dealQ = ev.target.value;
@@ -511,8 +531,14 @@
                 <a class="cb-btn cb-btn-sm" href="#/deals" title="Назад"><i class="bx bx-arrow-back"></i></a>
                 <h1>№ ${e(d.number)}</h1>
                 ${stageChip(d.stage)}
-                <span class="cb-dv-route">${city(d.route.load_address, d.route.load_country)} → ${city(d.route.unload_address, d.route.unload_country)}</span>
+                ${devChip(d.deviation)}
+                <span class="cb-dv-route">${city(d.route.load_address, d.route.load_country)} → ${city(d.route.unload_address, d.route.unload_country)}${d.cargo ? ` · ${e(d.cargo)}` : ""}</span>
+                <div class="cb-dv-actions">
+                    ${d.manager?.phone ? `<a class="cb-btn cb-btn-sm" href="tel:+${e(String(d.manager.phone).split(/[,;]/)[0].replace(/\D/g, ""))}"><i class="bx bx-phone"></i> Логіст Грандар</a>` : ""}
+                    <button type="button" class="cb-btn cb-btn-sm cb-btn-primary" id="cbAsk"><i class="bx bx-chat"></i> Написати</button>
+                </div>
             </div>
+            ${prognosisHtml(d, t)}
             <div class="cb-dv">
                 <aside class="cb-card cb-aside">
                     <div class="cb-sec-title">Маршрут</div>
@@ -533,12 +559,6 @@
                     ${field("Логіст", d.manager?.name ? `${e(d.manager.name)} ${phoneLink(d.manager.phone)}` : "—")}
                 </aside>
                 <div>
-                    <div class="cb-kpis">
-                        <div class="cb-kpi"><label>Етап</label><b>${e(d.stage.label)}</b></div>
-                        <div class="cb-kpi"><label>Орієнтовне прибуття</label><b>${t?.eta_at ? fmtDT(t.eta_at) : d.unload_date_plan ? fmtDate(d.unload_date_plan) : "—"}</b></div>
-                        <div class="cb-kpi"><label>Залишилось</label><b>${t?.eta_remaining_km != null ? `${Math.round(t.eta_remaining_km)} км` : "—"}</b></div>
-                        <div class="cb-kpi"><label>${kind === "client" ? "Вартість" : "Ставка"}</label><b>${sumText(d.sum) || "—"}</b>${d.sum?.length ? `<div>${payChip(d.paid)}</div>` : ""}</div>
-                    </div>
                     ${stepsHtml(d.stage.step)}
                     ${d.queue ? `<div class="cb-queue"><i class="bx bx-time-five"></i> У черзі на кордоні: <b>${e(d.queue.checkpoint)}</b>${d.queue.queue_no ? ` · № ${e(d.queue.queue_no)}` : ""}${d.queue.since ? ` · з ${e(d.queue.since)}` : ""}</div>` : ""}
                     <div class="cb-card cb-tabbed">
@@ -555,7 +575,7 @@
             }
             if (ui.dealTab === "track") {
                 box.innerHTML = `<div id="cbEta">${etaHtml(t)}</div><div class="cb-map" id="cbMap"></div>
-                    <h3 class="cb-h2" style="font-size:16px"><i class="bx bx-list-check"></i> Хронологія</h3><div id="cbEvents">${eventsHtml(r.events)}</div>`;
+                    <h3 class="cb-h2" style="font-size:16px"><i class="bx bx-list-check"></i> Етапи рейсу</h3><div id="cbEvents">${t?.stages ? stagesHtml(t.stages) : eventsHtml(r.events)}</div>`;
                 if (t && (t.last || t.track.length || t.route.length || t.load || t.unload)) drawTrip(t);
                 else $("cbMap").innerHTML = `<div class="cb-map-note">Карта з'явиться, коли водій почне рейс у додатку «FURA Водій».<br/>Поки що етап оновлює логіст.</div>`;
             } else if (ui.dealTab === "docs") {
@@ -570,6 +590,13 @@
                     </div><p class="cb-muted">${kind === "client" ? "Рахунки й акти з'являться тут, коли їх буде завантажено в CRM. З питань оплати — напишіть у «Переписку»." : "Дані про оплату оновлює бухгалтерія Грандар."}</p>`;
             }
         };
+        $("cbAsk").addEventListener("click", () => {
+            ui.dealTab = "chat";
+            app.querySelectorAll("[data-dt]").forEach((x) => x.classList.toggle("active", x.dataset.dt === "chat"));
+            show();
+            $("cbDealTab").scrollIntoView({ behavior: "smooth" });
+            setTimeout(() => $("cbChat")?.querySelector("textarea")?.focus(), 300);
+        });
         app.querySelectorAll("[data-dt]").forEach((b) =>
             b.addEventListener("click", () => {
                 ui.dealTab = b.dataset.dt;
@@ -585,7 +612,8 @@
                 const fresh = await api("deal_full", { id });
                 r = fresh;
                 if ($("cbEta")) $("cbEta").innerHTML = etaHtml(fresh.trip);
-                if ($("cbEvents")) $("cbEvents").innerHTML = eventsHtml(fresh.events);
+                if ($("cbEvents")) $("cbEvents").innerHTML = fresh.trip?.stages ? stagesHtml(fresh.trip.stages) : eventsHtml(fresh.events);
+                if ($("cbProg")) $("cbProg").outerHTML = prognosisHtml(fresh.deal, fresh.trip);
                 if (fresh.trip && map && ui.dealTab === "track") drawTrip(fresh.trip, true);
                 const chat = $("cbChat");
                 if (chat?.renderMessages && !chat.querySelector("textarea")?.value) chat.renderMessages(fresh.messages);
@@ -593,6 +621,54 @@
                 /* наступного разу */
             }
         }, 30000);
+    }
+
+    // Шапка картки: прогноз прибуття проти плану, поточний етап, свіжість GPS
+    function prognosisHtml(d, t) {
+        const dv = d.deviation;
+        const late = dv?.status === "late";
+        const now = t?.stages?.find((s) => s.state === "now");
+        const doneN = t?.stages ? t.stages.filter((s) => s.state === "done").length : d.stage.step - 1;
+        const total = t?.stages ? t.stages.length : 6;
+        const progress = Array.from({ length: total }, (_, i) => `<span class="${i < doneN ? "done" : i === doneN ? "now" : ""}"></span>`).join("");
+        return `<div class="cb-card cb-prog" id="cbProg">
+            <div class="cb-prog-main">
+                <label>${d.unload_date ? "Доставлено" : "Прогноз прибуття на розвантаження"}</label>
+                <div class="cb-prog-big">${d.unload_date ? fmtDate(d.unload_date) : t?.eta_at ? fmtDT(t.eta_at) : d.unload_date_plan ? fmtDate(d.unload_date_plan) : "—"}</div>
+                <div class="cb-muted">${t?.unload_planned_at ? `За планом — ${fmtDT(t.unload_planned_at)}` : d.unload_date_plan ? `За планом — ${fmtDate(d.unload_date_plan)}` : "План ще не вказано"}${t?.eta_remaining_km != null && !d.unload_date ? ` · залишилось ≈ ${Math.round(t.eta_remaining_km)} км` : ""}</div>
+            </div>
+            <div class="cb-prog-mid">
+                <div class="cb-prog-row"><span>Пройдено ${Math.min(doneN, total)} з ${total} етапів</span>${dv ? `<span class="${late ? "cb-bad" : "cb-good"}">${late ? `відхилення ${e(dv.text)}` : "без запізнень"}</span>` : ""}</div>
+                <div class="cb-prog-bar">${progress}</div>
+                <div class="cb-prog-note ${late ? "late" : ""}"><i class="bx ${late ? "bx-error" : "bx-check-circle"}"></i> ${
+                    late
+                        ? `Рейс іде з відхиленням від графіка (${e(dv.text)}). Логіст Грандар уже в курсі — деталі можна уточнити в переписці.`
+                        : dv
+                          ? "Усі пройдені етапи вчасно, прогноз прибуття не змінювався."
+                          : "Статуси оновлюються автоматично з додатка водія та «Черги»."
+                }</div>
+            </div>
+            <div class="cb-prog-side">
+                <label>Поточний етап</label>
+                <b>${e(now?.label || d.stage.label)}</b>
+                <div class="cb-muted">${e(now?.where || (d.queue ? d.queue.checkpoint : "") || "")}</div>
+                ${t?.last ? `<div class="cb-gps"><i class="bx bx-current-location"></i> GPS оновлено ${ago(t.last.at)}</div>` : ""}
+                <div class="cb-prog-sum">${kind === "client" ? "Вартість" : "Ставка"}: <b>${sumText(d.sum) || "—"}</b> ${d.sum?.length ? payChip(d.paid) : ""}</div>
+            </div>
+        </div>`;
+    }
+
+    // Етапи з планом і фактом
+    function stagesHtml(list) {
+        return `<ul class="cb-stages">${list
+            .map((s) => {
+                const badge = s.late == null ? "" : s.late > 0 ? `<span class="cb-chip cb-dev-late">+${s.late >= 60 ? `${Math.floor(s.late / 60)} год ${s.late % 60} хв` : `${s.late} хв`}</span>` : `<span class="cb-chip cb-dev-ok">вчасно</span>`;
+                return `<li class="${s.state}"><span class="dot">${s.state === "done" ? "<i class='bx bx-check'></i>" : ""}</span>
+                    <div><b>${e(s.label)}</b> ${s.state === "now" ? `<span class="cb-chip">зараз</span>` : ""} ${badge}
+                    ${s.where ? `<div class="cb-sub">${e(s.where)}</div>` : ""}
+                    <div class="cb-sub">${s.plan ? `План: ${fmtDT(s.plan)} · ` : ""}${s.fact ? `Факт: <b>${fmtDT(s.fact)}</b>` : s.state === "now" && s.eta ? `Прогноз: ${fmtDT(s.eta)}` : "очікується"}</div></div></li>`;
+            })
+            .join("")}</ul>`;
     }
 
     function etaHtml(t) {
@@ -993,8 +1069,49 @@
     /* ПІДСУМКИ                                                          */
     /* ================================================================ */
 
+    function perfHtml() {
+        const p = state.perf;
+        if (!p) return "";
+        const net = p.network || {};
+        const card = (icon, label, val, unit, netVal, better, hint) => {
+            const hasNet = val != null && netVal != null;
+            const good = hasNet && (better === "up" ? val >= netVal : val <= netVal);
+            return `<div class="cb-kpi cb-perf"><label><i class="bx ${icon}"></i> ${label}</label>
+                <b>${val == null ? "—" : val}${val == null ? "" : `<small> ${unit}</small>`}</b>
+                ${hasNet ? `<div><span class="cb-chip ${good ? "cb-dev-ok" : "cb-dev-late"}">${good ? "краще за мережу" : "нижче мережі"}</span> <span class="cb-sub">мережа ${netVal}${unit === "%" ? "%" : ` ${unit}`}</span></div>` : `<div class="cb-sub">${hint || "даних поки замало"}</div>`}</div>`;
+        };
+        const f = p.funnel || {};
+        const steps = [
+            [f.offered, "Отримано пропозицій", "запити ставок від Грандар"],
+            [f.answered, "Відповіли", "дали ставку або відмову"],
+            [f.bid, "Дали ставку", ""],
+            [f.trips, "Виконано рейсів", ""],
+            [f.delivered_on_time, "Доставлено вчасно", "у погоджений день"],
+        ];
+        const max = Math.max(1, ...steps.map((x) => x[0] || 0));
+        return `
+            <div class="cb-card cb-perf-head">
+                <div><label>Рейтинг у Грандар</label><div class="cb-prog-big">${p.rating != null ? `${e(p.rating)}<small> / 5</small>` : "—"}</div>${p.rating != null ? `<div class="cb-stars">${"★".repeat(Math.round(p.rating))}${"☆".repeat(5 - Math.round(p.rating))}</div>` : `<div class="cb-sub">ставить логіст після рейсів</div>`}</div>
+                <div><label>Рейсів з Грандар</label><div class="cb-prog-big">${(state.stats || {}).trips || 0}</div></div>
+                <div><label>Перевізників у мережі</label><div class="cb-prog-big">${net.carriers || "—"}</div><div class="cb-sub">з рейсами за пів року</div></div>
+                <div class="cb-perf-note">Перевізники з вищою вчасністю та швидкою відповіддю отримують пропозиції першими.</div>
+            </div>
+            <div class="cb-kpis cb-perf-grid">
+                ${card("bx-check-circle", "Вчасні доставки", p.on_time_delivery?.pct ?? null, "%", net.on_time_delivery, "up", "за датою розвантаження")}
+                ${card("bx-time", "Вчасна подача авто", p.on_time_loading?.pct ?? null, "%", net.on_time_loading, "up", "за датою завантаження")}
+                ${card("bx-message-check", "Відповідь на пропозиції", p.answer_rate, "%", net.answer_rate, "up", "ставка або «не можу»")}
+                ${card("bx-stopwatch", "Час відповіді (медіана)", p.response_min, "хв", net.response_min, "down", "від запиту до відповіді")}
+            </div>
+            <div class="cb-card" style="margin-bottom:14px">
+                <h3 class="cb-h2" style="margin-top:0;font-size:16px"><i class="bx bx-filter-alt"></i> Що відбувається з пропозиціями</h3>
+                <div class="cb-funnel">${steps
+                    .map(([n, l, sub]) => `<div class="cb-funnel-row"><b>${n || 0}</b><div class="track"><div class="fill" style="width:${Math.round(((n || 0) / max) * 100)}%"></div></div><div>${l}${sub ? `<div class="cb-sub">${sub}</div>` : ""}</div></div>`)
+                    .join("")}</div>
+            </div>`;
+    }
+
     function reportsView() {
-        crumbs(["Підсумки"]);
+        crumbs([kind === "client" ? "Підсумки" : "Моя ефективність"]);
         const deals = state.deals || [];
         const byMonth = new Map();
         const total = {};
@@ -1017,6 +1134,7 @@
         const monthName = (m) => new Date(m + "-01").toLocaleDateString("uk-UA", { month: "short", year: "numeric" });
         const done = deals.filter((d) => d.stage.key === "done").length;
         app.innerHTML = `
+            ${kind === "carrier" ? perfHtml() : ""}
             <div class="cb-kpis">
                 <div class="cb-kpi"><label>${kind === "client" ? "Перевезень" : "Рейсів"} усього</label><b>${deals.length}</b></div>
                 <div class="cb-kpi"><label>Виконано</label><b>${done}</b></div>
@@ -1078,6 +1196,7 @@
                         <label class="cb-mini">по (необов'язково)<input class="cb-in" type="date" name="desired_date_to" min="${today}" /></label>
                     </div>
                     <textarea class="cb-in" name="notes" rows="3" placeholder="Додатково: упаковка, тип завантаження, температура, вимоги…"></textarea></fieldset>
+                <div class="cb-hintbox" id="cbPriceHint" hidden></div>
                 <button type="submit" class="cb-btn cb-btn-primary cb-btn-big">Надіслати запит</button>
                 <p class="cb-hint">Менеджер Грандар прорахує і покаже ціну в розділі «Запити».</p>
             </form>`;
@@ -1090,6 +1209,28 @@
         sheet.addEventListener("click", (ev) => {
             if (ev.target === sheet || ev.target.closest("[data-close]")) close();
         });
+        // Орієнтовна ціна за історією перевезень Грандар цим напрямком
+        const form = sheet.querySelector("form");
+        let hintTimer = null;
+        const askHint = () => {
+            clearTimeout(hintTimer);
+            hintTimer = setTimeout(async () => {
+                const box = $("cbPriceHint");
+                const v = (n) => form.elements[n].value.trim();
+                if (!v("load_country") || !v("unload_country")) return (box.hidden = true);
+                try {
+                    const r = await api("price_hint", { load_country: v("load_country"), unload_country: v("unload_country"), transport_type: v("transport_type") });
+                    if (!r.hint) return (box.hidden = true);
+                    box.hidden = false;
+                    box.innerHTML = `<i class="bx bx-bulb"></i><div><b>Орієнтовно ${money(r.hint.from, r.hint.currency)}${r.hint.to > r.hint.from ? ` – ${money(r.hint.to, r.hint.currency)}` : ""}</b>
+                        <div class="cb-sub">за ${r.hint.n} перевезеннями Грандар цим напрямком за пів року${r.hint.by_body ? ` (кузов ${e(v("transport_type"))})` : ""}. Точну ціну підтвердить менеджер — вона залежить від дати, ваги й завантаження.</div></div>`;
+                } catch {
+                    box.hidden = true;
+                }
+            }, 500);
+        };
+        ["load_country", "unload_country", "transport_type"].forEach((n) => form.elements[n].addEventListener("change", askHint));
+        askHint();
         sheet.querySelector("form").addEventListener("submit", async (ev) => {
             ev.preventDefault();
             const f = Object.fromEntries(new FormData(ev.target).entries());

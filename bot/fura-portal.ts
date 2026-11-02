@@ -77,6 +77,12 @@ const plate = (v: unknown) =>
         .toUpperCase()
         .replace(/[\s-]/g, "")
         .replace(/[АВСЕНІКМОРТХ]/g, (c) => "ABCEHIKMOPTX"["АВСЕНІКМОРТХ".indexOf(c)]);
+// Назви країн як у CRM («ПОЛЬША»), навіть якщо клієнт написав «Польща»
+const COUNTRY_FIX: Record<string, string> = { "ПОЛЬЩА": "ПОЛЬША", "POLAND": "ПОЛЬША", "UKRAINE": "УКРАЇНА", "GERMANY": "НІМЕЧЧИНА" };
+const normCountry = (v: unknown) => {
+    const s = String(v ?? "").trim().toUpperCase();
+    return s ? COUNTRY_FIX[s] || s : null;
+};
 const likeSafe = (s: string) => s.replace(/[%_\\]/g, "\\$&");
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]!);
 const CURRENCIES = ["EUR", "USD", "UAH"];
@@ -347,6 +353,31 @@ function dealStage(d: Any, trip: Any, queue: Any) {
     return { key: "plan", label: "Заплановано", step: 1 };
 }
 
+// Відхилення від графіка: прогноз прибуття (трекінг) проти плану; без трекінгу — за датами угоди
+const KYIV_DAY_END = (d: string) => new Date(`${String(d).slice(0, 10)}T23:59:00+02:00`).getTime();
+function deviation(d: Any, trip: Any, stage: Any) {
+    const fmt = (min: number) => (min >= 1440 ? `+${Math.round(min / 1440)} дн` : min >= 60 ? `+${Math.floor(min / 60)} год${min % 60 ? ` ${min % 60} хв` : ""}` : `+${min} хв`);
+    if (stage.key === "done") {
+        if (d.unload_date && d.unload_date_plan && String(d.unload_date).slice(0, 10) > String(d.unload_date_plan).slice(0, 10)) {
+            const days = Math.round((KYIV_DAY_END(d.unload_date) - KYIV_DAY_END(d.unload_date_plan)) / 86400000);
+            return { status: "late", minutes: days * 1440, text: `доставлено на ${days} дн пізніше` };
+        }
+        return d.unload_date_plan ? { status: "ok", minutes: 0, text: "доставлено вчасно" } : null;
+    }
+    const plan = trip?.unload_planned_at ? new Date(trip.unload_planned_at).getTime() : d.unload_date_plan ? KYIV_DAY_END(d.unload_date_plan) : null;
+    if (trip?.eta_at && plan) {
+        const min = Math.round((new Date(trip.eta_at).getTime() - plan) / 60000);
+        return min > 15 ? { status: "late", minutes: min, text: fmt(min) } : { status: "ok", minutes: 0, text: "за графіком" };
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    if (!d.load_date && d.load_date_plan && String(d.load_date_plan).slice(0, 10) < today) {
+        const days = Math.round((Date.now() - KYIV_DAY_END(d.load_date_plan)) / 86400000) || 1;
+        return { status: "late", minutes: days * 1440, text: `завантаження +${days} дн` };
+    }
+    if (d.unload_date_plan && String(d.unload_date_plan).slice(0, 10) < today) return { status: "late", minutes: 1440, text: "прибуття затримується" };
+    return plan ? { status: "ok", minutes: 0, text: "за графіком" } : null;
+}
+
 // Сума по стороні угоди: in — клієнт платить Грандар, out — Грандар платить перевізнику
 function sideSum(d: Any, side: "in" | "out") {
     const by: Record<string, number> = {};
@@ -363,7 +394,7 @@ async function tripsFor(deals: Any[]) {
     const ids = deals.map((d) => d.id);
     const map = new Map<string, Any>();
     if (!ids.length) return map;
-    const { data } = await db.from("trips").select("id, deal_id, status, trip_no, created_at, last_lat, last_lon, last_point_at, load_lat, load_lon, unload_lat, unload_lon, eta_at").in("deal_id", ids).order("created_at", { ascending: true });
+    const { data } = await db.from("trips").select("id, deal_id, status, trip_no, created_at, last_lat, last_lon, last_point_at, load_lat, load_lon, unload_lat, unload_lon, eta_at, load_planned_at, unload_planned_at").in("deal_id", ids).order("created_at", { ascending: true });
     for (const t of data || []) if (!["cancelled", "declined"].includes(t.status)) map.set(String(t.deal_id), t);
     return map;
 }
@@ -395,7 +426,10 @@ async function shapeDeals(deals: Any[], side: "in" | "out") {
     return deals.map((d) => {
         const trip = trips.get(String(d.id));
         const q = d.truck_plate ? queue.get(plate(d.truck_plate)) : null;
+        const stage = dealStage(d, trip, q);
         return {
+            deviation: deviation(d, trip, stage),
+            eta_at: trip?.eta_at || null,
             id: d.id,
             number: d.number,
             route: routeOf(d, true),
@@ -405,7 +439,7 @@ async function shapeDeals(deals: Any[], side: "in" | "out") {
             load_date: d.load_date || null,
             unload_date_plan: d.unload_date_plan || null,
             unload_date: d.unload_date || null,
-            stage: dealStage(d, trip, q),
+            stage,
             truck_plate: d.truck_plate || null,
             trailer_plate: d.trailer_plate || null,
             driver_name: d.driver_name || null,
@@ -498,8 +532,8 @@ async function clientDeal(a: Any, body: Any) {
 async function clientNewRequest(a: Any, body: Any, ip: string) {
     await limit("account_id", a.id, "request_new", 30, 24 * 60);
     const f = body.request || {};
-    const load_country = str(f.load_country, 60);
-    const unload_country = str(f.unload_country, 60);
+    const load_country = normCountry(str(f.load_country, 60));
+    const unload_country = normCountry(str(f.unload_country, 60));
     const cargo = str(f.cargo, 300);
     const desired_date = isoDate(f.desired_date);
     if (!load_country || !unload_country) fail(400, "Вкажіть країну завантаження і розвантаження.");
@@ -545,6 +579,30 @@ async function clientNewRequest(a: Any, body: Any, ip: string) {
         `${APP_URL}/requests.html?open=${data.id}`,
     );
     return { request: shapeRequest(data) };
+}
+
+// Орієнтовна ціна: за угодами Грандар на цьому напрямку за пів року (лише діапазон, без імен і деталей)
+async function priceHint(body: Any) {
+    const from = normCountry(str(body.load_country, 60));
+    const to = normCountry(str(body.unload_country, 60));
+    if (!from || !to) return { hint: null };
+    const since = new Date(Date.now() - 180 * DAY).toISOString().slice(0, 10);
+    const { data } = await db.from("deals").select("services, trailer_type").eq("load_country", from).eq("unload_country", to).gte("created_at", since).limit(300);
+    const kind = str(body.transport_type, 40);
+    let rows = data || [];
+    const same = kind ? rows.filter((d: Any) => String(d.trailer_type || "").toUpperCase().includes(kind.toUpperCase())) : rows;
+    const byBody = !!kind && same.length >= 3;
+    if (byBody) rows = same;
+    const sums = rows
+        .map((d: Any) => sideSum(d, "in"))
+        .filter((x: Any[]) => x.length === 1 && x[0].currency === "EUR" && x[0].amount > 100)
+        .map((x: Any[]) => x[0].amount)
+        .sort((x: number, y: number) => x - y);
+    if (sums.length < 3) return { hint: null, n: sums.length };
+    const lo = sums[Math.floor(sums.length * 0.25)];
+    const hi = sums[Math.min(sums.length - 1, Math.floor(sums.length * 0.75))];
+    const r = (v: number) => Math.round(v / 50) * 50;
+    return { hint: { from: r(lo), to: Math.max(r(hi), r(lo)), currency: "EUR", n: sums.length, by_body: byBody } };
 }
 
 async function clientDecide(a: Any, body: Any, ip: string) {
@@ -595,6 +653,52 @@ async function clientCancel(a: Any, body: Any, ip: string) {
 const OFFER_REQ_FIELDS =
     "id, status, created_at, load_country, unload_country, customs_export, customs_export_country, customs_import, customs_import_country, " +
     "border_crossing, cargo, weight, transport_type, temp_from, temp_to, desired_date, desired_date_to, trucks_count, loading_types";
+
+// «Моя ефективність»: вчасність, відповіді на пропозиції, порівняння з усіма перевізниками Грандар
+const onTime = (list: Any[], fact: string, plan: string) => {
+    const xs = list.filter((d) => d[fact] && d[plan]);
+    return xs.length ? { pct: Math.round((xs.filter((d) => String(d[fact]).slice(0, 10) <= String(d[plan]).slice(0, 10)).length / xs.length) * 1000) / 10, n: xs.length } : null;
+};
+let netCache: { at: number; v: Any } | null = null;
+async function networkPerf() {
+    if (netCache && Date.now() - netCache.at < 3600000) return netCache.v;
+    const since = new Date(Date.now() - 180 * DAY).toISOString().slice(0, 10);
+    const [{ data: ds }, { data: bs }] = await Promise.all([
+        db.from("deals").select("carrier_id, load_date, load_date_plan, unload_date, unload_date_plan").gte("load_date_plan", since).limit(10000),
+        db.from("carrier_bids").select("carrier_id, status, created_at, answered_at").gte("created_at", since).limit(20000),
+    ]);
+    const answered = (bs || []).filter((b: Any) => b.status !== "asked");
+    const mins = answered.filter((b: Any) => b.answered_at).map((b: Any) => (new Date(b.answered_at).getTime() - new Date(b.created_at).getTime()) / 60000).sort((x: number, y: number) => x - y);
+    const v = {
+        on_time_delivery: onTime(ds || [], "unload_date", "unload_date_plan")?.pct ?? null,
+        on_time_loading: onTime(ds || [], "load_date", "load_date_plan")?.pct ?? null,
+        answer_rate: (bs || []).length ? Math.round((answered.length / (bs || []).length) * 1000) / 10 : null,
+        response_min: mins.length ? Math.round(mins[Math.floor(mins.length / 2)]) : null,
+        carriers: new Set((ds || []).map((d: Any) => d.carrier_id).filter(Boolean)).size,
+    };
+    netCache = { at: Date.now(), v };
+    return v;
+}
+async function carrierPerf(a: Any, deals: Any[], bids: Any[]) {
+    const { data: c } = await db.from("carriers").select("rating").eq("id", a.carrier_id).maybeSingle();
+    const answered = bids.filter((b: Any) => b.status !== "asked");
+    const mins = answered.filter((b: Any) => b.answered_at).map((b: Any) => (new Date(b.answered_at).getTime() - new Date(b.created_at).getTime()) / 60000).sort((x: number, y: number) => x - y);
+    return {
+        rating: c?.rating ?? null,
+        on_time_delivery: onTime(deals, "unload_date", "unload_date_plan"),
+        on_time_loading: onTime(deals, "load_date", "load_date_plan"),
+        answer_rate: bids.length ? Math.round((answered.length / bids.length) * 1000) / 10 : null,
+        response_min: mins.length ? Math.round(mins[Math.floor(mins.length / 2)]) : null,
+        funnel: {
+            offered: bids.length,
+            answered: answered.length,
+            bid: bids.filter((b: Any) => b.status === "bid").length,
+            trips: deals.length,
+            delivered_on_time: deals.filter((d: Any) => d.unload_date && d.unload_date_plan && String(d.unload_date).slice(0, 10) <= String(d.unload_date_plan).slice(0, 10)).length,
+        },
+        network: await networkPerf(),
+    };
+}
 
 // «Мої машини»: номери з рейсів і ставок + де вони зараз у черзі на кордоні (Черга)
 async function carrierTrucks(a: Any, deals: Any[], bids: Any[]) {
@@ -674,6 +778,7 @@ async function carrierHome(a: Any) {
         deals: deals.map((d: Any) => ({ ...d, unread: count("deal_id", d.id) })),
         unread: (unread || []).length,
         trucks: await carrierTrucks(a, dealsRes.data || [], bids),
+        perf: await carrierPerf(a, dealsRes.data || [], bids),
         stats: { trips: deals.length, active: deals.filter((d: Any) => d.stage.key !== "done").length, asked: bids.length, answered },
     };
 }
@@ -734,6 +839,30 @@ async function carrierBid(a: Any, body: Any, ip: string) {
 /* Повна картка перевезення: карта, позиція, ETA, документи            */
 /* ------------------------------------------------------------------ */
 
+// Етапи рейсу з планом і фактом: «вчасно» / «+N хв»
+function tripStages(d: Any, t: Any, ev: Any[]) {
+    const first = (...types: string[]) => ev.find((e) => types.includes(e.type))?.at || null;
+    const planLoad = t.load_planned_at || (d.load_date_plan ? `${String(d.load_date_plan).slice(0, 10)}T09:00:00+02:00` : null);
+    const planUnload = t.unload_planned_at || (d.unload_date_plan ? `${String(d.unload_date_plan).slice(0, 10)}T18:00:00+02:00` : null);
+    const list = [
+        { key: "assigned", label: "Машину призначено", fact: first("assigned", "confirmed"), plan: null, where: d.truck_plate || null },
+        { key: "at_loading", label: "Подача авто на завантаження", fact: first("arrived_loading"), plan: planLoad, where: d.load_address || null },
+        { key: "loaded", label: "Завантажено, виїхав", fact: first("loaded") || (d.load_date ? `${String(d.load_date).slice(0, 10)}T12:00:00+02:00` : null), plan: null, where: null },
+        { key: "border", label: "Прибув на кордон", fact: first("arrived_border"), plan: null, where: d.border_crossing || null },
+        { key: "crossed", label: "Пройшов кордон", fact: first("crossed_border"), plan: null, where: d.border_crossing || null },
+        { key: "at_unloading", label: "Прибуття на розвантаження", fact: first("arrived_unloading"), plan: planUnload, eta: t.eta_at || null, where: d.unload_address || null },
+        { key: "unloaded", label: "Розвантажено", fact: first("unloaded") || (d.unload_date ? `${String(d.unload_date).slice(0, 10)}T18:00:00+02:00` : null), plan: null, where: null },
+    ];
+    let current = list.findIndex((s) => !s.fact);
+    if (current < 0) current = list.length;
+    return list.map((s, i) => {
+        let late: number | null = null;
+        const ref = s.fact || (i === current ? s.eta : null);
+        if (ref && s.plan) late = Math.round((new Date(ref).getTime() - new Date(s.plan).getTime()) / 60000);
+        return { ...s, state: s.fact ? "done" : i === current ? "now" : "next", late: late != null && late > 30 ? late : late != null ? 0 : null };
+    });
+}
+
 function thin<T>(list: T[], max: number): T[] {
     if (list.length <= max) return list;
     const step = list.length / max;
@@ -778,6 +907,8 @@ async function dealFull(a: Any, body: Any) {
             borders: Array.isArray(t.borders) ? t.borders.filter((b: Any) => b.lat != null).map((b: Any) => ({ name: b.name || "Кордон", lat: b.lat, lon: b.lon })) : [],
         };
         events = (ev.data || []).filter((e: Any) => EVENT_LABELS[e.type]).map((e: Any) => ({ label: EVENT_LABELS[e.type], at: e.at }));
+        trip.stages = tripStages(d, t, ev.data || []);
+        trip.unload_planned_at = t.unload_planned_at || null;
         for (const x of dc.data || []) {
             const { data: u } = await db.storage.from("trip-docs").createSignedUrl(x.path, 3600);
             if (u?.signedUrl) docs.push({ kind: String(x.kind || "doc").toUpperCase(), at: x.uploaded_at, url: u.signedUrl });
@@ -1016,6 +1147,7 @@ async function route(req: Request, body: Any) {
         if (action === "request_new") return clientNewRequest(a, body, ip);
         if (action === "request_decide") return clientDecide(a, body, ip);
         if (action === "request_cancel") return clientCancel(a, body, ip);
+        if (action === "price_hint") return priceHint(body);
     } else {
         if (action === "home") return carrierHome(a);
         if (action === "deal") return carrierDeal(a, body);

@@ -312,3 +312,62 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
     box-shadow: 0 10px 30px rgba(0,0,0,.25); max-width: calc(100% - 32px); text-align: center;
 }
 .cb-toast.bad { background: var(--bad); }
+
+/* ---------- Відхилення від графіка (лише винятки) ---------- */
+.cb-dev-ok { background: var(--ok-bg); color: var(--ok); }
+.cb-dev-late { background: var(--bad-bg); color: var(--bad); }
+.cb-good { color: var(--ok); font-weight: 700; }
+.cb-bad { color: var(--bad); font-weight: 700; }
+.cb-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--warn-bg); border: 1px solid #fcd34d; color: #78350f; border-radius: 12px; padding: 12px 16px; margin: 0 0 14px; font-size: 14px; }
+.cb-banner > i { font-size: 20px; color: var(--warn); }
+.cb-banner > div { flex: 1; min-width: 220px; }
+.cb-banner a { color: #92400e; font-weight: 700; text-decoration: underline; }
+.cb-hero + .cb-banner { margin-top: 16px; }
+
+/* ---------- Шапка картки рейсу: прогноз ---------- */
+.cb-dv-actions { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.cb-prog { display: grid; grid-template-columns: minmax(200px, 1fr) minmax(260px, 1.6fr) minmax(220px, 1fr); gap: 20px; align-items: start; margin-bottom: 16px; }
+@media (max-width: 1000px) { .cb-prog { grid-template-columns: 1fr; } }
+.cb-prog label, .cb-perf-head label { display: block; font-size: 12px; color: var(--muted); font-weight: 600; }
+.cb-prog-big { font-size: 30px; font-weight: 800; line-height: 1.15; margin: 2px 0; }
+.cb-prog-big small { font-size: 15px; color: var(--muted); font-weight: 600; }
+.cb-prog-row { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+.cb-prog-bar { display: flex; gap: 4px; margin-bottom: 10px; }
+.cb-prog-bar span { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.cb-prog-bar span.done { background: var(--orange); }
+.cb-prog-bar span.now { background: repeating-linear-gradient(90deg, var(--orange) 0 6px, #fed7aa 6px 10px); }
+.cb-prog-note { background: var(--ok-bg); color: var(--ok); border-radius: 10px; padding: 8px 12px; font-size: 13px; display: flex; gap: 6px; align-items: flex-start; }
+.cb-prog-note.late { background: var(--bad-bg); color: var(--bad); }
+.cb-prog-side { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; }
+.cb-gps { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 4px; }
+.cb-prog-sum { font-size: 13px; color: var(--muted); }
+
+/* Етапи з планом і фактом */
+.cb-stages { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.cb-stages li { display: grid; grid-template-columns: 28px 1fr; gap: 12px; position: relative; padding-bottom: 14px; }
+.cb-stages li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 26px; bottom: 0; width: 2px; background: var(--line); }
+.cb-stages li.done:not(:last-child)::before { background: var(--orange); }
+.cb-stages .dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); background: #fff; display: grid; place-items: center; color: #fff; font-size: 18px; position: relative; z-index: 1; }
+.cb-stages li.done .dot { background: var(--orange); border-color: var(--orange); }
+.cb-stages li.now .dot { border-color: var(--orange); box-shadow: 0 0 0 4px var(--orange-soft); }
+.cb-stages li.next b { color: var(--muted); font-weight: 600; }
+
+/* ---------- Моя ефективність (перевізник) ---------- */
+.cb-perf-head { display: grid; grid-template-columns: repeat(3, minmax(140px, 1fr)) minmax(220px, 1.3fr); gap: 20px; align-items: center; margin-bottom: 14px; }
+@media (max-width: 900px) { .cb-perf-head { grid-template-columns: 1fr 1fr; } }
+.cb-stars { color: #f59e0b; letter-spacing: 2px; }
+.cb-perf-note { background: var(--info-bg); color: var(--info); border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+.cb-perf b { font-size: 26px; display: block; margin: 4px 0; }
+.cb-perf b small { font-size: 13px; color: var(--muted); }
+.cb-perf label i { color: var(--blue); }
+.cb-funnel { display: grid; gap: 10px; }
+.cb-funnel-row { display: grid; grid-template-columns: 50px minmax(0, 1fr) 220px; gap: 12px; align-items: center; font-size: 14px; }
+.cb-funnel-row b { font-size: 18px; text-align: right; }
+.cb-funnel-row .track { height: 10px; background: var(--bg); border-radius: 5px; overflow: hidden; }
+.cb-funnel-row .fill { height: 100%; background: var(--blue); border-radius: 5px; }
+.cb-funnel-row:last-child .fill { background: var(--ok); }
+@media (max-width: 600px) { .cb-funnel-row { grid-template-columns: 40px 1fr; } .cb-funnel-row > div:last-child { grid-column: 2; } }
+
+/* Орієнтовна ціна в формі запиту */
+.cb-hintbox { display: flex; gap: 10px; background: var(--orange-soft); border: 1px solid #fed7aa; border-radius: 12px; padding: 10px 14px; font-size: 14px; }
+.cb-hintbox > i { font-size: 22px; color: var(--orange); }
