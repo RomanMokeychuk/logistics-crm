@@ -7,23 +7,43 @@
         <title>Кабінет Грандар</title>
         <link rel="icon" href="favicon.ico" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="cabinet.css?v=202611022150" />
+        <link rel="stylesheet" href="cabinet.css?v=202611022204" />
         <script src="https://telegram.org/js/telegram-web-app.js"></script>
     </head>
     <body>
-        <header class="cb-top" id="cbTop" hidden>
-            <img src="company-logo.svg" alt="" class="cb-logo" />
-            <div class="cb-who">
-                <div class="cb-company" id="cbCompany"></div>
-                <div class="cb-role" id="cbRole"></div>
+        <div class="cb-shell" id="cbShell" hidden>
+            <aside class="cb-side" id="cbSide">
+                <div class="cb-brand">
+                    <img src="company-logo.svg" alt="" />
+                    <div><b>ГРАНДАР</b><span id="cbKind">Кабінет</span></div>
+                </div>
+                <nav class="cb-nav" id="cbNav"></nav>
+                <div class="cb-me">
+                    <div class="cb-avatar" id="cbAvatar">?</div>
+                    <div class="cb-me-text"><b id="cbCompany"></b><span id="cbName"></span></div>
+                    <button type="button" class="cb-icon-btn" id="cbLogout" title="Вийти"><i class="bx bx-log-out"></i></button>
+                </div>
+            </aside>
+            <div class="cb-dim" id="cbDim"></div>
+            <div class="cb-body">
+                <header class="cb-bar">
+                    <button type="button" class="cb-icon-btn cb-burger" id="cbBurger" title="Меню"><i class="bx bx-menu"></i></button>
+                    <div class="cb-crumbs" id="cbCrumbs"></div>
+                    <div class="cb-bar-right">
+                        <button type="button" class="cb-btn cb-btn-primary" id="cbBarAction" hidden></button>
+                        <span class="cb-date" id="cbDate"></span>
+                    </div>
+                </header>
+                <main id="app" class="cb-main"></main>
             </div>
-            <button type="button" class="cb-icon-btn" id="cbLogout" title="Вийти"><i class="bx bx-log-out"></i></button>
-        </header>
-        <main id="app" class="cb-main">
+        </div>
+        <div id="cbLogin" class="cb-login-wrap">
             <div class="cb-loading"><i class="bx bx-loader-alt bx-spin"></i> Завантаження…</div>
-        </main>
+        </div>
         <div class="cb-toast" id="cbToast" hidden></div>
-        <script src="cabinet.js?v=202611022150"></script>
+        <script src="cabinet.js?v=202611022204"></script>
     </body>
 </html>

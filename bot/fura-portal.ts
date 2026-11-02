@@ -363,7 +363,7 @@ async function tripsFor(deals: Any[]) {
     const ids = deals.map((d) => d.id);
     const map = new Map<string, Any>();
     if (!ids.length) return map;
-    const { data } = await db.from("trips").select("id, deal_id, status, trip_no, created_at").in("deal_id", ids).order("created_at", { ascending: true });
+    const { data } = await db.from("trips").select("id, deal_id, status, trip_no, created_at, last_lat, last_lon, last_point_at, load_lat, load_lon, unload_lat, unload_lon, eta_at").in("deal_id", ids).order("created_at", { ascending: true });
     for (const t of data || []) if (!["cancelled", "declined"].includes(t.status)) map.set(String(t.deal_id), t);
     return map;
 }
@@ -415,6 +415,15 @@ async function shapeDeals(deals: Any[], side: "in" | "out") {
             manager: { name: d.logist_name || null, phone: d.logist_phone || null },
             queue: q || null,
             has_trip: !!trip,
+            // Для загальної карти: де машина зараз, точки A і B
+            pos: trip
+                ? {
+                      last: trip.last_lat != null ? [trip.last_lat, trip.last_lon, trip.last_point_at] : null,
+                      load: trip.load_lat != null ? [trip.load_lat, trip.load_lon] : null,
+                      unload: trip.unload_lat != null ? [trip.unload_lat, trip.unload_lon] : null,
+                      eta_at: trip.eta_at || null,
+                  }
+                : null,
         };
     });
 }

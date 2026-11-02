@@ -1,28 +1,25 @@
 /* ================================================================= *
  * FURA — КАБІНЕТ КЛІЄНТА І ПЕРЕВІЗНИКА (cabinet.html)                 *
- * Сторінка не читає базу напряму: усе через функцію fura-portal,      *
- * яка віддає лише дозволені поля.                                      *
+ * Вигляд як у CRM: меню зліва, розділи, таблиці, картка угоди з        *
+ * вкладками. Дані — лише через функцію fura-portal (тільки дозволене). *
  * ================================================================= */
 (function () {
     const FN_URL = "https://prbfscwmemshwigiftha.supabase.co/functions/v1/fura-portal";
     const ANON =
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InByYmZzY3dtZW1zaHdpZ2lmdGhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA0MjA4MzEsImV4cCI6MjEwNTk5NjgzMX0.3o4STZHL9hpamTCNofPemPTDWyWfR3xOK6TZnUXlWyE";
     const TOKEN_KEY = "fura_cabinet_token";
-    const TAB_KEY = "fura_cabinet_tab";
 
     const tg = window.Telegram?.WebApp;
     const inTelegram = !!tg?.initData;
     if (inTelegram) {
         tg.ready();
         tg.expand();
-        document.documentElement.classList.add("cb-in-tg");
     }
 
-    const app = document.getElementById("app");
     const $ = (id) => document.getElementById(id);
+    const app = $("app");
     const e = (s) =>
         String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
-
     const store = {
         get(k) {
             try {
@@ -35,14 +32,17 @@
             try {
                 v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v);
             } catch {
-                /* приватний режим — працюємо без запам'ятовування */
+                /* приватний режим */
             }
         },
     };
+
     let token = store.get(TOKEN_KEY);
-    let state = null; // відповідь home
-    let tab = store.get(TAB_KEY) || "";
-    let dealFilter = "active";
+    let state = null;
+    let kind = "client";
+    let liveTimer = null;
+    let map = null;
+    const ui = { dealFilter: "active", dealQ: "", reqFilter: "all", reqQ: "", dealTab: "track" };
 
     /* ---------------- API ---------------- */
 
@@ -75,7 +75,6 @@
         token = t;
         store.set(TOKEN_KEY, t);
     }
-
     function toast(text, bad = false) {
         const t = $("cbToast");
         t.textContent = text;
@@ -92,33 +91,30 @@
         const [y, m, d] = String(v).slice(0, 10).split("-");
         return `${d}.${m}.${y}`;
     };
-    const fmtDT = (v) => {
-        if (!v) return "";
-        const d = new Date(v);
-        return d.toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-    };
-    const money = (amount, cur) =>
-        `${Number(amount).toLocaleString("uk-UA", { maximumFractionDigits: 2 })} ${e(cur || "")}`;
+    const fmtDT = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+    const money = (amount, cur) => `${Number(amount).toLocaleString("uk-UA", { maximumFractionDigits: 2 })} ${e(cur || "")}`;
+    const sumText = (list) => (list || []).map((s) => money(s.amount, s.currency)).join(" + ");
     const cap = (s) => String(s || "").toLowerCase().replace(/(^|[\s-])(\S)/g, (m, a, b) => a + b.toUpperCase());
-    const period = (a, b) => (a && b && a !== b ? `${fmtDate(a)} – ${fmtDate(b)}` : fmtDate(a || b));
     const country = (c) => (c ? cap(c) : "");
-    function place(addr, ctry) {
-        return [addr, country(ctry)].filter(Boolean).map(e).join(", ") || "—";
-    }
-    function customsLine(r) {
-        const ex = r.customs_export ? (r.customs_export === "По місцю" ? "по місцю завантаження" : [r.customs_export, country(r.customs_export_country)].filter(Boolean).join(", ")) : "";
-        const im = r.customs_import ? (r.customs_import === "По місцю" ? "по місцю розвантаження" : [r.customs_import, country(r.customs_import_country)].filter(Boolean).join(", ")) : "";
-        const parts = [];
-        if (ex) parts.push(`<span><i class="bx bx-export"></i> Замитнення: ${e(ex)}</span>`);
-        if (r.border_crossing) parts.push(`<span><i class="bx bx-transfer-alt"></i> Кордон: ${e(r.border_crossing)}</span>`);
-        if (im) parts.push(`<span><i class="bx bx-import"></i> Розмитнення: ${e(im)}</span>`);
-        return parts.length ? `<div class="cb-meta">${parts.join("")}</div>` : "";
-    }
+    const period = (a, b) => (a && b && a !== b ? `${fmtDate(a)} – ${fmtDate(b)}` : fmtDate(a || b));
+    const city = (addr, ctry) => e(String(addr || "").split(",")[0].trim() || country(ctry) || "—");
+    const place = (addr, ctry) => [addr, country(ctry)].filter(Boolean).map(e).join(", ") || "—";
+    const loading = (t = "Завантаження…") => `<div class="cb-loading"><i class="bx bx-loader-alt bx-spin"></i> ${e(t)}</div>`;
     const phoneLink = (p) => {
-        const first = String(p || "").split(/[,;]/)[0].trim();
-        const d = first.replace(/\D/g, "");
+        const d = String(p || "").split(/[,;]/)[0].replace(/\D/g, "");
         return d ? `<a href="tel:+${e(d)}">+${e(d)}</a>` : "";
     };
+    function customsLines(r) {
+        const ex = r.customs_export ? (r.customs_export === "По місцю" ? "по місцю завантаження" : [r.customs_export, country(r.customs_export_country)].filter(Boolean).join(", ")) : "";
+        const im = r.customs_import ? (r.customs_import === "По місцю" ? "по місцю розвантаження" : [r.customs_import, country(r.customs_import_country)].filter(Boolean).join(", ")) : "";
+        return { ex, im, border: r.border_crossing || "" };
+    }
+    const STEPS = ["Заплановано", "Завантаження", "В дорозі", "Кордон", "Розвантаження", "Доставлено"];
+    const stepsHtml = (step) =>
+        `<ol class="cb-steps">${STEPS.map((s, i) => `<li class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}"><span></span><em>${s}</em></li>`).join("")}</ol>`;
+    const miniSteps = (step) => `<div class="cb-mini-steps">${STEPS.map((s, i) => `<span class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}" title="${s}"></span>`).join("")}</div>`;
+    const stageChip = (st) => `<span class="cb-chip cb-st-${e(st.key)}">${e(st.label)}</span>`;
+    const payChip = (paid) => `<span class="cb-chip ${paid ? "cb-paid" : "cb-unpaid"}">${paid ? "оплачено" : "очікує оплати"}</span>`;
 
     /* ---------------- Вхід ---------------- */
 
@@ -128,32 +124,30 @@
         try {
             if (invite) {
                 history.replaceState(null, "", location.pathname);
-                app.innerHTML = loading("Вхід за посиланням…");
-                const r = await api("login_invite", { token: invite });
-                setToken(r.token);
+                $("cbLogin").innerHTML = loading("Вхід за посиланням…");
+                setToken((await api("login_invite", { token: invite })).token);
             } else if (!token && inTelegram) {
-                app.innerHTML = loading("Вхід через Telegram…");
-                const r = await api("login_tg", { initData: tg.initData });
-                setToken(r.token);
+                $("cbLogin").innerHTML = loading("Вхід через Telegram…");
+                setToken((await api("login_tg", { initData: tg.initData })).token);
             }
         } catch (err) {
             return renderLogin(err.message);
         }
         if (!token) return renderLogin();
-        const deep = location.hash.match(/^#deal=(.+)$/);
-        await load();
-        if (deep) openDeal(decodeURIComponent(deep[1]));
+        await loadHome();
+        route();
     }
 
-    const loading = (t = "Завантаження…") => `<div class="cb-loading"><i class="bx bx-loader-alt bx-spin"></i> ${e(t)}</div>`;
-
     async function renderLogin(message) {
-        $("cbTop").hidden = true;
-        app.innerHTML = `
+        clearInterval(liveTimer);
+        $("cbShell").hidden = true;
+        const box = $("cbLogin");
+        box.hidden = false;
+        box.innerHTML = `
             <section class="cb-login">
                 <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
                 <h1>Кабінет Грандар</h1>
-                <p class="cb-muted">Для клієнтів і перевізників: запити, ставки, перевезення та їх статус.</p>
+                <p class="cb-muted">Для клієнтів і перевізників: запити, ставки, перевезення, карта і документи.</p>
                 ${message ? `<div class="cb-alert">${e(message)}</div>` : ""}
                 <div id="cbLoginWays">${loading()}</div>
             </section>`;
@@ -161,38 +155,31 @@
         try {
             cfg = await api("config");
         } catch {
-            /* без налаштувань — показуємо базові способи */
+            /* базові способи */
         }
         const ways = [];
+        if (inTelegram) ways.push(`<button type="button" class="cb-btn cb-btn-tg" id="cbTgLogin"><i class="bx bxl-telegram"></i> Увійти через Telegram</button>`);
         if (cfg.email_login) {
             ways.push(`
                 <form class="cb-card cb-login-form" id="cbEmailForm">
                     <label class="cb-label">Вхід за e-mail</label>
                     <input type="email" class="cb-in" id="cbEmail" placeholder="you@company.com" autocomplete="email" required />
-                    <div id="cbCodeBox" hidden>
-                        <label class="cb-label">Код з листа</label>
-                        <input type="text" class="cb-in" id="cbCode" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code" />
-                    </div>
+                    <div id="cbCodeBox" hidden><label class="cb-label">Код з листа</label>
+                        <input type="text" class="cb-in" id="cbCode" inputmode="numeric" maxlength="6" placeholder="123456" autocomplete="one-time-code" /></div>
                     <button type="submit" class="cb-btn cb-btn-primary" id="cbEmailBtn">Надіслати код</button>
                 </form>`);
         }
         if (cfg.bot && !inTelegram) {
-            ways.push(`
-                <a class="cb-btn cb-btn-tg" href="https://t.me/${e(cfg.bot)}?start=cabinet" target="_blank" rel="noopener">
-                    <i class="bx bxl-telegram"></i> Увійти через Telegram</a>
-                <p class="cb-hint">Для перевізників, підключених до бота Грандар: бот надішле кнопку «Відкрити кабінет».</p>`);
-        }
-        if (inTelegram) {
-            ways.unshift(`<button type="button" class="cb-btn cb-btn-tg" id="cbTgLogin"><i class="bx bxl-telegram"></i> Увійти через Telegram</button>`);
+            ways.push(`<a class="cb-btn cb-btn-tg" href="https://t.me/${e(cfg.bot)}?start=cabinet" target="_blank" rel="noopener"><i class="bx bxl-telegram"></i> Увійти через Telegram</a>
+                <p class="cb-hint">Для перевізників, підключених до бота Грандар.</p>`);
         }
         ways.push(`<p class="cb-hint">Немає доступу? Попросіть вашого менеджера Грандар надіслати посилання для входу.</p>`);
         $("cbLoginWays").innerHTML = ways.join("");
-
         $("cbTgLogin")?.addEventListener("click", async () => {
             try {
-                const r = await api("login_tg", { initData: tg.initData });
-                setToken(r.token);
-                await load();
+                setToken((await api("login_tg", { initData: tg.initData })).token);
+                await loadHome();
+                route();
             } catch (err) {
                 toast(err.message, true);
             }
@@ -213,9 +200,9 @@
                     btn.textContent = "Увійти";
                     toast(r.message || "Код надіслано");
                 } else {
-                    const r = await api("email_verify", { email: $("cbEmail").value, code: $("cbCode").value });
-                    setToken(r.token);
-                    await load();
+                    setToken((await api("email_verify", { email: $("cbEmail").value, code: $("cbCode").value })).token);
+                    await loadHome();
+                    route();
                 }
             } catch (err) {
                 toast(err.message, true);
@@ -236,122 +223,264 @@
         if (inTelegram) tg.close();
         renderLogin();
     });
+    $("cbBurger").addEventListener("click", () => $("cbShell").classList.toggle("menu"));
+    $("cbDim").addEventListener("click", () => $("cbShell").classList.remove("menu"));
 
-    /* ---------------- Головна ---------------- */
+    /* ---------------- Дані й меню ---------------- */
 
-    async function load(silent = false) {
-        if (!silent) app.innerHTML = loading();
+    async function loadHome() {
         try {
             state = await api("home");
         } catch (err) {
-            if (token) app.innerHTML = `<div class="cb-alert">${e(err.message)}</div><button class="cb-btn" onclick="location.reload()">Спробувати ще</button>`;
-            return;
+            if (token) {
+                $("cbLogin").hidden = false;
+                $("cbLogin").innerHTML = `<div class="cb-login"><div class="cb-alert">${e(err.message)}</div><button class="cb-btn" onclick="location.reload()">Спробувати ще</button></div>`;
+            }
+            throw err;
         }
+        kind = state.account.kind;
         const a = state.account;
-        $("cbTop").hidden = false;
+        $("cbLogin").hidden = true;
+        $("cbShell").hidden = false;
+        $("cbKind").textContent = kind === "client" ? "Кабінет клієнта" : "Кабінет перевізника";
         $("cbCompany").textContent = a.company;
-        $("cbRole").textContent = a.kind === "client" ? `Кабінет клієнта${a.name ? " · " + a.name : ""}` : "Кабінет перевізника";
-        if (a.kind === "client") {
-            if (!["deals", "requests", "chat"].includes(tab)) tab = state.requests.some((r) => r.status.key === "offer") ? "requests" : "deals";
-            renderClient();
-        } else {
-            if (!["offers", "deals"].includes(tab)) tab = state.offers.some((o) => o.status === "asked" && !o.closed) ? "offers" : "deals";
-            renderCarrier();
+        $("cbName").textContent = a.name || (kind === "client" ? "Клієнт" : "Перевізник");
+        $("cbAvatar").textContent = (a.company || "?").replace(/^(ТОВ|ФОП|ПП)\s*[«"]?/i, "").trim().slice(0, 2).toUpperCase() || "?";
+        $("cbDate").innerHTML = `<i class="bx bx-calendar"></i> ${new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long" })}`;
+        renderNav();
+    }
+
+    const activeDeals = () => (state?.deals || []).filter((d) => d.stage.key !== "done");
+    function navItems() {
+        if (kind === "client") {
+            return [
+                { title: "Робота" },
+                { key: "home", icon: "bx-home-alt", label: "Головна" },
+                { key: "requests", icon: "bx-list-ul", label: "Запити", count: state.requests.filter((r) => r.status.key === "offer").length },
+                { key: "deals", icon: "bx-file", label: "Перевезення", count: activeDeals().length },
+                { key: "map", icon: "bx-map-alt", label: "Карта" },
+                { key: "chat", icon: "bx-chat", label: "Чат з менеджером", count: state.unread || 0 },
+                { title: "Аналітика" },
+                { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+            ];
         }
+        return [
+            { title: "Робота" },
+            { key: "home", icon: "bx-home-alt", label: "Головна" },
+            { key: "offers", icon: "bx-bell", label: "Пропозиції рейсів", count: state.offers.filter((o) => o.status === "asked" && !o.closed).length },
+            { key: "deals", icon: "bx-file", label: "Мої рейси", count: activeDeals().length },
+            { key: "map", icon: "bx-map-alt", label: "Карта" },
+            { title: "Аналітика" },
+            { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+        ];
+    }
+    function renderNav() {
+        const cur = currentRoute().view;
+        const sect = { deal: "deals", request: "requests" }[cur] || cur;
+        $("cbNav").innerHTML = navItems()
+            .map((n) =>
+                n.title
+                    ? `<div class="cb-nav-title">${n.title}</div>`
+                    : `<a href="#/${n.key}" class="${n.key === sect ? "active" : ""}"><i class="bx ${n.icon}"></i> ${n.label}${n.count ? ` <span class="cb-count">${n.count}</span>` : ""}</a>`,
+            )
+            .join("");
+    }
+    function crumbs(parts) {
+        $("cbCrumbs").innerHTML = ["Кабінет", ...parts].map((p, i, all) => (i === all.length - 1 ? `<b>${p}</b>` : p)).join(" / ");
+    }
+    function barAction(label, fn) {
+        const b = $("cbBarAction");
+        if (!label) return (b.hidden = true);
+        b.hidden = false;
+        b.innerHTML = label;
+        b.onclick = fn;
     }
 
-    function tabsHtml(list) {
-        return `<nav class="cb-tabs">${list
-            .map((t) => `<button type="button" class="cb-tab ${t.key === tab ? "active" : ""}" data-tab="${t.key}">${t.label}${t.count ? ` <span class="cb-count">${t.count}</span>` : ""}</button>`)
-            .join("")}</nav>`;
+    /* ---------------- Маршрутизація ---------------- */
+
+    function currentRoute() {
+        const [view, id] = location.hash.replace(/^#\/?/, "").split("/");
+        return { view: view || "home", id: id ? decodeURIComponent(id) : null };
     }
-    function bindTabs(rerender) {
-        app.querySelectorAll("[data-tab]").forEach((b) =>
-            b.addEventListener("click", () => {
-                tab = b.dataset.tab;
-                store.set(TAB_KEY, tab);
-                rerender();
-                window.scrollTo(0, 0);
-            }),
-        );
+    function go(path) {
+        location.hash = `#/${path}`;
     }
+    window.addEventListener("hashchange", () => token && state && route());
 
-    /* ---------------- Перевезення (спільне) ---------------- */
-
-    const STEPS = ["Заплановано", "Завантаження", "В дорозі", "Кордон", "Розвантаження", "Доставлено"];
-
-    function dealCard(d, kind) {
-        const step = d.stage.step || 1;
-        const sum = (d.sum || []).map((s) => money(s.amount, s.currency)).join(" + ");
-        const steps = STEPS.map((s, i) => `<li class="${i + 1 < step ? "done" : i + 1 === step ? "now" : ""}"><span></span><em>${s}</em></li>`).join("");
-        return `
-            <article class="cb-card cb-deal" data-deal="${e(d.id)}">
-                <div class="cb-card-head">
-                    <span class="cb-no">№ ${e(d.number)}</span>
-                    <span class="cb-chip cb-st-${e(d.stage.key)}">${e(d.stage.label)}</span>
-                </div>
-                <div class="cb-route">
-                    <div><i class="bx bx-radio-circle-marked cb-from"></i> ${place(d.route.load_address, d.route.load_country)}</div>
-                    <div><i class="bx bx-map cb-to"></i> ${place(d.route.unload_address, d.route.unload_country)}</div>
-                </div>
-                <ol class="cb-steps">${steps}</ol>
-                ${d.queue ? `<div class="cb-queue"><i class="bx bx-time-five"></i> У черзі на кордоні: <b>${e(d.queue.checkpoint)}</b>${d.queue.queue_no ? ` · № ${e(d.queue.queue_no)}` : ""}${d.queue.since ? ` · з ${e(d.queue.since)}` : ""}</div>` : ""}
-                <div class="cb-grid">
-                    <div><label>Завантаження</label>${d.load_date ? `<b>${fmtDate(d.load_date)}</b>` : d.load_date_plan ? `план ${fmtDate(d.load_date_plan)}` : "—"}</div>
-                    <div><label>Розвантаження</label>${d.unload_date ? `<b>${fmtDate(d.unload_date)}</b>` : d.unload_date_plan ? `план ${fmtDate(d.unload_date_plan)}` : "—"}</div>
-                    ${d.cargo ? `<div><label>Вантаж</label>${e(d.cargo)}</div>` : ""}
-                    ${d.trailer_type ? `<div><label>Кузов</label>${e(d.trailer_type)}</div>` : ""}
-                    ${d.truck_plate ? `<div><label>Авто</label>${e(d.truck_plate)}${d.trailer_plate ? ` / ${e(d.trailer_plate)}` : ""}</div>` : ""}
-                    ${d.driver_name || d.driver_phone ? `<div><label>Водій</label>${e(d.driver_name || "")} ${phoneLink(d.driver_phone)}</div>` : ""}
-                    ${sum ? `<div><label>${kind === "client" ? "Вартість" : "Ставка"}</label><b>${sum}</b> <span class="cb-chip ${d.paid ? "cb-paid" : "cb-unpaid"}">${d.paid ? "оплачено" : "очікує оплати"}</span></div>` : ""}
-                    ${customsLine(d.route) ? `<div class="cb-wide">${customsLine(d.route)}</div>` : ""}
-                </div>
-                <div class="cb-card-foot">
-                    ${d.manager?.name ? `<span class="cb-muted"><i class="bx bx-user"></i> Логіст Грандар: ${e(d.manager.name)} ${phoneLink(d.manager.phone)}</span>` : "<span></span>"}
-                    <button type="button" class="cb-btn cb-btn-sm" data-open-deal="${e(d.id)}">${d.has_trip ? `<i class="bx bx-map-alt"></i> Карта і деталі` : "Деталі"}${d.unread ? ` <span class="cb-count">${d.unread}</span>` : ""}</button>
-                </div>
-            </article>`;
-    }
-
-    function dealsSection(kind) {
-        const deals = state.deals || [];
-        const active = deals.filter((d) => d.stage.key !== "done");
-        const list = dealFilter === "active" ? active : deals.filter((d) => d.stage.key === "done");
-        return `
-            <div class="cb-seg">
-                <button type="button" class="${dealFilter === "active" ? "active" : ""}" data-df="active">Активні (${active.length})</button>
-                <button type="button" class="${dealFilter === "done" ? "active" : ""}" data-df="done">Завершені (${deals.length - active.length})</button>
-            </div>
-            ${list.length ? list.map((d) => dealCard(d, kind)).join("") : `<div class="cb-empty"><i class="bx bx-package"></i><p>${dealFilter === "active" ? "Зараз немає активних перевезень." : "Завершених перевезень ще немає."}</p></div>`}`;
-    }
-    function bindDeals(rerender) {
-        app.querySelectorAll("[data-df]").forEach((b) =>
-            b.addEventListener("click", () => {
-                dealFilter = b.dataset.df;
-                rerender();
-            }),
-        );
-        app.querySelectorAll("[data-open-deal]").forEach((b) => b.addEventListener("click", () => openDeal(b.dataset.openDeal)));
-    }
-
-    /* ---------------- Повна картка перевезення ---------------- */
-
-    let detailTimer = null;
-    let map = null;
-    function closeDetail() {
-        clearInterval(detailTimer);
-        detailTimer = null;
+    function route() {
+        if (!state) return;
+        clearInterval(liveTimer);
+        liveTimer = null;
         if (map) {
             map.remove();
             map = null;
         }
-        if (location.hash.startsWith("#deal=")) history.replaceState(null, "", location.pathname);
+        $("cbShell").classList.remove("menu");
+        renderNav();
+        barAction(kind === "client" ? `<i class="bx bx-plus"></i> Новий запит` : "", () => openRequestForm());
+        const { view, id } = currentRoute();
+        window.scrollTo(0, 0);
+        const views =
+            kind === "client"
+                ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView }
+                : { home: carrierHomeView, offers: offersView, deals: dealsView, deal: dealView, map: mapView, reports: reportsView };
+        (views[view] || views.home)(id);
     }
 
-    async function openDeal(id) {
-        closeDetail();
-        history.replaceState(null, "", `#deal=${id}`);
-        window.scrollTo(0, 0);
+    async function refresh() {
+        try {
+            await loadHome();
+        } catch {
+            return;
+        }
+        route();
+    }
+
+    /* ================================================================ */
+    /* ГОЛОВНА                                                          */
+    /* ================================================================ */
+
+    function hello() {
+        const h = new Date().getHours();
+        return h < 11 ? "Доброго ранку" : h < 18 ? "Добрий день" : "Добрий вечір";
+    }
+    function heroHtml() {
+        const a = state.account;
+        return `<div class="cb-hero"><img src="company-logo.svg" alt="" />
+            <div><h1 class="cb-h1">${hello()}${a.name ? `, ${e(a.name)}` : ""}!</h1>
+            <div class="cb-muted">${e(a.company)} · ${new Date().toLocaleDateString("uk-UA", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</div></div></div>`;
+    }
+    const qc = (icon, color, title, sub, n, href) =>
+        `<button type="button" class="cb-qc" data-go="${href}"><i class="bx ${icon} ${color}"></i><div><b>${title}</b><span>${sub}</span></div>${n ? `<span class="cb-qc-n">${n}</span>` : ""}</button>`;
+    function bindGo(root = app) {
+        root.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => (b.dataset.go === "new" ? openRequestForm() : go(b.dataset.go))));
+    }
+
+    function clientHomeView() {
+        crumbs(["Головна"]);
+        const offers = state.requests.filter((r) => r.status.key === "offer").length;
+        const open = state.requests.filter((r) => ["new", "quote", "search", "discuss"].includes(r.status.key)).length;
+        const act = activeDeals();
+        app.innerHTML = `
+            ${heroHtml()}
+            <h2 class="cb-h2"><i class="bx bxs-zap"></i> Швидкі дії</h2>
+            <div class="cb-quick">
+                ${qc("bx-plus-circle", "ic-blue", "Новий запит", "Маршрут, вантаж, дата — за хвилину", 0, "new")}
+                ${qc("bx-badge-check", "ic-orange", "Пропозиції на погодження", "Ціна Грандар чекає вашої відповіді", offers, "requests")}
+                ${qc("bx-time-five", "ic-violet", "Запити в роботі", "Прораховуємо / шукаємо машину", open, "requests")}
+                ${qc("bx-trip", "ic-green", "Перевезення в дорозі", "Етап, авто, водій, документи", act.length, "deals")}
+                ${qc("bx-map-alt", "ic-teal", "Карта", "Де зараз ваші машини", 0, "map")}
+                ${qc("bx-chat", "ic-red", "Чат з менеджером", "Питання по запитах і рейсах", state.unread || 0, "chat")}
+            </div>
+            <div class="cb-two" style="margin-top:20px">
+                <div><h2 class="cb-h2" style="margin-top:0"><i class="bx bx-map-alt"></i> Ваші машини зараз</h2><div class="cb-card" style="padding:8px"><div class="cb-map" id="cbMap"></div></div></div>
+                <div><h2 class="cb-h2" style="margin-top:0"><i class="bx bx-trip"></i> Активні перевезення</h2>${dealsList(act.slice(0, 6), true)}</div>
+            </div>`;
+        bindGo();
+        bindDealRows();
+        drawFleet(act);
+    }
+
+    function carrierHomeView() {
+        crumbs(["Головна"]);
+        const s = state.stats || {};
+        const open = state.offers.filter((o) => o.status === "asked" && !o.closed);
+        const act = activeDeals();
+        app.innerHTML = `
+            ${heroHtml()}
+            <div class="cb-kpis" style="margin-top:18px">
+                <div class="cb-kpi"><label>Нові пропозиції</label><b>${open.length}</b></div>
+                <div class="cb-kpi"><label>Активні рейси</label><b>${act.length}</b></div>
+                <div class="cb-kpi"><label>Рейсів з Грандар</label><b>${s.trips || 0}</b></div>
+                <div class="cb-kpi"><label>Відповідей на запити</label><b>${s.answered || 0} / ${s.asked || 0}</b></div>
+            </div>
+            <div class="cb-quick">
+                ${qc("bx-bell", "ic-orange", "Пропозиції рейсів", "Дайте ставку в два кліки", open.length, "offers")}
+                ${qc("bx-trip", "ic-green", "Мої рейси", "Адреси, дати, оплата", act.length, "deals")}
+                ${qc("bx-map-alt", "ic-teal", "Карта", "Ваші машини в рейсах", 0, "map")}
+                ${qc("bx-bar-chart-alt-2", "ic-violet", "Підсумки", "Рейси й суми по місяцях", 0, "reports")}
+            </div>
+            <h2 class="cb-h2"><i class="bx bx-bell"></i> Нові пропозиції</h2>
+            ${open.length ? `<div class="cb-cards">${open.slice(0, 4).map(offerCard).join("")}</div>` : `<div class="cb-empty"><i class="bx bx-bell"></i><p>Нових пропозицій поки немає.</p></div>`}`;
+        bindGo();
+        bindOffers();
+    }
+
+    /* ================================================================ */
+    /* ПЕРЕВЕЗЕННЯ / РЕЙСИ — список                                     */
+    /* ================================================================ */
+
+    function dealsList(list, compact = false) {
+        if (!list.length) return `<div class="cb-empty"><i class="bx bx-package"></i><p>Перевезень немає.</p></div>`;
+        const sumLabel = kind === "client" ? "Вартість" : "Ставка";
+        return `<div class="cb-table-wrap"><table class="cb-table">
+            <thead><tr><th>№</th><th>Маршрут</th>${compact ? "" : "<th>Вантаж</th><th>Завантаження</th><th>Розвантаження</th>"}<th>Авто</th><th>Етап</th>${compact ? "" : `<th>${sumLabel}</th>`}</tr></thead>
+            <tbody>${list
+                .map(
+                    (d) => `<tr data-deal="${e(d.id)}">
+                    <td data-label="№" class="num">№ ${e(d.number)}${d.unread ? ` <span class="cb-count" title="Нові повідомлення">${d.unread}</span>` : ""}</td>
+                    <td data-label="Маршрут" class="cb-route-cell"><div><b>${city(d.route.load_address, d.route.load_country)} → ${city(d.route.unload_address, d.route.unload_country)}</b>
+                        <span class="cb-sub">${e(country(d.route.load_country))} → ${e(country(d.route.unload_country))}</span></div></td>
+                    ${
+                        compact
+                            ? ""
+                            : `<td data-label="Вантаж"><div>${e(d.cargo || "—")}<div class="cb-sub">${e(d.trailer_type || "")}</div></div></td>
+                    <td data-label="Завантаження"><div>${d.load_date ? `<b>${fmtDate(d.load_date)}</b>` : d.load_date_plan ? `план ${fmtDate(d.load_date_plan)}` : "—"}</div></td>
+                    <td data-label="Розвантаження"><div>${d.unload_date ? `<b>${fmtDate(d.unload_date)}</b>` : d.unload_date_plan ? `план ${fmtDate(d.unload_date_plan)}` : "—"}</div></td>`
+                    }
+                    <td data-label="Авто"><div>${e(d.truck_plate || "—")}<div class="cb-sub">${e(d.trailer_plate || "")}</div></div></td>
+                    <td data-label="Етап"><div>${stageChip(d.stage)}${miniSteps(d.stage.step)}${d.queue ? `<div class="cb-sub">черга: ${e(d.queue.checkpoint)}</div>` : ""}</div></td>
+                    ${compact ? "" : `<td data-label="${sumLabel}"><div><b>${sumText(d.sum) || "—"}</b><div>${d.sum?.length ? payChip(d.paid) : ""}</div></div></td>`}
+                </tr>`,
+                )
+                .join("")}</tbody></table></div>`;
+    }
+    function bindDealRows(root = app) {
+        root.querySelectorAll("[data-deal]").forEach((tr) => tr.addEventListener("click", () => go(`deal/${tr.dataset.deal}`)));
+    }
+
+    function dealsView() {
+        crumbs([kind === "client" ? "Перевезення" : "Мої рейси"]);
+        const all = state.deals || [];
+        const draw = () => {
+            const q = ui.dealQ.toLowerCase();
+            const list = all
+                .filter((d) => (ui.dealFilter === "active" ? d.stage.key !== "done" : ui.dealFilter === "done" ? d.stage.key === "done" : true))
+                .filter((d) => !q || JSON.stringify([d.number, d.route, d.cargo, d.truck_plate, d.trailer_plate, d.driver_name]).toLowerCase().includes(q));
+            $("cbDealsBox").innerHTML = dealsList(list);
+            bindDealRows();
+        };
+        app.innerHTML = `
+            <div class="cb-toolbar">
+                <div class="cb-search"><i class="bx bx-search"></i><input class="cb-in" id="cbDealQ" placeholder="Пошук: № угоди, місто, номер авто, вантаж…" value="${e(ui.dealQ)}" /></div>
+                <div class="cb-seg">
+                    ${[["active", `Активні (${activeDeals().length})`], ["done", `Завершені (${all.length - activeDeals().length})`], ["all", `Усі (${all.length})`]]
+                        .map(([k, l]) => `<button type="button" class="${ui.dealFilter === k ? "active" : ""}" data-df="${k}">${l}</button>`)
+                        .join("")}
+                </div>
+            </div>
+            <div id="cbDealsBox"></div>`;
+        $("cbDealQ").addEventListener("input", (ev) => {
+            ui.dealQ = ev.target.value;
+            draw();
+        });
+        app.querySelectorAll("[data-df]").forEach((b) =>
+            b.addEventListener("click", () => {
+                ui.dealFilter = b.dataset.df;
+                app.querySelectorAll("[data-df]").forEach((x) => x.classList.toggle("active", x === b));
+                draw();
+            }),
+        );
+        draw();
+    }
+
+    /* ================================================================ */
+    /* КАРТКА ПЕРЕВЕЗЕННЯ (як у CRM: ліва колонка + вкладки)           */
+    /* ================================================================ */
+
+    async function dealView(id) {
+        const listName = kind === "client" ? "Перевезення" : "Мої рейси";
+        crumbs([`<a href="#/deals">${listName}</a>`, "Картка"]);
         app.innerHTML = loading();
         let r;
         try {
@@ -360,22 +489,105 @@
             app.innerHTML = `<div class="cb-alert">${e(err.message)}</div>`;
             return;
         }
-        renderDeal(r);
-        // Позиція машини і нові повідомлення — кожні 30 с
-        detailTimer = setInterval(async () => {
-            if (document.hidden || !document.querySelector("[data-detail]")) return;
+        const d = r.deal;
+        crumbs([`<a href="#/deals">${listName}</a>`, `№ ${e(d.number)}`]);
+        const t = r.trip;
+        const c = customsLines(d.route);
+        const field = (label, val) => (val ? `<div class="cb-field"><label>${label}</label><div>${val}</div></div>` : "");
+        const tabs = [
+            ["track", `<i class="bx bx-map-alt"></i> Трекінг`],
+            ["docs", `<i class="bx bx-file"></i> Документи${r.docs.length ? ` (${r.docs.length})` : ""}`],
+            ...(kind === "client" ? [["chat", `<i class="bx bx-chat"></i> Переписка${r.messages.length ? ` (${r.messages.length})` : ""}`]] : []),
+            ["money", `<i class="bx bx-wallet"></i> Розрахунок`],
+        ];
+        if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = "track";
+        app.innerHTML = `
+            <div class="cb-dv-head">
+                <a class="cb-btn cb-btn-sm" href="#/deals" title="Назад"><i class="bx bx-arrow-back"></i></a>
+                <h1>№ ${e(d.number)}</h1>
+                ${stageChip(d.stage)}
+                <span class="cb-dv-route">${city(d.route.load_address, d.route.load_country)} → ${city(d.route.unload_address, d.route.unload_country)}</span>
+            </div>
+            <div class="cb-dv">
+                <aside class="cb-card cb-aside">
+                    <div class="cb-sec-title">Маршрут</div>
+                    ${field("Завантаження", place(d.route.load_address, d.route.load_country))}
+                    ${field("Замитнення", e(c.ex))}
+                    ${field("Кордон", e(c.border))}
+                    ${field("Розмитнення", e(c.im))}
+                    ${field("Розвантаження", place(d.route.unload_address, d.route.unload_country))}
+                    <div class="cb-sec-title">Вантаж і дати</div>
+                    ${field("Вантаж", e(d.cargo))}
+                    ${field("Кузов", e(d.trailer_type))}
+                    ${field("Завантаження", d.load_date ? `${fmtDate(d.load_date)} (факт)` : d.load_date_plan ? `план ${fmtDate(d.load_date_plan)}` : "—")}
+                    ${field("Розвантаження", d.unload_date ? `${fmtDate(d.unload_date)} (факт)` : d.unload_date_plan ? `план ${fmtDate(d.unload_date_plan)}` : "—")}
+                    <div class="cb-sec-title">Авто і водій</div>
+                    ${field("Тягач / причіп", d.truck_plate ? `${e(d.truck_plate)}${d.trailer_plate ? ` / ${e(d.trailer_plate)}` : ""}` : "ще не призначено")}
+                    ${field("Водій", d.driver_name || d.driver_phone ? `${e(d.driver_name || "")} ${phoneLink(d.driver_phone)}` : "")}
+                    <div class="cb-sec-title">Грандар</div>
+                    ${field("Логіст", d.manager?.name ? `${e(d.manager.name)} ${phoneLink(d.manager.phone)}` : "—")}
+                </aside>
+                <div>
+                    <div class="cb-kpis">
+                        <div class="cb-kpi"><label>Етап</label><b>${e(d.stage.label)}</b></div>
+                        <div class="cb-kpi"><label>Орієнтовне прибуття</label><b>${t?.eta_at ? fmtDT(t.eta_at) : d.unload_date_plan ? fmtDate(d.unload_date_plan) : "—"}</b></div>
+                        <div class="cb-kpi"><label>Залишилось</label><b>${t?.eta_remaining_km != null ? `${Math.round(t.eta_remaining_km)} км` : "—"}</b></div>
+                        <div class="cb-kpi"><label>${kind === "client" ? "Вартість" : "Ставка"}</label><b>${sumText(d.sum) || "—"}</b>${d.sum?.length ? `<div>${payChip(d.paid)}</div>` : ""}</div>
+                    </div>
+                    ${stepsHtml(d.stage.step)}
+                    ${d.queue ? `<div class="cb-queue"><i class="bx bx-time-five"></i> У черзі на кордоні: <b>${e(d.queue.checkpoint)}</b>${d.queue.queue_no ? ` · № ${e(d.queue.queue_no)}` : ""}${d.queue.since ? ` · з ${e(d.queue.since)}` : ""}</div>` : ""}
+                    <div class="cb-card cb-tabbed">
+                        <nav class="cb-tabs">${tabs.map(([k, l]) => `<button type="button" class="cb-tab ${k === ui.dealTab ? "active" : ""}" data-dt="${k}">${l}</button>`).join("")}</nav>
+                        <div class="cb-tab-body" id="cbDealTab"></div>
+                    </div>
+                </div>
+            </div>`;
+        const show = () => {
+            const box = $("cbDealTab");
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            if (ui.dealTab === "track") {
+                box.innerHTML = `<div id="cbEta">${etaHtml(t)}</div><div class="cb-map" id="cbMap"></div>
+                    <h3 class="cb-h2" style="font-size:16px"><i class="bx bx-list-check"></i> Хронологія</h3><div id="cbEvents">${eventsHtml(r.events)}</div>`;
+                if (t && (t.last || t.track.length || t.route.length || t.load || t.unload)) drawTrip(t);
+                else $("cbMap").innerHTML = `<div class="cb-map-note">Карта з'явиться, коли водій почне рейс у додатку «FURA Водій».<br/>Поки що етап оновлює логіст.</div>`;
+            } else if (ui.dealTab === "docs") {
+                box.innerHTML = docsHtml(r.docs);
+            } else if (ui.dealTab === "chat") {
+                box.innerHTML = `<div id="cbChat"></div>`;
+                mountChat($("cbChat"), { deal_id: d.id }, r.messages);
+            } else {
+                box.innerHTML = `<div class="cb-kpis">
+                        <div class="cb-kpi"><label>${kind === "client" ? "До сплати" : "Ставка"}</label><b>${sumText(d.sum) || "—"}</b></div>
+                        <div class="cb-kpi"><label>Статус оплати</label><b>${d.sum?.length ? (d.paid ? "Оплачено" : "Очікує оплати") : "—"}</b></div>
+                    </div><p class="cb-muted">${kind === "client" ? "Рахунки й акти з'являться тут, коли їх буде завантажено в CRM. З питань оплати — напишіть у «Переписку»." : "Дані про оплату оновлює бухгалтерія Грандар."}</p>`;
+            }
+        };
+        app.querySelectorAll("[data-dt]").forEach((b) =>
+            b.addEventListener("click", () => {
+                ui.dealTab = b.dataset.dt;
+                app.querySelectorAll("[data-dt]").forEach((x) => x.classList.toggle("active", x === b));
+                show();
+            }),
+        );
+        show();
+        // Позиція й повідомлення — кожні 30 с
+        liveTimer = setInterval(async () => {
+            if (document.hidden || currentRoute().view !== "deal") return;
             try {
                 const fresh = await api("deal_full", { id });
-                updateLive(fresh);
+                r = fresh;
+                if ($("cbEta")) $("cbEta").innerHTML = etaHtml(fresh.trip);
+                if ($("cbEvents")) $("cbEvents").innerHTML = eventsHtml(fresh.events);
+                if (fresh.trip && map && ui.dealTab === "track") drawTrip(fresh.trip, true);
+                const chat = $("cbChat");
+                if (chat?.renderMessages && !chat.querySelector("textarea")?.value) chat.renderMessages(fresh.messages);
             } catch {
-                /* спробуємо наступного разу */
+                /* наступного разу */
             }
         }, 30000);
-    }
-
-    function backToList() {
-        closeDetail();
-        load(true);
     }
 
     function etaHtml(t) {
@@ -387,42 +599,6 @@
         const last = t.last ? `Остання позиція: ${fmtDT(t.last.at)}${t.last.speed != null ? ` · ${Math.round(t.last.speed)} км/год` : ""}` : "";
         return parts.length || last ? `<div class="cb-eta">${parts.length ? `<div>${parts.join(" · ")}</div>` : ""}${last ? `<div class="cb-muted">${last}</div>` : ""}</div>` : "";
     }
-
-    function renderDeal(r) {
-        const d = r.deal;
-        const kind = state?.account?.kind || "client";
-        const t = r.trip;
-        const hasMap = t && (t.last || t.track.length || t.route.length || t.load || t.unload);
-        app.innerHTML = `
-            <div data-detail="${e(d.id)}">
-                <button type="button" class="cb-link cb-back" id="cbBack"><i class="bx bx-arrow-back"></i> Усі перевезення</button>
-                ${dealCard(d, kind).replace(/<div class="cb-card-foot">[\s\S]*?<\/div>\s*<\/article>/, '<div class="cb-card-foot" id="cbMgr"></div></article>')}
-                ${
-                    hasMap
-                        ? `<section class="cb-card cb-sec"><h3><i class="bx bx-map-alt"></i> Де машина</h3><div id="cbEta">${etaHtml(t)}</div><div class="cb-map" id="cbMap"></div></section>`
-                        : `<section class="cb-card cb-sec"><h3><i class="bx bx-map-alt"></i> Де машина</h3><p class="cb-muted">Карта з'явиться, коли водій почне рейс у додатку «FURA Водій».${d.queue ? "" : ""}</p></section>`
-                }
-                <section class="cb-card cb-sec"><h3><i class="bx bx-list-check"></i> Хронологія</h3><div id="cbEvents">${eventsHtml(r.events)}</div></section>
-                <section class="cb-card cb-sec"><h3><i class="bx bx-file"></i> Документи</h3><div id="cbDocs">${docsHtml(r.docs)}</div></section>
-                ${kind === "client" ? `<section class="cb-card cb-sec"><h3><i class="bx bx-chat"></i> Переписка по перевезенню № ${e(d.number)}</h3><div id="cbChat"></div></section>` : ""}
-            </div>`;
-        $("cbMgr").innerHTML = d.manager?.name
-            ? `<span class="cb-muted"><i class="bx bx-user"></i> Логіст Грандар: ${e(d.manager.name)} ${phoneLink(d.manager.phone)}</span>`
-            : "";
-        $("cbBack").addEventListener("click", backToList);
-        if (hasMap) drawMap(t);
-        if (kind === "client") mountChat($("cbChat"), { deal_id: d.id }, r.messages);
-    }
-
-    function updateLive(r) {
-        if (!document.querySelector(`[data-detail="${CSS.escape(String(r.deal.id))}"]`)) return;
-        if ($("cbEta")) $("cbEta").innerHTML = etaHtml(r.trip);
-        if ($("cbEvents")) $("cbEvents").innerHTML = eventsHtml(r.events);
-        if (r.trip && map) drawMap(r.trip, true);
-        const chat = $("cbChat");
-        if (chat && chat.renderMessages && !chat.querySelector("textarea")?.value) chat.renderMessages(r.messages);
-    }
-
     const eventsHtml = (list) =>
         list && list.length
             ? `<ul class="cb-timeline">${list.map((x) => `<li><b>${e(x.label)}</b><span>${fmtDT(x.at)}</span></li>`).join("")}</ul>`
@@ -430,9 +606,11 @@
     const docsHtml = (list) =>
         list && list.length
             ? `<div class="cb-docs">${list.map((x) => `<a href="${e(x.url)}" target="_blank" rel="noopener"><img src="${e(x.url)}" alt="${e(x.kind)}" loading="lazy" /><span>${e(x.kind)} · ${fmtDT(x.at)}</span></a>`).join("")}</div>`
-            : `<p class="cb-muted">Документів ще немає. Фото CMR з'явиться після завантаження.</p>`;
+            : `<div class="cb-empty"><i class="bx bx-file"></i><p>Документів ще немає. Фото CMR з'явиться після завантаження водієм.</p></div>`;
 
-    /* ---------------- Карта (MapLibre + OpenStreetMap) ---------------- */
+    /* ================================================================ */
+    /* КАРТИ (MapLibre + OpenStreetMap)                                  */
+    /* ================================================================ */
 
     const MAPLIBRE = "https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl";
     let mapLib = null;
@@ -457,44 +635,57 @@
         sources: { osm: { type: "raster", tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMap" } },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
     };
+    const ll = ([lat, lon]) => [lon, lat];
     let truck = null;
 
-    async function drawMap(t, update = false) {
+    async function newMap(el, pts) {
+        try {
+            await loadMapLibre();
+        } catch {
+            el.innerHTML = `<div class="cb-map-note">Не вдалося завантажити карту.</div>`;
+            return null;
+        }
+        const gl = window.maplibregl;
+        if (map) map.remove();
+        const opts = { container: el, style: OSM, cooperativeGestures: true, attributionControl: { compact: true } };
+        if (pts.length) {
+            opts.bounds = pts.reduce((b, c) => b.extend(c), new gl.LngLatBounds(pts[0], pts[0]));
+            opts.fitBoundsOptions = { padding: 50, maxZoom: 11 };
+        } else {
+            opts.center = [24, 50];
+            opts.zoom = 4;
+        }
+        map = new gl.Map(opts);
+        map.addControl(new gl.NavigationControl({ showCompass: false }), "top-right");
+        map.addControl(new gl.FullscreenControl(), "top-right");
+        return gl;
+    }
+    function pin(gl, p, cls, html, title, onClick) {
+        if (!p) return null;
+        const d = document.createElement("div");
+        d.className = cls;
+        d.innerHTML = html;
+        d.title = title || "";
+        if (onClick) d.addEventListener("click", onClick);
+        return new gl.Marker({ element: d }).setLngLat(p).addTo(map);
+    }
+
+    async function drawTrip(t, update = false) {
         const el = $("cbMap");
         if (!el) return;
-        const ll = ([lat, lon]) => [lon, lat];
         const route = (t.route || []).map(ll);
         const track = (t.track || []).map(ll);
-        if (update && map && map.getSource("track")) {
+        if (update && map?.getSource?.("track")) {
             map.getSource("track").setData({ type: "Feature", geometry: { type: "LineString", coordinates: track } });
             if (t.last && truck) truck.setLngLat([t.last.lon, t.last.lat]);
             return;
         }
-        try {
-            await loadMapLibre();
-        } catch {
-            el.innerHTML = `<p class="cb-muted">Не вдалося завантажити карту.</p>`;
-            return;
-        }
-        const gl = window.maplibregl;
         const pts = [...route, ...track];
         if (t.load) pts.push(ll(t.load));
         if (t.unload) pts.push(ll(t.unload));
         if (t.last) pts.push([t.last.lon, t.last.lat]);
-        if (!pts.length) return;
-        const bounds = pts.reduce((b, c) => b.extend(c), new gl.LngLatBounds(pts[0], pts[0]));
-        if (map) map.remove();
-        map = new gl.Map({ container: el, style: OSM, bounds, fitBoundsOptions: { padding: 40, maxZoom: 12 }, cooperativeGestures: true, attributionControl: { compact: true } });
-        map.addControl(new gl.NavigationControl({ showCompass: false }), "top-right");
-        map.addControl(new gl.FullscreenControl(), "top-right");
-        const pin = (p, cls, html, title) => {
-            if (!p) return;
-            const d = document.createElement("div");
-            d.className = cls;
-            d.innerHTML = html;
-            d.title = title;
-            new gl.Marker({ element: d }).setLngLat(p).addTo(map);
-        };
+        const gl = await newMap(el, pts);
+        if (!gl) return;
         map.on("load", () => {
             if (route.length > 1) {
                 map.addSource("route", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: route } } });
@@ -503,26 +694,251 @@
             map.addSource("track", { type: "geojson", data: { type: "Feature", geometry: { type: "LineString", coordinates: track } } });
             map.addLayer({ id: "track", type: "line", source: "track", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#1d5bd8", "line-width": 4 } });
         });
-        pin(t.load && ll(t.load), "cb-pin cb-pin-a", "A", "Завантаження");
-        pin(t.unload && ll(t.unload), "cb-pin cb-pin-b", "B", "Розвантаження");
-        (t.borders || []).forEach((b) => pin([b.lon, b.lat], "cb-pin cb-pin-border", "<i class='bx bx-shield-quarter'></i>", b.name));
-        truck = null;
-        if (t.last) {
-            const d = document.createElement("div");
-            d.className = "cb-truck";
-            d.innerHTML = "<i class='bx bxs-truck'></i>";
-            d.title = `Остання позиція: ${fmtDT(t.last.at)}`;
-            truck = new gl.Marker({ element: d }).setLngLat([t.last.lon, t.last.lat]).addTo(map);
+        pin(gl, t.load && ll(t.load), "cb-pin cb-pin-a", "A", "Завантаження");
+        pin(gl, t.unload && ll(t.unload), "cb-pin cb-pin-b", "B", "Розвантаження");
+        (t.borders || []).forEach((b) => pin(gl, [b.lon, b.lat], "cb-pin cb-pin-border", "<i class='bx bx-shield-quarter'></i>", b.name));
+        truck = t.last ? pin(gl, [t.last.lon, t.last.lat], "cb-truck", "<i class='bx bxs-truck'></i>", `Остання позиція: ${fmtDT(t.last.at)}`) : null;
+    }
+
+    // Усі активні машини на одній карті
+    async function drawFleet(deals) {
+        const el = $("cbMap");
+        if (!el) return;
+        const withPos = deals.filter((d) => d.pos && (d.pos.last || d.pos.load));
+        if (!withPos.length) {
+            el.innerHTML = `<div class="cb-map-note"><div><i class="bx bx-map-alt" style="font-size:40px;opacity:.4"></i><br/>${
+                deals.length ? "Машини з'являться на карті, щойно водії почнуть рейс у додатку «FURA Водій»." : "Зараз немає перевезень у дорозі."
+            }</div></div>`;
+            return;
+        }
+        const pts = [];
+        withPos.forEach((d) => {
+            if (d.pos.last) pts.push([d.pos.last[1], d.pos.last[0]]);
+            if (d.pos.load) pts.push(ll(d.pos.load));
+            if (d.pos.unload) pts.push(ll(d.pos.unload));
+        });
+        const gl = await newMap(el, pts);
+        if (!gl) return;
+        withPos.forEach((d) => {
+            const open = () => go(`deal/${d.id}`);
+            if (d.pos.last) pin(gl, [d.pos.last[1], d.pos.last[0]], "cb-truck", `<i class='bx bxs-truck'></i><small>№ ${e(d.number)}</small>`, `№ ${d.number} · ${d.truck_plate || ""} · ${d.stage.label} · ${fmtDT(d.pos.last[2])}`, open);
+            else pin(gl, ll(d.pos.load), "cb-pin cb-pin-a", "A", `№ ${d.number}: завантаження`, open);
+            if (d.pos.unload) pin(gl, ll(d.pos.unload), "cb-pin cb-pin-b", "B", `№ ${d.number}: розвантаження`, open);
+        });
+    }
+
+    function mapView() {
+        crumbs(["Карта"]);
+        const act = activeDeals();
+        app.innerHTML = `
+            <div class="cb-two">
+                <div class="cb-card" style="padding:8px"><div class="cb-map cb-map-big" id="cbMap"></div></div>
+                <div>
+                    <h2 class="cb-h2" style="margin-top:0"><i class="bx bx-trip"></i> У дорозі (${act.length})</h2>
+                    <div class="cb-trucks-list">${
+                        act.length
+                            ? act
+                                  .map(
+                                      (d) => `<button type="button" data-deal="${e(d.id)}"><b>№ ${e(d.number)}</b> · ${e(d.truck_plate || "авто ще не призначено")} ${stageChip(d.stage)}
+                                        <div class="cb-sub">${city(d.route.load_address, d.route.load_country)} → ${city(d.route.unload_address, d.route.unload_country)}${d.pos?.last ? ` · позиція ${fmtDT(d.pos.last[2])}` : ""}${d.pos?.eta_at ? ` · прибуття ≈ ${fmtDT(d.pos.eta_at)}` : ""}</div></button>`,
+                                  )
+                                  .join("")
+                            : `<div class="cb-empty"><p>Активних перевезень немає.</p></div>`
+                    }</div>
+                </div>
+            </div>`;
+        bindDealRows();
+        drawFleet(act);
+    }
+
+    /* ================================================================ */
+    /* ЗАПИТИ (клієнт)                                                  */
+    /* ================================================================ */
+
+    function requestsView() {
+        crumbs(["Запити"]);
+        const all = state.requests || [];
+        const groups = [
+            ["all", `Усі (${all.length})`, () => true],
+            ["offer", "Чекають погодження", (r) => r.status.key === "offer"],
+            ["work", "В роботі", (r) => ["new", "quote", "search", "discuss"].includes(r.status.key)],
+            ["accepted", "Погоджені", (r) => r.status.key === "accepted"],
+            ["cancelled", "Скасовані", (r) => r.status.key === "cancelled"],
+        ];
+        const draw = () => {
+            const q = ui.reqQ.toLowerCase();
+            const test = groups.find((g) => g[0] === ui.reqFilter)?.[2] || (() => true);
+            const list = all.filter(test).filter((r) => !q || JSON.stringify([r.route, r.cargo, r.transport_type]).toLowerCase().includes(q));
+            $("cbReqBox").innerHTML = list.length
+                ? `<div class="cb-table-wrap"><table class="cb-table">
+                    <thead><tr><th>Дата</th><th>Маршрут</th><th>Вантаж</th><th>Завантаження</th><th>Статус</th><th>Ціна Грандар</th></tr></thead>
+                    <tbody>${list
+                        .map(
+                            (r) => `<tr data-req="${e(r.id)}">
+                            <td data-label="Дата" class="num">${fmtDate(r.created_at)}${r.unread ? ` <span class="cb-count">${r.unread}</span>` : ""}</td>
+                            <td data-label="Маршрут" class="cb-route-cell"><div><b>${city(r.route.load_address, r.route.load_country)} → ${city(r.route.unload_address, r.route.unload_country)}</b>
+                                <span class="cb-sub">${e(country(r.route.load_country))} → ${e(country(r.route.unload_country))}</span></div></td>
+                            <td data-label="Вантаж"><div>${e(r.cargo || "—")}<div class="cb-sub">${[r.weight, r.transport_type, r.trucks_count > 1 ? `${r.trucks_count} авто` : ""].filter(Boolean).map(e).join(" · ")}</div></div></td>
+                            <td data-label="Завантаження"><div>${period(r.desired_date, r.desired_date_to) || "—"}</div></td>
+                            <td data-label="Статус"><div><span class="cb-chip cb-rs-${e(r.status.key)}">${e(r.status.label)}</span></div></td>
+                            <td data-label="Ціна"><div>${r.offer ? `<b>${money(r.offer.price, r.offer.currency)}</b>` : `<span class="cb-muted">—</span>`}${
+                                r.status.key === "offer" ? `<div style="margin-top:6px"><button type="button" class="cb-btn cb-btn-ok cb-btn-sm" data-accept="${e(r.id)}"><i class="bx bx-check"></i> Погодити</button></div>` : ""
+                            }</div></td></tr>`,
+                        )
+                        .join("")}</tbody></table></div>`
+                : `<div class="cb-empty"><i class="bx bx-paper-plane"></i><p>${all.length ? "Нічого не знайдено." : "Запитів ще немає. Створіть перший — менеджер Грандар відповість з ціною."}</p></div>`;
+            $("cbReqBox").querySelectorAll("[data-req]").forEach((tr) => tr.addEventListener("click", () => go(`request/${tr.dataset.req}`)));
+            $("cbReqBox").querySelectorAll("[data-accept]").forEach((b) =>
+                b.addEventListener("click", (ev) => {
+                    ev.stopPropagation();
+                    decide(all.find((x) => String(x.id) === b.dataset.accept), "accepted");
+                }),
+            );
+        };
+        app.innerHTML = `
+            <div class="cb-toolbar">
+                <div class="cb-search"><i class="bx bx-search"></i><input class="cb-in" id="cbReqQ" placeholder="Пошук: місто, країна, вантаж…" value="${e(ui.reqQ)}" /></div>
+                <div class="cb-seg">${groups.map(([k, l]) => `<button type="button" class="${ui.reqFilter === k ? "active" : ""}" data-rf="${k}">${l}</button>`).join("")}</div>
+            </div>
+            <div id="cbReqBox"></div>`;
+        $("cbReqQ").addEventListener("input", (ev) => {
+            ui.reqQ = ev.target.value;
+            draw();
+        });
+        app.querySelectorAll("[data-rf]").forEach((b) =>
+            b.addEventListener("click", () => {
+                ui.reqFilter = b.dataset.rf;
+                app.querySelectorAll("[data-rf]").forEach((x) => x.classList.toggle("active", x === b));
+                draw();
+            }),
+        );
+        draw();
+    }
+
+    async function decide(r, decision) {
+        let note = null;
+        if (decision === "discuss") {
+            note = prompt("Що хочете обговорити? (ціна, дата, умови) — менеджер зв'яжеться з вами.");
+            if (note === null) return;
+        } else if (!confirm(`Погодити перевезення за ${r.offer.price} ${r.offer.currency}?`)) return;
+        try {
+            const res = await api("request_decide", { id: r.id, decision, note });
+            Object.assign(r, res.request);
+            toast(decision === "accepted" ? "Дякуємо! Менеджер оформлює перевезення." : "Передали менеджеру — він зв'яжеться з вами.");
+            route();
+        } catch (err) {
+            toast(err.message, true);
         }
     }
 
-    /* ---------------- Переписка з Грандар ---------------- */
+    async function requestView(id) {
+        const r = (state.requests || []).find((x) => String(x.id) === String(id));
+        if (!r) return go("requests");
+        crumbs([`<a href="#/requests">Запити</a>`, `${e(country(r.route.load_country))} → ${e(country(r.route.unload_country))}`]);
+        const c = customsLines(r.route);
+        const field = (label, val) => (val ? `<div class="cb-field"><label>${label}</label><div>${val}</div></div>` : "");
+        const canCancel = ["new", "quote"].includes(r.status.key);
+        app.innerHTML = `
+            <div class="cb-dv-head">
+                <a class="cb-btn cb-btn-sm" href="#/requests" title="Назад"><i class="bx bx-arrow-back"></i></a>
+                <h1>Запит від ${fmtDate(r.created_at)}</h1>
+                <span class="cb-chip cb-rs-${e(r.status.key)}">${e(r.status.label)}</span>
+                <span class="cb-dv-route">${city(r.route.load_address, r.route.load_country)} → ${city(r.route.unload_address, r.route.unload_country)}</span>
+            </div>
+            <div class="cb-dv">
+                <aside class="cb-card cb-aside">
+                    <div class="cb-sec-title">Маршрут</div>
+                    ${field("Завантаження", place(r.route.load_address, r.route.load_country))}
+                    ${field("Замитнення", e(c.ex))}
+                    ${field("Розмитнення", e(c.im))}
+                    ${field("Розвантаження", place(r.route.unload_address, r.route.unload_country))}
+                    <div class="cb-sec-title">Вантаж</div>
+                    ${field("Вантаж", e(r.cargo))}
+                    ${field("Вага", e(r.weight))}
+                    ${field("Кузов", e(r.transport_type))}
+                    ${field("Машин", r.trucks_count > 1 ? e(r.trucks_count) : "")}
+                    ${field("Дата завантаження", period(r.desired_date, r.desired_date_to))}
+                    <div class="cb-field" style="padding-bottom:16px;display:flex;gap:8px;flex-wrap:wrap">
+                        <button type="button" class="cb-btn cb-btn-sm" id="cbRepeat"><i class="bx bx-copy"></i> Повторити запит</button>
+                        ${canCancel ? `<button type="button" class="cb-btn cb-btn-sm cb-danger" id="cbCancel"><i class="bx bx-x"></i> Скасувати</button>` : ""}
+                    </div>
+                </aside>
+                <div>
+                    <div class="cb-card" style="margin-bottom:14px">
+                        <h3 class="cb-h2" style="margin-top:0;font-size:16px"><i class="bx bx-badge-check"></i> Пропозиція Грандар</h3>
+                        ${
+                            r.offer
+                                ? `<div class="cb-offer ${r.status.key === "offer" ? "pending" : ""}">
+                                    <div><label>Ціна перевезення</label><div class="cb-price">${money(r.offer.price, r.offer.currency)}</div>${r.offer.note ? `<div class="cb-muted">${e(r.offer.note)}</div>` : ""}</div>
+                                    ${
+                                        r.status.key === "offer" || r.status.key === "discuss"
+                                            ? `<div class="cb-offer-btns"><button type="button" class="cb-btn cb-btn-ok" data-dec="accepted"><i class="bx bx-check"></i> Погодити</button>
+                                               ${r.status.key === "offer" ? `<button type="button" class="cb-btn" data-dec="discuss"><i class="bx bx-message-dots"></i> Обговорити</button>` : ""}</div>`
+                                            : r.decision?.value === "accepted"
+                                              ? `<div class="cb-muted"><i class="bx bx-check-circle"></i> Погоджено ${fmtDT(r.decision.at)}</div>`
+                                              : ""
+                                    }</div>`
+                                : `<p class="cb-muted">Менеджер прораховує маршрут — ціна з'явиться тут, і ви зможете погодити її одним кліком.</p>`
+                        }
+                    </div>
+                    <div class="cb-card"><h3 class="cb-h2" style="margin-top:0;font-size:16px"><i class="bx bx-chat"></i> Переписка по запиту</h3><div id="cbChat">${loading()}</div></div>
+                </div>
+            </div>`;
+        app.querySelectorAll("[data-dec]").forEach((b) => b.addEventListener("click", () => decide(r, b.dataset.dec)));
+        $("cbRepeat").addEventListener("click", () => openRequestForm(r));
+        $("cbCancel")?.addEventListener("click", async () => {
+            const note = prompt("Скасувати запит? Можете вказати причину (необов'язково):", "");
+            if (note === null) return;
+            try {
+                const res = await api("request_cancel", { id: r.id, note });
+                if (res.request) Object.assign(r, res.request);
+                toast("Запит скасовано");
+                route();
+            } catch (err) {
+                toast(err.message, true);
+            }
+        });
+        try {
+            const m = await api("messages", { request_id: r.id });
+            r.unread = 0;
+            mountChat($("cbChat"), { request_id: r.id }, m.messages);
+        } catch (err) {
+            $("cbChat").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`;
+        }
+    }
+
+    /* ================================================================ */
+    /* ЧАТ                                                              */
+    /* ================================================================ */
+
+    async function chatView() {
+        crumbs(["Чат з менеджером"]);
+        app.innerHTML = `<div class="cb-card cb-chat-page"><h3 class="cb-h2" style="margin-top:0"><i class="bx bx-chat"></i> Переписка з Грандар</h3>
+            <p class="cb-muted">Усі повідомлення — по запитах, перевезеннях і загальні. Sales і логіст отримують ваші повідомлення одразу в Telegram.</p><div id="cbChat">${loading()}</div></div>`;
+        try {
+            const r = await api("messages", {});
+            state.unread = 0;
+            renderNav();
+            mountChat($("cbChat"), { all: true }, r.messages);
+        } catch (err) {
+            $("cbChat").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`;
+        }
+        liveTimer = setInterval(async () => {
+            const chat = $("cbChat");
+            if (document.hidden || !chat?.renderMessages || chat.querySelector("textarea")?.value) return;
+            try {
+                chat.renderMessages((await api("messages", {})).messages);
+            } catch {
+                /* наступного разу */
+            }
+        }, 30000);
+    }
 
     function mountChat(box, filter, initial) {
         box.innerHTML = `
             <div class="cb-msgs" data-msgs></div>
             <form class="cb-msg-form">
-                <textarea class="cb-in" rows="2" maxlength="4000" placeholder="Напишіть менеджеру Грандар…" required></textarea>
+                <textarea class="cb-in" rows="2" maxlength="4000" placeholder="Напишіть менеджеру Грандар… (Ctrl+Enter — надіслати)" required></textarea>
                 <button type="submit" class="cb-btn cb-btn-primary" title="Надіслати"><i class="bx bx-send"></i></button>
             </form>`;
         const list = box.querySelector("[data-msgs]");
@@ -531,7 +947,7 @@
                 ? msgs
                       .map(
                           (m) => `<div class="cb-msg ${m.mine ? "mine" : ""}">
-                            ${filter.all && m.about ? `<div class="cb-msg-about">${e(m.about)}</div>` : ""}
+                            ${filter.all && m.about ? `<div class="cb-msg-about">${m.deal_id ? `<a href="#/deal/${e(m.deal_id)}">${e(m.about)}</a>` : m.request_id ? `<a href="#/request/${e(m.request_id)}">${e(m.about)}</a>` : e(m.about)}</div>` : ""}
                             <div class="cb-msg-text">${e(m.text)}</div>
                             <div class="cb-msg-meta">${e(m.author)} · ${fmtDT(m.at)}</div></div>`,
                       )
@@ -561,145 +977,59 @@
         });
     }
 
-    function openChatSheet(title, filter) {
-        const sheet = document.createElement("div");
-        sheet.className = "cb-sheet";
-        sheet.innerHTML = `<div class="cb-sheet-body"><div class="cb-sheet-head"><h2>${e(title)}</h2><button type="button" class="cb-icon-btn" data-close><i class="bx bx-x"></i></button></div><div data-chat>${loading()}</div></div>`;
-        document.body.appendChild(sheet);
-        document.documentElement.classList.add("cb-lock");
-        const close = () => {
-            sheet.remove();
-            document.documentElement.classList.remove("cb-lock");
-            load(true);
-        };
-        sheet.addEventListener("click", (ev) => {
-            if (ev.target === sheet || ev.target.closest("[data-close]")) close();
-        });
-        api("messages", filter)
-            .then((r) => mountChat(sheet.querySelector("[data-chat]"), filter, r.messages))
-            .catch((err) => (sheet.querySelector("[data-chat]").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`));
-    }
+    /* ================================================================ */
+    /* ПІДСУМКИ                                                          */
+    /* ================================================================ */
 
-    /* ---------------- Клієнт ---------------- */
-
-    function renderClient() {
-        const offers = state.requests.filter((r) => r.status.key === "offer").length;
-        const activeDeals = state.deals.filter((d) => d.stage.key !== "done").length;
-        app.innerHTML = `
-            <div class="cb-hero">
-                <button type="button" class="cb-btn cb-btn-primary cb-btn-big" id="cbNewReq"><i class="bx bx-plus"></i> Новий запит на перевезення</button>
-            </div>
-            ${tabsHtml([
-                { key: "deals", label: "Перевезення", count: activeDeals },
-                { key: "requests", label: "Запити", count: offers },
-                { key: "chat", label: "Чат", count: state.unread || 0 },
-            ])}
-            <section class="cb-list">${tab === "requests" ? requestsSection() : tab === "chat" ? `<div class="cb-card cb-sec"><h3><i class="bx bx-chat"></i> Переписка з Грандар</h3><p class="cb-muted">Усі повідомлення — по запитах, перевезеннях і загальні. Пишіть сюди будь-яке питання.</p><div id="cbChatAll">${loading()}</div></div>` : dealsSection("client")}</section>`;
-        bindTabs(renderClient);
-        $("cbNewReq").addEventListener("click", () => openRequestForm());
-        if (tab === "requests") bindRequests();
-        else if (tab === "chat")
-            api("messages", {})
-                .then((r) => {
-                    mountChat($("cbChatAll"), { all: true }, r.messages);
-                    state.unread = 0;
-                })
-                .catch((err) => ($("cbChatAll").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`));
-        else bindDeals(renderClient);
-    }
-
-    function requestCard(r) {
-        const o = r.offer;
-        const canCancel = ["new", "quote"].includes(r.status.key);
-        return `
-            <article class="cb-card cb-req" data-req="${e(r.id)}">
-                <div class="cb-card-head">
-                    <span class="cb-no">${fmtDate(r.created_at)}</span>
-                    <span class="cb-chip cb-rs-${e(r.status.key)}">${e(r.status.label)}</span>
-                </div>
-                <div class="cb-route">
-                    <div><i class="bx bx-radio-circle-marked cb-from"></i> ${place(r.route.load_address, r.route.load_country)}</div>
-                    <div><i class="bx bx-map cb-to"></i> ${place(r.route.unload_address, r.route.unload_country)}</div>
-                </div>
-                <div class="cb-grid">
-                    ${r.cargo ? `<div><label>Вантаж</label>${e(r.cargo)}${r.weight ? `, ${e(r.weight)}` : ""}</div>` : ""}
-                    ${r.transport_type ? `<div><label>Кузов</label>${e(r.transport_type)}${r.trucks_count > 1 ? ` × ${e(r.trucks_count)}` : ""}</div>` : ""}
-                    ${r.desired_date ? `<div><label>Дата завантаження</label>${period(r.desired_date, r.desired_date_to)}</div>` : ""}
-                </div>
-                ${
-                    o
-                        ? `<div class="cb-offer ${r.status.key === "offer" ? "pending" : ""}">
-                            <div><label>Пропозиція Грандар</label><div class="cb-price">${money(o.price, o.currency)}</div>
-                            ${o.note ? `<div class="cb-muted">${e(o.note)}</div>` : ""}</div>
-                            ${
-                                r.status.key === "offer" || r.status.key === "discuss"
-                                    ? `<div class="cb-offer-btns">
-                                        <button type="button" class="cb-btn cb-btn-ok" data-decide="accepted"><i class="bx bx-check"></i> Погодити</button>
-                                        ${r.status.key === "offer" ? `<button type="button" class="cb-btn" data-decide="discuss"><i class="bx bx-message-dots"></i> Обговорити</button>` : ""}
-                                       </div>`
-                                    : r.decision?.value === "accepted"
-                                      ? `<div class="cb-muted"><i class="bx bx-check-circle"></i> Погоджено ${fmtDT(r.decision.at)}</div>`
-                                      : ""
-                            }
-                           </div>`
-                        : ""
-                }
-                <div class="cb-card-foot">
-                    <button type="button" class="cb-link" data-repeat><i class="bx bx-copy"></i> Повторити</button>
-                    <button type="button" class="cb-link" data-chat-req><i class="bx bx-chat"></i> Написати${r.unread ? ` <span class="cb-count">${r.unread}</span>` : ""}</button>
-                    ${canCancel ? `<button type="button" class="cb-link cb-danger" data-cancel><i class="bx bx-x"></i> Скасувати</button>` : ""}
-                </div>
-            </article>`;
-    }
-
-    function requestsSection() {
-        const list = state.requests || [];
-        return list.length
-            ? list.map(requestCard).join("")
-            : `<div class="cb-empty"><i class="bx bx-paper-plane"></i><p>Запитів ще немає. Створіть перший — менеджер Грандар відповість з ціною.</p></div>`;
-    }
-
-    function bindRequests() {
-        app.querySelectorAll("[data-req]").forEach((card) => {
-            const r = state.requests.find((x) => String(x.id) === card.dataset.req);
-            card.querySelectorAll("[data-decide]").forEach((b) =>
-                b.addEventListener("click", async () => {
-                    const decision = b.dataset.decide;
-                    let note = null;
-                    if (decision === "discuss") {
-                        note = prompt("Що хочете обговорити? (ціна, дата, умови) — менеджер зв'яжеться з вами.");
-                        if (note === null) return;
-                    } else if (!confirm(`Погодити перевезення за ${r.offer.price} ${r.offer.currency}?`)) return;
-                    b.disabled = true;
-                    try {
-                        const res = await api("request_decide", { id: r.id, decision, note });
-                        Object.assign(r, res.request);
-                        toast(decision === "accepted" ? "Дякуємо! Менеджер оформлює перевезення." : "Передали менеджеру — він зв'яжеться з вами.");
-                        renderClient();
-                    } catch (err) {
-                        toast(err.message, true);
-                        b.disabled = false;
-                    }
-                }),
-            );
-            card.querySelector("[data-repeat]")?.addEventListener("click", () => openRequestForm(r));
-            card.querySelector("[data-chat-req]")?.addEventListener("click", () =>
-                openChatSheet(`Запит ${country(r.route.load_country)} → ${country(r.route.unload_country)}`, { request_id: r.id }),
-            );
-            card.querySelector("[data-cancel]")?.addEventListener("click", async () => {
-                const note = prompt("Скасувати запит? Можете вказати причину (необов'язково):", "");
-                if (note === null) return;
-                try {
-                    const res = await api("request_cancel", { id: r.id, note });
-                    if (res.request) Object.assign(r, res.request);
-                    toast("Запит скасовано");
-                    renderClient();
-                } catch (err) {
-                    toast(err.message, true);
-                }
+    function reportsView() {
+        crumbs(["Підсумки"]);
+        const deals = state.deals || [];
+        const byMonth = new Map();
+        const total = {};
+        const unpaid = {};
+        deals.forEach((d) => {
+            (d.sum || []).forEach((s) => {
+                total[s.currency] = (total[s.currency] || 0) + s.amount;
+                if (!d.paid) unpaid[s.currency] = (unpaid[s.currency] || 0) + s.amount;
             });
+            const m = String(d.load_date || d.load_date_plan || "").slice(0, 7);
+            if (!m) return;
+            const x = byMonth.get(m) || { n: 0, sum: {} };
+            x.n += 1;
+            (d.sum || []).forEach((s) => (x.sum[s.currency] = (x.sum[s.currency] || 0) + s.amount));
+            byMonth.set(m, x);
         });
+        const months = [...byMonth.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 12);
+        const maxN = Math.max(1, ...months.map(([, x]) => x.n));
+        const sumObj = (o) => Object.entries(o).map(([c, a]) => money(a, c)).join(" + ") || "—";
+        const monthName = (m) => new Date(m + "-01").toLocaleDateString("uk-UA", { month: "short", year: "numeric" });
+        const done = deals.filter((d) => d.stage.key === "done").length;
+        app.innerHTML = `
+            <div class="cb-kpis">
+                <div class="cb-kpi"><label>${kind === "client" ? "Перевезень" : "Рейсів"} усього</label><b>${deals.length}</b></div>
+                <div class="cb-kpi"><label>Виконано</label><b>${done}</b></div>
+                <div class="cb-kpi"><label>${kind === "client" ? "Сума перевезень" : "Зароблено"}</label><b>${sumObj(total)}</b></div>
+                <div class="cb-kpi"><label>${kind === "client" ? "Очікує оплати" : "Ще не оплачено"}</label><b>${sumObj(unpaid)}</b></div>
+            </div>
+            <div class="cb-card">
+                <h3 class="cb-h2" style="margin-top:0;font-size:16px"><i class="bx bx-bar-chart-alt-2"></i> По місяцях</h3>
+                ${
+                    months.length
+                        ? `<div class="cb-bars">${months
+                              .map(
+                                  ([m, x]) => `<div class="cb-bar-row"><span>${monthName(m)}</span>
+                                    <div class="track"><div class="fill" style="width:${Math.round((x.n / maxN) * 100)}%"></div></div>
+                                    <b>${x.n} · ${sumObj(x.sum)}</b></div>`,
+                              )
+                              .join("")}</div>`
+                        : `<p class="cb-muted">Даних ще немає.</p>`
+                }
+            </div>`;
     }
+
+    /* ================================================================ */
+    /* НОВИЙ ЗАПИТ (клієнт)                                              */
+    /* ================================================================ */
 
     const COUNTRIES = ["Україна", "Польща", "Німеччина", "Литва", "Латвія", "Естонія", "Чехія", "Словаччина", "Угорщина", "Румунія", "Молдова",
         "Болгарія", "Австрія", "Італія", "Іспанія", "Франція", "Бельгія", "Нідерланди", "Данія", "Фінляндія", "Великобританія", "Туреччина",
@@ -714,42 +1044,30 @@
         sheet.className = "cb-sheet";
         sheet.innerHTML = `
             <form class="cb-sheet-body" id="cbReqForm">
-                <div class="cb-sheet-head">
-                    <h2>${src ? "Повторити запит" : "Новий запит"}</h2>
-                    <button type="button" class="cb-icon-btn" data-close><i class="bx bx-x"></i></button>
-                </div>
+                <div class="cb-sheet-head"><h2>${src ? "Повторити запит" : "Новий запит"}</h2><button type="button" class="cb-icon-btn" data-close><i class="bx bx-x"></i></button></div>
                 <datalist id="cbCountries">${COUNTRIES.map((c) => `<option value="${c}">`).join("")}</datalist>
-                <fieldset>
-                    <legend><i class="bx bx-radio-circle-marked cb-from"></i> Завантаження</legend>
+                <fieldset><legend><i class="bx bx-radio-circle-marked cb-from"></i> Завантаження</legend>
                     <input class="cb-in" name="load_country" list="cbCountries" placeholder="Країна *" required value="${e(country(rt.load_country))}" />
                     <input class="cb-in" name="load_address" placeholder="Місто, адреса" value="${e(rt.load_address || "")}" />
-                    <input class="cb-in" name="customs_export" placeholder="Замитнення (місто / митниця)" value="${e(rt.customs_export || "")}" />
-                </fieldset>
-                <fieldset>
-                    <legend><i class="bx bx-map cb-to"></i> Розвантаження</legend>
+                    <input class="cb-in" name="customs_export" placeholder="Замитнення (місто / митниця)" value="${e(rt.customs_export || "")}" /></fieldset>
+                <fieldset><legend><i class="bx bx-map cb-to"></i> Розвантаження</legend>
                     <input class="cb-in" name="unload_country" list="cbCountries" placeholder="Країна *" required value="${e(country(rt.unload_country))}" />
                     <input class="cb-in" name="unload_address" placeholder="Місто, адреса" value="${e(rt.unload_address || "")}" />
-                    <input class="cb-in" name="customs_import" placeholder="Розмитнення (місто / митниця)" value="${e(rt.customs_import || "")}" />
-                </fieldset>
-                <fieldset>
-                    <legend><i class="bx bx-package"></i> Вантаж</legend>
+                    <input class="cb-in" name="customs_import" placeholder="Розмитнення (місто / митниця)" value="${e(rt.customs_import || "")}" /></fieldset>
+                <fieldset><legend><i class="bx bx-package"></i> Вантаж</legend>
                     <input class="cb-in" name="cargo" placeholder="Що веземо *" required value="${e(r.cargo || "")}" />
                     <div class="cb-row">
                         <label class="cb-mini">Вага, т<input class="cb-in" name="weight" placeholder="20" value="${e(r.weight || "")}" /></label>
-                        <label class="cb-mini">Кузов<select class="cb-in" name="transport_type">
-                            <option value="">—</option>
-                            ${BODIES.map((b) => `<option ${r.transport_type === b ? "selected" : ""}>${b}</option>`).join("")}
-                        </select></label>
+                        <label class="cb-mini">Кузов<select class="cb-in" name="transport_type"><option value="">—</option>${BODIES.map((b) => `<option ${r.transport_type === b ? "selected" : ""}>${b}</option>`).join("")}</select></label>
                         <label class="cb-mini cb-narrow">Машин<input class="cb-in" type="number" name="trucks_count" min="1" max="50" value="${e(r.trucks_count || 1)}" /></label>
                     </div>
                     <div class="cb-row">
                         <label class="cb-mini">Завантаження з *<input class="cb-in" type="date" name="desired_date" required min="${today}" /></label>
                         <label class="cb-mini">по (необов'язково)<input class="cb-in" type="date" name="desired_date_to" min="${today}" /></label>
                     </div>
-                    <textarea class="cb-in" name="notes" rows="3" placeholder="Додатково: упаковка, тип завантаження, температура, вимоги…"></textarea>
-                </fieldset>
+                    <textarea class="cb-in" name="notes" rows="3" placeholder="Додатково: упаковка, тип завантаження, температура, вимоги…"></textarea></fieldset>
                 <button type="submit" class="cb-btn cb-btn-primary cb-btn-big">Надіслати запит</button>
-                <p class="cb-hint">Менеджер Грандар прорахує і покаже ціну тут, у вкладці «Запити».</p>
+                <p class="cb-hint">Менеджер Грандар прорахує і покаже ціну в розділі «Запити».</p>
             </form>`;
         document.body.appendChild(sheet);
         document.documentElement.classList.add("cb-lock");
@@ -771,10 +1089,8 @@
                 const res = await api("request_new", { request: f });
                 state.requests.unshift(res.request);
                 close();
-                tab = "requests";
-                store.set(TAB_KEY, tab);
-                renderClient();
                 toast("Запит надіслано! Менеджер уже отримав сповіщення.");
+                go(`request/${res.request.id}`);
             } catch (err) {
                 toast(err.message, true);
                 btn.disabled = false;
@@ -782,25 +1098,17 @@
         });
     }
 
-    /* ---------------- Перевізник ---------------- */
+    /* ================================================================ */
+    /* ПЕРЕВІЗНИК: пропозиції рейсів                                    */
+    /* ================================================================ */
 
-    function renderCarrier() {
-        const open = state.offers.filter((o) => o.status === "asked" && !o.closed).length;
-        const s = state.stats || {};
-        app.innerHTML = `
-            <div class="cb-stats">
-                <div><b>${s.active || 0}</b><span>активних рейсів</span></div>
-                <div><b>${s.trips || 0}</b><span>рейсів з Грандар</span></div>
-                <div><b>${s.answered || 0}/${s.asked || 0}</b><span>відповідей на запити</span></div>
-            </div>
-            ${tabsHtml([
-                { key: "offers", label: "Пропозиції", count: open },
-                { key: "deals", label: "Мої рейси", count: s.active || 0 },
-            ])}
-            <section class="cb-list">${tab === "offers" ? offersSection() : dealsSection("carrier")}</section>`;
-        bindTabs(renderCarrier);
-        if (tab === "offers") bindOffers();
-        else bindDeals(renderCarrier);
+    function offersView() {
+        crumbs(["Пропозиції рейсів"]);
+        const list = state.offers || [];
+        app.innerHTML = list.length
+            ? `<div class="cb-cards">${list.map(offerCard).join("")}</div>`
+            : `<div class="cb-empty"><i class="bx bx-bell"></i><p>Нових пропозицій поки немає. Щойно логіст Грандар запропонує рейс — він з'явиться тут і прийде в Telegram.</p></div>`;
+        bindOffers();
     }
 
     function offerStatus(o) {
@@ -816,56 +1124,40 @@
         const editable = !o.closed;
         const showForm = editable && o.status === "asked";
         const my = o.my || {};
+        const c = customsLines(q.route);
         return `
-            <article class="cb-card cb-offer-card" data-offer="${e(o.id)}">
-                <div class="cb-card-head">
-                    <span class="cb-no">запит від ${fmtDate(o.asked_at)}</span>
-                    <span class="cb-chip cb-os-${key}">${label}</span>
-                </div>
-                <div class="cb-route cb-route-big">${e(country(q.route.load_country) || "?")} <i class="bx bx-right-arrow-alt"></i> ${e(country(q.route.unload_country) || "?")}</div>
+            <article class="cb-card" data-offer="${e(o.id)}">
+                <div class="cb-card-head"><span class="cb-no">запит від ${fmtDate(o.asked_at)}</span><span class="cb-chip cb-os-${key}">${label}</span></div>
+                <div class="cb-route-big">${e(country(q.route.load_country) || "?")} <i class="bx bx-right-arrow-alt"></i> ${e(country(q.route.unload_country) || "?")}</div>
                 <div class="cb-grid">
                     ${q.desired_date ? `<div><label>Завантаження</label><b>${period(q.desired_date, q.desired_date_to)}</b></div>` : ""}
                     ${q.transport_type ? `<div><label>Кузов</label>${e(q.transport_type)}${q.trucks_count > 1 ? ` × ${e(q.trucks_count)}` : ""}</div>` : ""}
                     ${q.cargo ? `<div><label>Вантаж</label>${e(q.cargo)}</div>` : ""}
                     ${q.weight ? `<div><label>Вага</label>${e(q.weight)}</div>` : ""}
                     ${q.temp ? `<div><label>Температура</label>${e(q.temp.filter((x) => x != null).join(" … "))} °C</div>` : ""}
-                    ${Array.isArray(q.loading_types) && q.loading_types.length ? `<div><label>Завантаження</label>${e(q.loading_types.join(", "))}</div>` : ""}
-                    ${customsLine(q.route) ? `<div class="cb-wide">${customsLine(q.route)}</div>` : ""}
+                    ${c.ex || c.border || c.im ? `<div class="cb-wide cb-meta">${c.ex ? `<span>Замитнення: ${e(c.ex)}</span>` : ""}${c.border ? `<span>Кордон: ${e(c.border)}</span>` : ""}${c.im ? `<span>Розмитнення: ${e(c.im)}</span>` : ""}</div>` : ""}
                 </div>
                 ${
                     o.status === "bid"
-                        ? `<div class="cb-offer"><div><label>Ваша ставка</label><div class="cb-price">${money(my.price, my.currency)}</div>
-                            <div class="cb-muted">${[my.load_date ? `подача ${fmtDate(my.load_date)}` : "", my.truck_plate || "", my.note || ""].filter(Boolean).map(e).join(" · ")}</div></div></div>`
+                        ? `<div class="cb-offer" style="margin-top:12px"><div><label>Ваша ставка</label><div class="cb-price">${money(my.price, my.currency)}</div>
+                    <div class="cb-muted">${[my.load_date ? `подача ${fmtDate(my.load_date)}` : "", my.truck_plate || "", my.note || ""].filter(Boolean).map(e).join(" · ")}</div></div></div>`
                         : ""
                 }
                 ${
                     editable
                         ? `<form class="cb-bid" ${showForm ? "" : "hidden"}>
-                            <div class="cb-row">
-                                <input class="cb-in" name="price" inputmode="decimal" placeholder="Ставка *" value="${e(my.price || "")}" required />
-                                <select class="cb-in cb-narrow" name="currency">${["EUR", "USD", "UAH"].map((c) => `<option ${my.currency === c ? "selected" : ""}>${c}</option>`).join("")}</select>
-                            </div>
-                            <div class="cb-row">
-                                <label class="cb-mini">Подача авто<input class="cb-in" type="date" name="load_date" value="${e(my.load_date || q.desired_date || "")}" /></label>
-                                <label class="cb-mini">Номер тягача<input class="cb-in" name="truck_plate" placeholder="BC1234AB" value="${e(my.truck_plate || "")}" /></label>
-                            </div>
+                            <div class="cb-row"><input class="cb-in" name="price" inputmode="decimal" placeholder="Ставка *" value="${e(my.price || "")}" required />
+                                <select class="cb-in cb-narrow" name="currency">${["EUR", "USD", "UAH"].map((x) => `<option ${my.currency === x ? "selected" : ""}>${x}</option>`).join("")}</select></div>
+                            <div class="cb-row"><label class="cb-mini">Подача авто<input class="cb-in" type="date" name="load_date" value="${e(my.load_date || q.desired_date || "")}" /></label>
+                                <label class="cb-mini">Номер тягача<input class="cb-in" name="truck_plate" placeholder="BC1234AB" value="${e(my.truck_plate || "")}" /></label></div>
                             <input class="cb-in" name="note" placeholder="Коментар (необов'язково)" value="${e(my.note || "")}" />
-                            <div class="cb-offer-btns">
-                                <button type="submit" class="cb-btn cb-btn-primary"><i class="bx bx-send"></i> ${o.status === "bid" ? "Оновити ставку" : "Надіслати ставку"}</button>
-                                ${o.status !== "refused" ? `<button type="button" class="cb-btn" data-refuse>Не можу</button>` : ""}
-                            </div>
+                            <div class="cb-offer-btns"><button type="submit" class="cb-btn cb-btn-primary"><i class="bx bx-send"></i> ${o.status === "bid" ? "Оновити ставку" : "Надіслати ставку"}</button>
+                                ${o.status !== "refused" ? `<button type="button" class="cb-btn" data-refuse>Не можу</button>` : ""}</div>
                            </form>
                            ${showForm ? "" : `<div class="cb-card-foot"><span></span><button type="button" class="cb-link" data-edit><i class="bx bx-edit"></i> ${o.status === "refused" ? "Все ж дати ставку" : "Змінити ставку"}</button></div>`}`
                         : ""
                 }
             </article>`;
-    }
-
-    function offersSection() {
-        const list = state.offers || [];
-        return list.length
-            ? list.map(offerCard).join("")
-            : `<div class="cb-empty"><i class="bx bx-bell"></i><p>Нових пропозицій поки немає. Щойно логіст Грандар запропонує рейс — він з'явиться тут і прийде в Telegram.</p></div>`;
     }
 
     function bindOffers() {
@@ -883,7 +1175,7 @@
                 try {
                     state = { ...state, ...(await api("bid", { id, ...payload })) };
                     toast(payload.refuse ? "Передали логісту, що не можете" : "Ставку надіслано логісту Грандар");
-                    renderCarrier();
+                    route();
                 } catch (err) {
                     toast(err.message, true);
                     btn.disabled = false;
@@ -901,10 +1193,12 @@
         });
     }
 
-    // Оновлювати, коли повертаються у вкладку
+    // Повернулися у вкладку — оновити дані (картка й чат оновлюються самі)
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden && token && state && !document.querySelector(".cb-sheet") && !document.querySelector("[data-detail]") && !document.activeElement?.closest?.("form")) load(true);
+        if (document.hidden || !token || !state || document.querySelector(".cb-sheet")) return;
+        if (["deal", "chat", "request"].includes(currentRoute().view) || document.activeElement?.closest?.("form")) return;
+        refresh();
     });
 
-    boot();
+    boot().catch(() => {});
 })();
