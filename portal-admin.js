@@ -182,6 +182,15 @@
             : `<div class="pa-row" style="margin:0 0 6px"><span class="pa-chip wait">Telegram не підключено</span><span class="pa-muted">Найпростіше — запросити в бот (AI-агент → «Запросити в Telegram»), або видати посилання нижче.</span></div>`;
         body.appendChild(box); // у кінці картки — основні дані перевізника лишаються вгорі
         mountAccess(box, "carrier", String(item.id), intro);
+        hasCarrierPortal(item.id).then((yes) => {
+            if (!yes || !document.body.contains(box)) return;
+            const chatBox = document.createElement("div");
+            chatBox.className = "pa-box";
+            chatBox.id = "paCarrierChat";
+            body.querySelector("#paCarrierChat")?.remove();
+            box.after(chatBox);
+            mountStaffChat(chatBox, { carrier_id: item.id }, "Переписка з перевізником (кабінет)");
+        });
     }
     window.furaPortalAdmin = { carrierCard };
 
@@ -199,7 +208,10 @@
 
     async function mountStaffChat(box, f, title) {
         box.innerHTML = `<div class="pa-title"><span>💬 ${esc(title)}</span></div><div class="pa-muted">Завантаження…</div>`;
-        let q = client.from("portal_messages").select("*").eq("party", "client").eq("lead_id", String(f.lead_id));
+        const party = f.carrier_id ? "carrier" : "client";
+        const col = party === "carrier" ? "carrier_id" : "lead_id";
+        const ref = String(f.carrier_id || f.lead_id);
+        let q = client.from("portal_messages").select("*").eq("party", party).eq(col, ref);
         if (f.deal_id) q = q.eq("deal_id", String(f.deal_id));
         if (f.request_id) q = q.eq("request_id", f.request_id);
         const { data, error } = await q.order("created_at", { ascending: true }).limit(300);
@@ -223,13 +235,13 @@
                                 }${!f.deal_id && !f.request_id && (m.deal_id || m.request_id) ? ` · ${m.deal_id ? `<a href="deals.html?open=${esc(m.deal_id)}">угода</a>` : `<a href="requests.html?open=${esc(m.request_id)}">запит</a>`}` : ""}</div></div>`,
                           )
                           .join("")
-                    : `<div class="pa-muted">Повідомлень ще немає. Клієнт бачить цю переписку у своєму кабінеті.</div>`
+                    : `<div class="pa-muted">Повідомлень ще немає. ${party === "carrier" ? "Перевізник" : "Клієнт"} бачить цю переписку у своєму кабінеті.</div>`
             }</div>
             <form class="pa-row" data-pa-msg>
-                <textarea class="pa-in" rows="2" placeholder="Відповідь клієнту (він побачить її в кабінеті)…" style="flex:1 1 240px" required></textarea>
+                <textarea class="pa-in" rows="2" placeholder="Відповідь ${party === "carrier" ? "перевізнику" : "клієнту"} (побачить у кабінеті)…" style="flex:1 1 240px" required></textarea>
                 <button type="submit" class="pa-btn">Надіслати</button>
             </form>
-            <div class="pa-muted">Це окремо від внутрішнього чату по запиту — тут лише те, що бачить клієнт.</div>`;
+            <div class="pa-muted">Це окремо від внутрішнього чату — тут лише те, що бачить ${party === "carrier" ? "перевізник" : "клієнт"}.</div>`;
         const list = box.querySelector(".pa-msgs");
         list.scrollTop = list.scrollHeight;
         box.querySelector("[data-pa-msg]").addEventListener("submit", async (ev) => {
@@ -238,20 +250,21 @@
             const btn = ev.target.querySelector("button");
             btn.disabled = true;
             const who = await me();
-            const { error: err } = await client.from("portal_messages").insert({
-                party: "client",
-                lead_id: String(f.lead_id),
+            const { data: saved, error: err } = await client.from("portal_messages").insert({
+                party,
+                [col]: ref,
                 deal_id: f.deal_id ? String(f.deal_id) : null,
                 request_id: f.request_id || null,
                 direction: "out",
                 staff_id: who.id,
                 author: who.full_name ? `${who.full_name}, Грандар` : "Грандар",
                 text: ta.value.trim(),
-            });
+            }).select("id");
             if (err) {
                 btn.disabled = false;
                 return alert("Не вдалося надіслати: " + err.message);
             }
+            if (party === "carrier" && saved?.[0]?.id) api("admin_notify", { message_id: saved[0].id }).catch(() => {}); // + у Telegram перевізнику
             mountStaffChat(box, f, title);
         });
     }
@@ -263,20 +276,38 @@
         window.renderDealView = function (d) {
             origDeal.apply(this, arguments);
             const side = document.querySelector(".dv-side");
-            if (!side || !d?.lead_id) return;
-            hasPortal(d.lead_id).then((yes) => {
-                if (!yes || !document.body.contains(side)) return;
-                const box = document.createElement("div");
-                box.className = "pa-box pa-side";
-                side.appendChild(box);
-                mountStaffChat(box, { lead_id: d.lead_id, deal_id: d.id }, "Клієнт бачить цю угоду в кабінеті · переписка");
-            });
+            if (!side) return;
+            if (d?.lead_id)
+                hasPortal(d.lead_id).then((yes) => {
+                    if (!yes || !document.body.contains(side)) return;
+                    const box = document.createElement("div");
+                    box.className = "pa-box pa-side";
+                    side.appendChild(box);
+                    mountStaffChat(box, { lead_id: d.lead_id, deal_id: d.id }, "Клієнт бачить цю угоду в кабінеті · переписка");
+                });
+            if (d?.carrier_id)
+                hasCarrierPortal(d.carrier_id).then((yes) => {
+                    if (!yes || !document.body.contains(side)) return;
+                    const box = document.createElement("div");
+                    box.className = "pa-box pa-side";
+                    side.appendChild(box);
+                    mountStaffChat(box, { carrier_id: d.carrier_id, deal_id: d.id }, "Перевізник бачить цей рейс у кабінеті · переписка");
+                });
         };
     }
 
 
     /* ---------- Запити: ціна для клієнта в кабінеті ---------- */
 
+    const carrierPortal = new Map();
+    async function hasCarrierPortal(id) {
+        if (!id) return false;
+        if (carrierPortal.has(String(id))) return carrierPortal.get(String(id));
+        const { count } = await client.from("portal_accounts").select("id", { count: "exact", head: true }).eq("carrier_id", String(id)).eq("active", true);
+        const yes = (count || 0) > 0;
+        carrierPortal.set(String(id), yes);
+        return yes;
+    }
     const leadPortal = new Map(); // lead_id → чи є кабінет
     async function hasPortal(leadId) {
         if (!leadId) return false;

@@ -596,6 +596,36 @@ const OFFER_REQ_FIELDS =
     "id, status, created_at, load_country, unload_country, customs_export, customs_export_country, customs_import, customs_import_country, " +
     "border_crossing, cargo, weight, transport_type, temp_from, temp_to, desired_date, desired_date_to, trucks_count, loading_types";
 
+// «Мої машини»: номери з рейсів і ставок + де вони зараз у черзі на кордоні (Черга)
+async function carrierTrucks(a: Any, deals: Any[], bids: Any[]) {
+    const { data: c } = await db.from("carriers").select("edrpou").eq("id", a.carrier_id).maybeSingle();
+    const byPlate = new Map<string, Any>();
+    const add = (pl: unknown, x: Any) => {
+        const k = plate(pl);
+        if (!k || k.length < 5) return;
+        const cur = byPlate.get(k) || { plate: k, trailer: null, trips: 0, last_trip: null, queue: null };
+        byPlate.set(k, { ...cur, ...x, trips: cur.trips + (x.trip ? 1 : 0), last_trip: cur.last_trip || x.last_trip || null, trailer: cur.trailer || x.trailer || null });
+    };
+    for (const d of deals) add(d.truck_plate, { trip: true, trailer: d.trailer_plate ? plate(d.trailer_plate) : null, last_trip: d.number ? { number: d.number, id: d.id } : null });
+    for (const b of bids) if (b.truck_plate) add(b.truck_plate, {});
+    const code = String(c?.edrpou || "").replace(/\D/g, "");
+    const plates = [...byPlate.keys()];
+    const [byCode, byTractor] = await Promise.all([
+        code ? db.from("echerha_queue").select("tractor, trailer, checkpoint, queue_no, reg_at, entry_at, trailer_body").in("edrpou", [code, code.replace(/^0+/, "")]).limit(200) : { data: [] },
+        plates.length ? db.from("echerha_queue").select("tractor, trailer, checkpoint, queue_no, reg_at, entry_at, trailer_body").in("tractor", plates).limit(200) : { data: [] },
+    ]);
+    for (const q of [...(byCode.data || []), ...(byTractor.data || [])]) {
+        const k = plate(q.tractor);
+        if (!k) continue;
+        const cur = byPlate.get(k) || { plate: k, trailer: null, trips: 0, last_trip: null, queue: null };
+        cur.trailer = cur.trailer || (q.trailer ? plate(q.trailer) : null);
+        cur.body = cur.body || q.trailer_body || null;
+        cur.queue = { checkpoint: String(q.checkpoint || "").replace(/\s*\(.*\)\s*$/, ""), queue_no: q.queue_no, since: q.reg_at, entry: q.entry_at };
+        byPlate.set(k, cur);
+    }
+    return [...byPlate.values()].sort((x, y) => (y.queue ? 1 : 0) - (x.queue ? 1 : 0) || y.trips - x.trips);
+}
+
 async function carrierHome(a: Any) {
     const cid = String(a.carrier_id);
     const [bidsRes, dealsRes] = await Promise.all([
@@ -635,10 +665,15 @@ async function carrierHome(a: Any) {
         .filter(Boolean);
     const deals = await shapeDeals(dealsRes.data || [], "out");
     const answered = bids.filter((b: Any) => b.status !== "asked").length;
+    const { data: unread } = await db.from("portal_messages").select("deal_id, request_id").eq("party", "carrier").eq("carrier_id", cid).eq("direction", "out").is("read_at", null);
+    const count = (k: string, id: unknown) => (unread || []).filter((m: Any) => String(m[k]) === String(id)).length;
+    const bidReq = new Map(bids.map((b: Any) => [String(b.id), String(b.request_id)]));
     return {
         account: await publicAccount(a),
-        offers,
-        deals,
+        offers: offers.map((o: Any) => ({ ...o, request_id: bidReq.get(String(o.id)), unread: count("request_id", bidReq.get(String(o.id))) })),
+        deals: deals.map((d: Any) => ({ ...d, unread: count("deal_id", d.id) })),
+        unread: (unread || []).length,
+        trucks: await carrierTrucks(a, dealsRes.data || [], bids),
         stats: { trips: deals.length, active: deals.filter((d: Any) => d.stage.key !== "done").length, asked: bids.length, answered },
     };
 }
@@ -748,7 +783,7 @@ async function dealFull(a: Any, body: Any) {
             if (u?.signedUrl) docs.push({ kind: String(x.kind || "doc").toUpperCase(), at: x.uploaded_at, url: u.signedUrl });
         }
     }
-    const messages = a.kind === "client" ? await readMessages(a, { deal_id: String(d.id) }) : [];
+    const messages = await readMessages(a, { deal_id: String(d.id) });
     return { deal: shaped, trip, events, docs, messages };
 }
 
@@ -756,8 +791,12 @@ async function dealFull(a: Any, body: Any) {
 /* Переписка клієнта з Грандар (portal_messages)                       */
 /* ------------------------------------------------------------------ */
 
+// Чия переписка: клієнт — за lead_id, перевізник — за carrier_id
+const partyOf = (a: Any) => (a.kind === "client" ? { party: "client", col: "lead_id", ref: String(a.lead_id) } : { party: "carrier", col: "carrier_id", ref: String(a.carrier_id) });
+
 async function readMessages(a: Any, f: { deal_id?: string; request_id?: string }) {
-    let q = db.from("portal_messages").select("id, request_id, deal_id, direction, author, text, created_at, read_at").eq("party", "client").eq("lead_id", String(a.lead_id));
+    const p = partyOf(a);
+    let q = db.from("portal_messages").select("id, request_id, deal_id, direction, author, text, created_at, read_at").eq("party", p.party).eq(p.col, p.ref);
     if (f.deal_id) q = q.eq("deal_id", f.deal_id);
     if (f.request_id) q = q.eq("request_id", f.request_id);
     const { data, error } = await q.order("created_at", { ascending: true }).limit(500);
@@ -793,27 +832,40 @@ async function clientSend(a: Any, body: Any, ip: string) {
     await limit("account_id", a.id, "message", 120, 60);
     const text = str(body.text, 4000);
     if (!text) fail(400, "Напишіть повідомлення.");
-    const lead = await companyOf(a);
+    const company = await companyOf(a);
+    const isClient = a.kind === "client";
+    const p = partyOf(a);
     let dealId: string | null = null;
     let requestId: string | null = null;
-    let staffIds: unknown[] = [lead?.sales_id];
+    let staffIds: unknown[] = isClient ? [company?.sales_id] : [];
     let about = "";
     if (body.deal_id) {
-        const { data: d } = await db.from("deals").select("id, number, lead_id, sales_id, logist_id").eq("id", body.deal_id).maybeSingle();
-        if (!d || String(d.lead_id) !== String(a.lead_id)) fail(404, "Перевезення не знайдено.");
+        const { data: d } = await db.from("deals").select("id, number, lead_id, carrier_id, sales_id, logist_id").eq("id", body.deal_id).maybeSingle();
+        if (!d || String(isClient ? d.lead_id : d.carrier_id) !== p.ref) fail(404, "Перевезення не знайдено.");
         dealId = String(d!.id);
-        staffIds = [d!.logist_id, d!.sales_id];
-        about = ` · перевезення № ${d!.number}`;
+        staffIds = isClient ? [d!.logist_id, d!.sales_id] : [d!.logist_id];
+        about = ` · ${isClient ? "перевезення" : "рейс"} № ${d!.number}`;
     } else if (body.request_id) {
         const { data: r } = await db.from("requests").select("id, lead_id, sales_id, logistician_ids, load_country, unload_country").eq("id", body.request_id).maybeSingle();
-        if (!r || String(r.lead_id) !== String(a.lead_id)) fail(404, "Запит не знайдено.");
+        if (!r) fail(404, "Запит не знайдено.");
+        if (isClient && String(r!.lead_id) !== p.ref) fail(404, "Запит не знайдено.");
+        if (!isClient) {
+            // перевізник пише лише по рейсу, який йому запропонували
+            const { data: b } = await db.from("carrier_bids").select("created_by").eq("request_id", r!.id).eq("carrier_id", p.ref).limit(1);
+            if (!b?.length) fail(404, "Запит не знайдено.");
+            staffIds = [b![0].created_by, ...(Array.isArray(r!.logistician_ids) ? r!.logistician_ids : [])];
+        } else staffIds = [r!.sales_id, ...(Array.isArray(r!.logistician_ids) ? r!.logistician_ids : [])];
         requestId = r!.id;
-        staffIds = [r!.sales_id, ...(Array.isArray(r!.logistician_ids) ? r!.logistician_ids : [])];
-        about = ` · запит ${r!.load_country || "?"} → ${r!.unload_country || "?"}`;
+        about = ` · ${isClient ? "запит" : "рейс"} ${r!.load_country || "?"} → ${r!.unload_country || "?"}`;
+    } else if (!isClient) {
+        // загальне питання перевізника — логісту його останнього рейсу або запиту
+        const { data: d } = await db.from("deals").select("logist_id").eq("carrier_id", p.ref).order("number", { ascending: false }).limit(1);
+        const { data: b } = await db.from("carrier_bids").select("created_by").eq("carrier_id", p.ref).order("created_at", { ascending: false }).limit(1);
+        staffIds = [d?.[0]?.logist_id, b?.[0]?.created_by];
     }
-    const author = a.name || lead?.name || "Клієнт";
+    const author = a.name || company?.name || (isClient ? "Клієнт" : "Перевізник");
     const { error } = await db.from("portal_messages").insert({
-        party: "client", lead_id: String(a.lead_id), deal_id: dealId, request_id: requestId,
+        party: p.party, [p.col]: p.ref, deal_id: dealId, request_id: requestId,
         direction: "in", account_id: a.id, author, text,
     });
     if (error) {
@@ -824,8 +876,8 @@ async function clientSend(a: Any, body: Any, ip: string) {
     const ids = staffIds.filter(Boolean);
     await notifyStaff(
         ids.length ? ids : await headIds(),
-        `💬 <b>Клієнт пише в кабінеті</b>\n<b>${esc(lead?.name || "")}</b> (${esc(author)})${esc(about)}\n\n${esc(text.slice(0, 1500))}`,
-        dealId ? `${APP_URL}/deals.html?open=${dealId}` : requestId ? `${APP_URL}/requests.html?open=${requestId}` : `${APP_URL}/clients.html?open=${a.lead_id}`,
+        `💬 <b>${isClient ? "Клієнт" : "Перевізник"} пише в кабінеті</b>\n<b>${esc(company?.name || "")}</b> (${esc(author)})${esc(about)}\n\n${esc(text.slice(0, 1500))}`,
+        dealId ? `${APP_URL}/deals.html?open=${dealId}` : requestId ? `${APP_URL}/requests.html?open=${requestId}` : isClient ? `${APP_URL}/clients.html?open=${a.lead_id}` : `${APP_URL}/index.html?open=${a.carrier_id}`,
     );
     return { messages: await readMessages(a, { deal_id: dealId || undefined, request_id: requestId || undefined }) };
 }
@@ -888,6 +940,27 @@ async function adminInvite(me: Any, body: Any, ip: string) {
     return { link: `${APP_URL}/cabinet.html#invite=${token}`, days: INVITE_DAYS, account_id: account.id };
 }
 
+// Відповідь співробітника перевізнику — дублюємо в Telegram (якщо перевізник підключений до бота)
+async function adminNotify(body: Any) {
+    const { data: m } = await db.from("portal_messages").select("*").eq("id", body.message_id).maybeSingle();
+    if (!m || m.direction !== "out" || m.party !== "carrier" || !m.carrier_id) return { sent: false };
+    const { data: c } = await db.from("carriers").select("tg_chat_id").eq("id", m.carrier_id).maybeSingle();
+    const { data: acc } = await db.from("portal_accounts").select("tg_chat_id").eq("carrier_id", m.carrier_id).eq("active", true).not("tg_chat_id", "is", null).limit(1);
+    const chat = c?.tg_chat_id || acc?.[0]?.tg_chat_id;
+    if (!chat || !BOT_TOKEN) return { sent: false };
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+            chat_id: Number(chat),
+            text: `💬 <b>${esc(m.author || COMPANY)}</b>\n\n${esc(String(m.text).slice(0, 3500))}`,
+            parse_mode: "HTML",
+            reply_markup: { inline_keyboard: [[{ text: "🌐 Відповісти в кабінеті", web_app: { url: `${APP_URL}/cabinet.html#/chat` } }]] },
+        }),
+    });
+    return { sent: true };
+}
+
 async function adminToggle(me: Any, body: Any, ip: string) {
     const active = !!body.active;
     await db.from("portal_accounts").update({ active }).eq("id", body.account_id);
@@ -924,6 +997,7 @@ async function route(req: Request, body: Any) {
         if (action === "admin_accounts") return adminAccounts(body);
         if (action === "admin_invite") return adminInvite(me, body, ip);
         if (action === "admin_toggle") return adminToggle(me, body, ip);
+        if (action === "admin_notify") return adminNotify(body);
         fail(400, "Невідома дія.");
     }
 
@@ -946,6 +1020,8 @@ async function route(req: Request, body: Any) {
         if (action === "home") return carrierHome(a);
         if (action === "deal") return carrierDeal(a, body);
         if (action === "deal_full") return dealFull(a, body);
+        if (action === "messages") return clientMessages(a, body);
+        if (action === "message_send") return clientSend(a, body, ip);
         if (action === "bid") return carrierBid(a, body, ip);
     }
     fail(400, "Невідома дія.");

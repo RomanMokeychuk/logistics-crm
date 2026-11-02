@@ -269,14 +269,16 @@
             { key: "home", icon: "bx-home-alt", label: "Головна" },
             { key: "offers", icon: "bx-bell", label: "Пропозиції рейсів", count: state.offers.filter((o) => o.status === "asked" && !o.closed).length },
             { key: "deals", icon: "bx-file", label: "Мої рейси", count: activeDeals().length },
+            { key: "trucks", icon: "bx-bus", label: "Мої машини", count: (state.trucks || []).filter((t) => t.queue).length },
             { key: "map", icon: "bx-map-alt", label: "Карта" },
+            { key: "chat", icon: "bx-chat", label: "Чат з логістом", count: state.unread || 0 },
             { title: "Аналітика" },
             { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
         ];
     }
     function renderNav() {
         const cur = currentRoute().view;
-        const sect = { deal: "deals", request: "requests" }[cur] || cur;
+        const sect = { deal: "deals", request: "requests", offer: "offers" }[cur] || cur;
         $("cbNav").innerHTML = navItems()
             .map((n) =>
                 n.title
@@ -323,7 +325,7 @@
         const views =
             kind === "client"
                 ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView }
-                : { home: carrierHomeView, offers: offersView, deals: dealsView, deal: dealView, map: mapView, reports: reportsView };
+                : { home: carrierHomeView, offers: offersView, offer: offerView, deals: dealsView, deal: dealView, trucks: trucksView, map: mapView, chat: chatView, reports: reportsView };
         (views[view] || views.home)(id);
     }
 
@@ -397,13 +399,16 @@
             <div class="cb-quick">
                 ${qc("bx-bell", "ic-orange", "Пропозиції рейсів", "Дайте ставку в два кліки", open.length, "offers")}
                 ${qc("bx-trip", "ic-green", "Мої рейси", "Адреси, дати, оплата", act.length, "deals")}
+                ${qc("bx-bus", "ic-blue", "Мої машини", "Хто зараз у черзі на кордоні", (state.trucks || []).filter((t) => t.queue).length, "trucks")}
                 ${qc("bx-map-alt", "ic-teal", "Карта", "Ваші машини в рейсах", 0, "map")}
+                ${qc("bx-chat", "ic-red", "Чат з логістом", "Питання по рейсах і ставках", state.unread || 0, "chat")}
                 ${qc("bx-bar-chart-alt-2", "ic-violet", "Підсумки", "Рейси й суми по місяцях", 0, "reports")}
             </div>
-            <h2 class="cb-h2"><i class="bx bx-bell"></i> Нові пропозиції</h2>
-            ${open.length ? `<div class="cb-cards">${open.slice(0, 4).map(offerCard).join("")}</div>` : `<div class="cb-empty"><i class="bx bx-bell"></i><p>Нових пропозицій поки немає.</p></div>`}`;
+            <h2 class="cb-h2"><i class="bx bx-bell"></i> Нові пропозиції рейсів</h2>${offersTable(open.slice(0, 6))}
+            <h2 class="cb-h2"><i class="bx bx-trip"></i> Активні рейси</h2>${dealsList(act.slice(0, 6))}`;
         bindGo();
-        bindOffers();
+        bindOfferRows();
+        bindDealRows();
     }
 
     /* ================================================================ */
@@ -497,7 +502,7 @@
         const tabs = [
             ["track", `<i class="bx bx-map-alt"></i> Трекінг`],
             ["docs", `<i class="bx bx-file"></i> Документи${r.docs.length ? ` (${r.docs.length})` : ""}`],
-            ...(kind === "client" ? [["chat", `<i class="bx bx-chat"></i> Переписка${r.messages.length ? ` (${r.messages.length})` : ""}`]] : []),
+            ["chat", `<i class="bx bx-chat"></i> Переписка${r.messages.length ? ` (${r.messages.length})` : ""}`],
             ["money", `<i class="bx bx-wallet"></i> Розрахунок`],
         ];
         if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = "track";
@@ -912,9 +917,9 @@
     /* ================================================================ */
 
     async function chatView() {
-        crumbs(["Чат з менеджером"]);
+        crumbs([kind === "client" ? "Чат з менеджером" : "Чат з логістом"]);
         app.innerHTML = `<div class="cb-card cb-chat-page"><h3 class="cb-h2" style="margin-top:0"><i class="bx bx-chat"></i> Переписка з Грандар</h3>
-            <p class="cb-muted">Усі повідомлення — по запитах, перевезеннях і загальні. Sales і логіст отримують ваші повідомлення одразу в Telegram.</p><div id="cbChat">${loading()}</div></div>`;
+            <p class="cb-muted">${kind === "client" ? "Усі повідомлення — по запитах, перевезеннях і загальні. Sales і логіст отримують ваші повідомлення одразу в Telegram." : "Усі повідомлення — по рейсах, пропозиціях і загальні. Логіст Грандар отримує їх одразу в Telegram."}</p><div id="cbChat">${loading()}</div></div>`;
         try {
             const r = await api("messages", {});
             state.unread = 0;
@@ -934,11 +939,18 @@
         }, 30000);
     }
 
+    // Посилання з чату: клієнт — на запит, перевізник — на пропозицію цього рейсу
+    function requestLink(requestId) {
+        if (kind === "client") return `#/request/${e(requestId)}`;
+        const o = (state.offers || []).find((x) => String(x.request_id) === String(requestId));
+        return o ? `#/offer/${e(o.id)}` : "#/offers";
+    }
+
     function mountChat(box, filter, initial) {
         box.innerHTML = `
             <div class="cb-msgs" data-msgs></div>
             <form class="cb-msg-form">
-                <textarea class="cb-in" rows="2" maxlength="4000" placeholder="Напишіть менеджеру Грандар… (Ctrl+Enter — надіслати)" required></textarea>
+                <textarea class="cb-in" rows="2" maxlength="4000" placeholder="${kind === "client" ? "Напишіть менеджеру Грандар…" : "Напишіть логісту Грандар…"} (Ctrl+Enter — надіслати)" required></textarea>
                 <button type="submit" class="cb-btn cb-btn-primary" title="Надіслати"><i class="bx bx-send"></i></button>
             </form>`;
         const list = box.querySelector("[data-msgs]");
@@ -947,12 +959,12 @@
                 ? msgs
                       .map(
                           (m) => `<div class="cb-msg ${m.mine ? "mine" : ""}">
-                            ${filter.all && m.about ? `<div class="cb-msg-about">${m.deal_id ? `<a href="#/deal/${e(m.deal_id)}">${e(m.about)}</a>` : m.request_id ? `<a href="#/request/${e(m.request_id)}">${e(m.about)}</a>` : e(m.about)}</div>` : ""}
+                            ${filter.all && m.about ? `<div class="cb-msg-about">${m.deal_id ? `<a href="#/deal/${e(m.deal_id)}">${e(m.about)}</a>` : m.request_id ? `<a href="${requestLink(m.request_id)}">${e(m.about)}</a>` : e(m.about)}</div>` : ""}
                             <div class="cb-msg-text">${e(m.text)}</div>
                             <div class="cb-msg-meta">${e(m.author)} · ${fmtDT(m.at)}</div></div>`,
                       )
                       .join("")
-                : `<p class="cb-muted">Повідомлень ще немає. Напишіть — Sales і логіст Грандар отримають сповіщення одразу.</p>`;
+                : `<p class="cb-muted">Повідомлень ще немає. Напишіть — ${kind === "client" ? "Sales і логіст" : "логіст"} Грандар отримає сповіщення одразу.</p>`;
             list.scrollTop = list.scrollHeight;
         };
         box.renderMessages(initial);
@@ -1102,13 +1114,139 @@
     /* ПЕРЕВІЗНИК: пропозиції рейсів                                    */
     /* ================================================================ */
 
+    function offersTable(list) {
+        if (!list.length) return `<div class="cb-empty"><i class="bx bx-bell"></i><p>Пропозицій немає. Щойно логіст Грандар запропонує рейс — він з'явиться тут і прийде в Telegram.</p></div>`;
+        return `<div class="cb-table-wrap"><table class="cb-table">
+            <thead><tr><th>Запит від</th><th>Маршрут</th><th>Вантаж</th><th>Завантаження</th><th>Статус</th><th>Ваша ставка</th></tr></thead>
+            <tbody>${list
+                .map((o) => {
+                    const q = o.request;
+                    const [key, label] = offerStatus(o);
+                    return `<tr data-offer-row="${e(o.id)}">
+                        <td data-label="Запит від" class="num">${fmtDate(o.asked_at)}${o.unread ? ` <span class="cb-count">${o.unread}</span>` : ""}</td>
+                        <td data-label="Маршрут" class="cb-route-cell"><div><b>${e(country(q.route.load_country) || "?")} → ${e(country(q.route.unload_country) || "?")}</b>
+                            <span class="cb-sub">${[q.route.border_crossing, q.route.customs_import].filter(Boolean).map(e).join(" · ")}</span></div></td>
+                        <td data-label="Вантаж"><div>${e(q.cargo || "—")}<div class="cb-sub">${[q.weight, q.transport_type, q.trucks_count > 1 ? `${q.trucks_count} авто` : ""].filter(Boolean).map(e).join(" · ")}</div></div></td>
+                        <td data-label="Завантаження"><div>${period(q.desired_date, q.desired_date_to) || "—"}</div></td>
+                        <td data-label="Статус"><div><span class="cb-chip cb-os-${key}">${label}</span></div></td>
+                        <td data-label="Ставка"><div>${o.status === "bid" ? `<b>${money(o.my.price, o.my.currency)}</b>` : o.status === "asked" && !o.closed ? `<button type="button" class="cb-btn cb-btn-primary cb-btn-sm">Дати ставку</button>` : "—"}</div></td>
+                    </tr>`;
+                })
+                .join("")}</tbody></table></div>`;
+    }
+    function bindOfferRows(root = app) {
+        root.querySelectorAll("[data-offer-row]").forEach((tr) => tr.addEventListener("click", () => go(`offer/${tr.dataset.offerRow}`)));
+    }
+
     function offersView() {
         crumbs(["Пропозиції рейсів"]);
-        const list = state.offers || [];
-        app.innerHTML = list.length
-            ? `<div class="cb-cards">${list.map(offerCard).join("")}</div>`
-            : `<div class="cb-empty"><i class="bx bx-bell"></i><p>Нових пропозицій поки немає. Щойно логіст Грандар запропонує рейс — він з'явиться тут і прийде в Telegram.</p></div>`;
+        const all = state.offers || [];
+        const groups = [
+            ["new", `Нові (${all.filter((o) => o.status === "asked" && !o.closed).length})`, (o) => o.status === "asked" && !o.closed],
+            ["bid", "Ставку надіслано", (o) => o.status === "bid" && !o.closed],
+            ["refused", "Відмовився", (o) => o.status === "refused"],
+            ["closed", "Закриті", (o) => o.closed],
+            ["all", `Усі (${all.length})`, () => true],
+        ];
+        if (!ui.offerFilter) ui.offerFilter = all.some(groups[0][2]) ? "new" : "all";
+        const draw = () => {
+            const test = groups.find((g) => g[0] === ui.offerFilter)?.[2] || (() => true);
+            $("cbOfferBox").innerHTML = offersTable(all.filter(test));
+            bindOfferRows();
+        };
+        app.innerHTML = `
+            <div class="cb-toolbar"><div class="cb-seg">${groups.map(([k, l]) => `<button type="button" class="${ui.offerFilter === k ? "active" : ""}" data-of="${k}">${l}</button>`).join("")}</div></div>
+            <div id="cbOfferBox"></div>`;
+        app.querySelectorAll("[data-of]").forEach((b) =>
+            b.addEventListener("click", () => {
+                ui.offerFilter = b.dataset.of;
+                app.querySelectorAll("[data-of]").forEach((x) => x.classList.toggle("active", x === b));
+                draw();
+            }),
+        );
+        draw();
+    }
+
+    // Картка пропозиції: деталі рейсу зліва, ставка і переписка справа
+    async function offerView(id) {
+        const o = (state.offers || []).find((x) => String(x.id) === String(id));
+        if (!o) return go("offers");
+        const q = o.request;
+        crumbs([`<a href="#/offers">Пропозиції рейсів</a>`, `${e(country(q.route.load_country))} → ${e(country(q.route.unload_country))}`]);
+        const c = customsLines(q.route);
+        const [key, label] = offerStatus(o);
+        const field = (l, v) => (v ? `<div class="cb-field"><label>${l}</label><div>${v}</div></div>` : "");
+        app.innerHTML = `
+            <div class="cb-dv-head">
+                <a class="cb-btn cb-btn-sm" href="#/offers" title="Назад"><i class="bx bx-arrow-back"></i></a>
+                <h1>${e(country(q.route.load_country) || "?")} → ${e(country(q.route.unload_country) || "?")}</h1>
+                <span class="cb-chip cb-os-${key}">${label}</span>
+                <span class="cb-dv-route">запит від ${fmtDate(o.asked_at)}</span>
+            </div>
+            <div class="cb-dv">
+                <aside class="cb-card cb-aside">
+                    <div class="cb-sec-title">Маршрут</div>
+                    ${field("Завантаження", e(country(q.route.load_country)))}
+                    ${field("Замитнення", e(c.ex))}
+                    ${field("Кордон", e(c.border))}
+                    ${field("Розмитнення", e(c.im))}
+                    ${field("Розвантаження", e(country(q.route.unload_country)))}
+                    <div class="cb-sec-title">Вантаж</div>
+                    ${field("Вантаж", e(q.cargo))}
+                    ${field("Вага", e(q.weight))}
+                    ${field("Кузов", e(q.transport_type))}
+                    ${field("Температура", q.temp ? `${e(q.temp.filter((x) => x != null).join(" … "))} °C` : "")}
+                    ${field("Тип завантаження", Array.isArray(q.loading_types) && q.loading_types.length ? e(q.loading_types.join(", ")) : "")}
+                    ${field("Машин", q.trucks_count > 1 ? e(q.trucks_count) : "")}
+                    ${field("Дата завантаження", period(q.desired_date, q.desired_date_to))}
+                    <div class="cb-field cb-muted" style="padding-bottom:14px">Точні адреси й контакти завантаження з'являться в «Моїх рейсах» після підтвердження рейсу.</div>
+                </aside>
+                <div>
+                    <div class="cb-cards" style="grid-template-columns:1fr;margin-bottom:14px">${offerCard(o)}</div>
+                    <div class="cb-card"><h3 class="cb-h2" style="margin-top:0;font-size:16px"><i class="bx bx-chat"></i> Питання логісту по цьому рейсу</h3><div id="cbChat">${loading()}</div></div>
+                </div>
+            </div>`;
         bindOffers();
+        try {
+            const m = await api("messages", { request_id: o.request_id });
+            o.unread = 0;
+            mountChat($("cbChat"), { request_id: o.request_id }, m.messages);
+        } catch (err) {
+            $("cbChat").innerHTML = `<div class="cb-alert">${e(err.message)}</div>`;
+        }
+    }
+
+    /* ---------------- Перевізник: мої машини ---------------- */
+
+    function trucksView() {
+        crumbs(["Мої машини"]);
+        const list = state.trucks || [];
+        const inQ = list.filter((t) => t.queue).length;
+        app.innerHTML = `
+            <div class="cb-kpis">
+                <div class="cb-kpi"><label>Машин відомо</label><b>${list.length}</b></div>
+                <div class="cb-kpi"><label>Зараз у черзі на кордоні</label><b>${inQ}</b></div>
+                <div class="cb-kpi"><label>Рейсів з Грандар</label><b>${(state.stats || {}).trips || 0}</b></div>
+            </div>
+            ${
+                list.length
+                    ? `<div class="cb-table-wrap"><table class="cb-table">
+                <thead><tr><th>Тягач</th><th>Причіп / кузов</th><th>Рейсів з Грандар</th><th>Останній рейс</th><th>Зараз</th></tr></thead>
+                <tbody>${list
+                    .map(
+                        (t) => `<tr ${t.last_trip ? `data-deal="${e(t.last_trip.id)}"` : ""}>
+                        <td data-label="Тягач" class="num">${e(t.plate)}</td>
+                        <td data-label="Причіп"><div>${e(t.trailer || "—")}<div class="cb-sub">${e(t.body || "")}</div></div></td>
+                        <td data-label="Рейсів"><div>${t.trips || 0}</div></td>
+                        <td data-label="Останній рейс"><div>${t.last_trip ? `№ ${e(t.last_trip.number)}` : "—"}</div></td>
+                        <td data-label="Зараз"><div>${t.queue ? `<span class="cb-chip cb-rs-offer">у черзі: ${e(t.queue.checkpoint)}</span><div class="cb-sub">${t.queue.queue_no ? `№ ${e(t.queue.queue_no)} · ` : ""}${t.queue.since ? `з ${e(t.queue.since)}` : ""}</div>` : `<span class="cb-muted">—</span>`}</div></td>
+                    </tr>`,
+                    )
+                    .join("")}</tbody></table></div>`
+                    : `<div class="cb-empty"><i class="bx bx-bus"></i><p>Машини з'являться тут після перших рейсів або ставок з номером тягача.</p></div>`
+            }
+            <p class="cb-hint">Черга на кордоні — з єЧерги, оновлюється кілька разів на день. Скоро тут з'являться пропозиції зворотних вантажів під машини, що проїхали кордон.</p>`;
+        bindDealRows();
     }
 
     function offerStatus(o) {
