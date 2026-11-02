@@ -30,7 +30,11 @@
         .pa-acc { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 6px 0; border-top: 1px dashed #fed7aa; }
         .pa-acc:first-child { border-top: 0; }
         .pa-link { margin-top: 8px; background: #fff; border: 1px dashed #f97316; border-radius: 8px; padding: 8px; word-break: break-all; font-size: 12px; }
-        .pa-side { margin-top: 18px; }`;
+        .pa-side { margin-top: 18px; }
+        .pa-msgs { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; margin: 6px 0; }
+        .pa-msg { align-self: flex-start; max-width: 90%; background: #fff; border: 1px solid #fed7aa; border-radius: 10px 10px 10px 3px; padding: 6px 10px; white-space: pre-wrap; word-break: break-word; }
+        .pa-msg.out { align-self: flex-end; background: #eff6ff; border-color: #bfdbfe; border-radius: 10px 10px 3px 10px; }
+        textarea.pa-in { resize: vertical; }`;
     document.head.appendChild(css);
 
     async function api(action, data = {}) {
@@ -154,6 +158,13 @@
             box.className = "pa-box pa-side";
             side.appendChild(box);
             mountAccess(box, "client", String(c.id));
+            hasPortal(c.id).then((yes) => {
+                if (!yes || !document.body.contains(side)) return;
+                const chatBox = document.createElement("div");
+                chatBox.className = "pa-box pa-side";
+                side.appendChild(chatBox);
+                mountStaffChat(chatBox, { lead_id: c.id }, "Переписка з клієнтом (кабінет)");
+            });
         };
     }
 
@@ -173,6 +184,96 @@
         mountAccess(box, "carrier", String(item.id), intro);
     }
     window.furaPortalAdmin = { carrierCard };
+
+    /* ---------- Переписка з клієнтом (кабінет) ---------- */
+
+    let meCache = null;
+    async function me() {
+        if (meCache) return meCache;
+        const { data: s } = await client.auth.getSession();
+        const email = s?.session?.user?.email || "";
+        const { data } = await client.from("staff").select("id, full_name").ilike("email", email.replace(/[%_\\]/g, "\\$&")).maybeSingle();
+        meCache = data || { id: null, full_name: "Грандар" };
+        return meCache;
+    }
+
+    async function mountStaffChat(box, f, title) {
+        box.innerHTML = `<div class="pa-title"><span>💬 ${esc(title)}</span></div><div class="pa-muted">Завантаження…</div>`;
+        let q = client.from("portal_messages").select("*").eq("party", "client").eq("lead_id", String(f.lead_id));
+        if (f.deal_id) q = q.eq("deal_id", String(f.deal_id));
+        if (f.request_id) q = q.eq("request_id", f.request_id);
+        const { data, error } = await q.order("created_at", { ascending: true }).limit(300);
+        if (error) {
+            box.innerHTML = `<div class="pa-title"><span>💬 ${esc(title)}</span></div><div class="pa-muted">Чат ще не підключено — виконайте portal_chat.sql у Supabase.</div>`;
+            return;
+        }
+        const msgs = data || [];
+        const unread = msgs.filter((m) => m.direction === "in" && !m.read_at).map((m) => m.id);
+        if (unread.length) client.from("portal_messages").update({ read_at: new Date().toISOString() }).in("id", unread).then(() => {});
+        box.innerHTML = `
+            <div class="pa-title"><span>💬 ${esc(title)}</span>${unread.length ? `<span class="pa-chip wait">${unread.length} нових</span>` : ""}</div>
+            <div class="pa-msgs">${
+                msgs.length
+                    ? msgs
+                          .map(
+                              (m) => `<div class="pa-msg ${m.direction === "out" ? "out" : ""}">
+                                <div>${esc(m.text)}</div>
+                                <div class="pa-muted">${esc(m.author || (m.direction === "out" ? "Грандар" : "Клієнт"))} · ${fmtDT(m.created_at)}${
+                                    m.direction === "out" ? (m.read_at ? " · ✓ прочитано" : " · не прочитано") : ""
+                                }${!f.deal_id && !f.request_id && (m.deal_id || m.request_id) ? ` · ${m.deal_id ? `<a href="deals.html?open=${esc(m.deal_id)}">угода</a>` : `<a href="requests.html?open=${esc(m.request_id)}">запит</a>`}` : ""}</div></div>`,
+                          )
+                          .join("")
+                    : `<div class="pa-muted">Повідомлень ще немає. Клієнт бачить цю переписку у своєму кабінеті.</div>`
+            }</div>
+            <form class="pa-row" data-pa-msg>
+                <textarea class="pa-in" rows="2" placeholder="Відповідь клієнту (він побачить її в кабінеті)…" style="flex:1 1 240px" required></textarea>
+                <button type="submit" class="pa-btn">Надіслати</button>
+            </form>
+            <div class="pa-muted">Це окремо від внутрішнього чату по запиту — тут лише те, що бачить клієнт.</div>`;
+        const list = box.querySelector(".pa-msgs");
+        list.scrollTop = list.scrollHeight;
+        box.querySelector("[data-pa-msg]").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            const ta = ev.target.querySelector("textarea");
+            const btn = ev.target.querySelector("button");
+            btn.disabled = true;
+            const who = await me();
+            const { error: err } = await client.from("portal_messages").insert({
+                party: "client",
+                lead_id: String(f.lead_id),
+                deal_id: f.deal_id ? String(f.deal_id) : null,
+                request_id: f.request_id || null,
+                direction: "out",
+                staff_id: who.id,
+                author: who.full_name ? `${who.full_name}, Грандар` : "Грандар",
+                text: ta.value.trim(),
+            });
+            if (err) {
+                btn.disabled = false;
+                return alert("Не вдалося надіслати: " + err.message);
+            }
+            mountStaffChat(box, f, title);
+        });
+    }
+
+    /* ---------- Угоди: переписка з клієнтом у картці угоди ---------- */
+
+    if (typeof renderDealView === "function") {
+        const origDeal = renderDealView;
+        window.renderDealView = function (d) {
+            origDeal.apply(this, arguments);
+            const side = document.querySelector(".dv-side");
+            if (!side || !d?.lead_id) return;
+            hasPortal(d.lead_id).then((yes) => {
+                if (!yes || !document.body.contains(side)) return;
+                const box = document.createElement("div");
+                box.className = "pa-box pa-side";
+                side.appendChild(box);
+                mountStaffChat(box, { lead_id: d.lead_id, deal_id: d.id }, "Клієнт бачить цю угоду в кабінеті · переписка");
+            });
+        };
+    }
+
 
     /* ---------- Запити: ціна для клієнта в кабінеті ---------- */
 
@@ -217,6 +318,12 @@
             </form>`;
         const head = body.querySelector(".card-header-block");
         head ? head.after(box) : body.prepend(box);
+        if (r.lead_id) {
+            const chatBox = document.createElement("div");
+            chatBox.style.marginTop = "10px";
+            box.appendChild(chatBox);
+            mountStaffChat(chatBox, { lead_id: r.lead_id, request_id: r.id }, "Переписка з клієнтом по цьому запиту");
+        }
 
         const save = async (patch) => {
             const { data, error } = await client.from("requests").update(patch).eq("id", r.id).select().single();

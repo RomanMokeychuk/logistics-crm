@@ -462,10 +462,14 @@ async function clientHome(a: Any) {
         db.from("requests").select(REQ_FIELDS).eq("lead_id", a.lead_id).order("created_at", { ascending: false }).limit(100),
         db.from("deals").select("*").eq("lead_id", a.lead_id).order("number", { ascending: false }).limit(200),
     ]);
+    const { data: unread } = await db.from("portal_messages").select("deal_id, request_id").eq("party", "client").eq("lead_id", String(a.lead_id)).eq("direction", "out").is("read_at", null);
+    const count = (k: string, id: unknown) => (unread || []).filter((m: Any) => String(m[k]) === String(id)).length;
     return {
         account: await publicAccount(a),
-        requests: (reqs.data || []).map(shapeRequest),
-        deals: await shapeDeals(deals.data || [], "in"),
+        requests: (reqs.data || []).map((r: Any) => ({ ...shapeRequest(r), unread: count("request_id", r.id) })),
+        deals: (await shapeDeals(deals.data || [], "in")).map((d: Any) => ({ ...d, unread: count("deal_id", d.id) })),
+        unread: (unread || []).length,
+        chat: true,
     };
 }
 
@@ -683,6 +687,141 @@ async function carrierBid(a: Any, body: Any, ip: string) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Повна картка перевезення: карта, позиція, ETA, документи            */
+/* ------------------------------------------------------------------ */
+
+function thin<T>(list: T[], max: number): T[] {
+    if (list.length <= max) return list;
+    const step = list.length / max;
+    const out: T[] = [];
+    for (let i = 0; i < max; i++) out.push(list[Math.floor(i * step)]);
+    out.push(list[list.length - 1]);
+    return out;
+}
+
+async function dealFull(a: Any, body: Any) {
+    const { data: d } = await db.from("deals").select("*").eq("id", body.id).maybeSingle();
+    const mine = d && (a.kind === "client" ? String(d.lead_id) === String(a.lead_id) : String(d.carrier_id) === String(a.carrier_id));
+    if (!mine) fail(404, "Перевезення не знайдено.");
+    const [shaped] = await shapeDeals([d], a.kind === "client" ? "in" : "out");
+    const { data: trips } = await db.from("trips").select("*").eq("deal_id", d.id).order("created_at", { ascending: false }).limit(3);
+    const t = (trips || []).find((x: Any) => !["cancelled", "declined"].includes(x.status)) || null;
+    let trip: Any = null;
+    let events: Any[] = [];
+    let docs: Any[] = [];
+    if (t) {
+        const [pos, ev, dc] = await Promise.all([
+            db.from("trip_positions").select("recorded_at, lat, lon, speed_kmh").eq("trip_id", t.id).order("recorded_at", { ascending: true }).limit(5000),
+            db.from("trip_events").select("type, at").eq("trip_id", t.id).order("at", { ascending: true }),
+            db.from("trip_docs").select("path, kind, uploaded_at").eq("trip_id", t.id).order("uploaded_at", { ascending: true }),
+        ]);
+        const positions = (pos.data || []).filter((p: Any) => p.lat != null && p.lon != null);
+        const last = positions[positions.length - 1];
+        trip = {
+            status: t.status,
+            eta_at: t.eta_at || null,
+            eta_remaining_km: t.eta_remaining_km ?? null,
+            eta_delay_min: t.eta_traffic_delay_min ?? null,
+            last: last
+                ? { lat: last.lat, lon: last.lon, at: last.recorded_at, speed: last.speed_kmh }
+                : t.last_lat != null
+                  ? { lat: t.last_lat, lon: t.last_lon, at: t.last_point_at, speed: t.last_speed_kmh }
+                  : null,
+            track: thin(positions, 400).map((p: Any) => [p.lat, p.lon]),
+            route: Array.isArray(t.route_line) ? thin(t.route_line, 400) : [],
+            load: t.load_lat != null ? [t.load_lat, t.load_lon] : null,
+            unload: t.unload_lat != null ? [t.unload_lat, t.unload_lon] : null,
+            borders: Array.isArray(t.borders) ? t.borders.filter((b: Any) => b.lat != null).map((b: Any) => ({ name: b.name || "Кордон", lat: b.lat, lon: b.lon })) : [],
+        };
+        events = (ev.data || []).filter((e: Any) => EVENT_LABELS[e.type]).map((e: Any) => ({ label: EVENT_LABELS[e.type], at: e.at }));
+        for (const x of dc.data || []) {
+            const { data: u } = await db.storage.from("trip-docs").createSignedUrl(x.path, 3600);
+            if (u?.signedUrl) docs.push({ kind: String(x.kind || "doc").toUpperCase(), at: x.uploaded_at, url: u.signedUrl });
+        }
+    }
+    const messages = a.kind === "client" ? await readMessages(a, { deal_id: String(d.id) }) : [];
+    return { deal: shaped, trip, events, docs, messages };
+}
+
+/* ------------------------------------------------------------------ */
+/* Переписка клієнта з Грандар (portal_messages)                       */
+/* ------------------------------------------------------------------ */
+
+async function readMessages(a: Any, f: { deal_id?: string; request_id?: string }) {
+    let q = db.from("portal_messages").select("id, request_id, deal_id, direction, author, text, created_at, read_at").eq("party", "client").eq("lead_id", String(a.lead_id));
+    if (f.deal_id) q = q.eq("deal_id", f.deal_id);
+    if (f.request_id) q = q.eq("request_id", f.request_id);
+    const { data, error } = await q.order("created_at", { ascending: true }).limit(500);
+    if (error) return []; // таблиці ще немає (portal_chat.sql не виконано)
+    const unread = (data || []).filter((m: Any) => m.direction === "out" && !m.read_at).map((m: Any) => m.id);
+    if (unread.length) await db.from("portal_messages").update({ read_at: nowIso() }).in("id", unread);
+    // Підписи: № угоди / маршрут запиту
+    const dealIds = [...new Set((data || []).map((m: Any) => m.deal_id).filter(Boolean))];
+    const reqIds = [...new Set((data || []).map((m: Any) => m.request_id).filter(Boolean))];
+    const [ds, rs] = await Promise.all([
+        dealIds.length ? db.from("deals").select("id, number").in("id", dealIds) : { data: [] },
+        reqIds.length ? db.from("requests").select("id, load_country, unload_country, created_at").in("id", reqIds) : { data: [] },
+    ]);
+    const dn = new Map((ds.data || []).map((x: Any) => [String(x.id), `Перевезення № ${x.number}`]));
+    const rn = new Map((rs.data || []).map((x: Any) => [String(x.id), `Запит ${x.load_country || "?"} → ${x.unload_country || "?"}`]));
+    return (data || []).map((m: Any) => ({
+        id: m.id,
+        mine: m.direction === "in",
+        author: m.direction === "in" ? m.author || "Ви" : m.author || COMPANY,
+        text: m.text,
+        at: m.created_at,
+        about: m.deal_id ? dn.get(String(m.deal_id)) || null : m.request_id ? rn.get(String(m.request_id)) || null : null,
+        deal_id: m.deal_id,
+        request_id: m.request_id,
+    }));
+}
+
+async function clientMessages(a: Any, body: Any) {
+    return { messages: await readMessages(a, { deal_id: str(body.deal_id, 60) || undefined, request_id: str(body.request_id, 60) || undefined }) };
+}
+
+async function clientSend(a: Any, body: Any, ip: string) {
+    await limit("account_id", a.id, "message", 120, 60);
+    const text = str(body.text, 4000);
+    if (!text) fail(400, "Напишіть повідомлення.");
+    const lead = await companyOf(a);
+    let dealId: string | null = null;
+    let requestId: string | null = null;
+    let staffIds: unknown[] = [lead?.sales_id];
+    let about = "";
+    if (body.deal_id) {
+        const { data: d } = await db.from("deals").select("id, number, lead_id, sales_id, logist_id").eq("id", body.deal_id).maybeSingle();
+        if (!d || String(d.lead_id) !== String(a.lead_id)) fail(404, "Перевезення не знайдено.");
+        dealId = String(d!.id);
+        staffIds = [d!.logist_id, d!.sales_id];
+        about = ` · перевезення № ${d!.number}`;
+    } else if (body.request_id) {
+        const { data: r } = await db.from("requests").select("id, lead_id, sales_id, logistician_ids, load_country, unload_country").eq("id", body.request_id).maybeSingle();
+        if (!r || String(r.lead_id) !== String(a.lead_id)) fail(404, "Запит не знайдено.");
+        requestId = r!.id;
+        staffIds = [r!.sales_id, ...(Array.isArray(r!.logistician_ids) ? r!.logistician_ids : [])];
+        about = ` · запит ${r!.load_country || "?"} → ${r!.unload_country || "?"}`;
+    }
+    const author = a.name || lead?.name || "Клієнт";
+    const { error } = await db.from("portal_messages").insert({
+        party: "client", lead_id: String(a.lead_id), deal_id: dealId, request_id: requestId,
+        direction: "in", account_id: a.id, author, text,
+    });
+    if (error) {
+        console.error(error);
+        fail(500, "Чат ще не підключено. Напишіть менеджеру напряму.");
+    }
+    await log(a.id, "message", { deal_id: dealId, request_id: requestId }, ip);
+    const ids = staffIds.filter(Boolean);
+    await notifyStaff(
+        ids.length ? ids : await headIds(),
+        `💬 <b>Клієнт пише в кабінеті</b>\n<b>${esc(lead?.name || "")}</b> (${esc(author)})${esc(about)}\n\n${esc(text.slice(0, 1500))}`,
+        dealId ? `${APP_URL}/deals.html?open=${dealId}` : requestId ? `${APP_URL}/requests.html?open=${requestId}` : `${APP_URL}/clients.html?open=${a.lead_id}`,
+    );
+    return { messages: await readMessages(a, { deal_id: dealId || undefined, request_id: requestId || undefined }) };
+}
+
+/* ------------------------------------------------------------------ */
 /* Співробітник: видати / вимкнути доступ                              */
 /* ------------------------------------------------------------------ */
 
@@ -788,12 +927,16 @@ async function route(req: Request, body: Any) {
     if (a.kind === "client") {
         if (action === "home") return clientHome(a);
         if (action === "deal") return clientDeal(a, body);
+        if (action === "deal_full") return dealFull(a, body);
+        if (action === "messages") return clientMessages(a, body);
+        if (action === "message_send") return clientSend(a, body, ip);
         if (action === "request_new") return clientNewRequest(a, body, ip);
         if (action === "request_decide") return clientDecide(a, body, ip);
         if (action === "request_cancel") return clientCancel(a, body, ip);
     } else {
         if (action === "home") return carrierHome(a);
         if (action === "deal") return carrierDeal(a, body);
+        if (action === "deal_full") return dealFull(a, body);
         if (action === "bid") return carrierBid(a, body, ip);
     }
     fail(400, "Невідома дія.");
