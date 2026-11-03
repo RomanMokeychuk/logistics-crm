@@ -394,3 +394,32 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
 .cb-faq:first-of-type { border-top: 0; }
 .cb-faq summary { font-weight: 700; cursor: pointer; }
 .cb-faq p { margin: 6px 0 0; color: #374151; }
+
+/* ---------- Логін і пароль, реєстрація, заявка на перевірці ---------- */
+.cb-reg { max-width: 520px; }
+.cb-pass { position: relative; }
+.cb-pass .cb-in { width: 100%; padding-right: 44px; box-sizing: border-box; }
+.cb-pass .cb-icon-btn { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); }
+.cb-hint-left { text-align: left; margin: 0; }
+.cb-reg-cta { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 6px; color: var(--muted); font-size: 14px; }
+.cb-or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; margin: 14px 0 6px; }
+.cb-or::before, .cb-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.cb-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cb-seg button { border: 1.5px solid var(--line); background: #fff; border-radius: 12px; padding: 10px; font: inherit; font-weight: 700; cursor: pointer; display: grid; justify-items: center; gap: 2px; color: var(--text); }
+.cb-seg button i { font-size: 24px; color: var(--muted); }
+.cb-seg button small { font-weight: 500; color: var(--muted); font-size: 12px; }
+.cb-seg button.active { border-color: var(--orange); background: var(--orange-soft); }
+.cb-seg button.active i { color: var(--orange); }
+.cb-reg-group { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--navy); margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.cb-pending { text-align: left; margin-top: 16px; display: grid; gap: 14px; }
+.cb-pending-st { display: flex; gap: 12px; align-items: flex-start; background: var(--warn-bg); border-radius: 12px; padding: 12px 14px; }
+.cb-pending-st i { font-size: 26px; color: var(--warn); }
+.cb-pending-st b { display: block; }
+.cb-pending-st span { font-size: 14px; color: #4b5563; line-height: 1.45; }
+.cb-dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 0; font-size: 14px; }
+.cb-dl dt { color: var(--muted); }
+.cb-dl dd { margin: 0; word-break: break-word; }
+.cb-banner-soft { background: #eef4ff; border-color: #bfdbfe; color: #1e3a8a; margin-top: 14px; }
+.cb-banner-soft > i { color: var(--blue); }
+.cb-seg button.active { color: var(--text); }
+.cb-card > .cb-h2:first-child { margin-top: 0; }

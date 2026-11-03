@@ -568,18 +568,49 @@ const EQ = (() => {
         pager(all.length);
     }
 
+    // Час очікування на пункті — як в єЧерзі: скільки чекатиме машина, що стає в чергу зараз
+    // (орієнтовний в'їзд останньої машини в черзі мінус «зараз»)
+    const plural = (n, one, few, many) => {
+        const a = n % 10, b = n % 100;
+        return `${n} ${a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many}`;
+    };
+    function waitText(ms) {
+        if (ms == null) return "—";
+        const m = Math.max(0, Math.round(ms / 60000));
+        const d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60;
+        const parts = [];
+        if (d) parts.push(plural(d, "день", "дні", "днів"));
+        if (h) parts.push(plural(h, "година", "години", "годин"));
+        if (mm || !parts.length) parts.push(plural(mm, "хвилина", "хвилини", "хвилин"));
+        return parts.join(" ");
+    }
+    function waitByCp() {
+        const last = {};
+        ROWS.forEach((r) => {
+            const t = entryTime(r.entry_at)?.getTime();
+            if (t && (!last[r.checkpoint] || t > last[r.checkpoint])) last[r.checkpoint] = t;
+        });
+        const now = Date.now();
+        const out = {};
+        Object.keys(last).forEach((k) => (out[k] = Math.max(0, last[k] - now)));
+        return out;
+    }
+    const waitCls = (ms) => (ms == null ? "eq-muted" : ms < 12 * 3600000 ? "eq-wait-ok" : ms < 3 * 86400000 ? "eq-wait-mid" : "eq-wait-bad");
+
     function renderCps(list) {
         const n = {};
         list.forEach((r) => (n[r.checkpoint] = (n[r.checkpoint] || 0) + 1));
+        const wait = waitByCp();
         const cps = CPS.filter((c) => (!st.cps || st.cps.has(c.name)) && pass(st.country, c.country) && pass(st.qtype, c.qtype));
         $("#eqTable").innerHTML =
-            `<thead><tr><th>Пункт</th><th>Країна</th><th>Черга</th><th>Машин (за фільтром)</th><th>Усього в черзі</th><th>Пройдено</th></tr></thead><tbody>` +
+            `<thead><tr><th>Пункт</th><th>Країна</th><th>Черга</th><th>Машин (за фільтром)</th><th>Усього в черзі</th><th title="Скільки чекатиме машина, яка стає в чергу зараз: орієнтовний в'їзд останньої машини в черзі мінус поточний час — як «Час очікування» в єЧерзі">Час очікування</th><th>Пройдено</th></tr></thead><tbody>` +
             (cps.map((c) => `<tr class="eq-cprow" data-cp="${esc(c.name)}">
                 <td><b>${c.selected ? "★ " : ""}${esc(cpShort(c.name))}</b><div class="eq-muted eq-sm">${esc(cpNote(c.name))}</div></td>
                 <td>${esc(c.country || "—")}</td><td>${esc(c.qtype || "—")}</td>
                 <td><b>${n[c.name] || 0}</b></td><td>${c.in_queue}</td>
+                <td class="eq-wait ${waitCls(wait[c.name])}">${waitText(wait[c.name])}</td>
                 <td class="eq-nw eq-muted">${dShort(c.last_scraped)}</td>
-            </tr>`).join("") || `<tr><td colspan="6" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
+            </tr>`).join("") || `<tr><td colspan="7" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Пунктів: ${cps.length} · натисніть на пункт, щоб побачити його машини`;
         $("#eqPager").innerHTML = "";
         $("#eqPagerTop").innerHTML = "";

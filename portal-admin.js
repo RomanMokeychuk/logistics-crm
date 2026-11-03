@@ -34,7 +34,14 @@
         .pa-msgs { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; margin: 6px 0; }
         .pa-msg { align-self: flex-start; max-width: 90%; background: #fff; border: 1px solid #fed7aa; border-radius: 10px 10px 10px 3px; padding: 6px 10px; white-space: pre-wrap; word-break: break-word; }
         .pa-msg.out { align-self: flex-end; background: #eff6ff; border-color: #bfdbfe; border-radius: 10px 10px 3px 10px; }
-        textarea.pa-in { resize: vertical; }`;
+        textarea.pa-in { resize: vertical; }
+        #paPending { margin: 0 0 14px; }
+        .pa-reg .pa-title { flex-direction: column; align-items: flex-start; }
+        .pa-reg .pa-title .pa-muted { font-weight: 400; }
+        .pa-reg-item { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px dashed #fed7aa; }
+        .pa-reg-main { display: grid; gap: 3px; min-width: 260px; flex: 1; }
+        .pa-reg-find { flex-basis: 100%; display: grid; gap: 6px; }
+        .pa-reg-res { display: flex; gap: 6px; flex-wrap: wrap; }`;
     document.head.appendChild(css);
 
     async function api(action, data = {}) {
@@ -384,6 +391,97 @@
     }
     function currentCardRequestIdSafe() {
         return typeof currentCardRequestId !== "undefined" ? currentCardRequestId : null;
+    }
+
+    /* ---------- Нові реєстрації (самі зареєструвались у кабінеті) ---------- */
+    const REG_KIND = /clients\.html$/.test(location.pathname) ? "client" : /перевізник/i.test(document.querySelector("main .top-bar h1")?.textContent || "") ? "carrier" : null;
+    async function pendingBox() {
+        if (!REG_KIND) return;
+        let box = document.getElementById("paPending");
+        if (!box) {
+            const bar = document.querySelector("main .top-bar");
+            if (!bar) return;
+            box = document.createElement("div");
+            box.id = "paPending";
+            bar.insertAdjacentElement("afterend", box);
+        }
+        let list = [];
+        try {
+            list = (await api("admin_pending", { kind: REG_KIND })).pending || [];
+        } catch {
+            return; // функцію ще не оновлено — мовчимо
+        }
+        if (!list.length) return (box.innerHTML = "");
+        const what = REG_KIND === "client" ? "клієнта" : "перевізника";
+        box.innerHTML = `<div class="pa-box pa-reg">
+            <div class="pa-title"><span>🆕 Нові реєстрації в кабінеті — ${list.length}</span>
+            <span class="pa-muted">Людина зареєструвалась сама. Перевірте компанію (подзвоніть), прив'яжіть до картки або створіть нову — і їй відкриється кабінет. До підтвердження вона нічого не бачить.</span></div>
+            ${list
+                .map((a) => {
+                    const r = a.reg || {};
+                    return `<div class="pa-reg-item" data-id="${esc(a.id)}">
+                    <div class="pa-reg-main"><b>${esc(r.company || "—")}</b> <span class="pa-chip">ЄДРПОУ ${esc(r.edrpou || "—")}</span>${r.city ? ` <span class="pa-muted">${esc(r.city)}</span>` : ""}
+                        <div>${esc(r.name || "")} · <a href="tel:${esc(String(r.phone || "").replace(/[^\d+]/g, ""))}">${esc(r.phone || "")}</a>${r.email ? ` · <a href="mailto:${esc(r.email)}">${esc(r.email)}</a>` : ""} · логін <code>${esc(a.login || "—")}</code></div>
+                        ${r.note ? `<div class="pa-muted">«${esc(r.note)}»</div>` : ""}
+                        <div class="pa-muted">Заявка ${fmtDT(a.created_at)}</div></div>
+                    <div class="pa-row">
+                        ${a.match ? `<button class="pa-btn" data-reg="link" data-ref="${esc(a.match.id)}" title="У FURA вже є компанія з цим ЄДРПОУ">✓ Прив'язати до «${esc(a.match.name)}»</button>` : `<button class="pa-btn" data-reg="create">✓ Створити ${what} і відкрити доступ</button>`}
+                        <button class="pa-btn ghost" data-reg="find">Інша компанія…</button>
+                        <button class="pa-btn ghost" data-reg="reject">Відхилити</button>
+                    </div>
+                    <div class="pa-reg-find" hidden><input class="pa-in" placeholder="Назва або ЄДРПОУ ${what} у FURA" /><div class="pa-reg-res"></div></div>
+                </div>`;
+                })
+                .join("")}</div>`;
+    }
+    async function regAction(item, payload, okText) {
+        try {
+            const r = await api(payload.reject ? "admin_reject" : "admin_approve", { account_id: item.dataset.id, ...payload });
+            item.innerHTML = `<div class="pa-chip ok">${esc(okText(r))}</div>`;
+            setTimeout(pendingBox, 2500);
+            if (typeof loadClients === "function") loadClients();
+        } catch (err) {
+            alert(err.message);
+        }
+    }
+    document.addEventListener("click", async (ev) => {
+        const b = ev.target.closest("[data-reg], [data-reg-pick]");
+        if (!b || !b.closest("#paPending")) return;
+        const item = b.closest(".pa-reg-item");
+        if (b.dataset.regPick) return regAction(item, { ref_id: b.dataset.regPick }, (r) => `Доступ відкрито — прив'язано до «${r.company}»`);
+        const act = b.dataset.reg;
+        if (act === "link") return regAction(item, { ref_id: b.dataset.ref }, (r) => `Доступ відкрито — прив'язано до «${r.company}»`);
+        if (act === "create") {
+            if (!confirm(`Створити нову картку ${REG_KIND === "client" ? "клієнта (лід «Новий»)" : "перевізника"} і відкрити доступ до кабінету?`)) return;
+            return regAction(item, { create: true }, (r) => `Створено «${r.company}», доступ відкрито`);
+        }
+        if (act === "reject") {
+            const reason = prompt("Відхилити заявку? Можна вказати причину (бачите лише ви):", "");
+            if (reason === null) return;
+            return regAction(item, { reject: true, reason }, () => "Заявку відхилено");
+        }
+        if (act === "find") {
+            const f = item.querySelector(".pa-reg-find");
+            f.hidden = !f.hidden;
+            f.querySelector("input").focus();
+        }
+    });
+    let findT = null;
+    document.addEventListener("input", (ev) => {
+        const inp = ev.target.closest("#paPending .pa-reg-find input");
+        if (!inp) return;
+        clearTimeout(findT);
+        findT = setTimeout(async () => {
+            const q = inp.value.trim().replace(/[%,()]/g, " ");
+            const res = inp.nextElementSibling;
+            if (q.length < 2) return (res.innerHTML = "");
+            const { data } = await client.from(REG_KIND === "client" ? "leads" : "carriers").select("id, name, edrpou").or(`name.ilike.%${q}%,edrpou.ilike.%${q}%`).limit(8);
+            res.innerHTML = (data || []).map((c) => `<button class="pa-btn ghost" data-reg-pick="${esc(c.id)}">${esc(c.name)}${c.edrpou ? ` · ${esc(c.edrpou)}` : ""}</button>`).join("") || `<span class="pa-muted">Нічого не знайдено</span>`;
+        }, 300);
+    });
+    if (REG_KIND) {
+        setTimeout(pendingBox, 1200);
+        setInterval(pendingBox, 120000);
     }
 
     if (typeof openRequestCard === "function") {

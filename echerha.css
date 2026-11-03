@@ -117,3 +117,8 @@
 .eq-region { color: #1d5bd8; font-weight: 600; margin-top: 2px; }
 /* Фільтр з кількома варіантами: обрано щось — кнопка підсвічена */
 .eq-msel-btn.eq-msel-on { border-color: var(--f-orange, #f57c00); background: #fff7ed; color: #9a3412; font-weight: 600; }
+/* Час очікування на пункті */
+.eq-wait { font-weight: 600; white-space: nowrap; }
+.eq-wait-ok { color: #15803d; }
+.eq-wait-mid { color: #b45309; }
+.eq-wait-bad { color: #b91c1c; }

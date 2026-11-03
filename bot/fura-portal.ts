@@ -165,8 +165,17 @@ async function companyOf(a: Any) {
 }
 
 async function publicAccount(a: Any) {
-    const c = await companyOf(a);
-    return { kind: a.kind, name: a.name || null, company: c?.name || "—", manager: a.kind === "client" ? c?.sales || null : null };
+    const pending = a.status && a.status !== "active";
+    const c = pending ? null : await companyOf(a);
+    return {
+        kind: a.kind,
+        name: a.name || a.reg?.name || null,
+        company: c?.name || a.reg?.company || "—",
+        manager: a.kind === "client" ? c?.sales || null : null,
+        status: a.status || "active",
+        login: a.login || null,
+        has_password: !!a.password_hash,
+    };
 }
 
 async function newSession(a: Any, ip: string, via: string) {
@@ -191,7 +200,143 @@ async function sessionAccount(req: Request) {
     if (!t || t.expires_at < nowIso()) fail(401, "Сесія завершилась — увійдіть ще раз.");
     const { data: a } = await db.from("portal_accounts").select("*").eq("id", t!.account_id).maybeSingle();
     if (!a || !a.active) fail(401, "Доступ вимкнено. Зверніться до вашого менеджера Грандар.");
+    if (a.status === "rejected") fail(401, "Заявку на доступ відхилено. Зверніться до Грандар, якщо це помилка.");
     return a;
+}
+
+/* ------------------------------------------------------------------ */
+/* Логін і пароль                                                      */
+/* ------------------------------------------------------------------ */
+
+const PBKDF2_ITER = 100000;
+const fromHex = (h: string) => new Uint8Array((h.match(/../g) || []).map((x) => parseInt(x, 16)));
+async function pbkdf2(password: string, salt: Uint8Array, iter: number) {
+    const key = await crypto.subtle.importKey("raw", enc.encode(password), "PBKDF2", false, ["deriveBits"]);
+    return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt, iterations: iter }, key, 256));
+}
+async function hashPassword(password: string) {
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    return `pbkdf2$${PBKDF2_ITER}$${toHex(salt)}$${toHex(await pbkdf2(password, salt, PBKDF2_ITER))}`;
+}
+async function checkPassword(password: string, stored: string | null) {
+    const [kind, iter, salt, hash] = String(stored || "").split("$");
+    if (kind !== "pbkdf2" || !hash) return false;
+    const got = toHex(await pbkdf2(password, fromHex(salt), Number(iter)));
+    // порівняння без «підказок» за часом
+    let diff = got.length ^ hash.length;
+    for (let i = 0; i < Math.min(got.length, hash.length); i++) diff |= got.charCodeAt(i) ^ hash.charCodeAt(i);
+    return diff === 0;
+}
+// Логін: e-mail, телефон (лише цифри) або слово латиницею
+function normLogin(v: unknown): string | null {
+    let s = String(v ?? "").trim().toLowerCase();
+    if (!s) return null;
+    if (/^[+\d][\d\s()-]{6,}$/.test(s)) s = s.replace(/\D/g, "");
+    if (!/^[a-z0-9@._+-]{3,60}$/.test(s)) return null;
+    return s;
+}
+function checkNewPassword(p: unknown) {
+    const s = String(p ?? "");
+    if (s.length < 8) fail(400, "Пароль — щонайменше 8 символів.");
+    if (s.length > 100) fail(400, "Пароль задовгий.");
+    if (!/\d/.test(s) || !/[a-zа-яіїєґ]/i.test(s)) fail(400, "У паролі мають бути літери і хоча б одна цифра.");
+    return s;
+}
+async function loginTaken(login: string, exceptId?: string) {
+    let q = db.from("portal_accounts").select("id").eq("login", login).limit(1);
+    if (exceptId) q = q.neq("id", exceptId);
+    const { data } = await q;
+    return !!data?.length;
+}
+
+async function loginPassword(body: Any, ip: string) {
+    await limit("ip", ip, "login_fail", 10, 15);
+    const login = normLogin(body.login);
+    const password = String(body.password || "");
+    const { data: acc } = login ? await db.from("portal_accounts").select("*").eq("login", login).limit(1) : { data: null };
+    const a = acc?.[0];
+    if (!a || !(await checkPassword(password, a.password_hash))) {
+        await log(a?.id || null, "login_fail", { via: "password", login }, ip);
+        fail(403, "Неправильний логін або пароль.");
+    }
+    if (!a.active) fail(403, "Доступ вимкнено. Зверніться до вашого менеджера Грандар.");
+    if (a.status === "rejected") fail(403, "Заявку на доступ відхилено. Зверніться до Грандар, якщо це помилка.");
+    return newSession(a, ip, "password");
+}
+
+// Самореєстрація: заявка «на перевірці», доступу до рейсів немає, доки співробітник не підтвердить
+async function register(body: Any, ip: string) {
+    await limit("ip", ip, "register", 5, 60);
+    const kind = body.kind === "carrier" ? "carrier" : "client";
+    const company = str(body.company, 160);
+    const edrpou = String(body.edrpou ?? "").replace(/\D/g, "");
+    const name = str(body.name, 120);
+    const phone = str(body.phone, 40);
+    const email = str(body.email, 120)?.toLowerCase() || null;
+    const login = normLogin(body.login);
+    if (!company) fail(400, "Вкажіть назву компанії.");
+    if (edrpou.length !== 8 && edrpou.length !== 10) fail(400, "ЄДРПОУ — 8 цифр (для ФОП — ІПН, 10 цифр).");
+    if (!name) fail(400, "Вкажіть ваше ім'я.");
+    if (!phone || phone.replace(/\D/g, "").length < 9) fail(400, "Вкажіть телефон.");
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) fail(400, "Перевірте e-mail.");
+    if (!login) fail(400, "Логін: e-mail, телефон або слово латиницею (від 3 символів).");
+    const password = checkNewPassword(body.password);
+    if (await loginTaken(login)) fail(409, "Такий логін уже зайнятий. Оберіть інший або увійдіть.");
+    await log(null, "register", { kind, edrpou }, ip);
+
+    const reg = { company, edrpou, name, phone, email, note: str(body.note, 500), city: str(body.city, 80) };
+    const { data: a, error } = await db
+        .from("portal_accounts")
+        .insert({ kind, status: "pending", login, password_hash: await hashPassword(password), name, email, phone, reg })
+        .select("*")
+        .single();
+    if (error) fail(500, "Не вдалося зберегти заявку. Спробуйте ще раз.");
+
+    const match = await findCompany(kind, edrpou);
+    const who = kind === "client" ? "клієнт" : "перевізник";
+    const page = kind === "client" ? "clients.html" : "index.html";
+    await notifyStaff(
+        [...(await headIds()), ...(await roleIds(kind === "client" ? "sales" : "logist"))],
+        `🆕 <b>Новий ${who} зареєструвався в кабінеті</b>\n${esc(company)} · ЄДРПОУ ${esc(edrpou)}\n${esc(name)} · ${esc(phone)}${email ? ` · ${esc(email)}` : ""}\n` +
+            (match ? `Уже є у FURA: <b>${esc(match.name)}</b>` : "У FURA такої компанії ще немає") +
+            `\n\nПідтвердіть або відхиліть у CRM → «Нові реєстрації».`,
+        `${APP_URL}/${page}`,
+    );
+    return newSession(a, ip, "register");
+}
+
+async function roleIds(role: string): Promise<string[]> {
+    const { data } = await db.from("staff").select("id, role, roles, active").eq("active", true);
+    return (data || [])
+        .filter((s: Any) => (Array.isArray(s.roles) ? s.roles : [s.role]).includes(role))
+        .map((s: Any) => String(s.id));
+}
+
+async function findCompany(kind: string, edrpou: string) {
+    if (!edrpou) return null;
+    const codes = [...new Set([edrpou, edrpou.replace(/^0+/, "")])].filter(Boolean);
+    const table = kind === "client" ? "leads" : "carriers";
+    const { data } = await db.from(table).select("id, name, edrpou").in("edrpou", codes).limit(1);
+    return data?.[0] || null;
+}
+
+// Встановити / змінити логін і пароль (з кабінету, після входу)
+async function setPassword(a: Any, body: Any, ip: string) {
+    await limit("account_id", a.id, "set_password", 10, 60);
+    if (a.password_hash && !(await checkPassword(String(body.old_password || ""), a.password_hash))) {
+        await log(a.id, "set_password_fail", null, ip);
+        fail(403, "Поточний пароль неправильний.");
+    }
+    const login = normLogin(body.login ?? a.login);
+    if (!login) fail(400, "Логін: e-mail, телефон або слово латиницею (від 3 символів).");
+    if (await loginTaken(login, a.id)) fail(409, "Такий логін уже зайнятий. Оберіть інший.");
+    const password = checkNewPassword(body.password);
+    await db.from("portal_accounts").update({ login, password_hash: await hashPassword(password) }).eq("id", a.id);
+    // Інші сесії (інші пристрої) завершуємо — поточна лишається
+    const current = await sha256(body.__token || "");
+    await db.from("portal_tokens").delete().eq("account_id", a.id).eq("purpose", "session").neq("hash", current);
+    await log(a.id, "set_password", null, ip);
+    return { ok: true, login };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1031,7 +1176,7 @@ async function staffFrom(req: Request) {
 async function adminAccounts(body: Any) {
     const kind = body.kind === "carrier" ? "carrier" : "client";
     const col = kind === "client" ? "lead_id" : "carrier_id";
-    const { data } = await db.from("portal_accounts").select("id, name, email, phone, tg_chat_id, active, created_at, last_login_at").eq("kind", kind).eq(col, String(body.ref_id)).order("created_at");
+    const { data } = await db.from("portal_accounts").select("id, name, email, phone, tg_chat_id, active, created_at, last_login_at, login, status").eq("kind", kind).eq(col, String(body.ref_id)).order("created_at");
     return { accounts: data || [], bot: await botUsername() };
 }
 
@@ -1069,6 +1214,86 @@ async function adminInvite(me: Any, body: Any, ip: string) {
     await db.from("portal_accounts").update({ active: true }).eq("id", account.id);
     await log(account.id, "invite", { by: me.id }, ip);
     return { link: `${APP_URL}/cabinet.html#invite=${token}`, days: INVITE_DAYS, account_id: account.id };
+}
+
+// Нові реєстрації: хто чекає підтвердження
+async function adminPending(body: Any) {
+    const kind = body.kind === "carrier" ? "carrier" : "client";
+    const { data } = await db
+        .from("portal_accounts")
+        .select("id, kind, name, email, phone, login, reg, created_at")
+        .eq("kind", kind)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(50);
+    const list = [];
+    for (const a of data || []) list.push({ ...a, match: await findCompany(kind, a.reg?.edrpou || "") });
+    return { pending: list };
+}
+
+async function adminApprove(me: Any, body: Any, ip: string) {
+    const { data: a } = await db.from("portal_accounts").select("*").eq("id", body.account_id).maybeSingle();
+    if (!a || a.status !== "pending") fail(404, "Заявку не знайдено або її вже розглянули.");
+    const r = a.reg || {};
+    let ref = String(body.ref_id || "");
+    if (!ref && body.create) {
+        if (a.kind === "client") {
+            const { data, error } = await db
+                .from("leads")
+                .insert({
+                    name: r.company,
+                    edrpou: r.edrpou,
+                    contact_person: r.name,
+                    phone: r.phone,
+                    email: r.email,
+                    city: r.city || null,
+                    country: "УКРАЇНА",
+                    status: "Новий",
+                    source: "Кабінет (самореєстрація)",
+                    notes: r.note || null,
+                    created_by: me.full_name || null,
+                    history: [{ at: nowIso(), author: me.full_name || "", text: "Зареєструвався сам у кабінеті клієнта", auto: true }],
+                })
+                .select("id")
+                .single();
+            if (error) fail(500, "Не вдалося створити клієнта: " + error.message);
+            ref = String(data!.id);
+        } else {
+            const { data, error } = await db
+                .from("carriers")
+                .insert({ name: r.company, edrpou: r.edrpou, contact_person_1: r.name, phone_1: r.phone, city: r.city || null, notes: [r.email ? `e-mail: ${r.email}` : "", r.note || "", "Зареєструвався сам у кабінеті перевізника"].filter(Boolean).join("\n") })
+                .select("id")
+                .single();
+            if (error) fail(500, "Не вдалося створити перевізника: " + error.message);
+            ref = String(data!.id);
+        }
+    }
+    if (!ref) fail(400, "Оберіть компанію або створіть нову.");
+    const { data: c } = await db.from(a.kind === "client" ? "leads" : "carriers").select("id, name").eq("id", ref).maybeSingle();
+    if (!c) fail(404, "Компанію не знайдено.");
+    await db
+        .from("portal_accounts")
+        .update({
+            status: "active",
+            active: true,
+            lead_id: a.kind === "client" ? ref : null,
+            carrier_id: a.kind === "carrier" ? ref : null,
+            approved_by: me.id,
+            approved_at: nowIso(),
+            created_by: a.created_by || me.id,
+        })
+        .eq("id", a.id);
+    await log(a.id, "approve", { by: me.id, ref }, ip);
+    return { ok: true, company: c!.name, ref_id: ref };
+}
+
+async function adminReject(me: Any, body: Any, ip: string) {
+    const { data: a } = await db.from("portal_accounts").select("id, status").eq("id", body.account_id).maybeSingle();
+    if (!a || a.status !== "pending") fail(404, "Заявку не знайдено або її вже розглянули.");
+    await db.from("portal_accounts").update({ status: "rejected", approved_by: me.id, approved_at: nowIso() }).eq("id", a!.id);
+    await db.from("portal_tokens").delete().eq("account_id", a!.id);
+    await log(a!.id, "reject", { by: me.id, reason: str(body.reason, 300) }, ip);
+    return { ok: true };
 }
 
 // Відповідь співробітника перевізнику — дублюємо в Telegram (якщо перевізник підключений до бота)
@@ -1122,6 +1347,10 @@ async function route(req: Request, body: Any) {
             return emailCode(body, ip);
         case "email_verify":
             return emailVerify(body, ip);
+        case "login_password":
+            return loginPassword(body, ip);
+        case "register":
+            return register(body, ip);
     }
     if (action.startsWith("admin_")) {
         const me = await staffFrom(req);
@@ -1129,6 +1358,9 @@ async function route(req: Request, body: Any) {
         if (action === "admin_invite") return adminInvite(me, body, ip);
         if (action === "admin_toggle") return adminToggle(me, body, ip);
         if (action === "admin_notify") return adminNotify(body);
+        if (action === "admin_pending") return adminPending(body);
+        if (action === "admin_approve") return adminApprove(me, body, ip);
+        if (action === "admin_reject") return adminReject(me, body, ip);
         fail(400, "Невідома дія.");
     }
 
@@ -1137,6 +1369,13 @@ async function route(req: Request, body: Any) {
         const token = req.headers.get("x-portal-token") || "";
         await db.from("portal_tokens").delete().eq("hash", await sha256(token));
         return { ok: true };
+    }
+    if (action === "set_password") return setPassword(a, { ...body, __token: req.headers.get("x-portal-token") || "" }, ip);
+    if (action === "me") return { account: await publicAccount(a) };
+    // Заявка ще на перевірці — жодних даних, лише статус
+    if (a.status === "pending") {
+        if (action === "home") return { account: await publicAccount(a), pending: true, reg: a.reg || {}, requests: [], deals: [], offers: [], trucks: [], unread: 0 };
+        fail(403, "Заявка ще на перевірці. Щойно Грандар її підтвердить — відкриється весь кабінет.");
     }
     if (a.kind === "client") {
         if (action === "home") return clientHome(a);

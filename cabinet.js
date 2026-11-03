@@ -174,6 +174,18 @@
             /* базові способи */
         }
         const ways = [];
+        ways.push(`
+            <form class="cb-card cb-login-form" id="cbPassForm">
+                <label class="cb-label" for="cbLoginIn">Логін</label>
+                <input type="text" class="cb-in" id="cbLoginIn" placeholder="e-mail, телефон або логін" autocomplete="username" autocapitalize="off" required />
+                <label class="cb-label" for="cbPassIn">Пароль</label>
+                <div class="cb-pass"><input type="password" class="cb-in" id="cbPassIn" autocomplete="current-password" required />
+                    <button type="button" class="cb-icon-btn" data-eye="cbPassIn" title="Показати пароль"><i class="bx bx-show"></i></button></div>
+                <button type="submit" class="cb-btn cb-btn-primary" id="cbPassBtn">Увійти</button>
+                <p class="cb-hint cb-hint-left">Забули пароль? Попросіть менеджера Грандар надіслати посилання для входу — після входу задайте новий пароль у «Профіль і пароль».</p>
+            </form>
+            <div class="cb-reg-cta"><span>Ще немає доступу?</span> <button type="button" class="cb-btn" id="cbRegOpen"><i class="bx bx-user-plus"></i> Зареєструватися</button></div>
+            <div class="cb-or"><span>або</span></div>`);
         if (inTelegram) ways.push(`<button type="button" class="cb-btn cb-btn-tg" id="cbTgLogin"><i class="bx bxl-telegram"></i> Увійти через Telegram</button>`);
         if (cfg.email_login) {
             ways.push(`
@@ -189,8 +201,23 @@
             ways.push(`<a class="cb-btn cb-btn-tg" href="https://t.me/${e(cfg.bot)}?start=cabinet" target="_blank" rel="noopener"><i class="bx bxl-telegram"></i> Увійти через Telegram</a>
                 <p class="cb-hint">Для перевізників, підключених до бота Грандар.</p>`);
         }
-        ways.push(`<p class="cb-hint">Немає доступу? Попросіть вашого менеджера Грандар надіслати посилання для входу.</p>`);
         $("cbLoginWays").innerHTML = ways.join("");
+        bindEyes($("cbLoginWays"));
+        $("cbRegOpen").addEventListener("click", () => renderRegister());
+        $("cbPassForm").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            const btn = $("cbPassBtn");
+            btn.disabled = true;
+            try {
+                setToken((await api("login_password", { login: $("cbLoginIn").value, password: $("cbPassIn").value })).token);
+                await loadHome();
+                route();
+            } catch (err) {
+                toast(err.message, true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
         $("cbTgLogin")?.addEventListener("click", async () => {
             try {
                 setToken((await api("login_tg", { initData: tg.initData })).token);
@@ -228,6 +255,155 @@
         });
     }
 
+    // Показати / сховати пароль
+    function bindEyes(root) {
+        root.querySelectorAll("[data-eye]").forEach((b) =>
+            b.addEventListener("click", () => {
+                const inp = $(b.dataset.eye);
+                inp.type = inp.type === "password" ? "text" : "password";
+                b.innerHTML = `<i class="bx ${inp.type === "password" ? "bx-show" : "bx-hide"}"></i>`;
+            }),
+        );
+    }
+
+    /* ---------------- Самореєстрація ---------------- */
+
+    function renderRegister(kindPick = "client") {
+        $("cbShell").hidden = true;
+        const box = $("cbLogin");
+        box.hidden = false;
+        box.innerHTML = `
+            <section class="cb-login cb-reg">
+                <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
+                <h1>Реєстрація в кабінеті Грандар</h1>
+                <p class="cb-muted">Заповніть дані — менеджер перевірить компанію (зазвичай протягом робочого дня), і відкриється весь кабінет.</p>
+                <form class="cb-card cb-login-form" id="cbRegForm" autocomplete="on">
+                    <div class="cb-seg" id="cbRegKind">
+                        <button type="button" data-k="client" class="${kindPick === "client" ? "active" : ""}"><i class="bx bx-package"></i> Я клієнт<small>замовляю перевезення</small></button>
+                        <button type="button" data-k="carrier" class="${kindPick === "carrier" ? "active" : ""}"><i class="bx bxs-truck"></i> Я перевізник<small>маю машини</small></button>
+                    </div>
+                    <div class="cb-reg-group">Компанія</div>
+                    <label class="cb-label" for="rgCompany">Назва компанії *</label>
+                    <input class="cb-in" id="rgCompany" placeholder="ТОВ «Назва» або ФОП Прізвище" autocomplete="organization" required />
+                    <label class="cb-label" for="rgEdrpou">ЄДРПОУ (для ФОП — ІПН) *</label>
+                    <input class="cb-in" id="rgEdrpou" inputmode="numeric" maxlength="10" placeholder="12345678" required />
+                    <label class="cb-label" for="rgCity">Місто</label>
+                    <input class="cb-in" id="rgCity" placeholder="Луцьк" />
+                    <div class="cb-reg-group">Контактна особа</div>
+                    <label class="cb-label" for="rgName">Ваше ім'я *</label>
+                    <input class="cb-in" id="rgName" autocomplete="name" required />
+                    <label class="cb-label" for="rgPhone">Телефон *</label>
+                    <input class="cb-in" id="rgPhone" type="tel" placeholder="+380…" autocomplete="tel" required />
+                    <label class="cb-label" for="rgEmail">E-mail</label>
+                    <input class="cb-in" id="rgEmail" type="email" placeholder="you@company.com" autocomplete="email" />
+                    <div class="cb-reg-group">Вхід у кабінет</div>
+                    <label class="cb-label" for="rgLogin">Логін *</label>
+                    <input class="cb-in" id="rgLogin" placeholder="e-mail, телефон або слово латиницею" autocomplete="username" autocapitalize="off" required />
+                    <label class="cb-label" for="rgPass">Пароль * <span class="cb-muted">(від 8 символів, літери і цифри)</span></label>
+                    <div class="cb-pass"><input class="cb-in" id="rgPass" type="password" autocomplete="new-password" minlength="8" required />
+                        <button type="button" class="cb-icon-btn" data-eye="rgPass" title="Показати пароль"><i class="bx bx-show"></i></button></div>
+                    <label class="cb-label" for="rgPass2">Повторіть пароль *</label>
+                    <input class="cb-in" id="rgPass2" type="password" autocomplete="new-password" required />
+                    <label class="cb-label" for="rgNote" id="rgNoteLabel">${kindPick === "client" ? "Що зазвичай возите, напрямки" : "Скільки машин, кузов, напрямки"}</label>
+                    <textarea class="cb-in" id="rgNote" rows="2"></textarea>
+                    <button type="submit" class="cb-btn cb-btn-primary" id="rgBtn">Надіслати заявку</button>
+                </form>
+                <button type="button" class="cb-link" id="rgBack"><i class="bx bx-left-arrow-alt"></i> У мене вже є доступ — увійти</button>
+            </section>`;
+        let pick = kindPick;
+        bindEyes(box);
+        // Логін за замовчуванням — e-mail або телефон
+        const autoLogin = () => {
+            const l = $("rgLogin");
+            if (l.dataset.touched) return;
+            l.value = $("rgEmail").value.trim() || $("rgPhone").value.replace(/[^\d+]/g, "");
+        };
+        $("rgEmail").addEventListener("input", autoLogin);
+        $("rgPhone").addEventListener("input", autoLogin);
+        $("rgLogin").addEventListener("input", (ev) => (ev.target.dataset.touched = "1"));
+        $("rgEdrpou").addEventListener("input", (ev) => (ev.target.value = ev.target.value.replace(/\D/g, "")));
+        $("cbRegKind").addEventListener("click", (ev) => {
+            const b = ev.target.closest("[data-k]");
+            if (!b) return;
+            pick = b.dataset.k;
+            box.querySelectorAll("#cbRegKind button").forEach((x) => x.classList.toggle("active", x === b));
+            $("rgNoteLabel").textContent = pick === "client" ? "Що зазвичай возите, напрямки" : "Скільки машин, кузов, напрямки";
+        });
+        $("rgBack").addEventListener("click", () => renderLogin());
+        $("cbRegForm").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            if ($("rgPass").value !== $("rgPass2").value) return toast("Паролі не збігаються.", true);
+            const btn = $("rgBtn");
+            btn.disabled = true;
+            try {
+                const r = await api("register", {
+                    kind: pick,
+                    company: $("rgCompany").value,
+                    edrpou: $("rgEdrpou").value,
+                    city: $("rgCity").value,
+                    name: $("rgName").value,
+                    phone: $("rgPhone").value,
+                    email: $("rgEmail").value,
+                    login: $("rgLogin").value,
+                    password: $("rgPass").value,
+                    note: $("rgNote").value,
+                });
+                setToken(r.token);
+                await loadHome();
+            } catch (err) {
+                toast(err.message, true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
+    }
+
+    // Заявка ще на перевірці — показуємо статус, без даних
+    function renderPending() {
+        clearInterval(liveTimer);
+        $("cbShell").hidden = true;
+        const box = $("cbLogin");
+        box.hidden = false;
+        const r = state.reg || {};
+        const a = state.account;
+        box.innerHTML = `
+            <section class="cb-login cb-reg">
+                <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
+                <h1>Заявку отримано ✅</h1>
+                <div class="cb-card cb-pending">
+                    <div class="cb-pending-st"><i class="bx bx-time-five"></i><div><b>На перевірці</b><span>Менеджер Грандар перевіряє компанію — зазвичай протягом робочого дня. Ми можемо зателефонувати вам для уточнення.</span></div></div>
+                    <dl class="cb-dl">
+                        <dt>Кабінет</dt><dd>${a.kind === "client" ? "Клієнта" : "Перевізника"}</dd>
+                        <dt>Компанія</dt><dd>${e(r.company || a.company)}</dd>
+                        <dt>ЄДРПОУ</dt><dd>${e(r.edrpou || "—")}</dd>
+                        <dt>Контакт</dt><dd>${e([r.name, r.phone, r.email].filter(Boolean).join(" · "))}</dd>
+                        <dt>Ваш логін</dt><dd><b>${e(a.login || "—")}</b></dd>
+                    </dl>
+                    <p class="cb-hint cb-hint-left">Що далі: після підтвердження просто увійдіть зі своїм логіном і паролем — ${a.kind === "client" ? "ви побачите запити, перевезення, карту й чат з менеджером" : "ви почнете отримувати пропозиції рейсів і зможете давати ставки"}.</p>
+                    <button type="button" class="cb-btn cb-btn-primary" id="pdCheck"><i class="bx bx-refresh"></i> Перевірити статус</button>
+                </div>
+                <button type="button" class="cb-link" id="pdOut"><i class="bx bx-log-out"></i> Вийти</button>
+            </section>`;
+        $("pdCheck").addEventListener("click", async () => {
+            try {
+                await loadHome();
+                if (!state.pending) route();
+                else toast("Заявка ще на перевірці.");
+            } catch {
+                /* повідомлення вже показано */
+            }
+        });
+        $("pdOut").addEventListener("click", async () => {
+            try {
+                await api("logout");
+            } catch {
+                /* все одно виходимо */
+            }
+            setToken(null);
+            renderLogin();
+        });
+    }
+
     $("cbLogout").addEventListener("click", async () => {
         if (!confirm("Вийти з кабінету?")) return;
         try {
@@ -256,6 +432,7 @@
         }
         kind = state.account.kind;
         const a = state.account;
+        if (state.pending) return renderPending();
         $("cbLogin").hidden = true;
         $("cbShell").hidden = false;
         $("cbKind").textContent = kind === "client" ? "Кабінет клієнта" : "Кабінет перевізника";
@@ -280,6 +457,7 @@
                 { key: "reports", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
                 { title: "Допомога" },
                 { key: "help", icon: "bx-help-circle", label: "Як це працює" },
+                { key: "profile", icon: "bx-user-circle", label: "Профіль і пароль", count: state.account.has_password ? 0 : "!" },
             ];
         }
         return [
@@ -294,6 +472,7 @@
             { key: "reports", icon: "bx-trending-up", label: "Моя ефективність" },
             { title: "Допомога" },
             { key: "help", icon: "bx-help-circle", label: "Як це працює" },
+            { key: "profile", icon: "bx-user-circle", label: "Профіль і пароль", count: state.account.has_password ? 0 : "!" },
         ];
     }
     function renderNav() {
@@ -330,7 +509,7 @@
     window.addEventListener("hashchange", () => token && state && route());
 
     function route() {
-        if (!state) return;
+        if (!state || state.pending) return;
         clearInterval(liveTimer);
         liveTimer = null;
         if (map) {
@@ -344,8 +523,8 @@
         window.scrollTo(0, 0);
         const views =
             kind === "client"
-                ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView, help: helpView }
-                : { home: carrierHomeView, offers: offersView, offer: offerView, deals: dealsView, deal: dealView, trucks: trucksView, map: mapView, chat: chatView, reports: reportsView, help: helpView };
+                ? { home: clientHomeView, requests: requestsView, request: requestView, deals: dealsView, deal: dealView, map: mapView, chat: chatView, reports: reportsView, help: helpView, profile: profileView }
+                : { home: carrierHomeView, offers: offersView, offer: offerView, deals: dealsView, deal: dealView, trucks: trucksView, map: mapView, chat: chatView, reports: reportsView, help: helpView, profile: profileView };
         (views[view] || views.home)(id);
     }
 
@@ -356,6 +535,62 @@
             return;
         }
         route();
+    }
+
+    /* ================================================================ */
+    /* ПРОФІЛЬ І ПАРОЛЬ                                                 */
+    /* ================================================================ */
+
+    function profileView() {
+        crumbs(["Профіль і пароль"]);
+        const a = state.account;
+        app.innerHTML = `
+            <h1 class="cb-h1">Профіль і пароль</h1>
+            <div class="cb-help-grid">
+                <section class="cb-card">
+                    <h2 class="cb-h2"><i class="bx bx-buildings"></i> Ваш доступ</h2>
+                    <dl class="cb-dl">
+                        <dt>Компанія</dt><dd>${e(a.company)}</dd>
+                        <dt>Кабінет</dt><dd>${kind === "client" ? "Клієнта" : "Перевізника"}</dd>
+                        ${a.name ? `<dt>Ім'я</dt><dd>${e(a.name)}</dd>` : ""}
+                        <dt>Логін</dt><dd>${a.login ? `<b>${e(a.login)}</b>` : `<span class="cb-muted">ще не задано</span>`}</dd>
+                    </dl>
+                    ${a.has_password ? "" : `<div class="cb-banner cb-banner-soft"><i class="bx bx-info-circle"></i><div>Задайте логін і пароль — тоді зможете заходити з будь-якого пристрою без посилання від менеджера.</div></div>`}
+                </section>
+                <section class="cb-card">
+                    <h2 class="cb-h2"><i class="bx bx-lock-alt"></i> ${a.has_password ? "Змінити логін або пароль" : "Задати логін і пароль"}</h2>
+                    <form class="cb-login-form" id="pfForm">
+                        <label class="cb-label" for="pfLogin">Логін</label>
+                        <input class="cb-in" id="pfLogin" value="${e(a.login || "")}" placeholder="e-mail, телефон або слово латиницею" autocomplete="username" autocapitalize="off" required />
+                        ${a.has_password ? `<label class="cb-label" for="pfOld">Поточний пароль</label><input class="cb-in" id="pfOld" type="password" autocomplete="current-password" required />` : ""}
+                        <label class="cb-label" for="pfNew">Новий пароль <span class="cb-muted">(від 8 символів, літери і цифри)</span></label>
+                        <div class="cb-pass"><input class="cb-in" id="pfNew" type="password" autocomplete="new-password" minlength="8" required />
+                            <button type="button" class="cb-icon-btn" data-eye="pfNew" title="Показати пароль"><i class="bx bx-show"></i></button></div>
+                        <label class="cb-label" for="pfNew2">Повторіть новий пароль</label>
+                        <input class="cb-in" id="pfNew2" type="password" autocomplete="new-password" required />
+                        <button type="submit" class="cb-btn cb-btn-primary" id="pfBtn">Зберегти</button>
+                        <p class="cb-hint cb-hint-left">Після зміни пароля на інших пристроях доведеться увійти заново.</p>
+                    </form>
+                </section>
+            </div>`;
+        bindEyes(app);
+        $("pfForm").addEventListener("submit", async (ev) => {
+            ev.preventDefault();
+            if ($("pfNew").value !== $("pfNew2").value) return toast("Паролі не збігаються.", true);
+            const btn = $("pfBtn");
+            btn.disabled = true;
+            try {
+                const r = await api("set_password", { login: $("pfLogin").value, old_password: $("pfOld")?.value || "", password: $("pfNew").value });
+                state.account.login = r.login;
+                state.account.has_password = true;
+                toast("Збережено. Тепер можна входити з логіном і паролем.");
+                route();
+            } catch (err) {
+                toast(err.message, true);
+            } finally {
+                btn.disabled = false;
+            }
+        });
     }
 
     /* ================================================================ */
