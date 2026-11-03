@@ -44,7 +44,7 @@
             box.className = "eqc";
             box.innerHTML =
                 `<div class="eqc-title"><i class="bx bxs-truck"></i> Зараз у черзі на кордоні: ${data.length} маш.` +
-                `<a href="echerha.html">Відкрити «Чергу» →</a></div>` +
+                `<a href="echerha.html?q=${encodeURIComponent(bare || digits)}" target="_top" title="Відкрити «Чергу» з машинами цього перевізника">Відкрити «Чергу» →</a></div>` +
                 data.map((r) => `<div class="eqc-row">
                     <b>${esc(String(r.checkpoint).replace(/\s*\(для[^)]*\)\s*$/, ""))}</b>
                     <span>в'їзд ${dShort(r.entry_at)}</span>
