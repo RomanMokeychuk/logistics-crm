@@ -795,7 +795,7 @@ function renderRequests() {
     // Фільтри по колонках
     rows = rows.filter((r) =>
         Object.entries(activeFilters).every(([col, selected]) =>
-            selected.has(filterValue(r, col)),
+            rowMatches(r, col, selected),
         ),
     );
 
@@ -975,6 +975,19 @@ function filterValue(r, col) {
     return v || EMPTY_LABEL;
 }
 
+// Колонки, де в одній клітинці кілька людей («Галач Наталя, Мокейчук Роман») —
+// у фільтрі кожна людина окремо, рядок підходить, якщо там є хоч одна з обраних
+const MULTI_NAME_COLS = new Set(["logistician", "sales"]);
+function filterValues(r, col) {
+    if (!MULTI_NAME_COLS.has(col)) return [filterValue(r, col)];
+    const names = String(r[col] || "")
+        .split(/[,;]/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+    return names.length ? [...new Set(names)] : [EMPTY_LABEL];
+}
+const rowMatches = (r, col, selected) => filterValues(r, col).some((v) => selected.has(v));
+
 // Ключ для сортування варіантів у списку фільтра
 function filterSortKey(r, col) {
     if (col === "desired_date" || col === "created_at") return r[col] || "";
@@ -1028,8 +1041,9 @@ function openColumnFilter(event, col) {
     // Унікальні значення колонки
     const unique = new Map(); // label → sortKey
     requestsCache.forEach((r) => {
-        const label = filterValue(r, col);
-        if (!unique.has(label)) unique.set(label, filterSortKey(r, col));
+        filterValues(r, col).forEach((label) => {
+            if (!unique.has(label)) unique.set(label, MULTI_NAME_COLS.has(col) ? label : filterSortKey(r, col));
+        });
     });
 
     const options = Array.from(unique.entries()).sort((a, b) => {
@@ -1084,7 +1098,7 @@ function getCheckedValues() {
 function updateFilterCountText() {
     const selected = new Set(getCheckedValues());
     const count = requestsCache.filter((r) =>
-        selected.has(filterValue(r, activeFilterColumn)),
+        rowMatches(r, activeFilterColumn, selected),
     ).length;
     document.getElementById("filterShownCount").textContent =
         `Показується рядків: ${count}`;
