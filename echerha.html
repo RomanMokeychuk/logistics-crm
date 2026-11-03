@@ -12,10 +12,10 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611022236" />
+        <link rel="stylesheet" href="style.css?v=202611030708" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611022236" />
-        <link rel="stylesheet" href="echerha.css?v=202611022236" />
+        <link rel="stylesheet" href="theme.css?v=202611030708" />
+        <link rel="stylesheet" href="echerha.css?v=202611030708" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -54,9 +54,9 @@
                         <button type="button" class="eq-msel-btn" id="eqCpBtn">Усі пункти ▾</button>
                         <div class="eq-msel-panel hidden" id="eqCpPanel"></div>
                     </div>
-                    <select id="eqCountry"><option value="">Усі країни</option></select>
-                    <select id="eqOblast" title="Область перевізника (з його картки у FURA)"><option value="">Усі області перевізника</option></select>
-                    <select id="eqQtype"><option value="">Будь-яка черга</option></select>
+                    <div class="eq-msel" id="eqCountryM" title="Можна обрати кілька країн"></div>
+                    <div class="eq-msel" id="eqOblastM" title="Область перевізника (з його картки у FURA) — можна кілька"></div>
+                    <div class="eq-msel" id="eqQtypeM" title="Тип черги — можна кілька"></div>
                     <select id="eqFresh" title="Скільки часу тому машина стала в чергу">
                         <option value="">Стали в чергу: будь-коли</option>
                         <option value="1">Стали в чергу за 1 год</option>
@@ -93,9 +93,9 @@
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="echerha.js?v=202611022236"></script>
-        <script src="shell.js?v=202611022236"></script>
-        <script src="notify.js?v=202611022236"></script>
-        <script src="lock.js?v=202611022236"></script>
+        <script src="echerha.js?v=202611030708"></script>
+        <script src="shell.js?v=202611030708"></script>
+        <script src="notify.js?v=202611030708"></script>
+        <script src="lock.js?v=202611030708"></script>
     </body>
 </html>

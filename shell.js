@@ -254,7 +254,7 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611022236");
+        await addScript("helper.js?v=202611030708");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
@@ -387,7 +387,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611022236");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611030708");
         const label = buildSidebar();
         buildTopbar(label);
         setupMobileMenu();
@@ -396,7 +396,7 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611022236");
+            addScript("global-search.js?v=202611030708");
             // Фурик — персонаж із нагадуваннями (furik.js)
             addScript("furik.js?v=202610200830");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)

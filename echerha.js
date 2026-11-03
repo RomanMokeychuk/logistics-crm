@@ -30,7 +30,18 @@ const EQ = (() => {
         String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
     const codeKey = (v) => String(v || "").replace(/\D/g, "").replace(/^0+/, "");
     // Область перевізника — з його картки у FURA («ЖИТОМИРСЬКА ОБЛ.»)
-    const regionOf = (code) => (FURA.get(codeKey(code)) || {}).region || "";
+    const OBLASTS = ["ВІННИЦЬКА", "ВОЛИНСЬКА", "ДНІПРОПЕТРОВСЬКА", "ДОНЕЦЬКА", "ЖИТОМИРСЬКА", "ЗАКАРПАТСЬКА", "ЗАПОРІЗЬКА", "ІВАНО-ФРАНКІВСЬКА",
+        "КИЇВСЬКА", "КІРОВОГРАДСЬКА", "ЛУГАНСЬКА", "ЛЬВІВСЬКА", "МИКОЛАЇВСЬКА", "ОДЕСЬКА", "ПОЛТАВСЬКА", "РІВНЕНСЬКА", "СУМСЬКА", "ТЕРНОПІЛЬСЬКА",
+        "ХАРКІВСЬКА", "ХЕРСОНСЬКА", "ХМЕЛЬНИЦЬКА", "ЧЕРКАСЬКА", "ЧЕРНІВЕЦЬКА", "ЧЕРНІГІВСЬКА"];
+    // «��АРКІВСЬКА ОБЛ.» (зіпсована перша літера в даних) → «ХАРКІВСЬКА ОБЛ.»
+    function fixRegion(r) {
+        const s = String(r || "").trim();
+        if (!s.includes("\uFFFD")) return s;
+        const tail = s.replace(/^\uFFFD+/, "").replace(/\s*ОБЛ\.?$/, "");
+        const hit = OBLASTS.find((o) => o.endsWith(tail));
+        return hit ? `${hit} ОБЛ.` : s.replace(/\uFFFD/g, "");
+    }
+    const regionOf = (code) => fixRegion((FURA.get(codeKey(code)) || {}).region || "");
     const regionHtml = (code) => (regionOf(code) ? `<div class="eq-sm eq-region">📍 ${esc(regionOf(code))}</div>` : "");
     // Пошук не залежить від розкладки: кирилична «АТ4287СА» = латинська «AT4287CA»
     const LOOK = { а: "a", в: "b", е: "e", і: "i", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", х: "x", у: "y" };
@@ -42,7 +53,10 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", oblast: "", page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", oblast: [], page: 0, sort: "entry" };
+    // Кілька варіантів у фільтрі: порожній список = «усі»
+    const asList = (v) => (Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []);
+    const pass = (list, v) => !list.length || list.includes(v);
     let WATCH = new Map(); // номер тягача -> мій запис echerha_watch
     const plateKey = (v) =>
         String(v || "").toUpperCase().replace(/\s|-/g, "")
@@ -108,7 +122,8 @@ const EQ = (() => {
         try {
             const s = JSON.parse(localStorage.getItem(FKEY) || "null");
             if (!s) return;
-            Object.assign(st, s, { q: "", showGone: false, bodies: new Set(s.bodies || []), cps: Array.isArray(s.cps) ? new Set(s.cps) : null, page: 0 });
+            Object.assign(st, s, { q: "", showGone: false, bodies: new Set(s.bodies || []), cps: Array.isArray(s.cps) ? new Set(s.cps) : null, page: 0,
+                country: asList(s.country), qtype: asList(s.qtype), oblast: asList(s.oblast).map(fixRegion) });
         } catch (e) { /* ігноруємо */ }
     }
 
@@ -215,13 +230,12 @@ const EQ = (() => {
     /* ---------- фільтри ---------- */
     function fillSelects() {
         const countries = [...new Set(CPS.map((c) => c.country).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
-        if ($("#eqOblast")) {
-            const obls = [...new Set([...FURA.values()].map((f) => f.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
-            $("#eqOblast").innerHTML = `<option value="">Усі області перевізника</option>` + obls.map((o) => `<option ${o === st.oblast ? "selected" : ""}>${esc(o)}</option>`).join("");
-        }
-        $("#eqCountry").innerHTML = `<option value="">Усі країни</option>` + countries.map((c) => `<option ${c === st.country ? "selected" : ""}>${esc(c)}</option>`).join("");
+        const obls = [...new Set([...FURA.values()].map((f) => fixRegion(f.region)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "uk"));
         const qt = [...new Set(CPS.map((c) => c.qtype).filter(Boolean))];
-        $("#eqQtype").innerHTML = `<option value="">Будь-яка черга</option>` + qt.map((c) => `<option ${c === st.qtype ? "selected" : ""}>${esc(c)}</option>`).join("");
+        MULTI.country.options = countries;
+        MULTI.oblast.options = obls;
+        MULTI.qtype.options = qt;
+        Object.keys(MULTI).forEach((k) => paintMulti(k));
         $("#eqBodies").innerHTML = BODIES.map((b) => `<button type="button" data-b="${b}" class="${st.bodies.has(b) ? "on" : ""}">${b}</button>`).join("");
         $("#eqUa").checked = st.ua;
         $("#eqNotInFura").checked = st.notInFura;
@@ -240,6 +254,73 @@ const EQ = (() => {
         paintCp();
     }
 
+    /* ---------- фільтр з кількома варіантами (країни, області, черги) ---------- */
+    const MULTI = {
+        country: { id: "eqCountryM", all: "Усі країни", many: "Країни", search: false, options: [] },
+        oblast: { id: "eqOblastM", all: "Усі області перевізника", many: "Області", search: true, options: [] },
+        qtype: { id: "eqQtypeM", all: "Будь-яка черга", many: "Черги", search: false, options: [] },
+    };
+    function multiLabel(k) {
+        const m = MULTI[k];
+        const sel = st[k];
+        if (!sel.length) return m.all;
+        if (sel.length === 1) return k === "oblast" ? sel[0].replace(/\s*ОБЛ\.?$/, " обл.") : sel[0];
+        if (sel.length === 2) return `${m.many}: ${sel.map((x) => (k === "oblast" ? x.replace(/\s*ОБЛ\.?$/, "") : x)).join(", ")}`;
+        return `${m.many}: ${sel.length}`;
+    }
+    function paintMulti(k, search = "") {
+        const m = MULTI[k];
+        const box = document.getElementById(m.id);
+        if (!box) return;
+        const open = box.querySelector(".eq-msel-panel") && !box.querySelector(".eq-msel-panel").classList.contains("hidden");
+        const s = norm(search);
+        const opts = m.options.filter((o) => !s || norm(o).includes(s));
+        box.innerHTML =
+            `<button type="button" class="eq-msel-btn ${st[k].length ? "eq-msel-on" : ""}" data-mbtn="${k}">${esc(multiLabel(k))} ▾</button>` +
+            `<div class="eq-msel-panel ${open ? "" : "hidden"}" data-mpanel="${k}">` +
+            `<div class="eq-mtop">${m.search ? `<input type="search" placeholder="Пошук…" value="${esc(search)}">` : ""}` +
+            `<button type="button" data-ma="all">Усі</button><button type="button" data-ma="ok" class="eq-ok">Готово</button></div>` +
+            (opts.map((o) => `<label class="eq-mitem"><input type="checkbox" data-mv="${esc(o)}" ${st[k].includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") ||
+                `<div class="eq-muted" style="padding:8px">Немає варіантів</div>`) +
+            `</div>`;
+        const inp = box.querySelector("input[type=search]");
+        if (inp) {
+            inp.addEventListener("input", () => {
+                paintMulti(k, inp.value);
+                const n = box.querySelector("input[type=search]");
+                n.focus();
+                n.setSelectionRange(n.value.length, n.value.length);
+            });
+        }
+    }
+    function bindMulti() {
+        Object.keys(MULTI).forEach((k) => {
+            const box = document.getElementById(MULTI[k].id);
+            if (!box) return;
+            box.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const t = e.target;
+                const panel = box.querySelector(".eq-msel-panel");
+                if (t.closest("[data-mbtn]")) {
+                    const wasHidden = panel.classList.contains("hidden");
+                    document.querySelectorAll(".eq-msel-panel").forEach((p) => p.classList.add("hidden"));
+                    panel.classList.toggle("hidden", !wasHidden);
+                    return;
+                }
+                if (t.dataset.ma === "ok") return panel.classList.add("hidden");
+                if (t.dataset.ma === "all") st[k] = [];
+                else if (t.matches("input[data-mv]")) {
+                    const v = t.dataset.mv;
+                    st[k] = t.checked ? [...new Set([...st[k], v])] : st[k].filter((x) => x !== v);
+                } else return;
+                st.page = 0;
+                paintMulti(k, box.querySelector("input[type=search]")?.value || "");
+                if (k === "country") paintCp();
+                renderAll();
+            });
+        });
+    }
+
     function cpLabel() {
         if (!st.cps) return "Усі пункти ▾";
         if (st.cps.size === 1) return cpShort([...st.cps][0]) + " ▾";
@@ -251,7 +332,7 @@ const EQ = (() => {
         const panel = $("#eqCpPanel");
         const s = norm(search);
         const groups = {};
-        CPS.filter((c) => !st.country || c.country === st.country)
+        CPS.filter((c) => pass(st.country, c.country))
             .filter((c) => !s || norm(c.name).includes(s))
             .forEach((c) => (groups[c.country || "Інше"] ||= []).push(c));
         const checked = (n) => !st.cps || st.cps.has(n);
@@ -313,9 +394,9 @@ const EQ = (() => {
         const list = ROWS.filter((r) => {
             if (st.ua && !r.ua) return false;
             if (st.cps && !st.cps.has(r.checkpoint)) return false;
-            if (st.country && r.country !== st.country) return false;
-            if (st.oblast && regionOf(r.edrpou) !== st.oblast) return false;
-            if (st.qtype && r.qtype !== st.qtype) return false;
+            if (!pass(st.country, r.country)) return false;
+            if (!pass(st.oblast, regionOf(r.edrpou))) return false;
+            if (!pass(st.qtype, r.qtype)) return false;
             if (st.bodies.size && !st.bodies.has(bodyOf(r))) return false;
             if (st.isNew && !r.is_new) return false;
             if (st.starred && !WATCH.has(r.tractor)) return false;
@@ -460,7 +541,7 @@ const EQ = (() => {
     function renderCps(list) {
         const n = {};
         list.forEach((r) => (n[r.checkpoint] = (n[r.checkpoint] || 0) + 1));
-        const cps = CPS.filter((c) => (!st.cps || st.cps.has(c.name)) && (!st.country || c.country === st.country) && (!st.qtype || c.qtype === st.qtype));
+        const cps = CPS.filter((c) => (!st.cps || st.cps.has(c.name)) && pass(st.country, c.country) && pass(st.qtype, c.qtype));
         $("#eqTable").innerHTML =
             `<thead><tr><th>Пункт</th><th>Країна</th><th>Черга</th><th>Машин (за фільтром)</th><th>Усього в черзі</th><th>Пройдено</th></tr></thead><tbody>` +
             (cps.map((c) => `<tr class="eq-cprow" data-cp="${esc(c.name)}">
@@ -531,9 +612,7 @@ const EQ = (() => {
             document.querySelectorAll("#eqViews button").forEach((x) => x.classList.toggle("active", x === b));
             renderAll();
         });
-        $("#eqCountry").addEventListener("change", (e) => { st.country = e.target.value; st.page = 0; paintCp(); renderAll(); });
-        $("#eqOblast")?.addEventListener("change", (e) => { st.oblast = e.target.value; st.page = 0; renderAll(); });
-        $("#eqQtype").addEventListener("change", (e) => { st.qtype = e.target.value; st.page = 0; renderAll(); });
+        bindMulti();
         $("#eqFresh")?.addEventListener("change", (e) => { st.fresh = e.target.value; st.page = 0; renderAll(); });
         $("#eqSort")?.addEventListener("change", (e) => { st.sort = e.target.value; st.page = 0; renderAll(); });
         $("#eqBodies").addEventListener("click", (e) => {
@@ -547,7 +626,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: "", qtype: "", bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", oblast: "", page: 0 });
+            Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", oblast: [], page: 0 });
             fillSelects();
             renderAll();
         });
@@ -556,8 +635,9 @@ const EQ = (() => {
             $("#eqCpPanel").classList.toggle("hidden");
         });
         $("#eqCpPanel").addEventListener("click", (e) => { e.stopPropagation(); onCpClick(e); });
-        document.addEventListener("click", () => $("#eqCpPanel").classList.add("hidden"));
-        document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#eqCpPanel").classList.add("hidden"); });
+        const closeAll = () => document.querySelectorAll(".eq-msel-panel").forEach((p) => p.classList.add("hidden"));
+        document.addEventListener("click", closeAll);
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
         const onPage = (e) => {
             const b = e.target.closest("[data-p]");
             if (!b || b.disabled) return;
@@ -599,7 +679,7 @@ const EQ = (() => {
 
     // echerha.html?q=AT4287CA (з пошуку вгорі) — показати саме цю машину, без фільтрів, що могли б її сховати
     function focusQuery(q) {
-        Object.assign(st, { showGone: true, view: "trucks", q, cps: null, country: "", qtype: "", bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
+        Object.assign(st, { showGone: true, view: "trucks", q, cps: null, country: [], qtype: [], oblast: [], bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
     }
     return { restore, bind, load, fillSelects, live, focusQuery, setView: (v) => { st.view = v; } };
 })();
