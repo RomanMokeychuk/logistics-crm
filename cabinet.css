@@ -385,6 +385,7 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
 .cb-help-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
 @media (max-width: 1000px) { .cb-help-grid { grid-template-columns: 1fr; } }
 .cb-help + .cb-help { margin-top: 14px; }
+.cb-help-grid > .cb-help { margin-top: 0; }
 .cb-help p { line-height: 1.55; margin: 6px 0; }
 .cb-help-steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; gap: 10px; }
 .cb-help-steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; line-height: 1.5; }

@@ -1027,7 +1027,7 @@
     function helpView() {
         crumbs(["Як це працює"]);
         const sec = (icon, title, body) => `<section class="cb-card cb-help"><h3 class="cb-h2" style="margin-top:0;font-size:17px"><i class="bx ${icon}"></i> ${title}</h3>${body}</section>`;
-        const ol = (list) => `<ol class="cb-help-steps">${list.map((x) => `<li>${x}</li>`).join("")}</ol>`;
+        const ol = (list) => `<ol class="cb-help-steps">${list.map((x) => `<li><div>${x}</div></li>`).join("")}</ol>`;
         const faq = (list) => list.map(([q, a]) => `<details class="cb-faq"><summary>${q}</summary><p>${a}</p></details>`).join("");
         const client = kind === "client";
         app.innerHTML = client
