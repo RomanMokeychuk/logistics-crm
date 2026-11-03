@@ -137,6 +137,14 @@
     async function boot() {
         const hash = new URLSearchParams(location.hash.slice(1));
         const invite = hash.get("invite");
+        // Посилання з екрана «Хто ви?» (login.html): #role=client|carrier; одразу реєстрація: #join=client|carrier
+        const role = hash.get("role") || hash.get("join");
+        if (role === "client" || role === "carrier") {
+            loginRole = role;
+            store.set(ROLE_KEY, role);
+            history.replaceState(null, "", location.pathname);
+            if (!token && hash.get("join")) return renderRegister(role);
+        }
         try {
             if (invite) {
                 history.replaceState(null, "", location.pathname);
@@ -154,6 +162,8 @@
         route();
     }
 
+    const ROLE_KEY = "fura_cabinet_role";
+    let loginRole = store.get(ROLE_KEY) || "";
     async function renderLogin(message) {
         clearInterval(liveTimer);
         $("cbShell").hidden = true;
@@ -162,8 +172,8 @@
         box.innerHTML = `
             <section class="cb-login">
                 <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
-                <h1>Кабінет Грандар</h1>
-                <p class="cb-muted">Для клієнтів і перевізників: запити, ставки, перевезення, карта і документи.</p>
+                <h1>${loginRole === "client" ? "Кабінет клієнта" : loginRole === "carrier" ? "Кабінет перевізника" : "Кабінет Грандар"}</h1>
+                <p class="cb-muted">${loginRole === "client" ? "Запити, ціни, перевезення, карта з вашим вантажем і документи." : loginRole === "carrier" ? "Пропозиції рейсів, ставки, ваші рейси й оплати." : "Для клієнтів і перевізників: запити, ставки, перевезення, карта і документи."}</p>
                 ${message ? `<div class="cb-alert">${e(message)}</div>` : ""}
                 <div id="cbLoginWays">${loading()}</div>
             </section>`;
@@ -197,13 +207,14 @@
                     <button type="submit" class="cb-btn cb-btn-primary" id="cbEmailBtn">Надіслати код</button>
                 </form>`);
         }
-        if (cfg.bot && !inTelegram) {
+        if (cfg.bot && !inTelegram && loginRole !== "client") {
             ways.push(`<a class="cb-btn cb-btn-tg" href="https://t.me/${e(cfg.bot)}?start=cabinet" target="_blank" rel="noopener"><i class="bx bxl-telegram"></i> Увійти через Telegram</a>
                 <p class="cb-hint">Для перевізників, підключених до бота Грандар.</p>`);
         }
         $("cbLoginWays").innerHTML = ways.join("");
         bindEyes($("cbLoginWays"));
-        $("cbRegOpen").addEventListener("click", () => renderRegister());
+        $("cbLoginWays").insertAdjacentHTML("beforeend", `<a class="cb-link cb-who-back" href="login.html"><i class="bx bx-left-arrow-alt"></i> ${loginRole ? "Я не " + (loginRole === "client" ? "клієнт" : "перевізник") + " — змінити" : "Я співробітник Грандар — вхід у CRM"}</a>`);
+        $("cbRegOpen").addEventListener("click", () => renderRegister(loginRole || "client"));
         $("cbPassForm").addEventListener("submit", async (ev) => {
             ev.preventDefault();
             const btn = $("cbPassBtn");

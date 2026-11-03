@@ -423,3 +423,4 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
 .cb-banner-soft > i { color: var(--blue); }
 .cb-seg button.active { color: var(--text); }
 .cb-card > .cb-h2:first-child { margin-top: 0; }
+.cb-who-back { margin-top: 16px; }
