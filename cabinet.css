@@ -424,3 +424,10 @@ input[type="date"].cb-in { min-width: 0; min-height: 44px; }
 .cb-seg button.active { color: var(--text); }
 .cb-card > .cb-h2:first-child { margin-top: 0; }
 .cb-who-back { margin-top: 16px; }
+.cb-who { display: grid; gap: 10px; margin-top: 18px; }
+.cb-who button { display: flex; align-items: center; gap: 14px; text-align: left; border: 1.5px solid var(--line); background: #fff; border-radius: 14px; padding: 16px; cursor: pointer; font: inherit; color: var(--text); transition: border-color .15s, background .15s; }
+.cb-who button:hover { border-color: var(--orange); background: var(--orange-soft); }
+.cb-who button > i:first-child { font-size: 30px; color: var(--orange); flex: none; }
+.cb-who b { display: block; font-size: 16px; }
+.cb-who span { color: var(--muted); font-size: 13px; line-height: 1.4; }
+.cb-who .bx-chevron-right { margin-left: auto; font-size: 22px; color: var(--muted); }

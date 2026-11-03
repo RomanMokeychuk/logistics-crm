@@ -164,7 +164,37 @@
 
     const ROLE_KEY = "fura_cabinet_role";
     let loginRole = store.get(ROLE_KEY) || "";
+    // Перший екран: хто ви — клієнт чи перевізник
+    function renderWho(message) {
+        clearInterval(liveTimer);
+        $("cbShell").hidden = true;
+        const box = $("cbLogin");
+        box.hidden = false;
+        box.innerHTML = `
+            <section class="cb-login">
+                <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
+                <h1>Вітаємо в Грандар!</h1>
+                <p class="cb-muted">Оберіть, хто ви — і ми відкриємо ваш кабінет.</p>
+                ${message ? `<div class="cb-alert">${e(message)}</div>` : ""}
+                <div class="cb-who">
+                    <button type="button" data-role="client"><i class="bx bx-package"></i><div><b>Я клієнт</b><span>Замовляю перевезення: запити, ціни, де мій вантаж</span></div><i class="bx bx-chevron-right"></i></button>
+                    <button type="button" data-role="carrier"><i class="bx bxs-truck"></i><div><b>Я перевізник</b><span>Маю машини: пропозиції рейсів, ставки, мої рейси</span></div><i class="bx bx-chevron-right"></i></button>
+                </div>
+            </section>`;
+        box.querySelectorAll("[data-role]").forEach((b) =>
+            b.addEventListener("click", () => {
+                loginRole = b.dataset.role;
+                store.set(ROLE_KEY, loginRole);
+                renderLogin();
+            }),
+        );
+    }
+
     async function renderLogin(message) {
+        if (!loginRole) {
+            if (!inTelegram) return renderWho(message);
+            loginRole = "carrier"; // кабінет з бота — перевізник
+        }
         clearInterval(liveTimer);
         $("cbShell").hidden = true;
         const box = $("cbLogin");
@@ -213,7 +243,12 @@
         }
         $("cbLoginWays").innerHTML = ways.join("");
         bindEyes($("cbLoginWays"));
-        $("cbLoginWays").insertAdjacentHTML("beforeend", `<a class="cb-link cb-who-back" href="login.html"><i class="bx bx-left-arrow-alt"></i> ${loginRole ? "Я не " + (loginRole === "client" ? "клієнт" : "перевізник") + " — змінити" : "Я співробітник Грандар — вхід у CRM"}</a>`);
+        $("cbLoginWays").insertAdjacentHTML("beforeend", `<button type="button" class="cb-link cb-who-back" id="cbWhoBack"><i class="bx bx-left-arrow-alt"></i> Я не ${loginRole === "client" ? "клієнт" : "перевізник"} — змінити</button>`);
+        $("cbWhoBack").addEventListener("click", () => {
+            loginRole = "";
+            store.set(ROLE_KEY, "");
+            renderWho();
+        });
         $("cbRegOpen").addEventListener("click", () => renderRegister(loginRole || "client"));
         $("cbPassForm").addEventListener("submit", async (ev) => {
             ev.preventDefault();

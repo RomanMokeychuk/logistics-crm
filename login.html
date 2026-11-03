@@ -3,11 +3,11 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Вхід — Грандар</title>
+        <title>Вхід — FURA</title>
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611031058" />
+        <link rel="stylesheet" href="style.css?v=202611031105" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
@@ -39,19 +39,6 @@
                 flex-direction: column;
                 gap: 14px;
             }
-            .who { max-width: 460px; }
-            .who h2 { margin-bottom: 6px; }
-            .who-sub { text-align: center; color: #64748b; font-size: 14px; margin: 0 0 18px; }
-            .who-list { display: grid; gap: 10px; }
-            .who-btn { display: flex; align-items: center; gap: 14px; text-align: left; border: 1.5px solid #e2e8f0; background: #fff; border-radius: 14px; padding: 14px 16px; cursor: pointer; text-decoration: none; color: #0f172a; font: inherit; transition: border-color .15s, background .15s; }
-            .who-btn:hover { border-color: #f57c00; background: #fff7ed; }
-            .who-btn i { font-size: 30px; color: #f57c00; flex: none; width: 36px; text-align: center; }
-            .who-btn b { display: block; font-size: 16px; }
-            .who-btn span { color: #64748b; font-size: 13px; }
-            .who-btn .bx-chevron-right { margin-left: auto; font-size: 22px; color: #94a3b8; width: auto; }
-            .who-staff i { color: #13203f; }
-            .back-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 14px; color: #1d5bd8; font-size: 14px; font-weight: 600; text-decoration: none; background: none; border: 0; cursor: pointer; font-family: inherit; }
-            [hidden] { display: none !important; }
             .error-message {
                 color: #ef4444;
                 font-size: 13px;
@@ -75,26 +62,14 @@
                 ">
                 <img
                     id="brandImg"
-                    src="company-logo.svg"
+                    src="logo.svg"
                     alt=""
                     width="28"
                     height="28"
                     style="border-radius: 7px" />
-                <span id="brandName">Грандар</span>
+                <span id="brandName">FURA</span>
             </div>
-            <!-- Крок 1: хто ви -->
-            <div id="whoStep">
-                <h2>Вітаємо в Грандар!</h2>
-                <p class="who-sub">Оберіть, хто ви — і ми відкриємо потрібний вхід</p>
-                <div class="who-list">
-                    <a class="who-btn" href="cabinet.html#role=client"><i class="bx bx-package"></i><div><b>Я клієнт</b><span>Замовляю перевезення: запити, ціни, де мій вантаж</span></div><i class="bx bx-chevron-right"></i></a>
-                    <a class="who-btn" href="cabinet.html#role=carrier"><i class="bx bxs-truck"></i><div><b>Я перевізник</b><span>Маю машини: пропозиції рейсів, ставки, мої рейси</span></div><i class="bx bx-chevron-right"></i></a>
-                    <button type="button" class="who-btn who-staff" id="pickStaff"><i class="bx bx-id-card"></i><div><b>Я співробітник Грандар</b><span>Вхід у CRM FURA</span></div><i class="bx bx-chevron-right"></i></button>
-                </div>
-            </div>
-            <!-- Крок 2: вхід співробітника -->
-            <div id="staffStep" hidden>
-            <h2>Вхід для співробітників</h2>
+            <h2>Вхід у FURA</h2>
             <form id="loginForm">
                 <div class="form-group">
                     <label>Email</label>
@@ -125,8 +100,7 @@
                 </button>
             </form>
             <div id="authError" class="error-message"></div>
-            <button type="button" class="back-link" id="backWho"><i class="bx bx-left-arrow-alt"></i> Я не співробітник — клієнт або перевізник</button>
-            </div>
+
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -138,23 +112,6 @@
                 SUPABASE_URL,
                 SUPABASE_KEY,
             );
-
-            // Крок «хто ви»: співробітника запам'ятовуємо, щоб наступного разу одразу показати форму
-            const whoStep = document.getElementById("whoStep");
-            const staffStep = document.getElementById("staffStep");
-            function showStaff(on) {
-                whoStep.hidden = on;
-                staffStep.hidden = !on;
-                document.getElementById("brandImg").src = on ? "logo.svg" : "company-logo.svg";
-                document.getElementById("brandName").textContent = on ? "FURA" : "Грандар";
-                try { on ? localStorage.setItem("fura_login_role", "staff") : localStorage.removeItem("fura_login_role"); } catch (_) {}
-                if (on) document.getElementById("authEmail").focus();
-            }
-            document.getElementById("pickStaff").addEventListener("click", () => showStaff(true));
-            document.getElementById("backWho").addEventListener("click", () => showStaff(false));
-            let staffSaved = false;
-            try { staffSaved = localStorage.getItem("fura_login_role") === "staff"; } catch (_) {}
-            if (location.hash === "#staff" || staffSaved) showStaff(true);
 
             const loginForm = document.getElementById("loginForm");
             const authEmail = document.getElementById("authEmail");
