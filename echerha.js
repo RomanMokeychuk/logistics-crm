@@ -53,7 +53,22 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
-    const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", oblast: [], page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], oblast: [], page: 0, sort: "entry" };
+    // «Стали в чергу» — проміжки, що не перетинаються, тому можна обирати кілька
+    const FRESH = [
+        { k: "до 1 год", from: 0, to: 1 },
+        { k: "1–3 год", from: 1, to: 3 },
+        { k: "3–6 год", from: 3, to: 6 },
+        { k: "6–24 год", from: 6, to: 24 },
+        { k: "більше доби", from: 24, to: Infinity },
+    ];
+    const SORTS = [
+        ["entry", "Спершу найближчий в'їзд"],
+        ["new", "Спершу ті, що щойно стали в чергу"],
+        ["late", "Спершу найпізніший в'їзд"],
+    ];
+    // старе збереження «6» (за 6 год) → проміжки до 6 год
+    const freshList = (v) => (Array.isArray(v) ? v.filter((x) => FRESH.some((f) => f.k === x)) : v ? FRESH.filter((f) => f.to <= Number(v)).map((f) => f.k) : []);
     // Кілька варіантів у фільтрі: порожній список = «усі»
     const asList = (v) => (Array.isArray(v) ? v.filter(Boolean) : v ? [v] : []);
     const pass = (list, v) => !list.length || list.includes(v);
@@ -123,7 +138,7 @@ const EQ = (() => {
             const s = JSON.parse(localStorage.getItem(FKEY) || "null");
             if (!s) return;
             Object.assign(st, s, { q: "", showGone: false, bodies: new Set(s.bodies || []), cps: Array.isArray(s.cps) ? new Set(s.cps) : null, page: 0,
-                country: asList(s.country), qtype: asList(s.qtype), oblast: asList(s.oblast).map(fixRegion) });
+                country: asList(s.country), qtype: asList(s.qtype), oblast: asList(s.oblast).map(fixRegion), fresh: freshList(s.fresh), sort: SORTS.some(([v]) => v === s.sort) ? s.sort : "entry" });
         } catch (e) { /* ігноруємо */ }
     }
 
@@ -242,13 +257,9 @@ const EQ = (() => {
         $("#eqNew").checked = st.isNew;
         $("#eqStarred").checked = st.starred;
         if ($("#eqGone")) $("#eqGone").checked = st.showGone;
-        if ($("#eqFresh")) {
-            HAS_REG = ROWS.some((r) => r.reg_at);
-            $("#eqFresh").value = st.fresh || "";
-            $("#eqFresh").disabled = ROWS.length > 0 && !HAS_REG;
-            $("#eqFresh").title = $("#eqFresh").disabled ? "Черга ще не надсилає час, коли машина стала в чергу" : "Скільки часу тому машина стала в чергу";
-        }
-        if ($("#eqSort")) $("#eqSort").value = st.sort || "entry";
+        HAS_REG = ROWS.some((r) => r.reg_at);
+        MULTI.fresh.disabled = ROWS.length > 0 && !HAS_REG;
+        Object.keys(MULTI).forEach((k) => paintMulti(k));
         $("#eqQ").value = st.q;
         document.querySelectorAll("#eqViews button").forEach((b) => b.classList.toggle("active", b.dataset.v === st.view));
         paintCp();
@@ -259,11 +270,23 @@ const EQ = (() => {
         country: { id: "eqCountryM", all: "Усі країни", many: "Країни", search: false, options: [] },
         oblast: { id: "eqOblastM", all: "Усі області перевізника", many: "Області", search: true, options: [] },
         qtype: { id: "eqQtypeM", all: "Будь-яка черга", many: "Черги", search: false, options: [] },
+        fresh: { id: "eqFreshM", all: "Стали в чергу: будь-коли", many: "Стали в чергу", search: false, options: FRESH.map((f) => f.k) },
+        sort: { id: "eqSortM", single: true, options: SORTS.map(([v]) => v), names: Object.fromEntries(SORTS) },
     };
     function multiLabel(k) {
         const m = MULTI[k];
+        if (m.single) return m.names[st[k]] || "";
+        if (k === "fresh" && m.disabled) return "Стали в чергу: немає даних";
         const sel = st[k];
         if (!sel.length) return m.all;
+        if (k === "fresh") {
+            const idx = FRESH.map((f, i) => (sel.includes(f.k) ? i : -1)).filter((i) => i >= 0);
+            const solid = idx.length > 1 && idx[idx.length - 1] - idx[0] === idx.length - 1;
+            if (!solid) return `${m.many}: ${idx.map((i) => FRESH[i].k).join(", ")}`;
+            const from = FRESH[idx[0]].from, to = FRESH[idx[idx.length - 1]].to;
+            const txt = to === Infinity ? `більше ${from} год` : from === 0 ? `до ${to === 24 ? "доби" : to + " год"}` : `${from}–${to} год`;
+            return `${m.many}: ${txt}`;
+        }
         if (sel.length === 1) return k === "oblast" ? sel[0].replace(/\s*ОБЛ\.?$/, " обл.") : sel[0];
         if (sel.length === 2) return `${m.many}: ${sel.map((x) => (k === "oblast" ? x.replace(/\s*ОБЛ\.?$/, "") : x)).join(", ")}`;
         return `${m.many}: ${sel.length}`;
@@ -276,11 +299,13 @@ const EQ = (() => {
         const s = norm(search);
         const opts = m.options.filter((o) => !s || norm(o).includes(s));
         box.innerHTML =
-            `<button type="button" class="eq-msel-btn ${st[k].length ? "eq-msel-on" : ""}" data-mbtn="${k}">${esc(multiLabel(k))} ▾</button>` +
-            `<div class="eq-msel-panel ${open ? "" : "hidden"}" data-mpanel="${k}">` +
-            `<div class="eq-mtop">${m.search ? `<input type="search" placeholder="Пошук…" value="${esc(search)}">` : ""}` +
-            `<button type="button" data-ma="all">Усі</button><button type="button" data-ma="ok" class="eq-ok">Готово</button></div>` +
-            (opts.map((o) => `<label class="eq-mitem"><input type="checkbox" data-mv="${esc(o)}" ${st[k].includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") ||
+            `<button type="button" class="eq-msel-btn ${!m.single && st[k].length ? "eq-msel-on" : ""}" data-mbtn="${k}" ${m.disabled ? "disabled" : ""}>${esc(multiLabel(k))} ▾</button>` +
+            `<div class="eq-msel-panel ${open && !m.disabled ? "" : "hidden"}" data-mpanel="${k}">` +
+            (m.single ? "" : `<div class="eq-mtop">${m.search ? `<input type="search" placeholder="Пошук…" value="${esc(search)}">` : ""}` +
+            `<button type="button" data-ma="all">Усі</button><button type="button" data-ma="ok" class="eq-ok">Готово</button></div>`) +
+            (opts.map((o) => m.single
+                ? `<label class="eq-mitem"><input type="radio" name="eq-${k}" data-mv="${esc(o)}" ${st[k] === o ? "checked" : ""}><span>${esc(m.names[o])}</span></label>`
+                : `<label class="eq-mitem"><input type="checkbox" data-mv="${esc(o)}" ${st[k].includes(o) ? "checked" : ""}><span>${esc(o)}</span></label>`).join("") ||
                 `<div class="eq-muted" style="padding:8px">Немає варіантів</div>`) +
             `</div>`;
         const inp = box.querySelector("input[type=search]");
@@ -309,7 +334,10 @@ const EQ = (() => {
                 }
                 if (t.dataset.ma === "ok") return panel.classList.add("hidden");
                 if (t.dataset.ma === "all") st[k] = [];
-                else if (t.matches("input[data-mv]")) {
+                else if (t.matches("input[data-mv]") && MULTI[k].single) {
+                    st[k] = t.dataset.mv;
+                    panel.classList.add("hidden");
+                } else if (t.matches("input[data-mv]")) {
                     const v = t.dataset.mv;
                     st[k] = t.checked ? [...new Set([...st[k], v])] : st[k].filter((x) => x !== v);
                 } else return;
@@ -402,9 +430,11 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, regionOf(r.edrpou)].join(" ")).includes(q)) return false;
-            if (st.fresh && HAS_REG) {
+            if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
-                if (!t || Date.now() - t > Number(st.fresh) * 3600 * 1000) return false;
+                if (!t) return false;
+                const h = (Date.now() - t) / 3600000;
+                if (!FRESH.some((f) => st.fresh.includes(f.k) && h >= f.from && h < f.to)) return false;
             }
             if (!st.showGone && likelyGone(r)) {
                 gone++;
@@ -613,8 +643,6 @@ const EQ = (() => {
             renderAll();
         });
         bindMulti();
-        $("#eqFresh")?.addEventListener("change", (e) => { st.fresh = e.target.value; st.page = 0; renderAll(); });
-        $("#eqSort")?.addEventListener("change", (e) => { st.sort = e.target.value; st.page = 0; renderAll(); });
         $("#eqBodies").addEventListener("click", (e) => {
             const b = e.target.closest("button");
             if (!b) return;
@@ -626,7 +654,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: "", sort: "entry", oblast: [], page: 0 });
+            Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], sort: "entry", oblast: [], page: 0 });
             fillSelects();
             renderAll();
         });
@@ -679,7 +707,7 @@ const EQ = (() => {
 
     // echerha.html?q=AT4287CA (з пошуку вгорі) — показати саме цю машину, без фільтрів, що могли б її сховати
     function focusQuery(q) {
-        Object.assign(st, { showGone: true, view: "trucks", q, cps: null, country: [], qtype: [], oblast: [], bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
+        Object.assign(st, { showGone: true, view: "trucks", q, cps: null, country: [], qtype: [], oblast: [], fresh: [], bodies: new Set(), ua: false, notInFura: false, isNew: false, starred: false, page: 0 });
     }
     return { restore, bind, load, fillSelects, live, focusQuery, setView: (v) => { st.view = v; } };
 })();
