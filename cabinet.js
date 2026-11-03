@@ -157,13 +157,42 @@
         } catch (err) {
             return renderLogin(err.message);
         }
-        if (!token) return renderLogin();
+        if (!token) return location.hash === "#register" ? renderRegister(loginRole || "client") : renderLogin();
         await loadHome();
         route();
     }
 
     const ROLE_KEY = "fura_cabinet_role";
     let loginRole = store.get(ROLE_KEY) || "";
+    let prevRole = "";
+    function goWho() {
+        prevRole = loginRole || prevRole;
+        loginRole = "";
+        store.set(ROLE_KEY, "");
+        history.pushState(null, "", location.pathname);
+        renderWho();
+    }
+    // Кнопка «Назад» у браузері на екранах входу: реєстрація → вхід → «Хто ви?»
+    window.addEventListener("popstate", () => {
+        if (token && state && !state.pending) return;
+        const h = location.hash;
+        if (h === "#register") return renderRegister(loginRole || prevRole || "client");
+        if (h === "#login") {
+            loginRole = loginRole || prevRole;
+            if (loginRole) {
+                store.set(ROLE_KEY, loginRole);
+                return renderLogin();
+            }
+            return renderWho();
+        }
+        if (!h || h === "#") {
+            prevRole = loginRole || prevRole;
+            loginRole = "";
+            store.set(ROLE_KEY, "");
+            renderWho();
+        }
+    });
+
     // Перший екран: хто ви — клієнт чи перевізник
     function renderWho(message) {
         clearInterval(liveTimer);
@@ -185,6 +214,7 @@
             b.addEventListener("click", () => {
                 loginRole = b.dataset.role;
                 store.set(ROLE_KEY, loginRole);
+                history.pushState(null, "", "#login");
                 renderLogin();
             }),
         );
@@ -201,6 +231,7 @@
         box.hidden = false;
         box.innerHTML = `
             <section class="cb-login">
+                ${inTelegram ? "" : `<button type="button" class="cb-link cb-top-back" id="cbTopBack"><i class="bx bx-left-arrow-alt"></i> Назад</button>`}
                 <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
                 <h1>${loginRole === "client" ? "Кабінет клієнта" : loginRole === "carrier" ? "Кабінет перевізника" : "Кабінет Грандар"}</h1>
                 <p class="cb-muted">${loginRole === "client" ? "Запити, ціни, перевезення, карта з вашим вантажем і документи." : loginRole === "carrier" ? "Пропозиції рейсів, ставки, ваші рейси й оплати." : "Для клієнтів і перевізників: запити, ставки, перевезення, карта і документи."}</p>
@@ -225,7 +256,7 @@
                 <p class="cb-hint cb-hint-left">Забули пароль? Попросіть менеджера Грандар надіслати посилання для входу — після входу задайте новий пароль у «Профіль і пароль».</p>
             </form>
             <div class="cb-reg-cta"><span>Ще немає доступу?</span> <button type="button" class="cb-btn" id="cbRegOpen"><i class="bx bx-user-plus"></i> Зареєструватися</button></div>
-            <div class="cb-or"><span>або</span></div>`);
+            ${inTelegram || cfg.email_login || (cfg.bot && loginRole !== "client") ? `<div class="cb-or"><span>або</span></div>` : ""}`);
         if (inTelegram) ways.push(`<button type="button" class="cb-btn cb-btn-tg" id="cbTgLogin"><i class="bx bxl-telegram"></i> Увійти через Telegram</button>`);
         if (cfg.email_login) {
             ways.push(`
@@ -244,12 +275,12 @@
         $("cbLoginWays").innerHTML = ways.join("");
         bindEyes($("cbLoginWays"));
         $("cbLoginWays").insertAdjacentHTML("beforeend", `<button type="button" class="cb-link cb-who-back" id="cbWhoBack"><i class="bx bx-left-arrow-alt"></i> Я не ${loginRole === "client" ? "клієнт" : "перевізник"} — змінити</button>`);
-        $("cbWhoBack").addEventListener("click", () => {
-            loginRole = "";
-            store.set(ROLE_KEY, "");
-            renderWho();
+        $("cbWhoBack").addEventListener("click", () => goWho());
+        $("cbTopBack")?.addEventListener("click", () => goWho());
+        $("cbRegOpen").addEventListener("click", () => {
+            history.pushState(null, "", "#register");
+            renderRegister(loginRole || "client");
         });
-        $("cbRegOpen").addEventListener("click", () => renderRegister(loginRole || "client"));
         $("cbPassForm").addEventListener("submit", async (ev) => {
             ev.preventDefault();
             const btn = $("cbPassBtn");
@@ -320,6 +351,7 @@
         box.hidden = false;
         box.innerHTML = `
             <section class="cb-login cb-reg">
+                <button type="button" class="cb-link cb-top-back" id="rgTopBack"><i class="bx bx-left-arrow-alt"></i> Назад</button>
                 <img src="company-logo.svg" alt="Грандар" class="cb-login-logo" />
                 <h1>Реєстрація в кабінеті Грандар</h1>
                 <p class="cb-muted">Заповніть дані — менеджер перевірить компанію (зазвичай протягом робочого дня), і відкриється весь кабінет.</p>
@@ -375,7 +407,16 @@
             box.querySelectorAll("#cbRegKind button").forEach((x) => x.classList.toggle("active", x === b));
             $("rgNoteLabel").textContent = pick === "client" ? "Що зазвичай возите, напрямки" : "Скільки машин, кузов, напрямки";
         });
-        $("rgBack").addEventListener("click", () => renderLogin());
+        const toLogin = () => {
+            if (!loginRole) {
+                loginRole = pick;
+                store.set(ROLE_KEY, pick);
+            }
+            history.replaceState(null, "", "#login");
+            renderLogin();
+        };
+        $("rgBack").addEventListener("click", toLogin);
+        $("rgTopBack").addEventListener("click", toLogin);
         $("cbRegForm").addEventListener("submit", async (ev) => {
             ev.preventDefault();
             if ($("rgPass").value !== $("rgPass2").value) return toast("Паролі не збігаються.", true);
@@ -478,6 +519,7 @@
         }
         kind = state.account.kind;
         const a = state.account;
+        if (/^#(login|register)$/.test(location.hash)) history.replaceState(null, "", location.pathname + "#/home");
         if (state.pending) return renderPending();
         $("cbLogin").hidden = true;
         $("cbShell").hidden = false;
