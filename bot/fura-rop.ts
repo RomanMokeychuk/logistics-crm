@@ -71,6 +71,7 @@ const normName = (s: unknown) =>
 
 const DEFAULTS: Record<string, number> = {
     logist_reply_hours: 6,
+    stale_request_days: 7,
     sales_react_hours: 2,
     negotiation_days: 14,
     new_lead_days: 7,
@@ -91,6 +92,7 @@ const DEFAULTS: Record<string, number> = {
 // Межі, щоб випадково не поставити «0 годин» або «10000 днів»
 const LIMITS: Record<string, [number, number]> = {
     logist_reply_hours: [1, 72],
+    stale_request_days: [2, 90],
     sales_react_hours: [1, 72],
     negotiation_days: [1, 120],
     new_lead_days: [1, 60],
@@ -223,7 +225,9 @@ async function rows(label: string, q: PromiseLike<{ data: Any; error: Any }>): P
     try {
         const { data, error } = await q;
         if (error) {
-            warnings.push(`${label}: ${error.message}`);
+            // Переписку / AI-продажі ще не підключено (таблиць немає) — це не помилка, просто без цих перевірок
+            const missing = /does not exist|could not find the table|schema cache/i.test(String(error.message || ""));
+            if (!(missing && /^(comm_|sales_messages)/.test(label))) warnings.push(`${label}: ${error.message}`);
             return [];
         }
         return data || [];
@@ -404,9 +408,22 @@ function analyze(d: Data, s: Record<string, number>) {
         findings.push({ ...f, fingerprint: f.fingerprint || `${f.kind}:${f.entity_id}:${f.assignee_id || "boss"}` });
 
     /* ---- Запити ---- */
+    // Давні запити без руху («Запит» / «Відповідь» старші за N днів) — не засмічуємо кожним окремо,
+    // а даємо Sales одну задачу «закрити або оновити»
+    const staleBySales = new Map<string, { p: { id: string | null; name: string | null }; items: string[]; oldest: number }>();
     for (const r of d.requests) {
         const age = (now - ts(r.created_at)) / HOUR;
         const label = `${r.client || "Без клієнта"}${route(r) ? " · " + route(r) : ""}`;
+
+        if ((r.status === "Запит" || r.status === "Відповідь") && age > s.stale_request_days * 24) {
+            const p = person(r.sales_id, r.sales);
+            const key = p.id || p.name || "—";
+            const g = staleBySales.get(key) || { p, items: [], oldest: 0 };
+            g.items.push(`№ ${r.number || r.id} ${label} (${Math.round(age / 24)} дн.)`);
+            g.oldest = Math.max(g.oldest, age);
+            staleBySales.set(key, g);
+            continue;
+        }
 
         if (r.status === "Запит" && age > s.logist_reply_hours) {
             const done = answeredBy(r);
@@ -448,6 +465,17 @@ function analyze(d: Data, s: Record<string, number>) {
                 });
             }
         }
+    }
+
+    for (const [key, g] of staleBySales) {
+        add({
+            kind: "stale_requests", priority: 2, assignee_id: g.p.id, assignee_name: g.p.name,
+            entity_type: "requests_stale", entity_id: key, entity_label: `${g.items.length} старих запитів`,
+            title: `Закрити старі запити без руху: ${g.items.length} шт.`,
+            details: `Запити в статусі «Запит» / «Відповідь» довше ${s.stale_request_days} дн. Якщо клієнт уже не актуальний — «Відмова» з причиною; якщо досі в роботі — оновіть статус. ` +
+                g.items.slice(0, 5).join("; ") + (g.items.length > 5 ? ` і ще ${g.items.length - 5}.` : "."),
+            link: "requests.html",
+        });
     }
 
     /* ---- Ліди й клієнти ---- */
@@ -952,10 +980,19 @@ async function aiSummary(kind: string, m: Any, findings: Finding[]) {
 
 // Без Claude (немає ключа / помилка) — звіт із цифр і найтерміновіших проблем
 function plainSummary(m: Any, findings: Finding[]) {
-    const top = [...findings].sort((a, b) => a.priority - b.priority).slice(0, 5);
+    // Один запит з кількома логістами — одна дія, з усіма іменами
+    const byEntity = new Map<string, { f: Finding; who: string[] }>();
+    for (const f of [...findings].sort((a, b) => a.priority - b.priority)) {
+        const k = `${f.kind}:${f.entity_type}:${f.entity_id}`;
+        const g = byEntity.get(k);
+        if (g) {
+            if (f.assignee_name && !g.who.includes(f.assignee_name)) g.who.push(f.assignee_name);
+        } else byEntity.set(k, { f, who: f.assignee_name ? [f.assignee_name] : [] });
+    }
+    const top = [...byEntity.values()].slice(0, 5);
     return {
         headline: `Проблем зараз: ${m.problems.total}, з них термінових: ${m.problems.urgent}.`,
-        top_actions: top.map((f) => ({ title: f.title, why: f.details, who: f.assignee_name || "Керівник", link: f.link })),
+        top_actions: top.map(({ f, who }) => ({ title: f.title, why: f.details, who: who.join(", ") || "Керівник", link: f.link })),
         risks: [],
         trends: [],
         managers: [],

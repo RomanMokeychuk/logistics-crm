@@ -15,6 +15,7 @@ const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const KIND_LABEL = {
     logist_reply: "Запит без відповіді логіста",
+    stale_requests: "Старі запити без руху",
     sales_react: "Ставка без реакції Sales",
     lead_overdue: "Прострочений контакт",
     lead_stale: "Лід без руху",
@@ -35,6 +36,7 @@ const ROLE_LABEL = { sales: "Sales", logist: "Логіст", head: "Керівн
 
 const SETTINGS_FIELDS = [
     ["logist_reply_hours", "Логіст відповідає на запит", "год"],
+    ["stale_request_days", "Запит без руху — «старий» (одна задача Sales закрити)", "дн."],
     ["sales_react_hours", "Sales реагує на ставку логіста", "год"],
     ["negotiation_days", "«Переговори» не довше", "дн."],
     ["new_lead_days", "«Новий» / «Контакт» без дій не довше", "дн."],

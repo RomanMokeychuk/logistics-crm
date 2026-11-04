@@ -8,6 +8,7 @@
 (function () {
     const KIND_LABEL = {
         logist_reply: "Запит без відповіді",
+        stale_requests: "Старі запити",
         sales_react: "Ставка без реакції",
         lead_overdue: "Прострочений контакт",
         lead_stale: "Лід без руху",
