@@ -32,6 +32,7 @@ const COUNTRIES = [
     "ГРУЗІЯ",
     "ФІНЛЯНДІЯ",
     "ЕСТОНІЯ",
+    "КАЗАХСТАН",
 ];
 
 const TRANSPORT_TYPES = [

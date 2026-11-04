@@ -83,6 +83,7 @@ const COUNTRIES = [
     "ГРУЗІЯ",
     "ФІНЛЯНДІЯ",
     "ЕСТОНІЯ",
+    "КАЗАХСТАН",
 ];
 
 const modalOverlay = document.getElementById("modalOverlay");
