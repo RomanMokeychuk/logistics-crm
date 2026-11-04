@@ -68,7 +68,7 @@
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
                 { href: "echerha.html", svg: "cherga", label: "Черга" },
                 { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
-                { href: "comms.html", icon: "bx-chat", label: "Переписка" },
+                { href: "comms.html", icon: "bx-chat", label: "Переписка", only: ["head", "admin"] }, // поки канали не підключено — лише керівнику; потім прибрати only
             ],
         },
         {
