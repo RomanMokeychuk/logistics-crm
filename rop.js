@@ -26,6 +26,10 @@ const KIND_LABEL = {
     draft_wait: "Листи AI-продажів",
     reply_waiting: "Клієнт відповів",
     assign_lead: "Лід без відповідального",
+    client_unanswered: "Клієнт чекає відповіді",
+    quote_not_given: "Ставку не назвали",
+    client_complaint: "Скарга клієнта",
+    rude_tone: "Тон відповіді",
 };
 const ROLE_LABEL = { sales: "Sales", logist: "Логіст", head: "Керівник", admin: "Адмін" };
 
@@ -41,6 +45,11 @@ const SETTINGS_FIELDS = [
     ["daily_hour", "Ранковий звіт — година (Київ)", "год"],
     ["daily_minute", "Ранковий звіт — хвилини", "хв"],
     ["weekly_day", "Тижневий звіт — день (1 = понеділок)", ""],
+    ["client_reply_minutes", "Відповідь клієнту в месенджері / пошті", "хв"],
+    ["quote_reply_hours", "Назвати ставку після запиту клієнта", "год"],
+    ["work_start", "Робочий день — початок (для часу відповіді)", "год"],
+    ["work_end", "Робочий день — кінець", "год"],
+    ["work_saturday", "Субота робоча (1 — так, 0 — ні)", ""],
 ];
 
 let me = null;
@@ -264,6 +273,14 @@ function renderReport() {
                           ["Сер. час відповіді", p.logist.avg_reply_h === null ? "—" : `${fmtNum(p.logist.avg_reply_h, 1)} год`],
                           ["Відповіді з запізненням", fmtNum(p.logist.late_replies_30d)],
                           ["Угоди / профіт 30 дн.", `${p.logist.deals_30d} / ${fmtUsd(p.logist.profit_30d_usd)}`],
+                      );
+                  }
+                  if (p.comms) {
+                      const c = p.comms;
+                      rows.push(
+                          ["Переписка 7 дн.: вх. / вих.", `${c.messages_in_7d} / ${c.messages_out_7d}`],
+                          ["Перша відповідь клієнту (медіана)", c.median_first_reply_min_30d === null ? "—" : `${fmtNum(c.median_first_reply_min_30d)} роб. хв`],
+                          ["Клієнтів чекають відповіді", fmtNum(c.unanswered_now)],
                       );
                   }
                   return `<div class="rop-person">

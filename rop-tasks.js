@@ -19,6 +19,10 @@
         draft_wait: "Листи AI-продажів",
         reply_waiting: "Клієнт відповів",
         assign_lead: "Лід без відповідального",
+        client_unanswered: "Клієнт чекає відповіді",
+        quote_not_given: "Ставку не назвали",
+        client_complaint: "Скарга клієнта",
+        rude_tone: "Тон відповіді",
     };
     const SHOW = 8;
 

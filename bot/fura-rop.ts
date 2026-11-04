@@ -81,6 +81,12 @@ const DEFAULTS: Record<string, number> = {
     daily_hour: 8,
     daily_minute: 30,
     weekly_day: 1,
+    // Переписка (етап 2): час рахуємо лише в робочі години за Києвом
+    client_reply_minutes: 60,
+    quote_reply_hours: 3,
+    work_start: 9,
+    work_end: 19,
+    work_saturday: 0,
 };
 // Межі, щоб випадково не поставити «0 годин» або «10000 днів»
 const LIMITS: Record<string, [number, number]> = {
@@ -95,6 +101,11 @@ const LIMITS: Record<string, [number, number]> = {
     daily_hour: [5, 12],
     daily_minute: [0, 59],
     weekly_day: [1, 7],
+    client_reply_minutes: [5, 1440],
+    quote_reply_hours: [1, 48],
+    work_start: [0, 23],
+    work_end: [1, 24],
+    work_saturday: [0, 1],
 };
 
 async function loadSettings(): Promise<Record<string, number>> {
@@ -229,7 +240,7 @@ async function collect() {
     warnings.length = 0;
     const since = (days: number) => new Date(Date.now() - days * DAY).toISOString();
 
-    const [staff, reqRecent, reqOpen, leads, deals, drafts, replies] = await Promise.all([
+    const [staff, reqRecent, reqOpen, leads, deals, drafts, replies, threads, messages] = await Promise.all([
         rows("staff", db.from("staff").select("*").eq("active", true)),
         rows("requests", db.from("requests").select(REQ_FIELDS).gte("created_at", since(150)).limit(5000)),
         rows("requests (відкриті)", db.from("requests").select(REQ_FIELDS).in("status", ["Запит", "Відповідь", "В роботі"]).limit(3000)),
@@ -241,6 +252,13 @@ async function collect() {
             db.from("sales_messages").select("id, prospect_id, classification, summary, created_at")
                 .eq("direction", "in").in("classification", ["interest", "quote"]).gte("created_at", since(30)).limit(1000),
         ),
+        // Переписка (comms.sql). Немає таблиць — просто без цих перевірок
+        rows("comm_threads", db.from("comm_threads").select("*").gte("last_message_at", since(30)).limit(5000)),
+        rows(
+            "comm_messages",
+            db.from("comm_messages").select("id, thread_id, channel, direction, staff_id, sent_at, ai_intent, ai_has_rate, ai_tone, ai_note")
+                .gte("sent_at", since(30)).order("sent_at").limit(30000),
+        ),
     ]);
 
     const reqMap = new Map<string, Any>();
@@ -251,7 +269,7 @@ async function collect() {
         ? await rows("sales_prospects", db.from("sales_prospects").select("id, name, stage, owner_id, lead_id").in("id", prospectIds.slice(0, 1000)))
         : [];
 
-    return { staff, requests: [...reqMap.values()], leads, deals, drafts, replies, prospects };
+    return { staff, requests: [...reqMap.values()], leads, deals, drafts, replies, prospects, threads, messages };
 }
 
 type Data = Awaited<ReturnType<typeof collect>>;
@@ -332,8 +350,44 @@ const KIND_LABEL: Record<string, string> = {
     deal_late: "Машина не завантажилась вчасно",
     draft_wait: "Листи AI-продажів чекають схвалення",
     reply_waiting: "Клієнт відповів — Sales мовчить",
+    client_unanswered: "Клієнт чекає відповіді в месенджері / пошті",
+    quote_not_given: "Клієнт просив ставку — не назвали",
+    client_complaint: "Скарга клієнта",
+    rude_tone: "Грубий тон у відповіді",
     assign_lead: "Лід без відповідального",
 };
+
+/* ---- Робочий час (Київ) ---- */
+
+// Зсув Києва від UTC на конкретну дату (зимовий / літній час)
+function kyivOffsetMs(t: number): number {
+    const p = Object.fromEntries(
+        new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Kyiv", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", hour12: false })
+            .formatToParts(new Date(t)).map((x) => [x.type, x.value]),
+    );
+    const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute));
+    return asUtc - Math.floor(t / 60_000) * 60_000;
+}
+
+// Скільки робочих хвилин минуло між a і b (пн–пт, сб — якщо увімкнено; з work_start до work_end)
+function businessMinutes(a: number, b: number, s: Record<string, number>): number {
+    if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
+    let total = 0;
+    const start = a + kyivOffsetMs(a);
+    const day0 = Math.floor(start / DAY) * DAY; // опівночі за Києвом (у «місцевих» мс)
+    for (let d = day0, i = 0; d <= b + kyivOffsetMs(b) && i < 62; d += DAY, i++) {
+        const dow = new Date(d).getUTCDay(); // 0 = неділя
+        if (dow === 0 || (dow === 6 && !s.work_saturday)) continue;
+        const off = kyivOffsetMs(d + 12 * HOUR - 3 * HOUR);
+        const ws = d + s.work_start * HOUR - off;
+        const we = d + s.work_end * HOUR - off;
+        const from = Math.max(a, ws), to = Math.min(b, we);
+        if (to > from) total += to - from;
+    }
+    return Math.round(total / 60_000);
+}
+
+const CLIENT_INTENTS = new Set(["quote_request", "order", "question", "complaint"]);
 
 function analyze(d: Data, s: Record<string, number>) {
     const now = Date.now();
@@ -545,6 +599,90 @@ function analyze(d: Data, s: Record<string, number>) {
         }
     }
 
+    /* ---- Переписка з клієнтами (Outlook / Telegram / WhatsApp / Viber) ---- */
+    const msgsByThread = new Map<string, Any[]>();
+    for (const m of d.messages) {
+        const k = String(m.thread_id);
+        if (!msgsByThread.has(k)) msgsByThread.set(k, []);
+        msgsByThread.get(k)!.push(m);
+    }
+    const CH_LABEL: Record<string, string> = { outlook: "Outlook", telegram: "Telegram", whatsapp: "WhatsApp", viber: "Viber" };
+    for (const t of d.threads) {
+        if (t.carrier_id) continue; // перевізники — не клієнти
+        const msgs = msgsByThread.get(String(t.id)) || [];
+        const who = person(t.staff_id, t.staff_name);
+        const label = `${t.lead_name || t.contact_name || t.contact_handle} · ${CH_LABEL[t.channel] || t.channel}`;
+        const link = `comms.html?t=${t.id}`;
+        const isClient = !!t.lead_id || msgs.some((m) => m.direction === "in" && CLIENT_INTENTS.has(m.ai_intent));
+
+        // Клієнт чекає відповіді
+        if (t.unanswered_since && isClient) {
+            const waiting = msgs.filter((m) => m.direction === "in" && ts(m.sent_at) >= ts(t.unanswered_since));
+            const lastIn = waiting[waiting.length - 1];
+            const needsReply = !lastIn || !["info", "spam"].includes(lastIn.ai_intent);
+            const mins = businessMinutes(ts(t.unanswered_since), now, s);
+            if (needsReply && mins > s.client_reply_minutes) {
+                const hot = waiting.some((m) => m.ai_intent === "quote_request" || m.ai_intent === "complaint" || m.ai_intent === "order");
+                add({
+                    kind: "client_unanswered", priority: hot || mins > s.client_reply_minutes * 3 ? 1 : 2,
+                    assignee_id: who.id, assignee_name: who.name,
+                    entity_type: "thread", entity_id: String(t.id), entity_label: label,
+                    title: `Відповісти клієнту: ${label}`,
+                    details: `Клієнт чекає ${mins >= 120 ? round(mins / 60, 1) + " роб. год" : mins + " роб. хв"} (норма — ${s.client_reply_minutes} хв).` +
+                        (t.last_preview ? ` Останнє: «${clip(t.last_preview, 120)}»` : ""),
+                    link,
+                });
+            }
+        }
+
+        // Клієнт просив ставку — ставку так і не назвали
+        const asks = msgs.filter((m) => m.direction === "in" && m.ai_intent === "quote_request" && now - ts(m.sent_at) < 7 * DAY);
+        const lastAsk = asks[asks.length - 1];
+        if (lastAsk) {
+            const answered = msgs.some((m) => m.direction === "out" && m.ai_has_rate && ts(m.sent_at) > ts(lastAsk.sent_at));
+            const hrs = businessMinutes(ts(lastAsk.sent_at), now, s) / 60;
+            if (!answered && hrs > s.quote_reply_hours) {
+                add({
+                    kind: "quote_not_given", priority: hrs > s.quote_reply_hours * 2 ? 1 : 2,
+                    assignee_id: who.id, assignee_name: who.name,
+                    entity_type: "thread", entity_id: String(t.id), entity_label: label,
+                    title: `Назвати ставку клієнту: ${label}`,
+                    details: `Клієнт просив ціну ${round(hrs, 1)} роб. год тому, у відповідях ставки немає (норма — ${s.quote_reply_hours} год).` +
+                        (lastAsk.ai_note ? ` ${clip(lastAsk.ai_note, 150)}` : "") + " Створіть запит логісту, якщо ще не створено.",
+                    link,
+                    fingerprint: `quote_not_given:${lastAsk.id}`,
+                });
+            }
+        }
+
+        // Скарга клієнта — керівнику
+        for (const m of msgs) {
+            if (m.direction !== "in" || m.ai_intent !== "complaint" || now - ts(m.sent_at) > 3 * DAY) continue;
+            add({
+                kind: "client_complaint", priority: 1, assignee_id: null, assignee_name: null,
+                entity_type: "thread", entity_id: String(t.id), entity_label: label,
+                title: `Скарга клієнта: ${label}`,
+                details: `${m.ai_note ? clip(m.ai_note, 200) + ". " : ""}Веде: ${who.name || "не призначено"}. Перевірте, що проблему вирішують.`,
+                link,
+                fingerprint: `client_complaint:${m.id}`,
+            });
+        }
+
+        // Грубий тон у відповіді — керівнику
+        for (const m of msgs) {
+            if (m.direction !== "out" || m.ai_tone !== "rude" || now - ts(m.sent_at) > 7 * DAY) continue;
+            const author = person(m.staff_id || t.staff_id, t.staff_name);
+            add({
+                kind: "rude_tone", priority: 2, assignee_id: null, assignee_name: null,
+                entity_type: "thread", entity_id: String(t.id), entity_label: label,
+                title: `Тон відповіді: ${author.name || "менеджер"} → ${t.lead_name || t.contact_name || t.contact_handle}`,
+                details: `${m.ai_note ? clip(m.ai_note, 200) + ". " : ""}Перегляньте переписку й поговоріть із співробітником.`,
+                link,
+                fingerprint: `rude_tone:${m.id}`,
+            });
+        }
+    }
+
     /* ---- AI-продажі ---- */
     const prospectById = new Map<string, Any>(d.prospects.map((p: Any) => [String(p.id), p]));
     const draftsByOwner = new Map<string, number>();
@@ -636,6 +774,55 @@ function metrics(d: Data, findings: Finding[], s: Record<string, number>) {
     const leadSources: Record<string, number> = {};
     for (const l of d.leads.filter((x) => inLast(x.created_at, 30))) leadSources[l.source || "—"] = (leadSources[l.source || "—"] || 0) + 1;
 
+    // Переписка: час першої відповіді клієнту (робочі хвилини) по кожній розмові
+    const clientThreads = new Set(d.threads.filter((t: Any) => !t.carrier_id).map((t: Any) => String(t.id)));
+    const threadStaff = new Map<string, string>(d.threads.map((t: Any) => [String(t.id), String(t.staff_id || "")]));
+    const replies: { staff: string; minutes: number; at: number; channel: string }[] = [];
+    {
+        const byThread = new Map<string, Any[]>();
+        for (const m of d.messages) {
+            if (!clientThreads.has(String(m.thread_id))) continue;
+            const k = String(m.thread_id);
+            if (!byThread.has(k)) byThread.set(k, []);
+            byThread.get(k)!.push(m);
+        }
+        for (const [tid, list] of byThread) {
+            let waitFrom: number | null = null;
+            for (const m of list) {
+                if (m.direction === "in") {
+                    if (waitFrom === null) waitFrom = ts(m.sent_at);
+                } else if (waitFrom !== null) {
+                    replies.push({ staff: String(m.staff_id || threadStaff.get(tid) || ""), minutes: businessMinutes(waitFrom, ts(m.sent_at), s), at: ts(m.sent_at), channel: m.channel });
+                    waitFrom = null;
+                }
+            }
+        }
+    }
+    const avg = (xs: number[]) => (xs.length ? round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
+    const median = (xs: number[]) => {
+        if (!xs.length) return null;
+        const a = [...xs].sort((x, y) => x - y);
+        return a[Math.floor(a.length / 2)];
+    };
+    const commFor = (staffId: string | null) => {
+        const msgs = d.messages.filter((m: Any) => clientThreads.has(String(m.thread_id)) && (staffId === null || String(m.staff_id || threadStaff.get(String(m.thread_id)) || "") === staffId));
+        const rep7 = replies.filter((r) => (staffId === null || r.staff === staffId) && r.at > now - 7 * DAY).map((r) => r.minutes);
+        const rep30 = replies.filter((r) => (staffId === null || r.staff === staffId)).map((r) => r.minutes);
+        const byChannel: Record<string, number> = {};
+        for (const m of msgs.filter((x: Any) => inLast(x.sent_at, 7))) byChannel[m.channel] = (byChannel[m.channel] || 0) + 1;
+        return {
+            messages_in_7d: msgs.filter((m: Any) => m.direction === "in" && inLast(m.sent_at, 7)).length,
+            messages_out_7d: msgs.filter((m: Any) => m.direction === "out" && inLast(m.sent_at, 7)).length,
+            by_channel_7d: byChannel,
+            avg_first_reply_min_7d: avg(rep7),
+            median_first_reply_min_30d: median(rep30),
+            late_replies_30d: rep30.filter((x) => x > s.client_reply_minutes).length,
+            unanswered_now: findings.filter((f) => f.kind === "client_unanswered" && (staffId === null || f.assignee_id === staffId)).length,
+            quote_requests_7d: msgs.filter((m: Any) => m.ai_intent === "quote_request" && inLast(m.sent_at, 7)).length,
+            complaints_7d: msgs.filter((m: Any) => m.ai_intent === "complaint" && inLast(m.sent_at, 7)).length,
+        };
+    };
+
     // По людях
     const people = d.staff
         .filter((x: Any) => rolesOf(x).some((r) => r === "sales" || r === "logist"))
@@ -677,6 +864,7 @@ function metrics(d: Data, findings: Finding[], s: Record<string, number>) {
                     profit_30d_usd: round(deals30.reduce((a, x) => a + dealProfit(x).profit, 0)),
                 };
             }
+            if (d.messages.length) out.comms = commFor(id);
             const tasks = findings.filter((f) => f.assignee_id === id);
             out.problems_now = tasks.length;
             out.problems_urgent = tasks.filter((f) => f.priority === 1).length;
@@ -703,6 +891,7 @@ function metrics(d: Data, findings: Finding[], s: Record<string, number>) {
             waiting_sales: d.requests.filter((r) => r.status === "Відповідь").length,
             in_work: d.requests.filter((r) => r.status === "В роботі").length,
         },
+        comms: d.messages.length ? commFor(null) : null,
         problems: { total: findings.length, urgent: findings.filter((f) => f.priority === 1).length, by_kind: byKind },
         people,
         data_warnings: [...warnings],
@@ -721,6 +910,8 @@ const SYSTEM = `Ти — досвідчений керівник відділу 
 1) вибрати 5 найважливіших дій на сьогодні (гроші й клієнти — першими: оплати, клієнти що відповіли, ставки без реакції, клієнти що затихли);
 2) назвати ризики й тренди, порівнюючи тиждень з попереднім і місяць з попереднім;
 3) коротко і по-людськи оцінити кожного співробітника: що добре, що покращити — конкретно, з цифрами.
+Якщо є metrics.comms і people[].comms — це переписка з клієнтами в Outlook / Telegram / WhatsApp / Viber:
+час першої відповіді (робочі хвилини), скільки клієнтів чекають відповіді, запити ставок і скарги. Враховуй це в оцінці людей.
 
 ЖОРСТКІ ПРАВИЛА:
 - Використовуй ТІЛЬКИ цифри з даних. Нічого не вигадуй, не рахуй нових сум. Якщо цифри немає — не пиши її.

@@ -1,0 +1,309 @@
+/* FURA — сторінка «Переписка». Кольори — з theme.css (--f-*). */
+
+.cm-tabs {
+    display: flex;
+    gap: 6px;
+}
+.cm-tab {
+    border: 1px solid var(--f-line, #e4e8ef);
+    background: var(--f-card, #fff);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+}
+.cm-tab.active {
+    background: var(--f-navy, #13203f);
+    color: #fff;
+    border-color: var(--f-navy, #13203f);
+}
+
+/* ---------- Дві колонки ---------- */
+
+.cm-inbox {
+    display: grid;
+    grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+    gap: 16px;
+    min-height: 0;
+    height: calc(100vh - 200px);
+}
+@media (max-width: 900px) {
+    .cm-inbox {
+        grid-template-columns: minmax(0, 1fr);
+        height: auto;
+    }
+}
+.cm-list-col,
+.cm-thread-col {
+    min-height: 0;
+    overflow: hidden;
+    padding: 14px;
+}
+.cm-filters {
+    display: grid;
+    gap: 8px;
+}
+.cm-filters input[type="search"],
+.cm-filters select,
+.cm-field select,
+.cm-field input,
+.cm-add input,
+.cm-add select,
+.cm-ch-table select {
+    height: 34px;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 8px;
+    padding: 0 10px;
+    background: var(--f-card, #fff);
+    min-width: 0;
+}
+.cm-filter-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.cm-filter-row select {
+    flex: 1;
+}
+.cm-threads {
+    overflow-y: auto;
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    flex: 1;
+    min-height: 0;
+}
+
+.cm-thread-item {
+    text-align: left;
+    border: 1px solid var(--f-line, #e4e8ef);
+    background: var(--f-card, #fff);
+    border-radius: 12px;
+    padding: 9px 11px;
+    cursor: pointer;
+    display: grid;
+    gap: 3px;
+    font: inherit;
+}
+.cm-thread-item:hover {
+    border-color: #c7d2fe;
+}
+.cm-thread-item.active {
+    border-color: var(--f-blue, #1d5bd8);
+    box-shadow: 0 0 0 2px rgba(29, 91, 216, 0.12);
+}
+.cm-thread-item.waiting {
+    border-left: 4px solid #f59e0b;
+}
+.cm-ti-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+.cm-ti-top b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cm-ti-time,
+.cm-ti-staff {
+    font-size: 12px;
+    color: var(--f-muted, #6b7280);
+    white-space: nowrap;
+}
+.cm-ti-mid {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.cm-ti-prev {
+    font-size: 13px;
+    color: #4b5563;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.cm-ti-wait {
+    font-size: 12px;
+    font-weight: 700;
+    color: #b45309;
+}
+
+.cm-ch {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: #f1f5f9;
+}
+.cm-ch.ch-outlook { background: #e0ecff; color: #0b4fb3; }
+.cm-ch.ch-telegram { background: #e0f2fe; color: #0369a1; }
+.cm-ch.ch-whatsapp { background: #dcfce7; color: #15803d; }
+.cm-ch.ch-viber { background: #ede9fe; color: #6d28d9; }
+
+/* ---------- Розмова ---------- */
+
+.cm-thread-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.cm-placeholder {
+    margin: auto;
+}
+.cm-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--f-line, #e4e8ef);
+    padding-bottom: 10px;
+}
+.cm-head h2 {
+    margin: 0;
+    font-size: 18px;
+}
+.cm-head-sub {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-top: 4px;
+}
+.cm-head-actions {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+.cm-field {
+    display: grid;
+    gap: 2px;
+    font-size: 12px;
+    color: var(--f-muted, #6b7280);
+}
+.cm-msgs {
+    flex: 1;
+    min-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 2px;
+}
+.cm-msg {
+    max-width: 78%;
+    padding: 8px 11px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    align-self: flex-start;
+}
+.cm-msg.out {
+    align-self: flex-end;
+    background: #e8f0ff;
+}
+.cm-msg-subj {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 3px;
+}
+.cm-msg-text {
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 14px;
+    max-height: 320px;
+    overflow: auto;
+}
+.cm-msg-foot {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--f-muted, #6b7280);
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.ag-chip.hot {
+    background: #fff1e6;
+    color: #9a3412;
+}
+.ag-chip.bad {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+.cm-reply {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+.cm-reply textarea {
+    flex: 1;
+    border: 1px solid var(--f-line, #e4e8ef);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font: inherit;
+    resize: vertical;
+}
+.cm-readonly {
+    border-top: 1px dashed var(--f-line, #e4e8ef);
+    padding-top: 8px;
+}
+
+/* ---------- Підключення ---------- */
+
+.cm-setup {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+.cm-status {
+    display: grid;
+    gap: 8px;
+}
+.cm-st {
+    display: grid;
+    grid-template-columns: 180px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: #f8fafc;
+}
+.cm-st.on {
+    background: #f0fdf4;
+}
+@media (max-width: 700px) {
+    .cm-st {
+        grid-template-columns: 1fr;
+    }
+}
+.cm-add {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.cm-add input {
+    flex: 1;
+    min-width: 180px;
+}
+.cm-ch-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+.cm-ch-table th,
+.cm-ch-table td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--f-line, #e4e8ef);
+    vertical-align: middle;
+}
+.cm-ch-table tr.off {
+    opacity: 0.55;
+}
