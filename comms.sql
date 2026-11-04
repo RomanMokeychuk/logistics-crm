@@ -75,9 +75,8 @@ create index if not exists comm_messages_sent_idx   on public.comm_messages (sen
 --    Керівник і адмін бачать усю переписку.
 --    Співробітник бачить розмову, якщо:
 --      • веде її сам, або
---      • розмова прив'язана до клієнта, за яким він закріплений як Sales, або
---      • він логіст хоча б одного запиту цього клієнта.
---    Так логіст бачить, про що домовився Sales, а переписка не відкрита всьому офісу.
+--      • розмова прив'язана до клієнта, за яким він закріплений як Sales.
+--    Логісти переписку клієнтів не бачать (лише розмови, які ведуть самі).
 --    Змінювати — тільки сервер (функція fura-comms).
 create or replace function public.comm_can_see(p_staff text, p_lead text)
 returns boolean
@@ -94,13 +93,7 @@ begin
     if me is null then return false; end if;
     if p_staff = me then return true; end if;
     if p_lead is null then return false; end if;
-    if exists (select 1 from public.leads l where l.id::text = p_lead and l.sales_id::text = me) then return true; end if;
-    -- logistician_ids може бути масивом або jsonb — шукаємо id як текст
-    return exists (
-        select 1 from public.requests r
-         where r.lead_id::text = p_lead
-           and (r.logistician_id::text = me or coalesce(r.logistician_ids::text, '') like '%' || me || '%')
-    );
+    return exists (select 1 from public.leads l where l.id::text = p_lead and l.sales_id::text = me);
 end;
 $$;
 
