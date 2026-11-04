@@ -336,6 +336,7 @@ const CLIENT_TABS = [
     { key: "contract", label: "Договір" },
     { key: "cargo", label: "Що і куди возить" },
     { key: "deals", label: "Угоди" },
+    { key: "comms", label: "Переписка" },
 ];
 let clientTab = "req";
 
@@ -558,6 +559,13 @@ function renderClientView(c) {
 
 function renderClientTab(c) {
     const box = $("cvTabBody");
+    // Outlook / Telegram / WhatsApp / Viber (comms-card.js)
+    if (clientTab === "comms") {
+        box.innerHTML = `<div data-cc-section><div id="cvComms"></div></div>`;
+        if (typeof window.furaCommsBlock === "function") window.furaCommsBlock(c.id, $("cvComms"));
+        else box.innerHTML = `<p class="client-sub">Переписку ще не підключено.</p>`;
+        return;
+    }
     if (clientTab === "req") {
         box.innerHTML = `
             <div class="dv-block-title">Адреси</div>

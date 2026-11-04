@@ -900,6 +900,13 @@ async function openLeadCard(id) {
                     </div>
                     <div id="leadRequests"><div class="card-block-text offer-muted">Завантаження…</div></div>
                 </div>
+
+                <div class="card-section" data-cc-section>
+                    <div class="card-section-title lead-section-title">
+                        <span><i class='bx bx-chat'></i> Переписка з клієнтом</span>
+                    </div>
+                    <div id="leadComms"></div>
+                </div>
             </div>
         </div>`;
 
@@ -908,6 +915,8 @@ async function openLeadCard(id) {
         .addEventListener("click", () => addHistory(l.id));
     cardOverlay.classList.add("active");
     loadLeadRequests(l);
+    // Outlook / Telegram / WhatsApp / Viber (comms-card.js)
+    if (typeof window.furaCommsBlock === "function") window.furaCommsBlock(l.id, document.getElementById("leadComms"));
 }
 
 // Запити цього ліда

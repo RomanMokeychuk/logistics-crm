@@ -72,8 +72,38 @@ create index if not exists comm_messages_ai_idx     on public.comm_messages (ai_
 create index if not exists comm_messages_sent_idx   on public.comm_messages (sent_at desc);
 
 -- 4. Доступ.
---    Керівник і адмін бачать усю переписку. Співробітник — лише свої розмови.
+--    Керівник і адмін бачать усю переписку.
+--    Співробітник бачить розмову, якщо:
+--      • веде її сам, або
+--      • розмова прив'язана до клієнта, за яким він закріплений як Sales, або
+--      • він логіст хоча б одного запиту цього клієнта.
+--    Так логіст бачить, про що домовився Sales, а переписка не відкрита всьому офісу.
 --    Змінювати — тільки сервер (функція fura-comms).
+create or replace function public.comm_can_see(p_staff text, p_lead text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare me text;
+begin
+    if public.rop_is_boss() then return true; end if;
+    if not public.is_active_staff() then return false; end if;
+    me := public.rop_my_staff_id();
+    if me is null then return false; end if;
+    if p_staff = me then return true; end if;
+    if p_lead is null then return false; end if;
+    if exists (select 1 from public.leads l where l.id::text = p_lead and l.sales_id::text = me) then return true; end if;
+    -- logistician_ids може бути масивом або jsonb — шукаємо id як текст
+    return exists (
+        select 1 from public.requests r
+         where r.lead_id::text = p_lead
+           and (r.logistician_id::text = me or coalesce(r.logistician_ids::text, '') like '%' || me || '%')
+    );
+end;
+$$;
+
 alter table public.comm_channels enable row level security;
 alter table public.comm_threads  enable row level security;
 alter table public.comm_messages enable row level security;
@@ -86,18 +116,12 @@ create policy "comm_channels_select" on public.comm_channels
 
 drop policy if exists "comm_threads_select" on public.comm_threads;
 create policy "comm_threads_select" on public.comm_threads
-    for select to authenticated using (
-        public.rop_is_boss() or (public.is_active_staff() and staff_id = public.rop_my_staff_id())
-    );
+    for select to authenticated using (public.comm_can_see(staff_id, lead_id));
 
 drop policy if exists "comm_messages_select" on public.comm_messages;
 create policy "comm_messages_select" on public.comm_messages
     for select to authenticated using (
-        public.rop_is_boss()
-        or exists (
-            select 1 from public.comm_threads t
-             where t.id = thread_id and public.is_active_staff() and t.staff_id = public.rop_my_staff_id()
-        )
+        exists (select 1 from public.comm_threads t where t.id = thread_id and public.comm_can_see(t.staff_id, t.lead_id))
     );
 
 -- 5. Живе оновлення сторінки «Переписка»
