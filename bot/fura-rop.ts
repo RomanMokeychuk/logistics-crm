@@ -413,13 +413,13 @@ function analyze(d: Data, s: Record<string, number>) {
     const staleBySales = new Map<string, { p: { id: string | null; name: string | null }; items: string[]; oldest: number }>();
     for (const r of d.requests) {
         const age = (now - ts(r.created_at)) / HOUR;
-        const label = `${r.client || "Без клієнта"}${route(r) ? " · " + route(r) : ""}`;
+        const label = `${r.number ? `№ ${r.number} ` : ""}${r.client || "Без клієнта"}${route(r) ? " · " + route(r) : ""}`;
 
         if ((r.status === "Запит" || r.status === "Відповідь") && age > s.stale_request_days * 24) {
             const p = person(r.sales_id, r.sales);
             const key = p.id || p.name || "—";
             const g = staleBySales.get(key) || { p, items: [], oldest: 0 };
-            g.items.push(`№ ${r.number || r.id} ${label} (${Math.round(age / 24)} дн.)`);
+            g.items.push(`${label} (${Math.round(age / 24)} дн.)`);
             g.oldest = Math.max(g.oldest, age);
             staleBySales.set(key, g);
             continue;
