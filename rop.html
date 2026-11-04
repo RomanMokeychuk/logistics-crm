@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — РОП</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202611042100" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611042100" />
+        <link rel="stylesheet" href="agents.css?v=202611042100" />
+        <link rel="stylesheet" href="rop.css?v=202611042100" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img src="logo.svg" alt="" width="28" height="28" style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="rop.html" class="active"><i class="bx bx-crown"></i> РОП</a>
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content agents-page rop-page">
+            <header class="top-bar rop-head">
+                <div>
+                    <h1>РОП — керівник відділу продажів</h1>
+                    <p class="ag-sub">
+                        AI-агент щоранку перевіряє запити, ліди, клієнтів і угоди, ставить задачі команді й пише
+                        висновки. Цифри рахує CRM, Claude — лише пояснює.
+                    </p>
+                </div>
+                <div class="rop-actions">
+                    <select id="ropArchive" title="Попередні звіти"></select>
+                    <button type="button" class="btn btn-secondary" id="ropSettingsBtn" title="Пороги">
+                        <i class="bx bx-slider-alt"></i> Пороги
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="ropWeeklyBtn" title="Звіт з підсумком тижня">
+                        <i class="bx bx-calendar-week"></i> Тижневий
+                    </button>
+                    <button type="button" class="btn btn-primary" id="ropRunBtn">
+                        <i class="bx bx-refresh"></i> Оновити зараз
+                    </button>
+                </div>
+            </header>
+
+            <!-- Немає доступу -->
+            <section class="ag-card rop-denied" id="ropDenied" hidden>
+                <h2>Сторінка лише для керівника</h2>
+                <p class="ag-empty">Свої задачі від РОПа ви бачите на <a href="home.html">головній сторінці</a>.</p>
+            </section>
+
+            <div id="ropBody" hidden>
+                <div class="rop-meta" id="ropMeta"></div>
+
+                <!-- Головне сьогодні -->
+                <section class="ag-card rop-main">
+                    <div class="ag-card-head">
+                        <h2><i class="bx bx-bullseye"></i> Головне сьогодні</h2>
+                        <span class="ag-hint" id="ropHeadline"></span>
+                    </div>
+                    <ol class="rop-top" id="ropTop"></ol>
+                    <div class="rop-week" id="ropWeekSummary" hidden></div>
+                </section>
+
+                <!-- Цифри -->
+                <section class="rop-kpis" id="ropKpis"></section>
+
+                <div class="ag-grid">
+                    <section class="ag-card">
+                        <div class="ag-card-head"><h2><i class="bx bx-error"></i> Ризики</h2></div>
+                        <div id="ropRisks" class="ag-list"></div>
+                    </section>
+                    <section class="ag-card">
+                        <div class="ag-card-head"><h2><i class="bx bx-trending-up"></i> Тренди й воронка</h2></div>
+                        <ul class="rop-trends" id="ropTrends"></ul>
+                        <div class="rop-funnel" id="ropFunnel"></div>
+                    </section>
+                </div>
+
+                <!-- Команда -->
+                <section class="ag-card">
+                    <div class="ag-card-head">
+                        <h2><i class="bx bx-group"></i> Команда</h2>
+                        <span class="ag-hint">Показники за 30 днів і проблеми, відкриті зараз</span>
+                    </div>
+                    <div class="rop-people" id="ropPeople"></div>
+                </section>
+
+                <!-- Задачі -->
+                <section class="ag-card" id="ropTasksCard">
+                    <div class="ag-card-head">
+                        <h2><i class="bx bx-task"></i> Задачі від РОПа <span class="ag-count" id="ropTaskCount">0</span></h2>
+                        <div class="rop-filters">
+                            <select id="ropTaskWho"><option value="">Усі співробітники</option></select>
+                            <select id="ropTaskKind"><option value="">Усі типи</option></select>
+                            <select id="ropTaskStatus">
+                                <option value="open">Відкриті</option>
+                                <option value="done">Зроблені</option>
+                                <option value="dismissed">Не актуальні</option>
+                            </select>
+                        </div>
+                    </div>
+                    <p class="ag-hint">
+                        Задачу бачить відповідальний на своїй головній. Коли проблему вирішили в CRM (відповіли на
+                        запит, отримали оплату…), агент закриває задачу сам під час наступної перевірки.
+                    </p>
+                    <div id="ropTasks" class="rop-tasks"></div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Пороги -->
+        <div class="modal-overlay" id="ropSettingsOverlay">
+            <div class="modal rop-modal" role="dialog" aria-modal="true">
+                <div class="modal-header">
+                    <h2>Пороги агента</h2>
+                    <button type="button" class="rop-close" id="ropSettingsClose" title="Закрити"><i class="bx bx-x"></i></button>
+                </div>
+                <form id="ropSettingsForm" class="rop-settings"></form>
+                <div class="rop-modal-foot">
+                    <span class="ag-hint">Нові пороги застосуються під час наступної перевірки.</span>
+                    <button type="button" class="btn btn-primary" id="ropSettingsSave"><i class="bx bx-save"></i> Зберегти</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="rop.js?v=202611042100"></script>
+        <script src="shell.js?v=202611042100"></script>
+        <script src="notify.js?v=202611042100"></script>
+        <script src="lock.js?v=202611042100"></script>
+    </body>
+</html>

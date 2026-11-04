@@ -14,6 +14,7 @@
 //  /cabinet   — кабінет перевізника (Mini App cabinet.html, вхід через Telegram; функція fura-portal)
 //
 // Секрети: TELEGRAM_BOT_TOKEN, WEBHOOK_SECRET
+// Необов'язково: COMMS_SECRET — пересилати чати Telegram Business у «Переписку» (функція fura-comms)
 // Необов'язково: CRM_URL, APP_URL (адреса сайту на GitHub Pages)
 
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -1113,6 +1114,20 @@ function json(status: number, data: unknown) {
     });
 }
 
+async function forwardToComms(update: Any) {
+    const secret = Deno.env.get("COMMS_SECRET") ?? "";
+    if (!secret) return; // переписку ще не підключено
+    try {
+        await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/fura-comms?src=telegram`, {
+            method: "POST",
+            headers: { "content-type": "application/json", "x-comms-secret": secret },
+            body: JSON.stringify(update),
+        });
+    } catch (e) {
+        console.error("fura-comms:", e);
+    }
+}
+
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
     if (req.method !== "POST") return new Response("FURA bot is running");
@@ -1144,6 +1159,11 @@ Deno.serve(async (req) => {
 
     try {
         if (fromTelegram) {
+            // Telegram Business: робочі чати менеджерів → «Переписка» (функція fura-comms)
+            if (body.business_connection || body.business_message || body.edited_business_message || body.deleted_business_messages) {
+                await forwardToComms(body);
+                return new Response("ok");
+            }
             if (body.callback_query) await handleCallback(body.callback_query);
             else if (body.message?.chat) await handleMessage(body.message);
         } else if (fromDatabase && body.table === "requests") {

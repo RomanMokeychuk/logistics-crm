@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Переписка</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202611042100" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611042100" />
+        <link rel="stylesheet" href="agents.css?v=202611042100" />
+        <link rel="stylesheet" href="rop.css?v=202611042100" />
+        <link rel="stylesheet" href="comms.css?v=202611042100" />
+    </head>
+    <body>
+        <aside class="sidebar">
+            <a href="home.html" class="logo" title="Головна сторінка">
+                <img src="logo.svg" alt="" width="28" height="28" style="border-radius: 7px" />
+                <span>FURA</span>
+            </a>
+            <nav class="menu">
+                <a href="comms.html" class="active"><i class="bx bx-chat"></i> Переписка</a>
+            </nav>
+        </aside>
+
+        <button
+            type="button"
+            id="sidebarToggleBtn"
+            class="sidebar-toggle-btn"
+            onclick="toggleSidebar()"
+            title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content agents-page rop-page cm-page">
+            <header class="top-bar rop-head">
+                <div>
+                    <h1>Переписка з клієнтами</h1>
+                    <p class="ag-sub">
+                        Робоча переписка з корпоративних Outlook, Telegram, WhatsApp і Viber в одному місці.
+                        Агент РОП стежить, щоб кожен клієнт отримав відповідь і ставку вчасно.
+                    </p>
+                </div>
+                <div class="cm-tabs">
+                    <button type="button" class="cm-tab active" data-tab="inbox"><i class="bx bx-conversation"></i> Розмови</button>
+                    <button type="button" class="cm-tab" data-tab="setup" id="cmSetupTab" hidden><i class="bx bx-plug"></i> Підключення</button>
+                </div>
+            </header>
+
+            <!-- Розмови -->
+            <section class="cm-inbox" data-panel="inbox">
+                <div class="cm-list-col ag-card">
+                    <div class="cm-filters">
+                        <input type="search" id="cmSearch" placeholder="Клієнт, телефон, e-mail, текст…" />
+                        <div class="cm-filter-row">
+                            <select id="cmChannel">
+                                <option value="">Усі канали</option>
+                                <option value="outlook">Outlook</option>
+                                <option value="telegram">Telegram</option>
+                                <option value="whatsapp">WhatsApp</option>
+                                <option value="viber">Viber</option>
+                            </select>
+                            <select id="cmStaff" hidden><option value="">Усі співробітники</option></select>
+                        </div>
+                        <div class="cm-filter-row">
+                            <label class="ag-check-inline"><input type="checkbox" id="cmWaiting" /> Чекають відповіді</label>
+                            <label class="ag-check-inline"><input type="checkbox" id="cmUnlinked" /> Без ліда</label>
+                        </div>
+                    </div>
+                    <div class="cm-threads" id="cmThreads"></div>
+                </div>
+
+                <div class="cm-thread-col ag-card" id="cmThread">
+                    <p class="ag-empty cm-placeholder">Оберіть розмову зліва.</p>
+                </div>
+            </section>
+
+            <!-- Підключення (керівник) -->
+            <section class="cm-setup" data-panel="setup" hidden>
+                <section class="ag-card">
+                    <div class="ag-card-head">
+                        <h2><i class="bx bx-check-shield"></i> Стан каналів</h2>
+                        <span class="ag-hint">Покроково — у файлі COMMS.md</span>
+                    </div>
+                    <div class="cm-status" id="cmStatus">Перевіряю…</div>
+                </section>
+
+                <section class="ag-card">
+                    <div class="ag-card-head">
+                        <h2><i class="bx bx-user-pin"></i> Хто з якого акаунта пише</h2>
+                    </div>
+                    <p class="ag-hint">
+                        Outlook — додайте ящик кожного Sales і логіста. WhatsApp — номер з'являється сам після підключення в Meta,
+                        тут призначте власника. Telegram — з'являється сам, коли менеджер підключить бота у «Telegram для бізнесу».
+                        Viber — один бот компанії: розмова переходить до Sales, за яким закріплений лід.
+                    </p>
+                    <form class="cm-add" id="cmAddForm">
+                        <select name="channel" id="cmAddChannel">
+                            <option value="outlook">Outlook — ящик</option>
+                            <option value="whatsapp">WhatsApp — phone_number_id</option>
+                        </select>
+                        <input name="account" id="cmAddAccount" placeholder="sales1@grandar.com.ua" required />
+                        <input name="account_label" placeholder="Підпис (необов'язково)" />
+                        <select name="staff_id" id="cmAddStaff"></select>
+                        <button type="submit" class="btn btn-primary"><i class="bx bx-plus"></i> Зберегти</button>
+                    </form>
+                    <div id="cmChannels" class="cm-channels"></div>
+                </section>
+            </section>
+        </main>
+
+        <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="comms.js?v=202611042100"></script>
+        <script src="shell.js?v=202611042100"></script>
+        <script src="notify.js?v=202611042100"></script>
+        <script src="lock.js?v=202611042100"></script>
+    </body>
+</html>

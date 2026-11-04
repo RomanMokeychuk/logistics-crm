@@ -578,3 +578,8 @@ html.fura-embed.fura-cpop .modal {
     html.fura-embed.fura-cpop .modal-overlay { padding: 8px; }
     html.fura-embed.fura-cpop .modal { max-height: 95vh; }
 }
+
+/* Пункти меню лише для певних ролей (shell.js → data-only) */
+.fura-nav-item[hidden] {
+    display: none !important;
+}

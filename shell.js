@@ -63,10 +63,12 @@
             items: [
                 { href: "home.html", icon: "bx-home-alt", label: "Головна" },
                 { href: "reports.html", icon: "bx-bar-chart-alt-2", label: "Підсумки" },
+                { href: "rop.html", icon: "bx-crown", label: "РОП", only: ["head", "admin"] },
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
                 { href: "echerha.html", svg: "cherga", label: "Черга" },
                 { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
+                { href: "comms.html", icon: "bx-chat", label: "Переписка", only: ["head", "admin"] }, // поки канали не підключено — лише керівнику; потім прибрати only
             ],
         },
         {
@@ -131,7 +133,9 @@
                         return `<a href="#" class="fura-nav-item" data-shlyah="1"><i class="bx ${it.icon}"></i><span>${it.label}</span></a>`;
                     }
                     const ico = it.svg ? ICONS[it.svg] : `<i class="bx ${it.icon}"></i>`;
-                    return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}">${ico}<span>${it.label}</span></a>`;
+                    // Пункти лише для певних ролей — сховані, доки fillUser() не дізнається ролі
+                    const only = it.only ? ` data-only="${it.only.join(",")}" hidden` : "";
+                    return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}"${only}>${ico}<span>${it.label}</span></a>`;
                 })
                 .join("");
             return `<div class="fura-nav-group"><div class="fura-nav-title">${g.group}</div>${links}</div>`;
@@ -243,6 +247,9 @@
             box.querySelector(".fura-user-name").textContent = name;
             box.querySelector(".fura-user-name").title = name;
             box.querySelector(".fura-user-roles").textContent = roles.map((r) => ROLE_LABELS[r] || r).join(" · ") || "—";
+            document.querySelectorAll(".fura-nav-item[data-only]").forEach((a) => {
+                a.hidden = !a.dataset.only.split(",").some((r) => roles.includes(r));
+            });
         } catch (e) {
             console.warn("FURA shell:", e);
         }
