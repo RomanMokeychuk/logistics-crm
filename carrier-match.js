@@ -664,6 +664,14 @@
             if (idx >= 0) pageToShow = Math.floor(idx / PAGE) + 1;
         }
         showPage(pageToShow, false);
+        // Список не вилазить за низ вікна — номери сторінок завжди видно
+        const fit = () => {
+            if (!out.isConnected) return window.removeEventListener("resize", fit);
+            const top = out.getBoundingClientRect().top;
+            out.style.maxHeight = Math.max(320, Math.round(window.innerHeight - Math.max(top, 0) - 16)) + "px";
+        };
+        fit();
+        window.addEventListener("resize", fit);
         // після оновлення сторінки — прокрутити до перевізника, з яким працювали
         const last = out.querySelector(".cm-row-last");
         if (last && search.scrollToLast) requestAnimationFrame(() => last.scrollIntoView({ block: "center" }));

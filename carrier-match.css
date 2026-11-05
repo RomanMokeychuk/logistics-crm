@@ -186,3 +186,5 @@ body.cm-modal-open { overflow: hidden; }
 .cm-fb-last { font-size: 12.5px; background: #eef2ff; color: #1e293b; border-radius: 8px; padding: 1px 8px; }
 .cm-fb-list { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .cm-fb-item { padding: 3px 0; border-bottom: 1px dashed #eef1f5; }
+/* Номери сторінок прилипають до низу списку — їх видно без прокрутки до кінця */
+.cm-results .cm-pager { position: sticky; bottom: 0; z-index: 2; background: #fff; box-shadow: 0 -8px 12px -10px rgba(15, 23, 42, .25); margin: 0 -4px; padding: 8px 4px 6px; }
