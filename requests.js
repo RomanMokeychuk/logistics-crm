@@ -2114,8 +2114,9 @@ async function initRequestChat(requestId) {
         // Спершу завантажуємо файли у сховище
         const files = [];
         for (const p of pending) {
-            const safe = p.file.name.replace(/[^\w.\-а-яіїєґА-ЯІЇЄҐ ]+/g, "_").slice(-80);
-            const path = `${requestId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+            // У сховищі — лише латинська технічна назва (кирилицю й пробіли Supabase не приймає); справжня назва — у files.name
+            const ext = ((p.file.name.match(/\.([a-z0-9]{1,8})$/i) || [])[1] || (p.file.type.split("/")[1] || "bin")).toLowerCase().replace("jpeg", "jpg");
+            const path = `${requestId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext}`;
             const { error: upErr } = await sbClient.storage.from(CHAT_BUCKET).upload(path, p.file, { contentType: p.file.type || undefined });
             if (upErr) {
                 btn.disabled = false;
