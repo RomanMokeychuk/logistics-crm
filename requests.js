@@ -1903,8 +1903,13 @@ function chatSectionHtml(r) {
         : "";
     const body = canChat(r)
         ? `<div class="req-chat-list" id="reqChatList"><div class="req-chat-empty">Завантаження…</div></div>
+            <div class="req-chat-att" id="reqChatAtt" hidden></div>
             <form class="req-chat-form" id="reqChatForm">
-                <textarea id="reqChatText" rows="1" maxlength="2000" placeholder="Питання або уточнення по запиту… (Enter — надіслати, Shift+Enter — новий рядок)"></textarea>
+                <label class="req-chat-clip" title="Прикріпити картинку або файл (або вставте скрін: Cmd+V / Ctrl+V)">
+                    <i class='bx bx-paperclip'></i>
+                    <input type="file" id="reqChatFile" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" multiple hidden />
+                </label>
+                <textarea id="reqChatText" rows="1" maxlength="2000" placeholder="Питання або уточнення… Скрін можна вставити Cmd+V (Enter — надіслати, Shift+Enter — новий рядок)"></textarea>
                 <button type="submit" class="req-chat-send" title="Надіслати"><i class='bx bx-send'></i> Надіслати</button>
             </form>`
         : `<div class="req-chat-empty">Sales обрав іншого логіста — переписка по цьому запиту тепер тільки з ним.</div>`;
@@ -1939,12 +1944,68 @@ function renderChat() {
             return `<div class="req-msg${mine ? " mine" : ""}">
                 <div class="req-msg-head"><b>${escapeHtml(m.author_name || "—")}</b>
                     <span>${chatTime(m.created_at)}${m.via === "telegram" ? " · Telegram" : ""}</span></div>
-                <div class="req-msg-text">${escapeHtml(m.text)}</div>
+                ${chatFilesHtml(m)}
+                ${m.text && !(chatFiles(m).length && /^📎 (Фото|Файл|Файли|Фото й файли)$/.test(m.text)) ? `<div class="req-msg-text">${escapeHtml(m.text)}</div>` : ""}
             </div>`;
         })
         .join("");
     list.scrollTop = list.scrollHeight;
+    loadChatThumbs(list);
 }
+
+/* ---- Вкладення в переписці: картинки й файли (сховище request-files) ---- */
+const CHAT_BUCKET = "request-files";
+const CHAT_MAX_MB = 15;
+const chatFiles = (m) => (Array.isArray(m?.files) ? m.files : []);
+const isImg = (f) => /^image\//.test(f?.type || "") || /\.(png|jpe?g|gif|webp|heic)$/i.test(f?.name || "");
+const fmtSize = (b) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} МБ` : `${Math.max(1, Math.round((b || 0) / 1024))} КБ`);
+function chatFilesHtml(m) {
+    const files = chatFiles(m);
+    if (!files.length) return "";
+    return `<div class="req-msg-files">${files
+        .map((f) =>
+            isImg(f)
+                ? `<a class="req-msg-img" href="#" data-chat-file="${escapeHtml(f.path)}" title="${escapeHtml(f.name || "")} — відкрити"><img data-chat-thumb="${escapeHtml(f.path)}" alt="${escapeHtml(f.name || "фото")}" /></a>`
+                : `<a class="req-msg-doc" href="#" data-chat-file="${escapeHtml(f.path)}"><i class='bx bx-file'></i> ${escapeHtml(f.name || "файл")} <span>${fmtSize(f.size)}</span></a>`,
+        )
+        .join("")}</div>`;
+}
+const chatUrlCache = new Map(); // path → { url, until }
+async function chatSignedUrl(path) {
+    const c = chatUrlCache.get(path);
+    if (c && c.until > Date.now()) return c.url;
+    const { data, error } = await sbClient.storage.from(CHAT_BUCKET).createSignedUrl(path, 3600);
+    if (error) throw error;
+    chatUrlCache.set(path, { url: data.signedUrl, until: Date.now() + 50 * 60000 });
+    return data.signedUrl;
+}
+function loadChatThumbs(root) {
+    root.querySelectorAll("img[data-chat-thumb]:not([src])").forEach(async (img) => {
+        try {
+            img.src = await chatSignedUrl(img.dataset.chatThumb);
+            img.addEventListener("load", () => {
+                const l = document.getElementById("reqChatList");
+                if (l && l.scrollHeight - l.scrollTop - l.clientHeight < 260) l.scrollTop = l.scrollHeight;
+            }, { once: true });
+        } catch {
+            img.replaceWith(Object.assign(document.createElement("span"), { className: "req-msg-noimg", textContent: "фото недоступне" }));
+        }
+    });
+}
+document.addEventListener("click", async (e) => {
+    const a = e.target.closest("[data-chat-file]");
+    if (!a) return;
+    e.preventDefault();
+    const w = window.open("", "_blank");
+    try {
+        const url = await chatSignedUrl(a.dataset.chatFile);
+        if (w) w.location.href = url;
+        else location.href = url;
+    } catch (err) {
+        if (w) w.close();
+        alert("Не вдалося відкрити файл: " + (err.message || err));
+    }
+});
 
 function addChatMessage(m) {
     if (!m || String(m.request_id) !== String(chatRequestId)) return false;
@@ -1964,6 +2025,74 @@ async function initRequestChat(requestId) {
     const form = document.getElementById("reqChatForm");
     if (!form) return; // переписка не для цього користувача
     const ta = document.getElementById("reqChatText");
+    // Вкладення, які ще не надіслані
+    let pending = [];
+    const attBox = document.getElementById("reqChatAtt");
+    const paintPending = () => {
+        attBox.hidden = !pending.length;
+        attBox.innerHTML = pending
+            .map((f, i) =>
+                `<div class="req-att">${f.preview ? `<img src="${f.preview}" alt="" />` : `<i class='bx bx-file'></i>`}
+                    <span>${escapeHtml(f.file.name)}</span>
+                    <button type="button" data-att-del="${i}" title="Прибрати"><i class='bx bx-x'></i></button></div>`,
+            )
+            .join("");
+    };
+    const addFiles = (list) => {
+        for (const file of list) {
+            if (!file) continue;
+            if (file.size > CHAT_MAX_MB * 1048576) {
+                alert(`«${file.name}» більший за ${CHAT_MAX_MB} МБ — зменште або надішліть посиланням.`);
+                continue;
+            }
+            if (pending.length >= 10) break;
+            pending.push({ file, preview: /^image\//.test(file.type) ? URL.createObjectURL(file) : "" });
+        }
+        paintPending();
+    };
+    attBox.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-att-del]");
+        if (!b) return;
+        const [gone] = pending.splice(Number(b.dataset.attDel), 1);
+        if (gone?.preview) URL.revokeObjectURL(gone.preview);
+        paintPending();
+    });
+    document.getElementById("reqChatFile").addEventListener("change", (e) => {
+        addFiles([...e.target.files]);
+        e.target.value = "";
+        ta.focus();
+    });
+    // Скрін з буфера: Cmd+V / Ctrl+V у полі повідомлення
+    ta.addEventListener("paste", (e) => {
+        const items = [...(e.clipboardData?.items || [])].filter((it) => it.kind === "file");
+        if (!items.length) return;
+        e.preventDefault();
+        addFiles(
+            items.map((it) => {
+                const f = it.getAsFile();
+                if (!f) return null;
+                const ext = (f.type.split("/")[1] || "png").replace("jpeg", "jpg");
+                return f.name && f.name !== "image.png" ? f : new File([f], `скрін-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.${ext}`, { type: f.type });
+            }),
+        );
+    });
+    // Перетягнути файл на переписку
+    const chatBox = form.closest(".req-chat");
+    chatBox?.addEventListener("dragover", (e) => {
+        if ([...(e.dataTransfer?.types || [])].includes("Files")) {
+            e.preventDefault();
+            chatBox.classList.add("req-chat-drop");
+        }
+    });
+    chatBox?.addEventListener("dragleave", (e) => {
+        if (!chatBox.contains(e.relatedTarget)) chatBox.classList.remove("req-chat-drop");
+    });
+    chatBox?.addEventListener("drop", (e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        chatBox.classList.remove("req-chat-drop");
+        addFiles([...e.dataTransfer.files]);
+    });
 
     const grow = () => {
         ta.style.height = "auto";
@@ -1978,13 +2107,35 @@ async function initRequestChat(requestId) {
     });
     form.addEventListener("submit", async (e) => {
         e.preventDefault();
-        const text = ta.value.trim();
-        if (!text) return;
-        const btn = form.querySelector("button");
+        let text = ta.value.trim();
+        if (!text && !pending.length) return;
+        const btn = form.querySelector("button[type=submit]");
         btn.disabled = true;
+        // Спершу завантажуємо файли у сховище
+        const files = [];
+        for (const p of pending) {
+            const safe = p.file.name.replace(/[^\w.\-а-яіїєґА-ЯІЇЄҐ ]+/g, "_").slice(-80);
+            const path = `${requestId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe}`;
+            const { error: upErr } = await sbClient.storage.from(CHAT_BUCKET).upload(path, p.file, { contentType: p.file.type || undefined });
+            if (upErr) {
+                btn.disabled = false;
+                return alert(
+                    /bucket|not found/i.test(upErr.message || "")
+                        ? "Вкладення ще не увімкнені: потрібно один раз запустити request_files.sql у Supabase."
+                        : `Не вдалося завантажити «${p.file.name}»: ${upErr.message}`,
+                );
+            }
+            files.push({ path, name: p.file.name, type: p.file.type || "", size: p.file.size });
+        }
+        // Текст обов'язковий у базі (і йде в Telegram) — для самих вкладень ставимо підпис
+        if (!text) {
+            const imgs = files.filter(isImg).length;
+            text = imgs === files.length ? "📎 Фото" : imgs ? "📎 Фото й файли" : files.length > 1 ? "📎 Файли" : "📎 Файл";
+        }
+        const row = files.length ? { request_id: requestId, text, files } : { request_id: requestId, text };
         const { data, error } = await sbClient
             .from("request_messages")
-            .insert([{ request_id: requestId, text }])
+            .insert([row])
             .select()
             .single();
         btn.disabled = false;
@@ -1997,6 +2148,9 @@ async function initRequestChat(requestId) {
             return;
         }
         ta.value = "";
+        pending.forEach((p) => p.preview && URL.revokeObjectURL(p.preview));
+        pending = [];
+        paintPending();
         grow();
         addChatMessage(data);
         ta.focus();

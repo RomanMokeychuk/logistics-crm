@@ -1238,3 +1238,22 @@
 .offer-rejected .offer-price { text-decoration: line-through; color: #9ca3af; }
 .offer-rejected { opacity: 0.75; }
 .offer-rej-badge { font-size: 12px; font-weight: 600; color: #b91c1c; background: #fef2f2; border-radius: 6px; padding: 2px 6px; white-space: nowrap; }
+
+/* Вкладення в переписці по запиту */
+.req-chat-form { align-items: flex-end; }
+.req-chat-clip { flex: none; width: 40px; height: 40px; border: 1px solid #e2e8f0; border-radius: 10px; display: grid; place-items: center; cursor: pointer; color: #64748b; background: #fff; font-size: 20px; }
+.req-chat-clip:hover { border-color: #f97316; color: #f97316; }
+.req-chat-att { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 0; border-top: 1px solid #e2e8f0; }
+.req-chat-att[hidden] { display: none; }
+.req-chat-att + .req-chat-form { border-top: 0; }
+.req-att { display: flex; align-items: center; gap: 6px; max-width: 240px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 12px; }
+.req-att img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.req-att > i { font-size: 22px; color: #9a3412; padding: 0 4px; }
+.req-att span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.req-att button { border: 0; background: none; cursor: pointer; color: #9a3412; font-size: 16px; padding: 0; display: grid; place-items: center; }
+.req-msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.req-msg-img img { display: block; max-width: 240px; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f1f5f9; min-width: 60px; min-height: 40px; object-fit: cover; }
+.req-msg-doc { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: #f1f5f9; color: #1d4ed8; font-size: 13px; text-decoration: none; }
+.req-msg-doc span { color: #94a3b8; font-size: 11px; }
+.req-msg-noimg { font-size: 12px; color: #94a3b8; }
+.req-chat-drop { outline: 2px dashed #f97316; outline-offset: -4px; }
