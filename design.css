@@ -1,0 +1,194 @@
+/* =====================================================================
+ * FURA — дизайн-шар (форма, ритм, рух). Підключається ОСТАННІМ.
+ * Кольори FURA не змінюються: лише радіуси, відступи, шрифти, тіні,
+ * ховери, анімації та завантаження сторінок.
+ * ===================================================================== */
+
+:root {
+    --d-radius-xl: 22px;   /* великі картки, вікна */
+    --d-radius-lg: 16px;   /* картки, таблиці */
+    --d-radius-md: 12px;   /* кнопки, поля */
+    --d-radius-sm: 9px;
+    --d-ease: cubic-bezier(.2, .8, .2, 1);
+    --d-shadow-1: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .03);
+    --d-shadow-2: 0 4px 10px -2px rgba(16, 24, 40, .06), 0 2px 4px -2px rgba(16, 24, 40, .04);
+    --d-shadow-3: 0 24px 48px -12px rgba(16, 24, 40, .18);
+    --d-line: var(--f-line, #e4e8ef);
+    --d-line-soft: #eef1f5;
+}
+
+/* ---------- Типографіка ---------- */
+html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
+body { font-feature-settings: "cv11", "ss01", "ss03"; letter-spacing: -0.006em; }
+.top-bar h1, .cb-h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.025em; }
+h2, h3 { letter-spacing: -0.015em; }
+td, .kpi b, .num, [class*="count"] { font-variant-numeric: tabular-nums; }
+
+/* ---------- Плавність усього, на що можна натиснути ---------- */
+a, button, .btn, input, select, textarea, [role="button"], .fura-nav-item, .quick-card, .lead-tab, .trip-chip, tbody tr {
+    transition: background-color .18s var(--d-ease), border-color .18s var(--d-ease), color .18s var(--d-ease),
+        box-shadow .22s var(--d-ease), transform .18s var(--d-ease), opacity .18s var(--d-ease);
+}
+:focus-visible { outline: 2px solid rgba(29, 91, 216, .45); outline-offset: 2px; border-radius: 8px; }
+
+/* ---------- Бічне меню ---------- */
+.fura-nav-item { border-radius: var(--d-radius-md); font-weight: 500; letter-spacing: -0.005em; }
+.fura-nav-item:hover:not(.active) { transform: translateX(2px); }
+.fura-nav-item.active { box-shadow: 0 6px 16px -6px rgba(245, 124, 0, .55); font-weight: 600; }
+.fura-nav-title { letter-spacing: .08em; font-weight: 600; }
+
+/* ---------- Верхня панель ---------- */
+.fura-topbar { backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); }
+.fura-nav-arrows button, .fura-date { border-radius: var(--d-radius-md); }
+.fura-nav-arrows button:active:not(:disabled) { transform: scale(.94); }
+
+/* ---------- Кнопки ---------- */
+.btn, .cb-btn, .pa-btn {
+    border-radius: var(--d-radius-md);
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    min-height: 40px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+}
+.btn-primary { box-shadow: 0 1px 2px rgba(16, 24, 40, .08), inset 0 1px 0 rgba(255, 255, 255, .14); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px -6px rgba(29, 91, 216, .45), inset 0 1px 0 rgba(255, 255, 255, .14); }
+.btn-secondary { box-shadow: var(--d-shadow-1); }
+.btn-secondary:hover:not(:disabled) { border-color: #cfd6e2; transform: translateY(-1px); box-shadow: var(--d-shadow-2); }
+.btn:active:not(:disabled), .cb-btn:active:not(:disabled), .pa-btn:active:not(:disabled), .req-chat-send:active:not(:disabled) { transform: translateY(0) scale(.98); }
+.btn:disabled, .btn[disabled] { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+.req-chat-send, .req-chat-clip { border-radius: var(--d-radius-md); }
+.req-chat-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 18px -8px rgba(249, 115, 22, .6); }
+
+/* ---------- Поля ---------- */
+.search-input, .lead-select, .form-group input, .form-group select, .form-group textarea, .cb-in, .pa-in {
+    border-radius: var(--d-radius-md);
+    min-height: 42px;
+    box-shadow: var(--d-shadow-1);
+}
+.form-group textarea, textarea.pa-in, textarea.cb-in { min-height: 84px; }
+.search-input:hover, .lead-select:hover, .form-group input:hover, .form-group select:hover, .form-group textarea:hover { border-color: #cfd6e2; }
+.form-group label { font-weight: 600; font-size: 13px; letter-spacing: -0.005em; }
+input::placeholder, textarea::placeholder { color: #9aa4b5; }
+
+/* ---------- Картки ---------- */
+.table-card, .trip-detail, .trip-card, .home-section, .quick-card, .kpi, .rep-card, .home-hero, .card-section, .cb-card, .gd-card {
+    border-radius: var(--d-radius-xl);
+    border-color: var(--d-line-soft);
+    box-shadow: var(--d-shadow-1);
+}
+.quick-card:hover, .trip-card:hover, .rep-card:hover { transform: translateY(-2px); box-shadow: var(--d-shadow-2); border-color: var(--d-line); }
+
+/* ---------- Таблиці: як у дизайнерських дашбордах ---------- */
+.table-card { overflow: hidden; }
+thead { background: #fff; border-bottom: 1px solid var(--d-line-soft); }
+th {
+    text-transform: uppercase;
+    font-size: 11px; font-weight: 600; letter-spacing: .07em;
+    color: #94a0b4;
+    padding-top: 15px; padding-bottom: 15px;
+}
+.th-label { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; }
+td { border-bottom: 1px solid var(--d-line-soft); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: #f8fafc; }
+
+/* ---------- Бейджі й «пілюлі» ---------- */
+.status-badge, .type-badge, .badge, .tbadge, .badge-country, .route-chip, .trade-badge, .chosen-badge, .role-badge, .new-badge, .flexible-badge, .cm-tag, .pa-chip, .cb-chip {
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: 1.35;
+}
+.badge-country { border-radius: 7px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Вкладки ---------- */
+.lead-tabs, .trip-chips { border-radius: var(--d-radius-lg); box-shadow: var(--d-shadow-1); border-color: var(--d-line-soft); }
+.lead-tab, .trip-chip { font-weight: 500; }
+.lead-tab.active, .trip-chip[aria-pressed="true"] { font-weight: 600; }
+
+/* ---------- Вікна ---------- */
+.modal-overlay.active { backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: d-fade .2s var(--d-ease); }
+.modal { border-radius: var(--d-radius-xl); box-shadow: var(--d-shadow-3); }
+
+/* ---------- Картки перевізника / запиту / клієнта у вікні ----------
+ * Сірі «шапки» і смугасті рядки → чисті білі блоки з тонкими лініями.
+ * Кольорові шапки (Клієнт, Відповідь логіста, Фурик…) лишаються своїми кольорами. */
+.carrier-card-modal { background: var(--f-bg, #f3f5f9); }
+.carrier-card-topbar { background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--d-line-soft); padding: 14px 22px; z-index: 5; }
+.carrier-card-topbar h2 { font-size: 15px; font-weight: 600; color: #334155; letter-spacing: -0.01em; }
+.btn-card-edit { border-radius: 10px; min-height: 36px; }
+.btn-card-edit:hover { transform: translateY(-1px); box-shadow: var(--d-shadow-2); }
+.close-btn { border-radius: 10px; width: 36px; height: 36px; display: inline-grid; place-items: center; padding: 0; }
+.close-btn:hover { background: #eef1f5; color: #0f172a; }
+#requestCardBody, #carrierCardBody { padding: 18px 22px 26px; }
+.card-header-block { border-radius: var(--d-radius-lg); border: 1px solid var(--d-line-soft); box-shadow: var(--d-shadow-1); }
+.card-section { border-radius: var(--d-radius-lg); border: 1px solid var(--d-line-soft); box-shadow: var(--d-shadow-1); }
+#requestCardBody > .card-section + .card-section, #requestCardBody > * + .card-section { margin-top: 14px; }
+.card-section-title { font-size: 14.5px; font-weight: 650; letter-spacing: -0.01em; padding: 13px 18px; }
+.card-section-title:not([style*="background"]):not(.answer-section-title):not(.bd-title):not(.fr-title):not(.lead-in-request-title):not(.lead-section-title) { background: #fff; border-bottom: 1px solid var(--d-line-soft); color: #0f172a; }
+.card-row { padding: 11px 18px; border-top: 1px solid var(--d-line-soft); }
+.card-row:first-of-type { border-top: 0; }
+.card-row:nth-child(even) { background: transparent; }
+.card-row-label { color: #8a94a6; }
+.card-avatar-wrap .carrier-avatar, .card-avatar-wrap .carrier-avatar-placeholder { border-radius: 18px; }
+.modal-overlay.active .modal { animation: d-pop .28s var(--d-ease); }
+@keyframes d-fade { from { opacity: 0; } }
+@keyframes d-pop { from { opacity: 0; transform: translateY(10px) scale(.985); } }
+
+/* ---------- Тонкі скролбари ---------- */
+* { scrollbar-width: thin; scrollbar-color: #cdd4df transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cdd4df; border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background-color: #aeb8c7; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- Завантаження сторінки ----------
+ * Поки сторінка вантажить дані, вона прихована (body visibility:hidden).
+ * Замість порожнього екрана — каркас із «мерехтінням» і смужка прогресу вгорі. */
+body:not([style*="visible"])::before {
+    content: "";
+    visibility: visible;
+    position: fixed; inset: 0; z-index: 9999;
+    background:
+        linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, .65) 50%, rgba(255, 255, 255, 0) 100%) -60% 0 / 40% 100% no-repeat,
+        /* бічне меню */
+        linear-gradient(var(--f-navy, #13203f), var(--f-navy, #13203f)) 0 0 / 250px 100% no-repeat,
+        /* заголовок */
+        linear-gradient(#e6eaf0, #e6eaf0) 282px 96px / 260px 30px no-repeat,
+        /* пошук */
+        linear-gradient(#eceff4, #eceff4) 282px 150px / calc(100% - 314px) 44px no-repeat,
+        /* картка зі списком */
+        linear-gradient(#fff, #fff) 282px 214px / calc(100% - 314px) calc(100% - 250px) no-repeat,
+        var(--f-bg, #f3f5f9);
+    animation: d-shimmer 1.3s ease-in-out infinite;
+}
+body:not([style*="visible"])::after {
+    content: "";
+    visibility: visible;
+    position: fixed; top: 0; left: 0; z-index: 10000;
+    height: 3px; width: 100%;
+    background: linear-gradient(90deg, var(--f-orange, #f57c00), var(--f-orange-2, #ff9a2e));
+    transform-origin: 0 50%;
+    animation: d-progress 2.4s var(--d-ease) forwards;
+}
+@keyframes d-shimmer { to { background-position: 160% 0, 0 0, 282px 96px, 282px 150px, 282px 214px, 0 0; } }
+@keyframes d-progress { 0% { transform: scaleX(0); } 60% { transform: scaleX(.7); } 100% { transform: scaleX(.92); } }
+@media (max-width: 900px) {
+    body:not([style*="visible"])::before {
+        background:
+            linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, .65) 50%, rgba(255, 255, 255, 0) 100%) -60% 0 / 40% 100% no-repeat,
+            linear-gradient(#e6eaf0, #e6eaf0) 16px 80px / 200px 28px no-repeat,
+            linear-gradient(#eceff4, #eceff4) 16px 128px / calc(100% - 32px) 44px no-repeat,
+            linear-gradient(#fff, #fff) 16px 188px / calc(100% - 32px) calc(100% - 220px) no-repeat,
+            var(--f-bg, #f3f5f9);
+    }
+    @keyframes d-shimmer { to { background-position: 160% 0, 16px 80px, 16px 128px, 16px 188px, 0 0; } }
+}
+/* Коли дані готові — вміст м'яко з'являється */
+body[style*="visible"] .main-content { animation: d-in .38s var(--d-ease) both; }
+@keyframes d-in { from { opacity: 0; transform: translateY(6px); } }
+
+/* Повага до тих, хто вимкнув анімації в системі */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
