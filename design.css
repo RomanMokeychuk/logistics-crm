@@ -192,3 +192,44 @@ body[style*="visible"] .main-content { animation: d-in .38s var(--d-ease) both; 
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* =====================================================================
+ * «Скло» (як на iPhone) — легко й лише там, де щось лежить поверх сторінки:
+ * верхня панель, шапки вікон, випадні списки, плаваючі кнопки, підказки.
+ * Кольори ті самі — просто напівпрозоро з розмиттям того, що під ними.
+ * ===================================================================== */
+:root {
+    --g-bg: rgba(255, 255, 255, .72);
+    --g-bg-strong: rgba(255, 255, 255, .86);
+    --g-blur: saturate(1.8) blur(18px);
+    --g-edge: inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 0 0 1px rgba(255, 255, 255, .35);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .fura-topbar {
+        position: sticky; top: 0; z-index: 30;
+        background: var(--g-bg);
+        -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+        border-bottom-color: rgba(228, 232, 239, .7);
+    }
+    .fura-topbar .gs, .fura-date, .fura-nav-arrows button {
+        background: rgba(255, 255, 255, .6);
+        box-shadow: var(--g-edge);
+    }
+    .carrier-card-topbar { background: var(--g-bg-strong); -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur); }
+    /* випадні списки фільтрів, меню, підказки */
+    .eq-msel-panel, .fura-dropdown, .gs-panel, .fh-panel, .fk-panel, .cb-toast, .notif-panel {
+        background: var(--g-bg-strong) !important;
+        -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+        box-shadow: var(--g-edge), 0 18px 40px -16px rgba(16, 24, 40, .28) !important;
+        border-color: rgba(228, 232, 239, .8) !important;
+    }
+    /* плаваюча кнопка «Помічник» — темне скло */
+    .fh-fab {
+        background: rgba(19, 32, 63, .82) !important;
+        -webkit-backdrop-filter: var(--g-blur); backdrop-filter: var(--g-blur);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), 0 10px 26px -10px rgba(19, 32, 63, .55) !important;
+    }
+    .fh-fab:hover { transform: translateY(-2px); }
+    /* фон під вікнами — трохи сильніше розмиття */
+    .modal-overlay.active { -webkit-backdrop-filter: blur(6px) saturate(1.2); backdrop-filter: blur(6px) saturate(1.2); }
+}

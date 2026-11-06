@@ -457,15 +457,34 @@ const EQ = (() => {
         return `<button type="button" class="eq-add" data-add="${esc(code)}" data-name="${esc(name)}" data-bodies="${esc(bodies || "")}" data-extra="${esc(extra || "")}"><i class="bx bx-plus"></i> Додати</button>`;
     }
 
+    // Причіп: марка, тип («Напівпричіп, платформа тентована») і вага (власна / повна, кг)
+    function trailerWeight(r) {
+        const src = [r.trailer_weight, r.trailer_kind, r.trailer_model].filter(Boolean).join(" ");
+        const m = src.match(/(\d{3,5})\s*\/\s*(\d{4,6})/);
+        if (!m) return "";
+        const t = (kg) => (Number(kg) / 1000).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
+        return `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>`;
+    }
+    function trailerInfo(r) {
+        const kind = String(r.trailer_kind || "")
+            .split("·")[0]
+            .replace(/\d{3,5}\s*\/\s*\d{4,6}.*/, "")
+            .trim();
+        const w = trailerWeight(r);
+        return (
+            (r.trailer_model ? `<div class="eq-tr-model eq-clip" title="${esc(r.trailer_model)}">${esc(r.trailer_model)}</div>` : "") +
+            (kind || w ? `<div class="eq-tr-meta">${kind ? `<span class="eq-clip" title="${esc(kind)}">${esc(kind)}</span>` : ""}${w}</div>` : "")
+        );
+    }
+
     function kpis(list) {
         const ua = list.filter((r) => r.ua);
         const codes = new Set(list.map((r) => codeKey(r.edrpou)).filter(Boolean));
-        const notIn = [...codes].filter((k) => !FURA.has(k)).length;
         const cps = new Set(list.map((r) => r.checkpoint)).size;
         const k = (n, l, cls = "") => `<div class="eq-kpi ${cls}"><b>${n.toLocaleString("uk-UA")}</b><span>${l}</span></div>`;
         $("#eqKpis").innerHTML =
             k(list.length, "машин у черзі") + k(ua.length, "з українськими тягачами") + k(codes.size, "перевізників") +
-            k(notIn, "немає у FURA", notIn ? "eq-kpi-hl" : "") + k(cps, "пунктів");
+            k(cps, "пунктів");
     }
 
     function pager(total) {
@@ -528,7 +547,7 @@ const EQ = (() => {
                 <td><b>${esc(cpShort(r.checkpoint))}</b><div class="eq-muted eq-sm">${esc(cpNote(r.checkpoint))}${r.note ? " · " + esc(r.note) : ""}</div></td>
                 <td class="eq-nw">${dShort(r.entry_at)}<div class="eq-muted eq-sm">№ ${esc(r.queue_no || "—")}</div>${r.reg_at ? `<div class="eq-muted eq-sm" title="Коли стала в чергу">у черзі з ${dShort(r.reg_at)}</div>` : ""}</td>
                 <td class="eq-mono">${esc(r.tractor)}</td>
-                <td class="eq-mono">${esc(r.trailer || "—")}<div class="eq-muted eq-sm eq-clip" title="${esc(r.trailer_model)}">${esc(r.trailer_model || "")}</div></td>
+                <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
                 <td>${esc(r.carrier || "—")}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}</td>
                 <td>${esc(r.boss || "—")}</td>
