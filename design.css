@@ -79,7 +79,7 @@ input::placeholder, textarea::placeholder { color: #9aa4b5; }
 .quick-card:hover, .trip-card:hover, .rep-card:hover { transform: translateY(-2px); box-shadow: var(--d-shadow-2); border-color: var(--d-line); }
 
 /* ---------- Таблиці: як у дизайнерських дашбордах ---------- */
-.table-card { overflow: hidden; }
+/* (скрол таблиць лишається як був — overflow не чіпаємо) */
 thead { background: #fff; border-bottom: 1px solid var(--d-line-soft); }
 th {
     text-transform: uppercase;
