@@ -233,3 +233,56 @@ body[style*="visible"] .main-content { animation: d-in .38s var(--d-ease) both; 
     /* фон під вікнами — трохи сильніше розмиття */
     .modal-overlay.active { -webkit-backdrop-filter: blur(6px) saturate(1.2); backdrop-filter: blur(6px) saturate(1.2); }
 }
+
+/* =====================================================================
+ * Скло v2 — щоб ефект було ВИДНО: ледь помітне кольорове світіння FURA
+ * на фоні (помаранчеве згори праворуч, синє знизу ліворуч) і напівпрозорі
+ * «скляні» картки поверх нього. Таблиці лишаються майже білими — читаються.
+ * ===================================================================== */
+body {
+    background-color: var(--f-bg, #f3f5f9);
+    background-image:
+        radial-gradient(900px 520px at 92% -6%, rgba(245, 124, 0, .14), transparent 62%),
+        radial-gradient(820px 560px at 18% 108%, rgba(29, 91, 216, .12), transparent 64%),
+        radial-gradient(600px 420px at 55% 40%, rgba(255, 154, 46, .04), transparent 70%);
+    background-attachment: fixed;
+}
+.main-content, html, .page-wrap { background: transparent !important; }
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+        --g-card: rgba(255, 255, 255, .64);
+        --g-card-hi: rgba(255, 255, 255, .80);
+        --g-card-blur: saturate(1.7) blur(16px);
+        --g-card-edge: inset 0 1px 0 rgba(255, 255, 255, .9), inset 0 0 0 1px rgba(255, 255, 255, .45), 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px -14px rgba(16, 24, 40, .16);
+    }
+    /* картки й блоки */
+    .home-hero, .quick-card, .home-section, .kpi, .eq-kpi, .rep-card, .rop-kpi, .rop-task,
+    .lead-tabs, .trip-chips, .gd-card, .gd-lead, .gd-faq, .trip-card {
+        background-color: var(--g-card) !important;
+        -webkit-backdrop-filter: var(--g-card-blur); backdrop-filter: var(--g-card-blur);
+        border-color: rgba(255, 255, 255, .7) !important;
+        box-shadow: var(--g-card-edge) !important;
+    }
+    .quick-card:hover, .trip-card:hover { background-color: var(--g-card-hi) !important; }
+    /* таблиці й великі списки — майже білі, щоб текст читався */
+    .table-card, .trip-detail, .card-section, .card-header-block {
+        background-color: rgba(255, 255, 255, .86) !important;
+        -webkit-backdrop-filter: var(--g-card-blur); backdrop-filter: var(--g-card-blur);
+        border-color: rgba(255, 255, 255, .75) !important;
+        box-shadow: var(--g-card-edge) !important;
+    }
+    thead { background: rgba(255, 255, 255, .55); }
+    tbody tr:hover { background: rgba(255, 255, 255, .7); }
+    /* поля пошуку, кнопки «другого плану», вкладки-сегменти */
+    .search-input, .btn-secondary, .lead-select {
+        background-color: rgba(255, 255, 255, .7) !important;
+        -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 1px 2px rgba(16, 24, 40, .05) !important;
+    }
+    .search-input:focus { background-color: #fff !important; }
+    /* бічне меню (темне скло всередині): пункти при наведенні — матове світло */
+    .fura-nav-item:hover:not(.active) { background: rgba(255, 255, 255, .07); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); }
+    .fura-nav-item.active { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 6px 16px -6px rgba(245, 124, 0, .55); }
+    /* вікно картки: фон — світле скло */
+    .carrier-card-modal { background: rgba(243, 245, 249, .9); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); }
+}
