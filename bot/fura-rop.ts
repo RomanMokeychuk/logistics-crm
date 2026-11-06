@@ -174,8 +174,13 @@ function secretOk(req: Request, url: URL): boolean {
 /* Claude API                                                          */
 /* ================================================================== */
 
+let lastAiError = "";
 async function claude(system: string, user: string, maxTokens = 3000): Promise<string | null> {
-    if (!AI_KEY) return null;
+    lastAiError = "";
+    if (!AI_KEY) {
+        lastAiError = "ANTHROPIC_API_KEY не видно функції — додайте секрет і зробіть Deploy fura-rop ще раз";
+        return null;
+    }
     try {
         const res = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -194,11 +199,13 @@ async function claude(system: string, user: string, maxTokens = 3000): Promise<s
         const data = await res.json();
         if (!res.ok) {
             console.error("Claude API:", JSON.stringify(data).slice(0, 500));
+            lastAiError = `Claude API ${res.status}: ${data?.error?.message || "помилка"}`.slice(0, 300);
             return null;
         }
         return (data.content || []).filter((b: Any) => b.type === "text").map((b: Any) => b.text).join("").trim() || null;
     } catch (e) {
         console.error("Claude API:", e);
+        lastAiError = "Claude API недоступний: " + String((e as Error)?.message || e).slice(0, 200);
         return null;
     }
 }
@@ -963,9 +970,13 @@ async function aiSummary(kind: string, m: Any, findings: Finding[]) {
         .slice(0, 70)
         .map((f) => ({ kind: KIND_LABEL[f.kind] || f.kind, priority: f.priority, who: f.assignee_name || "Керівник", title: f.title, details: f.details, link: f.link }));
     const payload = { report: kind === "weekly" ? "тижневий" : "ранковий", metrics: m, problems: top };
-    const text = await claude(SYSTEM, JSON.stringify(payload), 3500);
+    const text = await claude(SYSTEM, JSON.stringify(payload), 8000);
     const j = parseJson(text);
-    if (!j || !Array.isArray(j.top_actions)) return null;
+    if (!j || !Array.isArray(j.top_actions)) {
+        if (text && !lastAiError) lastAiError = "Claude відповів, але не в потрібному форматі (можливо, обрізано)";
+        console.error("ROP AI:", lastAiError, (text || "").slice(0, 300));
+        return null;
+    }
     return {
         headline: clip(j.headline, 400),
         top_actions: j.top_actions.slice(0, 5).map((a: Any) => ({ title: clip(a.title, 300), why: clip(a.why, 400), who: clip(a.who, 80), link: clip(a.link, 200) })),
@@ -1070,7 +1081,7 @@ async function buildReport(kind: "daily" | "weekly" | "manual", by: string) {
     const { data: rep, error } = await db.from("rop_reports").insert({
         kind,
         report_date: kyivNow().date,
-        metrics: m,
+        metrics: ai ? m : { ...m, ai_error: lastAiError || null },
         summary,
         ai_ok: !!ai,
         created_by: by,

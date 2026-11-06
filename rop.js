@@ -192,7 +192,7 @@ function renderReport() {
         : "";
     $("ropMeta").innerHTML =
         `<b>${kindLabel[r.kind] || "Звіт"}</b> · ${fmtDateTime(r.created_at)} · ${escapeHtml(r.created_by || "")}` +
-        (r.ai_ok ? "" : ` · <span class="rop-warn">без висновків Claude — лише цифри (перевірте ANTHROPIC_API_KEY)</span>`) +
+        (r.ai_ok ? "" : ` · <span class="rop-warn" title="${escapeHtml(r.metrics?.ai_error || "")}">без висновків Claude — лише цифри${r.metrics?.ai_error ? ": " + escapeHtml(r.metrics.ai_error) : " (перевірте ANTHROPIC_API_KEY)"}</span>`) +
         warn;
 
     // Головне
