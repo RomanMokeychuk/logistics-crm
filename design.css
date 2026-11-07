@@ -371,4 +371,7 @@ tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 #carrierCardBody .pa-in, #carrierCardBody .pa-btn { border-radius: 10px; }
 /* Довгий список машин у черзі — прокручується всередині блоку */
 #carrierCardBody .eqc { max-height: 360px; overflow-y: auto !important; }
-#carrierCardBody .eqc > .eqc-title { position: sticky; top: -9px; background: #fff7ed; z-index: 1; padding: 4px 0; }
+#carrierCardBody .eqc > .eqc-title { position: sticky; top: -9px; background: #fff7ed; z-index: 1; padding: 4px 32px 4px 0; }
+/* Картка перевізника вужча — зручніше читати */
+#carrierCardOverlay .carrier-card-modal { max-width: 880px !important; width: 100%; margin: 0 auto; }
+@media (max-width: 920px) { #carrierCardBody .card-columns { grid-template-columns: 1fr; } }
