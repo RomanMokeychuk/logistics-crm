@@ -105,7 +105,12 @@ if (openModalBtn)
 
 const closeModal = () => modalOverlay.classList.remove("active");
 if (closeModalBtn) closeModalBtn.addEventListener("click", closeModal);
-if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
+// «Відміна»: у картці — повертаємось до перегляду, у вікні — закриваємо вікно
+if (cancelBtn) cancelBtn.addEventListener("click", () => {
+    const id = typeof exitInlineEdit === "function" ? exitInlineEdit() : null;
+    if (id) openCarrierCard(id);
+    else closeModal();
+});
 
 // Закриття модалки по кліку на затемнений фон (за межами білого вікна)
 if (modalOverlay) {
@@ -360,6 +365,7 @@ if (carrierCardOverlay) {
 }
 
 function closeCarrierCard() {
+    exitInlineEdit();
     if (carrierCardOverlay) carrierCardOverlay.classList.remove("active");
     currentCardCarrierId = null;
     setCarrierUrlParam("open", null);
@@ -375,11 +381,39 @@ function setCarrierUrlParam(key, val) {
     history.replaceState(history.state, "", location.pathname + (qs ? "?" + qs : "") + location.hash);
 }
 
-// Редагувати з картки: закриваємо картку і відкриваємо форму редагування
-function editFromCard() {
+// Редагувати з картки: форма відкривається прямо в картці (без другого вікна)
+let inlineEditId = null;
+const carrierFormHome = addCarrierForm ? addCarrierForm.parentElement : null;
+async function editFromCard() {
     const id = currentCardCarrierId;
-    closeCarrierCard();
-    if (id) editCarrier(id);
+    if (!id || !addCarrierForm) return;
+    await editCarrier(id, true);
+    const body = document.getElementById("carrierCardBody");
+    if (!body) return;
+    inlineEditId = id;
+    body.innerHTML = `<div class="cc-edit-head"><div class="cc-edit-ava" id="ccEditAva"></div><div><b>Редагування перевізника</b><span>Зміни з'являться в картці одразу після «Зберегти»</span></div></div>`;
+    body.appendChild(addCarrierForm);
+    const logo = document.getElementById("logo_url");
+    const ava = document.getElementById("ccEditAva");
+    const paint = () => (ava.innerHTML = renderAvatar(logo?.value.trim()));
+    paint();
+    logo?.addEventListener("input", paint);
+    body.classList.add("cc-editing");
+    const eb = document.querySelector("#carrierCardOverlay .btn-card-edit");
+    if (eb) eb.style.display = "none";
+    document.querySelector("#carrierCardOverlay .carrier-card-modal")?.scrollTo(0, 0);
+    addCarrierForm.querySelector("input:not([type=hidden])")?.focus();
+}
+function exitInlineEdit() {
+    if (!inlineEditId) return null;
+    const id = inlineEditId;
+    inlineEditId = null;
+    if (carrierFormHome && addCarrierForm) carrierFormHome.appendChild(addCarrierForm);
+    document.getElementById("carrierCardBody")?.classList.remove("cc-editing");
+    const eb = document.querySelector("#carrierCardOverlay .btn-card-edit");
+    if (eb) eb.style.display = "";
+    resetForm();
+    return id;
 }
 
 // Один рядок "підпис — значення" в картці
@@ -1386,9 +1420,14 @@ if (addCarrierForm) {
             const box = document.querySelector(".table-card");
             const keepTop = box ? box.scrollTop : 0;
             const keepWin = window.scrollY;
+            const inlineId = exitInlineEdit();
             resetForm();
             closeModal();
-            renderCarriers();
+            if (!CARRIER_POPUP) renderCarriers();
+            if (inlineId) {
+                openCarrierCard(inlineId); // одразу показуємо збережене (фото, контакти…)
+                document.querySelector("#carrierCardOverlay .carrier-card-modal")?.scrollTo({ top: 0, behavior: "smooth" });
+            }
             if (box) box.scrollTop = keepTop;
             window.scrollTo(0, keepWin);
         } else {
@@ -1426,7 +1465,7 @@ function resetForm() {
     if (notesUpdatedEl) notesUpdatedEl.textContent = "";
 }
 
-async function editCarrier(id) {
+async function editCarrier(id, inline = false) {
     setCarrierUrlParam("last", id);
     const { data, error } = await sbClient
         .from("carriers")
@@ -1487,7 +1526,7 @@ async function editCarrier(id) {
     const modalTitle = document.getElementById("modalTitle");
     if (modalTitle) modalTitle.textContent = "Редагувати перевізника";
 
-    if (modalOverlay) modalOverlay.classList.add("active");
+    if (modalOverlay && !inline) modalOverlay.classList.add("active");
 }
 
 async function deleteCarrier(id) {

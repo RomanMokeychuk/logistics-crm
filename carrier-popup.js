@@ -80,10 +80,18 @@
             frame = null;
         }
         document.documentElement.style.overflow = "";
+        setParam(null);
         // Сторінка може оновити дані (напр., телефон дописали в картці)
         if (id) document.dispatchEvent(new CustomEvent("fura-carrier-popup-closed", { detail: { id } }));
     }
 
+    // Відкрита картка видно в адресі (?carrier=ID) — після оновлення сторінки відкриється знову
+    function setParam(id) {
+        const u = new URL(location.href);
+        if (id) u.searchParams.set("carrier", id);
+        else u.searchParams.delete("carrier");
+        history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+    }
     function open(id) {
         if (!id) return;
         // На сторінці «Перевізники» — звичайна картка, без вікна в вікні
@@ -97,6 +105,7 @@
         frame = document.createElement("iframe");
         frame.title = "Картка перевізника";
         frame.src = `index.html?cpop=1&open=${encodeURIComponent(id)}`;
+        setParam(id);
         wrap.appendChild(frame);
         wrap.classList.add("active");
         document.documentElement.style.overflow = "hidden";
@@ -152,6 +161,10 @@
         ].join(" ");
         return `<a href="${id ? `index.html?open=${encodeURIComponent(id)}` : "#"}" class="fura-clink" ${attrs} title="Відкрити картку перевізника">${esc(text)}</a>`;
     }
+
+    // Після оновлення сторінки — відкрити ту саму картку
+    const again = new URLSearchParams(location.search).get("carrier");
+    if (again && !document.getElementById("carrierCardOverlay")) setTimeout(() => open(again), 600);
 
     window.furaCarrierPopup = { open, openBy, close, link };
 })();

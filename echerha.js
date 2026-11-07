@@ -656,6 +656,10 @@ const EQ = (() => {
         else if (st.view === "cps") renderCps(list);
         else renderTrucks(list);
     }
+    // Закрили картку перевізника (могли змінити фото / тоннаж) — оновлюємо дані FURA
+    document.addEventListener("fura-carrier-popup-closed", () => {
+        loadFura().then(() => renderAll()).catch(() => {});
+    });
     function renderAll() {
         save();
         renderTable();
