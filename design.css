@@ -339,7 +339,7 @@ tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 #carrierCardBody .cm-collapsed > .card-section-title, #carrierCardBody .cm-collapsed > .ch-title { border-bottom: 0; }
 
 /* Картка перевізника — однакові м'які кути, акуратні рамки й тіні */
-#carrierCardOverlay .carrier-card-modal { border-radius: 24px; overflow: hidden; }
+#carrierCardOverlay .carrier-card-modal { border-radius: 24px; overflow-y: auto; overscroll-behavior: contain; }
 #carrierCardOverlay .carrier-card-topbar { border-radius: 24px 24px 0 0; }
 #carrierCardBody .card-header-block,
 #carrierCardBody .card-section,
@@ -369,3 +369,6 @@ tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 #carrierCardBody .ch-kpi, #carrierCardBody .ch-stat, #carrierCardBody .ch-body > div > div { border-radius: 14px; }
 #carrierCardBody .card-avatar-wrap .carrier-avatar, #carrierCardBody .card-avatar-wrap .carrier-avatar-placeholder { border-radius: 14px; box-shadow: 0 0 0 1px rgba(15, 23, 42, .06); }
 #carrierCardBody .pa-in, #carrierCardBody .pa-btn { border-radius: 10px; }
+/* Довгий список машин у черзі — прокручується всередині блоку */
+#carrierCardBody .eqc { max-height: 360px; overflow-y: auto !important; }
+#carrierCardBody .eqc > .eqc-title { position: sticky; top: -9px; background: #fff7ed; z-index: 1; padding: 4px 0; }
