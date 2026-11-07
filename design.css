@@ -419,3 +419,33 @@ body { background-color: transparent !important; }
 /* вікно картки у «Черзі» (iframe) — без фону */
 html.fura-cpop::before, html.fura-cpop::after { display: none; }
 html.fura-cpop { background: transparent !important; }
+
+/* Сині хаотичні лінії-хвилі на фоні (ледь помітні) */
+body::after {
+    content: "";
+    position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000' viewBox='0 0 1600 1000' fill='none' stroke-linecap='round'%3E%3Cg stroke='%231d5bd8' stroke-width='1.6'%3E%3Cpath opacity='.30' d='M-50 820 C 250 700 420 900 700 760 S 1150 520 1650 640'/%3E%3Cpath opacity='.22' d='M-50 860 C 260 760 460 940 740 810 S 1180 580 1650 700'/%3E%3Cpath opacity='.26' d='M-80 180 C 200 260 380 60 640 150 S 1100 330 1700 120'/%3E%3Cpath opacity='.18' d='M-80 230 C 220 310 400 110 660 200 S 1120 380 1700 170'/%3E%3Cpath opacity='.22' d='M300 1050 C 420 820 380 640 560 520 S 900 380 980 -40'/%3E%3Cpath opacity='.18' d='M1200 1050 C 1080 860 1260 700 1180 520 S 1300 260 1460 -40'/%3E%3C/g%3E%3Cg stroke='%23f57c00' stroke-width='1.2'%3E%3Cpath opacity='.22' d='M-50 520 C 300 440 520 620 820 500 S 1300 360 1650 430'/%3E%3C/g%3E%3C/svg%3E") center / cover no-repeat;
+    animation: d-lines 60s ease-in-out infinite alternate;
+}
+@keyframes d-lines { from { transform: translate3d(0, 0, 0) scale(1.02); } to { transform: translate3d(-2%, 1.5%, 0) scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { body::after { animation: none; } }
+
+/* Картка у вікні (з Черги, Запитів): власний фон із тими ж кулями й лініями */
+html.fura-cpop #carrierCardOverlay .carrier-card-modal,
+#carrierCardOverlay .carrier-card-modal {
+    background-color: #f3f5f9 !important;
+    background-image:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='900' viewBox='0 0 900 900' fill='none'%3E%3Cg stroke='%231d5bd8' stroke-width='1.3'%3E%3Cpath opacity='.26' d='M-40 700 C 160 600 300 780 480 660 S 760 470 940 560'/%3E%3Cpath opacity='.18' d='M-40 740 C 170 650 320 820 500 700 S 780 520 940 610'/%3E%3Cpath opacity='.22' d='M-40 160 C 140 230 280 60 450 140 S 740 300 940 110'/%3E%3C/g%3E%3Cpath stroke='%23f57c00' stroke-width='1.1' opacity='.22' d='M-40 430 C 200 360 360 520 560 420 S 820 330 940 380'/%3E%3C/svg%3E"),
+        radial-gradient(520px 360px at 100% 0%, rgba(245, 124, 0, .14), transparent 70%),
+        radial-gradient(560px 420px at 0% 100%, rgba(29, 91, 216, .13), transparent 70%),
+        radial-gradient(rgba(19, 32, 63, .07) 1px, transparent 1.2px) !important;
+    background-size: 100% auto, auto, auto, 20px 20px !important;
+    background-repeat: no-repeat, no-repeat, no-repeat, repeat !important;
+    background-attachment: local !important;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* блоки в картці — напівпрозоре скло, щоб фон просвічував */
+#carrierCardBody .card-header-block, #carrierCardBody .card-section, #carrierCardBody .cm-coll:not(.eqc):not(.regc):not(.pa-box) {
+    background-color: rgba(255, 255, 255, .80) !important;
+    -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3);
+}
