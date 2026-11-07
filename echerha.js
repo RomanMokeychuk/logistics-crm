@@ -554,7 +554,7 @@ const EQ = (() => {
         list = sortTrucks(list);
         const rows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         $("#eqTable").innerHTML =
-            `<thead><tr><th class="eq-star-th" title="Обрані">★</th><th>Пункт</th><th>В'їзд</th><th>Тягач</th><th>Причіп</th><th>Кузов</th><th>Перевізник</th><th>Керівник</th><th>FURA</th></tr></thead><tbody>` +
+            `<thead><tr><th class="eq-star-th" title="Обрані">★</th><th>Пункт</th><th>В'їзд</th><th>Тягач</th><th>Причіп</th><th>Кузов</th><th>Перевізник</th><th>Керівник</th></tr></thead><tbody>` +
             (rows.map((r) => `<tr class="${WATCH.has(r.tractor) ? "eq-starred" : ""}">
                 <td>${starBtn(r.tractor)}</td>
                 <td><b>${esc(cpShort(r.checkpoint))}</b><div class="eq-muted eq-sm">${esc(cpNote(r.checkpoint))}${r.note ? " · " + esc(r.note) : ""}</div></td>
@@ -562,10 +562,9 @@ const EQ = (() => {
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
-                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}</td>
+                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}${r.edrpou && !FURA.has(codeKey(r.edrpou)) ? `<div class="eq-add-wrap">${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</div>` : ""}</td>
                 <td>${esc(r.boss || "—")}</td>
-                <td>${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</td>
-            </tr>`).join("") || `<tr><td colspan="9" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
+            </tr>`).join("") || `<tr><td colspan="8" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Машин: ${list.length.toLocaleString("uk-UA")}`;
         pager(list.length);
     }
