@@ -657,8 +657,20 @@ const EQ = (() => {
         else renderTrucks(list);
     }
     // Закрили картку перевізника (могли змінити фото / тоннаж) — оновлюємо дані FURA
-    document.addEventListener("fura-carrier-popup-closed", () => {
-        loadFura().then(() => renderAll()).catch(() => {});
+    document.addEventListener("fura-carrier-popup-closed", (e) => {
+        const id = String(e.detail?.id || "");
+        const mark = (scroll) => {
+            // показуємо в списку машину цього перевізника, яку щойно відкривали
+            const rows = [...document.querySelectorAll(`#eqTable a.eq-carrier[data-carrier-card="${CSS.escape(id)}"]`)].map((a) => a.closest("tr"));
+            document.querySelectorAll("#eqTable tr.carrier-last").forEach((r) => r.classList.remove("carrier-last"));
+            rows.forEach((r) => r.classList.add("carrier-last"));
+            const tr = rows[0];
+            if (!tr || !scroll) return;
+            tr.scrollIntoView({ block: "center", behavior: "smooth" });
+            rows.forEach((r) => { r.classList.remove("row-flash"); void r.offsetWidth; r.classList.add("row-flash"); });
+        };
+        mark(true);
+        loadFura().then(() => { renderAll(); mark(false); }).catch(() => {});
     });
     function renderAll() {
         save();

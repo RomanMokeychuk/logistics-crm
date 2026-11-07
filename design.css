@@ -313,3 +313,9 @@ body {
 .cc-edit-ava .carrier-avatar, .cc-edit-ava .carrier-avatar-placeholder { width: 48px; height: 48px; border-radius: 12px; font-size: 22px; }
 #carrierCardBody.cc-editing #addCarrierForm { background: #fff; border: 1px solid var(--d-line-soft, #eef1f5); border-radius: 16px; padding: 14px 16px 0; }
 #carrierCardBody.cc-editing .modal-footer { position: sticky; bottom: -20px; background: rgba(255, 255, 255, .92); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); margin: 12px -16px 0; padding: 12px 16px; border-top: 1px solid var(--d-line-soft, #eef1f5); border-radius: 0 0 16px 16px; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Рядок, який щойно відкривали (перевізник / машина) — видно в списку */
+tr.carrier-last > td:first-child { box-shadow: inset 4px 0 0 var(--f-blue, #1d5bd8); }
+tr.carrier-last { outline: 2px solid rgba(29, 91, 216, .35); outline-offset: -2px; }
+tr.row-flash { animation: d-row-flash 1.6s ease-out; }
+@keyframes d-row-flash { 0%, 30% { background: rgba(29, 91, 216, .16); } 100% { background: inherit; } }

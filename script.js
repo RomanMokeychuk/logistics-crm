@@ -366,9 +366,34 @@ if (carrierCardOverlay) {
 
 function closeCarrierCard() {
     exitInlineEdit();
+    const wasOpen = carrierCardOverlay?.classList.contains("active");
     if (carrierCardOverlay) carrierCardOverlay.classList.remove("active");
+    const id = currentCardCarrierId;
     currentCardCarrierId = null;
     setCarrierUrlParam("open", null);
+    if (wasOpen && id && typeof CARRIER_POPUP !== "undefined" && !CARRIER_POPUP) showCarrierInList(id);
+}
+
+// Закрили картку — показуємо, де цей перевізник у списку (переходимо на його сторінку, підсвічуємо)
+let lastFilteredIds = [];
+const lastCarrierId = () => new URLSearchParams(location.search).get("last") || "";
+function showCarrierInList(id) {
+    id = String(id);
+    let tr = carriersTableBody?.querySelector(`tr[data-carrier-id="${CSS.escape(id)}"]`);
+    if (!tr) {
+        const idx = lastFilteredIds.indexOf(id);
+        if (idx < 0) return;
+        currentPage = Math.floor(idx / PAGE_SIZE) + 1;
+        renderCarriers();
+        tr = carriersTableBody?.querySelector(`tr[data-carrier-id="${CSS.escape(id)}"]`);
+    }
+    if (!tr) return;
+    carriersTableBody.querySelectorAll("tr.carrier-last").forEach((r) => r.classList.remove("carrier-last"));
+    tr.classList.add("carrier-last");
+    tr.scrollIntoView({ block: "center", behavior: "smooth" });
+    tr.classList.remove("row-flash");
+    void tr.offsetWidth;
+    tr.classList.add("row-flash");
 }
 
 // ?open=<id> — відкрита картка, ?last=<id> — з ким працювали останнім:
@@ -850,6 +875,7 @@ function renderCarriers() {
     if (currentPage < 1) currentPage = 1;
     const pageStart = (currentPage - 1) * PAGE_SIZE;
     const pageData = filteredData.slice(pageStart, pageStart + PAGE_SIZE);
+    lastFilteredIds = filteredData.map((c) => String(c.id));
 
     updateCarriersCountBar(
         filteredData.length,
@@ -868,6 +894,8 @@ function renderCarriers() {
     pageData.forEach((item, index) => {
         const row = document.createElement("tr");
         row.classList.add("clickable-row");
+        row.dataset.carrierId = item.id;
+        if (String(item.id) === lastCarrierId()) row.classList.add("carrier-last");
         row.title = "Натисніть, щоб відкрити картку перевізника";
         const rowNumber = pageStart + index + 1; // наскрізний номер з урахуванням сторінки
 
