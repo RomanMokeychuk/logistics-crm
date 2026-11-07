@@ -440,8 +440,8 @@
                     requestsCache.some((x) => String(x.id) === String(openId));
                 if (ready || ++tries > 40) {
                     clearInterval(timer);
-                    if (ready) openRequestCard(openId);
-                    history.replaceState(null, "", location.pathname);
+                    // Картка сама тримає ?open= в адресі (щоб пережити оновлення сторінки) — адресу не чистимо
+                    if (ready && String(window.currentCardRequestId ?? (typeof currentCardRequestId !== "undefined" ? currentCardRequestId : "")) !== String(openId)) openRequestCard(openId);
                 }
             }, 250);
         }
