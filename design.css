@@ -319,3 +319,21 @@ tr.carrier-last > td:first-child { box-shadow: inset 4px 0 0 var(--f-blue, #1d5b
 tr.carrier-last { outline: 2px solid rgba(29, 91, 216, .35); outline-offset: -2px; }
 tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 @keyframes d-row-flash { 0%, 30% { background: rgba(29, 91, 216, .16); } 100% { background: inherit; } }
+
+/* Картка перевізника — ще компактніше */
+#carrierCardBody .card-header-block { padding: 10px 14px; }
+#carrierCardBody .card-header-info { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; }
+#carrierCardBody .card-title { grid-column: 1 / -1; font-size: 18px; }
+#carrierCardBody .card-subtitle { grid-column: 1; margin: 0; }
+#carrierCardBody .card-header-badges { grid-column: 2; margin: 0; }
+#carrierCardBody .card-avatar-wrap .carrier-avatar,
+#carrierCardBody .card-avatar-wrap .carrier-avatar-placeholder { width: 48px; height: 48px; border-radius: 12px; font-size: 22px; }
+#carrierCardBody .card-section-title, #carrierCardBody .ch-title { padding: 8px 12px !important; font-size: 13px !important; min-height: 0; }
+#carrierCardBody .card-row { padding: 6px 12px; grid-template-columns: 120px 1fr; font-size: 13px; }
+#carrierCardBody .card-block-text, #carrierCardBody .ch-body { padding: 8px 12px; font-size: 13px; }
+#carrierCardBody .card-columns, #carrierCardBody .card-col { gap: 8px; }
+#carrierCardBody .card-section + .card-section, #carrierCardBody > * + * { margin-top: 8px; }
+#carrierCardBody .eqc, #carrierCardBody .regc, #carrierCardBody .pa-box { padding: 9px 12px !important; margin: 8px 0 0 !important; font-size: 13px; }
+#carrierCardBody .eqc-title, #carrierCardBody .regc-title, #carrierCardBody .pa-title { font-size: 13.5px !important; margin-bottom: 6px; }
+#carrierCardBody .cm-collapsed { box-shadow: none !important; }
+#carrierCardBody .cm-collapsed > .card-section-title, #carrierCardBody .cm-collapsed > .ch-title { border-bottom: 0; }

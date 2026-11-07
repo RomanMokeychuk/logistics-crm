@@ -140,7 +140,7 @@ body.cm-modal-open { overflow: hidden; }
 .cm-coll > .card-section-title, .cm-coll > .ch-title { cursor: pointer; user-select: none; position: relative; padding-right: 34px; }
 .cm-coll > .card-section-title::after, .cm-coll > .ch-title::after { content: "▾"; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 13px; }
 .cm-coll.cm-collapsed > .card-section-title::after, .cm-coll.cm-collapsed > .ch-title::after { content: "▸"; }
-.cm-coll.cm-collapsed > :not(.card-section-title):not(.ch-title) { display: none !important; }
+.cm-coll.cm-collapsed > :not(.card-section-title):not(.ch-title):not(.eqc-title):not(.regc-title):not(.pa-title) { display: none !important; }
 .cm-coll > .card-section-title:hover, .cm-coll > .ch-title:hover { filter: brightness(.97); }
 /* тягачі в картці */
 .cm-fleet-sum { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
