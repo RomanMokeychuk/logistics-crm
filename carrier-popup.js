@@ -104,7 +104,7 @@
         spinner.style.display = "";
         frame = document.createElement("iframe");
         frame.title = "Картка перевізника";
-        frame.src = `index.html?cpop=1&open=${encodeURIComponent(id)}`;
+        frame.src = `index.html?cpop=1&open=${encodeURIComponent(id)}&t=${Date.now()}`; // t= — завжди свіжа версія картки, без старого кешу
         setParam(id);
         wrap.appendChild(frame);
         wrap.classList.add("active");
