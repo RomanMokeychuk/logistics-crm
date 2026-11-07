@@ -672,7 +672,33 @@ const EQ = (() => {
         mark(true);
         loadFura().then(() => { renderAll(); mark(false); }).catch(() => {});
     });
+    // Фільтри згортаються; на кнопці — скільки фільтрів увімкнено
+    const FT_KEY = "fura_echerha_filters_open";
+    function activeFilters() {
+        return (st.cps ? 1 : 0) + st.country.length + st.oblast.length + st.qtype.length + st.fresh.length + st.bodies.size +
+            (st.notInFura ? 1 : 0) + (st.isNew ? 1 : 0) + (st.starred ? 1 : 0) + (st.showGone ? 1 : 0) + (st.ua ? 0 : 1);
+    }
+    function paintFiltersToggle() {
+        const n = $("#eqFiltersN");
+        if (n) n.textContent = activeFilters() || "";
+    }
+    (function setupFiltersToggle() {
+        const btn = $("#eqFiltersToggle"), box = $("#eqFilters");
+        if (!btn || !box) return;
+        let open = false;
+        try { open = localStorage.getItem(FT_KEY) === "1"; } catch (e) { /* */ }
+        const set = (v) => {
+            open = v;
+            box.classList.toggle("eq-collapsed", !v);
+            btn.setAttribute("aria-expanded", v ? "true" : "false");
+            try { localStorage.setItem(FT_KEY, v ? "1" : "0"); } catch (e) { /* */ }
+        };
+        set(open);
+        btn.addEventListener("click", () => set(!open));
+    })();
+
     function renderAll() {
+        paintFiltersToggle();
         save();
         renderTable();
     }

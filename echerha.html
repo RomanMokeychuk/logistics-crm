@@ -12,11 +12,11 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611071023" />
+        <link rel="stylesheet" href="style.css?v=202611071030" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611071023" />
-        <link rel="stylesheet" href="echerha.css?v=202611071023" />
-        <link rel="stylesheet" href="design.css?v=202611071023" />
+        <link rel="stylesheet" href="theme.css?v=202611071030" />
+        <link rel="stylesheet" href="echerha.css?v=202611071030" />
+        <link rel="stylesheet" href="design.css?v=202611071030" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -44,13 +44,14 @@
                         <button type="button" data-v="cps"><i class="bx bx-map-pin"></i> Пункти</button>
                         <button type="button" data-v="watch"><span class="eq-star-ico">★</span> Обрані <b class="eq-watch-n" id="eqWatchN"></b></button>
                     </div>
+                    <button type="button" class="eq-filters-toggle" id="eqFiltersToggle" aria-expanded="false" title="Показати / сховати фільтри"><i class="bx bx-slider-alt"></i> Фільтри <b id="eqFiltersN"></b><i class="bx bx-chevron-down"></i></button>
                     <div class="eq-search">
                         <i class="bx bx-search"></i>
                         <input id="eqQ" type="search" placeholder="Номер, перевізник, ЄДРПОУ, керівник…" autocomplete="off" />
                     </div>
                 </div>
 
-                <div class="eq-filters" id="eqFilters">
+                <div class="eq-filters eq-collapsed" id="eqFilters">
                     <div class="eq-msel" id="eqCp">
                         <button type="button" class="eq-msel-btn" id="eqCpBtn">Усі пункти ▾</button>
                         <div class="eq-msel-panel hidden" id="eqCpPanel"></div>
@@ -84,9 +85,9 @@
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="echerha.js?v=202611071023"></script>
-        <script src="shell.js?v=202611071023"></script>
-        <script src="notify.js?v=202611071023"></script>
-        <script src="lock.js?v=202611071023"></script>
+        <script src="echerha.js?v=202611071030"></script>
+        <script src="shell.js?v=202611071030"></script>
+        <script src="notify.js?v=202611071030"></script>
+        <script src="lock.js?v=202611071030"></script>
     </body>
 </html>
