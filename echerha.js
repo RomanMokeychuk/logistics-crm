@@ -160,12 +160,12 @@ const EQ = (() => {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
         const parts = await Promise.all(
-            Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select("id, name, edrpou, region_ukr").range(i * 1000, i * 1000 + 999)),
+            Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select("id, name, edrpou, region_ukr, logo_url, tonnage, volume").range(i * 1000, i * 1000 + 999)),
         );
         FURA = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            if (k && !FURA.has(k)) FURA.set(k, { id: c.id, name: c.name, region: c.region_ukr || "" });
+            if (k && !FURA.has(k)) FURA.set(k, { id: c.id, name: c.name, region: c.region_ukr || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "" });
         }));
     }
 
@@ -477,6 +477,19 @@ const EQ = (() => {
         );
     }
 
+    // Перевізник: логотип з картки FURA, назва відкриває картку, тоннаж / об'єм з картки
+    function carrierCell(r) {
+        const f = FURA.get(codeKey(r.edrpou));
+        const name = esc(r.carrier || "—");
+        if (!f) return name;
+        const logo = f.logo && /^https?:\/\//.test(f.logo)
+            ? `<img class="eq-clogo" src="${esc(f.logo)}" alt="" loading="lazy" onerror="this.remove()">`
+            : "";
+        const cap = [f.tonnage ? `до ${esc(f.tonnage)} т` : "", f.volume ? `${esc(f.volume)} м³` : ""].filter(Boolean).join(" · ");
+        return `<a href="index.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" class="eq-carrier" title="Відкрити картку перевізника">${logo}<span>${name}</span></a>` +
+            (cap ? `<div class="eq-cap" title="З картки перевізника у FURA">⚖ ${cap}</div>` : "");
+    }
+
     function kpis(list) {
         const ua = list.filter((r) => r.ua);
         const codes = new Set(list.map((r) => codeKey(r.edrpou)).filter(Boolean));
@@ -549,7 +562,7 @@ const EQ = (() => {
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
-                <td>${esc(r.carrier || "—")}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}</td>
+                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}</td>
                 <td>${esc(r.boss || "—")}</td>
                 <td>${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</td>
             </tr>`).join("") || `<tr><td colspan="9" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";

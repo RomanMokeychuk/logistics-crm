@@ -128,3 +128,8 @@
 .eq-tr-meta .eq-clip { max-width: 220px; white-space: normal; overflow: visible; }
 .eq-weight { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: #334155; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .eq-weight::before { content: "⚖"; font-size: 10px; opacity: .7; }
+/* Перевізник з картки FURA: логотип, назва-посилання, тоннаж */
+.eq-carrier { display: inline-flex; align-items: center; gap: 8px; color: var(--f-blue, #1d5bd8); font-weight: 600; text-decoration: none; }
+.eq-carrier:hover span { text-decoration: underline; }
+.eq-clogo { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; flex: none; border: 1px solid #e4e8ef; background: #fff; }
+.eq-cap { display: inline-flex; margin-top: 3px; padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: #334155; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
