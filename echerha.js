@@ -558,7 +558,7 @@ const EQ = (() => {
             (rows.map((r) => `<tr class="${WATCH.has(r.tractor) ? "eq-starred" : ""}">
                 <td>${starBtn(r.tractor)}</td>
                 <td><b>${esc(cpShort(r.checkpoint))}</b><div class="eq-muted eq-sm">${esc(cpNote(r.checkpoint))}${r.note ? " · " + esc(r.note) : ""}</div></td>
-                <td class="eq-nw">${dShort(r.entry_at)}<div class="eq-muted eq-sm">№ ${esc(r.queue_no || "—")}</div>${r.reg_at ? `<div class="eq-muted eq-sm" title="Коли стала в чергу">у черзі з ${dShort(r.reg_at)}</div>` : ""}</td>
+                <td class="eq-nw">${dShort(r.entry_at)}${r.reg_at ? `<div class="eq-muted eq-sm" title="Коли стала в чергу">у черзі з ${dShort(r.reg_at)}</div>` : ""}</td>
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
