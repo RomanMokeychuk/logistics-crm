@@ -1257,3 +1257,9 @@
 .req-msg-doc span { color: #94a3b8; font-size: 11px; }
 .req-msg-noimg { font-size: 12px; color: #94a3b8; }
 .req-chat-drop { outline: 2px dashed #f97316; outline-offset: -4px; }
+
+/* Запит, який щойно відкривали — видно в списку */
+.requests-table tr.req-last > td:first-child { box-shadow: inset 4px 0 0 var(--f-blue, #1d5bd8); }
+.requests-table tr.req-last { outline: 2px solid rgba(29, 91, 216, .35); outline-offset: -2px; }
+.requests-table tr.req-flash { animation: req-flash 1.6s ease-out; }
+@keyframes req-flash { 0%, 30% { background: rgba(29, 91, 216, .16); } 100% { background: inherit; } }

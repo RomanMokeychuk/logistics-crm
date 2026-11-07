@@ -842,7 +842,8 @@ function renderRequests() {
     rows.forEach((r, index) => {
         const state = requestState(r);
         const tr = document.createElement("tr");
-        tr.className = `clickable-row req-${state}`;
+        tr.className = `clickable-row req-${state}${lastOpenedRequestId && String(r.id) === lastOpenedRequestId ? " req-last" : ""}`;
+        tr.dataset.reqId = r.id;
         tr.title = "Натисніть, щоб відкрити картку запиту";
 
         const newBadge =
@@ -1752,6 +1753,10 @@ function openRequestCard(id) {
     const r = requestsCache.find((x) => String(x.id) === String(id));
     if (!r) return;
     currentCardRequestId = r.id;
+    // Картку видно в адресі — після оновлення сторінки вона відкриється знову
+    setOpenParam(r.id);
+    lastOpenedRequestId = String(r.id);
+    try { sessionStorage.setItem("fura_req_last", lastOpenedRequestId); } catch (e) { /* без збереження */ }
 
     const notesHtml = r.notes
         ? `<div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(r.notes)}</div>`
@@ -2172,10 +2177,30 @@ async function initRequestChat(requestId) {
     renderChat();
 }
 
+function setOpenParam(id) {
+    const u = new URL(location.href);
+    if (id) u.searchParams.set("open", id);
+    else u.searchParams.delete("open");
+    history.replaceState(history.state, "", u.pathname + u.search + u.hash);
+}
+// Останній відкритий запит — підсвічуємо в списку
+let lastOpenedRequestId = (() => { try { return sessionStorage.getItem("fura_req_last"); } catch (e) { return null; } })();
+function showLastInList() {
+    if (!lastOpenedRequestId) return;
+    const tr = tableBody.querySelector(`tr[data-req-id="${CSS.escape(lastOpenedRequestId)}"]`);
+    if (!tr) return;
+    tr.scrollIntoView({ block: "center", behavior: "smooth" });
+    tr.classList.remove("req-flash");
+    void tr.offsetWidth;
+    tr.classList.add("req-flash");
+}
+
 function closeRequestCard() {
     requestCardOverlay.classList.remove("active");
     currentCardRequestId = null;
     window.furaBids?.unmount();
+    setOpenParam(null);
+    showLastInList();
 }
 
 // Повторити запит: нова форма з тими самими даними (клієнт, маршрут, вантаж, авто, митниця).
@@ -3208,6 +3233,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const openRequestId = new URLSearchParams(location.search).get("open");
     loadRequests().then(() => {
         if (openRequestId) openRequestCard(openRequestId);
+        else showLastInList();
     });
     renderTransportPicker();
     // Типи причепів з реєстру перевізників — для списку «+ інший тип»
