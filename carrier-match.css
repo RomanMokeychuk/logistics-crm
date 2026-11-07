@@ -188,3 +188,9 @@ body.cm-modal-open { overflow: hidden; }
 .cm-fb-item { padding: 3px 0; border-bottom: 1px dashed #eef1f5; }
 /* Номери сторінок прилипають до низу списку — їх видно без прокрутки до кінця */
 .cm-results .cm-pager { position: sticky; bottom: 0; z-index: 2; background: #fff; box-shadow: 0 -8px 12px -10px rgba(15, 23, 42, .25); margin: 0 -4px; padding: 8px 4px 6px; }
+/* Згортаються й блоки «Зараз у черзі», «Реєстр перевізників», «Кабінет перевізника» */
+.cm-coll > .eqc-title, .cm-coll > .regc-title, .cm-coll > .pa-title { cursor: pointer; user-select: none; position: relative; padding-right: 30px; }
+.cm-coll > .eqc-title::after, .cm-coll > .regc-title::after, .cm-coll > .pa-title::after { content: "▾"; position: absolute; right: 4px; top: 50%; transform: translateY(-50%); color: #64748b; font-size: 13px; font-weight: 400; }
+.cm-coll.cm-collapsed > .eqc-title::after, .cm-coll.cm-collapsed > .regc-title::after, .cm-coll.cm-collapsed > .pa-title::after { content: "▸"; }
+.cm-coll.cm-collapsed > :not(.card-section-title):not(.ch-title):not(.eqc-title):not(.regc-title):not(.pa-title) { display: none !important; }
+.cm-coll.cm-collapsed > .eqc-title, .cm-coll.cm-collapsed > .regc-title, .cm-coll.cm-collapsed > .pa-title { margin-bottom: 0; }

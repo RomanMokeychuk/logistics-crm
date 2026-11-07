@@ -906,14 +906,15 @@
     const secKey = (title) => title.textContent.replace(/\s+/g, " ").trim().slice(0, 40);
     function applyCollapsed(root) {
         const saved = collSaved();
-        root.querySelectorAll(".card-section-title, .ch-title").forEach((t) => {
+        root.querySelectorAll(".card-section-title, .ch-title, .eqc-title, .regc-title, .pa-title").forEach((t) => {
             const sec = t.parentElement;
             sec.classList.add("cm-coll");
             sec.classList.toggle("cm-collapsed", !!saved[secKey(t)]);
         });
     }
     document.addEventListener("click", (e) => {
-        const t = e.target.closest("#carrierCardBody .card-section-title, #carrierCardBody .ch-title");
+        if (e.target.closest("a, button")) return; // посилання й кнопки в заголовку працюють як звичайно
+        const t = e.target.closest("#carrierCardBody .card-section-title, #carrierCardBody .ch-title, #carrierCardBody .eqc-title, #carrierCardBody .regc-title, #carrierCardBody .pa-title");
         if (!t) return;
         const sec = t.parentElement;
         sec.classList.add("cm-coll");
@@ -927,7 +928,7 @@
     function watchCard() {
         const body = document.getElementById("carrierCardBody");
         if (!body) return;
-        new MutationObserver(() => applyCollapsed(body)).observe(body, { childList: true });
+        new MutationObserver(() => applyCollapsed(body)).observe(body, { childList: true, subtree: true });
     }
 
     window.furaCarrierRoutes = { renderCard, search };
