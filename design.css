@@ -375,3 +375,47 @@ tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 /* Картка перевізника вужча — зручніше читати */
 #carrierCardOverlay .carrier-card-modal { max-width: 880px !important; width: 100%; margin: 0 auto; }
 @media (max-width: 920px) { #carrierCardBody .card-columns { grid-template-columns: 1fr; } }
+
+/* =====================================================================
+ * Задній фон: м'які кольорові «кулі» FURA, що повільно пливуть,
+ * і ледь помітна сітка з крапок. Усе за контентом і дуже легко.
+ * ===================================================================== */
+html::before, html::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+}
+/* кулі зі світінням */
+html::before {
+    background:
+        radial-gradient(closest-side, rgba(245, 124, 0, .22), transparent) 0 0 / 46vmax 46vmax no-repeat,
+        radial-gradient(closest-side, rgba(29, 91, 216, .18), transparent) 0 0 / 52vmax 52vmax no-repeat,
+        radial-gradient(closest-side, rgba(255, 154, 46, .14), transparent) 0 0 / 34vmax 34vmax no-repeat;
+    filter: blur(30px);
+    animation: d-orbs 38s ease-in-out infinite alternate;
+}
+@keyframes d-orbs {
+    0%   { background-position: 78vw -10vh, -8vw 62vh, 42vw 30vh; }
+    50%  { background-position: 64vw 8vh,  6vw 48vh, 55vw 52vh; }
+    100% { background-position: 84vw 18vh, -2vw 70vh, 30vw 12vh; }
+}
+/* сітка з крапок, що зникає до країв */
+html::after {
+    background-image: radial-gradient(rgba(19, 32, 63, .10) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 60% 30%, #000 30%, transparent 85%);
+    mask-image: radial-gradient(ellipse 80% 70% at 60% 30%, #000 30%, transparent 85%);
+}
+/* щоб фон просвічував, сторінка сама не зафарбовує його */
+html { background: var(--f-bg, #f3f5f9); }
+body { background-color: transparent !important; }
+/* підсвітка карток при наведенні — тонкий кольоровий обідок */
+.quick-card:hover, .home-section:hover, .kpi:hover, .eq-kpi:hover, .rop-kpi:hover {
+    box-shadow: 0 0 0 1px rgba(245, 124, 0, .25), 0 12px 30px -14px rgba(245, 124, 0, .35) !important;
+}
+@media (prefers-reduced-motion: reduce) { html::before { animation: none; } }
+/* вікно картки у «Черзі» (iframe) — без фону */
+html.fura-cpop::before, html.fura-cpop::after { display: none; }
+html.fura-cpop { background: transparent !important; }
