@@ -337,3 +337,35 @@ tr.row-flash { animation: d-row-flash 1.6s ease-out; }
 #carrierCardBody .eqc-title, #carrierCardBody .regc-title, #carrierCardBody .pa-title { font-size: 13.5px !important; margin-bottom: 6px; }
 #carrierCardBody .cm-collapsed { box-shadow: none !important; }
 #carrierCardBody .cm-collapsed > .card-section-title, #carrierCardBody .cm-collapsed > .ch-title { border-bottom: 0; }
+
+/* Картка перевізника — однакові м'які кути, акуратні рамки й тіні */
+#carrierCardOverlay .carrier-card-modal { border-radius: 24px; overflow: hidden; }
+#carrierCardOverlay .carrier-card-topbar { border-radius: 24px 24px 0 0; }
+#carrierCardBody .card-header-block,
+#carrierCardBody .card-section,
+#carrierCardBody .eqc, #carrierCardBody .regc, #carrierCardBody .pa-box,
+#carrierCardBody .ch-box, #carrierCardBody [class*="cm-sec"] {
+    border-radius: 18px !important;
+    border: 1px solid rgba(15, 23, 42, .06) !important;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 6px 18px -12px rgba(16, 24, 40, .14) !important;
+    overflow: hidden;
+}
+#carrierCardBody .card-section > .card-section-title:first-child,
+#carrierCardBody .cm-coll > .ch-title:first-child { border-radius: 18px 18px 0 0; }
+#carrierCardBody .cm-collapsed > .card-section-title, #carrierCardBody .cm-collapsed > .ch-title { border-radius: 18px; }
+#carrierCardBody .cm-coll { transition: box-shadow .2s ease, transform .2s ease; }
+#carrierCardBody .cm-coll:hover { box-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 10px 24px -14px rgba(16, 24, 40, .22) !important; }
+/* стрілка згортання — кругла кнопочка, плавно повертається */
+#carrierCardBody .cm-coll > .card-section-title::after, #carrierCardBody .cm-coll > .ch-title::after,
+#carrierCardBody .cm-coll > .eqc-title::after, #carrierCardBody .cm-coll > .regc-title::after, #carrierCardBody .cm-coll > .pa-title::after {
+    content: "" !important; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(15, 23, 42, .05) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 12px no-repeat;
+    transition: transform .2s ease, background-color .2s ease;
+}
+#carrierCardBody .cm-coll.cm-collapsed > *::after { transform: translateY(-50%) rotate(-90deg); }
+#carrierCardBody .cm-coll > *:hover::after { background-color: rgba(15, 23, 42, .09); }
+/* дрібні елементи всередині — теж округлі */
+#carrierCardBody .badge, #carrierCardBody code, #carrierCardBody .regc-chip, #carrierCardBody .eq-body { border-radius: 8px; }
+#carrierCardBody .ch-kpi, #carrierCardBody .ch-stat, #carrierCardBody .ch-body > div > div { border-radius: 14px; }
+#carrierCardBody .card-avatar-wrap .carrier-avatar, #carrierCardBody .card-avatar-wrap .carrier-avatar-placeholder { border-radius: 14px; box-shadow: 0 0 0 1px rgba(15, 23, 42, .06); }
+#carrierCardBody .pa-in, #carrierCardBody .pa-btn { border-radius: 10px; }
