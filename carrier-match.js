@@ -924,10 +924,51 @@
         else delete saved[secKey(t)];
         try { localStorage.setItem(COLL_KEY, JSON.stringify(saved)); } catch (err) { /* без збереження */ }
     });
+    // Кнопка «Згорнути все / Розгорнути все» у шапці картки
+    const TITLES = ".card-section-title, .ch-title, .eqc-title, .regc-title, .pa-title";
+    function paintAllBtn() {
+        const btn = document.getElementById("cmCollAll");
+        const body = document.getElementById("carrierCardBody");
+        if (!btn || !body) return;
+        const secs = [...body.querySelectorAll(".cm-coll")];
+        const anyOpen = secs.some((x) => !x.classList.contains("cm-collapsed"));
+        btn.innerHTML = anyOpen ? `<i class="bx bx-collapse-vertical"></i> Згорнути все` : `<i class="bx bx-expand-vertical"></i> Розгорнути все`;
+        btn.dataset.mode = anyOpen ? "close" : "open";
+        btn.hidden = !secs.length || body.classList.contains("cc-editing");
+    }
+    function addAllBtn() {
+        const actions = document.querySelector("#carrierCardOverlay .carrier-card-actions");
+        if (!actions || document.getElementById("cmCollAll")) return;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.id = "cmCollAll";
+        btn.className = "cm-coll-all";
+        actions.prepend(btn);
+        btn.addEventListener("click", () => {
+            const body = document.getElementById("carrierCardBody");
+            const close = btn.dataset.mode === "close";
+            const saved = collSaved();
+            body.querySelectorAll(TITLES).forEach((t) => {
+                const sec = t.parentElement;
+                sec.classList.add("cm-coll");
+                sec.classList.toggle("cm-collapsed", close);
+                if (close) saved[secKey(t)] = 1;
+                else delete saved[secKey(t)];
+            });
+            try { localStorage.setItem(COLL_KEY, JSON.stringify(saved)); } catch (err) { /* без збереження */ }
+            paintAllBtn();
+        });
+    }
+    document.addEventListener("click", (e) => {
+        if (e.target.closest("#carrierCardBody") && e.target.closest(TITLES)) setTimeout(paintAllBtn, 0);
+    });
+
     // картка перемальовується повністю при кожному відкритті — застосовуємо збережений стан
     function watchCard() {
         const body = document.getElementById("carrierCardBody");
         if (!body) return;
+        addAllBtn();
+        new MutationObserver(() => setTimeout(paintAllBtn, 0)).observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
         new MutationObserver(() => applyCollapsed(body)).observe(body, { childList: true, subtree: true });
     }
 

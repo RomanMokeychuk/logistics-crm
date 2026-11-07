@@ -194,3 +194,7 @@ body.cm-modal-open { overflow: hidden; }
 .cm-coll.cm-collapsed > .eqc-title::after, .cm-coll.cm-collapsed > .regc-title::after, .cm-coll.cm-collapsed > .pa-title::after { content: "▸"; }
 .cm-coll.cm-collapsed > :not(.card-section-title):not(.ch-title):not(.eqc-title):not(.regc-title):not(.pa-title) { display: none !important; }
 .cm-coll.cm-collapsed > .eqc-title, .cm-coll.cm-collapsed > .regc-title, .cm-coll.cm-collapsed > .pa-title { margin-bottom: 0; }
+.cm-coll-all { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; color: #334155; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
+.cm-coll-all:hover { background: #f8fafc; border-color: #cbd5e1; }
+.cm-coll-all[hidden] { display: none; }
+.cm-coll-all i { font-size: 16px; }
