@@ -35,3 +35,4 @@
 .gd-faq summary { font-weight: 700; cursor: pointer; }
 .gd-faq p { margin: 8px 0 0; color: #374151; line-height: 1.55; }
 kbd { background: #f1f5f9; border: 1px solid #cbd5e1; border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; font-size: 12px; }
+.main-content.guide-page { overflow-y: auto !important; }
