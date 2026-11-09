@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Ларді</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=2" sizes="any" />
+        <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+        <link rel="stylesheet" href="style.css?v=202611091930" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611091930" />
+        <link rel="stylesheet" href="lardi.css?v=202611091930" />
+        <link rel="stylesheet" href="design.css?v=202611091930" />
+    </head>
+    <body>
+        <aside class="sidebar"></aside>
+
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content ld-page">
+            <header class="top-bar ld-head">
+                <div class="ld-title">
+                    <span class="ld-logo">Ларді</span>
+                    <span class="ld-sub">заявки на вантажі з ціною — хто, звідки, куди, за скільки</span>
+                </div>
+                <div class="ld-actions">
+                    <span class="ld-sync" id="ldSync">Завантаження…</span>
+                    <button type="button" class="ld-btn" id="ldDirsBtn" hidden><i class="bx bx-cog"></i> Напрямки</button>
+                    <button type="button" class="ld-btn ld-btn-main" id="ldRunBtn"><i class="bx bx-refresh"></i> Оновити зараз</button>
+                </div>
+            </header>
+
+            <div class="ld-scroll">
+                <div class="ld-alert hidden" id="ldAlert"></div>
+
+                <div class="ld-kpis" id="ldKpis"></div>
+
+                <div class="ld-toolbar">
+                    <div class="ld-views" id="ldViews">
+                        <button type="button" data-v="loads" class="active"><i class="bx bx-package"></i> Заявки</button>
+                        <button type="button" data-v="routes"><i class="bx bx-git-compare"></i> Напрямки</button>
+                        <button type="button" data-v="owners"><i class="bx bx-buildings"></i> Хто виставляє</button>
+                    </div>
+                    <div class="ld-search">
+                        <i class="bx bx-search"></i>
+                        <input id="ldQ" type="search" placeholder="Місто, товар, компанія, телефон…" autocomplete="off" />
+                    </div>
+                </div>
+
+                <div class="ld-filters">
+                    <select id="ldPeriod" class="ld-sel" title="Коли заявку бачили на Lardi востаннє">
+                        <option value="1">За сьогодні</option>
+                        <option value="3" selected>За 3 дні</option>
+                        <option value="7">За тиждень</option>
+                        <option value="30">За місяць</option>
+                    </select>
+                    <select id="ldDir" class="ld-sel" title="Напрямок пошуку"><option value="">Усі напрямки</option></select>
+                    <select id="ldOwner" class="ld-sel" title="Хто розмістив заявку">
+                        <option value="">Усі, хто виставляє</option>
+                        <option>Вантажовласник</option>
+                        <option>Перевізник</option>
+                        <option>Експедиція / інші</option>
+                    </select>
+                    <select id="ldKind" class="ld-sel" title="Повна машина чи догруз">
+                        <option value="">Усі вантажі</option>
+                        <option value="full">Повна машина (від 10 т)</option>
+                        <option value="light">До 10 т</option>
+                        <option value="groupage">Догруз</option>
+                    </select>
+                    <select id="ldBody" class="ld-sel" title="Тип кузова"><option value="">Усі кузови</option></select>
+                    <select id="ldCur" class="ld-sel" title="Валюта ціни">
+                        <option value="">Усі валюти</option>
+                        <option>EUR</option><option>USD</option><option>UAH</option><option>PLN</option>
+                    </select>
+                    <label class="ld-check"><input type="checkbox" id="ldAdr" /> Лише ADR</label>
+                    <button type="button" class="ld-link" id="ldReset">Скинути</button>
+                </div>
+
+                <div class="ld-card">
+                    <div class="ld-foot ld-foot-top">
+                        <div class="pager" id="ldPagerTop"></div>
+                        <span id="ldCount" class="ld-muted"></span>
+                    </div>
+                    <div class="ld-table-wrap"><table class="ld-table" id="ldTable"></table></div>
+                    <div class="ld-foot">
+                        <div class="pager" id="ldPager"></div>
+                    </div>
+                </div>
+
+                <p class="ld-note">
+                    Ціни — як їх виставили на Lardi. «€/км» рахується від відстані Lardi. «Хто виставляє» Lardi визначає за профілем компанії:
+                    вантажовласник, перевізник; решта — експедиції та компанії без позначки. Дані оновлюються щоранку та кнопкою «Оновити зараз».
+                </p>
+            </div>
+        </main>
+
+        <div class="ld-modal hidden" id="ldDirsModal">
+            <div class="ld-modal-box">
+                <div class="ld-modal-head">
+                    <b>Напрямки моніторингу</b>
+                    <button type="button" class="ld-x" data-close>&times;</button>
+                </div>
+                <div id="ldDirsList" class="ld-dirs"></div>
+                <div class="ld-dirs-add">
+                    <input id="ldDirFrom" maxlength="2" placeholder="PL" />
+                    <span>→</span>
+                    <input id="ldDirTo" maxlength="2" placeholder="UA" />
+                    <button type="button" class="ld-btn ld-btn-main" id="ldDirAdd">Додати</button>
+                </div>
+                <p class="ld-muted ld-sm">Коди країн латиницею, як на Lardi: PL, DE, CZ, RO, TR, UA… Кожен напрямок — кілька запитів до Lardi при оновленні.</p>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="lardi.js?v=202611091930"></script>
+        <script src="shell.js?v=202611091930"></script>
+        <script src="notify.js?v=202611091930"></script>
+        <script src="lock.js?v=202611091930"></script>
+    </body>
+</html>
