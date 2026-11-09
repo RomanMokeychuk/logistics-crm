@@ -87,6 +87,20 @@ class LardiError extends Error {
 
 let requestCount = 0;
 
+// Безкоштовний метод API (пошук користувачів) — чи Lardi взагалі знає цей ключ
+async function basicKeyWorks(): Promise<boolean> {
+    try {
+        requestCount++;
+        const res = await fetch(`${API}/users/search?language=uk&query=${encodeURIComponent("Грандар")}&queryLimit=1`, {
+            headers: { Authorization: KEY, Accept: "application/json" },
+        });
+        await res.text();
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 async function searchPage(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
     requestCount++;
     const body = {
@@ -109,8 +123,12 @@ async function searchPage(from: string, to: string, page: number, extra: Any): P
         let msg = text.slice(0, 300);
         try { const j = JSON.parse(text); msg = j.message || j.error || j.errors?.[0]?.message || msg; } catch { /* текст як є */ }
         if (res.status === 401 || res.status === 403) {
-            throw new LardiError(res.status, `Lardi не пускає до пошуку заявок (${res.status}): ${msg}. ` +
-                "Перевірте ключ і чи активний пакет «Розширений API» на Lardi.");
+            // Розрізняємо: ключ невірний чи ключ правильний, але немає пакета «Розширений API»
+            const keyOk = await basicKeyWorks();
+            throw new LardiError(res.status, keyOk
+                ? `Ключ Lardi правильний, але пошук заявок закритий (${res.status}: ${msg}). ` +
+                  "Потрібен платний пакет «Розширений API» на Lardi (Послуги та ціни → Розширений API)."
+                : `Lardi не знає цей ключ (${res.status}: ${msg}). Скопіюйте токен заново в Lardi → Налаштування → API.`);
         }
         if (res.status === 429) throw new LardiError(429, "Lardi просить зачекати (забагато запитів). Спробуйте пізніше.");
         throw new LardiError(res.status, `Lardi API ${res.status}: ${msg}`);
