@@ -30,7 +30,7 @@ type Any = any;
 
 const env = (k: string, d = "") => Deno.env.get(k) ?? d;
 const API = "https://api.lardi-trans.com/v2";
-const KEY = env("LARDI_API_KEY");
+const KEY = env("LARDI_API_KEY").replace(/\s+/g, ""); // без пробілів і переносів рядка
 const CRON_SECRET = env("LARDI_CRON_SECRET");
 const MAX_PAGES = Math.max(1, Math.min(10, Number(env("LARDI_MAX_PAGES", "3")) || 3));
 const PAGE_SIZE = Math.max(10, Math.min(150, Number(env("LARDI_PAGE_SIZE", "100")) || 100));
