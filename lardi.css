@@ -139,3 +139,5 @@
 .ld-owners button.on.own-exp { background: #fff7ed; border-color: #fdba74; color: #c2410c; }
 .ld-grow { flex: 1; }
 .ld-found { font-size: 13px; color: #334155; font-weight: 600; }
+.ld-alert.ld-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+.ld-cc { width: 150px; }

@@ -56,6 +56,13 @@ const LD = (() => {
         return `https://lardi-trans.com/log/search/gruz${f && t ? `/wf1i${f}iwt1i${t}iq1pc4pt1` : ""}?currentId=${encodeURIComponent(r.id)}`;
     };
     const OWNER_CLS = { "Вантажовласник": "own-ship", "Перевізник": "own-car", "Експедиція / інші": "own-exp" };
+    const CN = { UA: "Україна", PL: "Польща", DE: "Німеччина", CZ: "Чехія", SK: "Словаччина", HU: "Угорщина", RO: "Румунія", BG: "Болгарія",
+        MD: "Молдова", LT: "Литва", LV: "Латвія", EE: "Естонія", AT: "Австрія", CH: "Швейцарія", LI: "Ліхтенштейн", IT: "Італія", FR: "Франція",
+        ES: "Іспанія", PT: "Португалія", NL: "Нідерланди", BE: "Бельгія", LU: "Люксембург", DK: "Данія", SE: "Швеція", NO: "Норвегія",
+        FI: "Фінляндія", IS: "Ісландія", GB: "Велика Британія", IE: "Ірландія", SI: "Словенія", HR: "Хорватія", BA: "Боснія і Герцеговина",
+        RS: "Сербія", ME: "Чорногорія", MK: "Північна Македонія", AL: "Албанія", XK: "Косово", GR: "Греція", CY: "Кіпр", MT: "Мальта",
+        TR: "Туреччина", GE: "Грузія", AM: "Вірменія", AZ: "Азербайджан", KZ: "Казахстан", UZ: "Узбекистан", KG: "Киргизстан",
+        TJ: "Таджикистан", TM: "Туркменістан" };
     const OWNER_LBL = { "Вантажовласник": "Вантажовласник", "Перевізник": "Власник транспорту", "Експедиція / інші": "Експедиція" };
     const PAGE = 100;
     const FKEY = "fura_lardi_filters";
@@ -330,7 +337,8 @@ const LD = (() => {
             const c = st[side + "C"];
             const countries = sorted(new Set(ROWS.map((r) => r[side + "_country"])));
             const sel = document.querySelector(`#ldForm [data-f="${side}C"]`);
-            sel.innerHTML = `<option value="">Країна</option>` + countries.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+            countries.sort((a, b) => (a === "UA" ? -1 : b === "UA" ? 1 : (CN[a] || a).localeCompare(CN[b] || b, "uk")));
+            sel.innerHTML = `<option value="">Країна</option>` + countries.map((v) => `<option value="${esc(v)}">${esc(v)} · ${esc(CN[v] || v)}</option>`).join("");
             sel.value = c;
             const rows = ROWS.filter((r) => !c || r[side + "_country"] === c);
             const names = sorted(new Set(rows.flatMap((r) => [r[side + "_region"], r[side + "_town"]])));
@@ -356,7 +364,7 @@ const LD = (() => {
         const alert = $("#ldAlert");
         if (r?.error) {
             alert.textContent = "Останнє оновлення з помилкою: " + r.error;
-            alert.classList.remove("hidden");
+            alert.classList.remove("hidden", "ld-info");
         } else alert.classList.add("hidden");
         renderDirs();
     }
@@ -389,13 +397,22 @@ const LD = (() => {
         btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Оновлюю… (до 2 хв)`;
         try {
             const res = await call({ action: "run" });
-            if (res?.error) throw new Error(res.error);
             await loadMeta();
             await load();
+            const a = $("#ldAlert");
+            const done = (res?.directions || []).length;
+            if (res?.error) {
+                a.textContent = res.error;
+                a.classList.remove("ld-info", "hidden");
+            } else if (res?.left) {
+                a.textContent = `Оновлено ${done} напрямків, знайдено ${fmt(res.found)} заявок з ціною. Ще ${res.left} напрямків — натисніть «Оновити зараз» ще раз або дочекайтесь ранкового розкладу.`;
+                a.classList.add("ld-info");
+                a.classList.remove("hidden");
+            }
         } catch (e) {
             const alert = $("#ldAlert");
             alert.textContent = e.message;
-            alert.classList.remove("hidden");
+            alert.classList.remove("hidden", "ld-info");
             await loadMeta().catch(() => {});
         } finally {
             btn.disabled = false;
