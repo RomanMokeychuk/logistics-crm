@@ -16,8 +16,8 @@
 //   LARDI_API_KEY       — токен API з налаштувань компанії на Lardi
 //   LARDI_CRON_SECRET   — будь-який довгий випадковий рядок (той самий — у розкладі в lardi.sql)
 // Необов'язково:
-//   LARDI_MAX_PAGES     — скільки сторінок по кожному напрямку (типово 5)
-//   LARDI_PAGE_SIZE     — заявок на сторінку (типово 100)
+//   LARDI_MAX_PAGES     — скільки сторінок по кожному напрямку (типово 3)
+//   LARDI_PAGE_SIZE     — заявок на сторінку (типово 150)
 //   LARDI_EXTRA_FILTER  — JSON, що додається до фільтра (наприклад {"onlyActual":true})
 //
 // Розгортання: supabase functions deploy fura-lardi --no-verify-jwt
@@ -32,8 +32,8 @@ const env = (k: string, d = "") => Deno.env.get(k) ?? d;
 const API = "https://api.lardi-trans.com/v2";
 const KEY = env("LARDI_API_KEY").replace(/\s+/g, ""); // без пробілів і переносів рядка
 const CRON_SECRET = env("LARDI_CRON_SECRET");
-const MAX_PAGES = Math.max(1, Math.min(10, Number(env("LARDI_MAX_PAGES", "5")) || 5));
-const PAGE_SIZE = Math.max(10, Math.min(150, Number(env("LARDI_PAGE_SIZE", "100")) || 100));
+const MAX_PAGES = Math.max(1, Math.min(10, Number(env("LARDI_MAX_PAGES", "3")) || 3));
+const PAGE_SIZE = Math.max(10, Math.min(150, Number(env("LARDI_PAGE_SIZE", "150")) || 150));
 let EXTRA: Any = {};
 try { EXTRA = JSON.parse(env("LARDI_EXTRA_FILTER", "{}")) || {}; } catch { EXTRA = {}; }
 
@@ -101,7 +101,22 @@ async function basicKeyWorks(): Promise<boolean> {
     }
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function searchPage(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
+    // Lardi обмежує частоту запитів: на 429 чекаємо й пробуємо ще (5 с, 15 с, 30 с)
+    for (const wait of [5000, 15000, 30000, 0]) {
+        try {
+            return await searchPageOnce(from, to, page, extra);
+        } catch (e) {
+            if (!(e instanceof LardiError) || e.status !== 429 || !wait) throw e;
+            await sleep(wait);
+        }
+    }
+    throw new LardiError(429, "Lardi просить зачекати");
+}
+
+async function searchPageOnce(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
     requestCount++;
     const body = {
         filter: {
@@ -142,13 +157,13 @@ async function searchPage(from: string, to: string, page: number, extra: Any): P
     return { items, pages: Number(pag.pages ?? pag.totalPages ?? 0) || 0 };
 }
 
-async function searchAll(from: string, to: string, extra: Any = {}): Promise<Any[]> {
+async function searchAll(from: string, to: string, extra: Any = {}, maxPages = MAX_PAGES): Promise<Any[]> {
     const out: Any[] = [];
-    for (let p = 1; p <= MAX_PAGES; p++) {
+    for (let p = 1; p <= maxPages; p++) {
+        if (requestCount) await sleep(1500); // м'яко, без шквалу запитів
         const { items, pages } = await searchPage(from, to, p, extra);
         out.push(...items);
         if (!items.length || items.length < PAGE_SIZE || (pages && p >= pages)) break;
-        await new Promise((r) => setTimeout(r, 400)); // м'яко, без шквалу запитів
     }
     return out;
 }
@@ -158,9 +173,10 @@ async function searchAll(from: string, to: string, extra: Any = {}): Promise<Any
 /* ------------------------------------------------------------------ */
 
 const ZW = /[​-‏⁠﻿]/g; // невидимі мітки в текстах
+const ENT: Record<string, string> = { "&quot;": '"', "&amp;": "&", "&#039;": "'", "&#39;": "'", "&apos;": "'", "&lt;": "<", "&gt;": ">", "&nbsp;": " " };
 const txt = (v: unknown, max = 500): string | null => {
     if (v === null || v === undefined) return null;
-    const s = String(v).replace(ZW, "").trim();
+    const s = String(v).replace(ZW, "").replace(/&(quot|amp|#0?39|apos|lt|gt|nbsp);/g, (m) => ENT[m] ?? m).trim();
     return s ? s.slice(0, max) : null;
 };
 const nameOf = (v: Any): string | null => (v && typeof v === "object" ? txt(v.name ?? v.value ?? v.title) : txt(v));
@@ -272,6 +288,10 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
 
 async function run(trigger: string, by: string) {
     if (!KEY) return { ok: false, error: "Не задано LARDI_API_KEY у секретах функції" };
+    // не запускаємо друге оновлення, поки йде перше (інакше Lardi відповідає «забагато запитів»)
+    const { data: running } = await db.from("lardi_runs").select("id, started_at").is("finished_at", null)
+        .gte("started_at", new Date(Date.now() - 6 * 60000).toISOString()).limit(1);
+    if (running?.length) return { ok: false, error: "Оновлення вже йде — зачекайте кілька хвилин і оновіть сторінку." };
     requestCount = 0;
     const { data: runRow } = await db.from("lardi_runs").insert({ trigger, started_by: by }).select("id").single();
     const runId = runRow?.id;
@@ -282,13 +302,14 @@ async function run(trigger: string, by: string) {
     let found = 0, saved = 0;
     let error: string | null = null;
 
-    try {
-        for (const d of dirs || []) {
-            const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
+    const errors: string[] = [];
+    for (const d of dirs || []) {
+        const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
+        try {
             const all = await searchAll(from, to);
             // хто розмістив: окремі запити з фільтрами Lardi
-            const shippers = new Set((await searchAll(from, to, { onlyShippers: true })).map((x) => String(x.id)));
-            const carriers = new Set((await searchAll(from, to, { onlyCarrier: true })).map((x) => String(x.id)));
+            const shippers = new Set((await searchAll(from, to, { onlyShippers: true }, 2)).map((x) => String(x.id)));
+            const carriers = new Set((await searchAll(from, to, { onlyCarrier: true }, 2)).map((x) => String(x.id)));
 
             const rows = all
                 .map((p) => {
@@ -306,11 +327,16 @@ async function run(trigger: string, by: string) {
             }
             saved += uniq.length;
             perDir.push({ direction: `${from} → ${to}`, received: all.length, priced: uniq.length, shippers: shippers.size, carriers: carriers.size });
+        } catch (e) {
+            const msg = String((e as Error)?.message || e).slice(0, 300);
+            console.error("fura-lardi:", from, to, msg);
+            perDir.push({ direction: `${from} → ${to}`, error: msg });
+            // ключ / пакет — далі немає сенсу; інші помилки — пробуємо наступні напрямки
+            if (e instanceof LardiError && (e.status === 401 || e.status === 403)) { errors.push(msg); break; }
+            errors.push(`${from} → ${to}: ${msg}`);
         }
-    } catch (e) {
-        error = String((e as Error)?.message || e).slice(0, 500);
-        console.error("fura-lardi:", error);
     }
+    if (errors.length) error = errors.join(" | ").slice(0, 500);
 
     if (runId) {
         await db.from("lardi_runs").update({
