@@ -40,6 +40,8 @@ const LD = (() => {
     };
     const kindOf = (r) => (r.groupage ? "groupage" : r.mass_t != null && r.mass_t < 10 ? "light" : "full");
     const KIND = { full: "Повна", light: "До 10 т", groupage: "Догруз" };
+    // Посилання на заявку на Lardi (відкриває пошук вантажів з картою цієї заявки)
+    const lardiUrl = (id) => `https://lardi-trans.com/log/search/gruz?currentId=${encodeURIComponent(id)}`;
     const OWNER_CLS = { "Вантажовласник": "own-ship", "Перевізник": "own-car", "Експедиція / інші": "own-exp" };
     const PAGE = 100;
     const FKEY = "fura_lardi_filters";
@@ -124,7 +126,8 @@ const LD = (() => {
                 ? pageRows.map((r) => {
                     const k = kindOf(r);
                     return `<tr>
-                        <td class="nw">${esc(dd(r.date_from))}${r.date_to && r.date_to !== r.date_from ? "–" + esc(dd(r.date_to)) : ""}<div class="ld-sm ld-muted">${esc(r.direction || "")}</div></td>
+                        <td class="nw">${esc(dd(r.date_from))}${r.date_to && r.date_to !== r.date_from ? "–" + esc(dd(r.date_to)) : ""}<div class="ld-sm ld-muted">${esc(r.direction || "")}</div>
+                            <a class="ld-open" href="${esc(lardiUrl(r.id))}" target="_blank" rel="noopener" title="Відкрити заявку на Lardi">Lardi ↗</a></td>
                         <td><b>${esc(r.from_town || "")}</b><div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}</div></td>
                         <td><b>${esc(r.to_town || "")}</b><div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}</div></td>
                         <td class="ld-clip" title="${esc(r.cargo || "")}">${esc(r.cargo || "")}
