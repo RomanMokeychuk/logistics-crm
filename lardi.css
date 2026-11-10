@@ -109,8 +109,8 @@
 .ld-dirs-sec { font-size: 12px; font-weight: 700; color: #64748b; text-transform: uppercase; margin: 10px 0 2px; }
 
 /* ---- Форма пошуку в стилі Lardi ---- */
-.ld-form { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
-.ld-form-head { background: #f1f5f9; padding: 9px 14px; font-weight: 700; font-size: 14px; color: #334155; display: flex; align-items: center; gap: 8px; }
+.ld-form { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; margin-bottom: 12px; position: relative; z-index: 40; }
+.ld-form-head { border-radius: 12px 12px 0 0; background: #f1f5f9; padding: 9px 14px; font-weight: 700; font-size: 14px; color: #334155; display: flex; align-items: center; gap: 8px; }
 .ld-form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid #f1f5f9; }
 .ld-route { align-items: flex-end; }
 .ld-side { flex: 1; min-width: 260px; }
@@ -145,8 +145,8 @@
 .ld-combo { position: relative; }
 .ld-combo .ld-cc { width: 110px; text-transform: uppercase; }
 .ld-combo .ld-cc::placeholder { text-transform: none; }
-.ld-combo-list { position: absolute; top: calc(100% + 4px); left: 0; width: 260px; max-height: 360px; overflow-y: auto; background: #fff;
-    border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18); z-index: 50; padding: 4px 0; }
+.ld-combo-list { position: absolute; top: calc(100% + 4px); left: 0; width: 300px; max-height: 420px; overflow-y: auto; background: #fff;
+    border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18); z-index: 1000; padding: 4px 0; }
 .ld-combo-grp { font-size: 12px; font-weight: 700; color: #334155; padding: 7px 12px 4px; background: #f1f5f9; }
 .ld-combo-item { padding: 7px 12px; font-size: 13px; cursor: pointer; color: #1f2937; }
 .ld-combo-item:hover, .ld-combo-item.on { background: #fde7c7; }
