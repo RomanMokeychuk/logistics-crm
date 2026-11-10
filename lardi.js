@@ -323,9 +323,20 @@ const LD = (() => {
         if (st.period === "1") since.setHours(0, 0, 0, 0);
         const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
         const out = [];
-        for (let from = 0; from < 20000; from += 1000) {
-            const { data, error } = await sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString()).order("seen_last", { ascending: false }).range(from, from + 999);
-            if (error) throw error;
+        const cnt = $("#ldCount");
+        const page = async (from) => {
+            // запит не може «висіти» вічно: 40 с і ще одна спроба
+            for (let attempt = 1; ; attempt++) {
+                const q = sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString())
+                    .order("seen_last", { ascending: false }).order("id").range(from, from + 999);
+                const { data, error } = await (AbortSignal.timeout ? q.abortSignal(AbortSignal.timeout(40000)) : q);
+                if (!error) return data || [];
+                if (attempt >= 2) throw new Error(`База не відповіла (${error.message || error.code || "timeout"})`);
+            }
+        };
+        for (let from = 0; from < 30000; from += 1000) {
+            if (cnt) cnt.textContent = `Завантажую заявки… ${fmt(out.length)}`;
+            const data = await page(from);
             out.push(...data);
             if (data.length < 1000) break;
         }
