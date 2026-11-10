@@ -191,7 +191,7 @@ const LD = (() => {
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
                         <td class="ld-clip" title="${esc(r.body_types || "")}">${esc(r.body_types || "")}</td>
                         <td class="num">${fmt(r.distance_km)}</td>
-                        <td class="num nw"><b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>${r.payment_forms ? `<div class="ld-sm ld-muted">${esc(r.payment_forms)}</div>` : ""}${r.delay_days ? `<div class="ld-sm ld-muted">відстрочка ${fmt(r.delay_days)} дн.</div>` : ""}</td>
+                        <td class="num nw"><b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>${r.per_t != null ? `<div class="ld-sm ld-muted">${esc(money(r.per_t, r.currency))}/т × ${fmt(r.mass_t, 1)} т</div>` : ""}${r.payment_forms ? `<div class="ld-sm ld-muted">${esc(r.payment_forms)}</div>` : ""}${r.delay_days ? `<div class="ld-sm ld-muted">відстрочка ${fmt(r.delay_days)} дн.</div>` : ""}</td>
                         <td class="num nw">${r.price_per_km != null ? fmt(r.price_per_km, 2) + " " + (CUR[r.currency] || "") : ""}</td>
                         <td><span class="ld-own ${OWNER_CLS[r.owner_type] || ""}">${esc(OWNER_LBL[r.owner_type] || r.owner_type || "")}</span>
                             <div><b>${esc(r.owner_name || "")}</b>${r.owner_rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.owner_rating, 1)}</span>` : ""}</div>
@@ -321,13 +321,23 @@ const LD = (() => {
     async function load() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
-        const cols = "id,lardi_url:raw->>_lardi_url,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
+        const cols = "id,lardi_url:raw->>_lardi_url,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
         const out = [];
         for (let from = 0; from < 20000; from += 1000) {
             const { data, error } = await sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString()).order("seen_last", { ascending: false }).range(from, from + 999);
             if (error) throw error;
             out.push(...data);
             if (data.length < 1000) break;
+        }
+        // ціна «за тонну»: рахуємо суму за рейс (ціна × вага) і €/км, щоб заявка не випадала з медіан
+        for (const r of out) {
+            if (r.price == null && r.payment_raw != null && /^т|тон|ton|\bt\b/i.test(String(r.payment_unit || "").trim())) {
+                r.per_t = r.payment_raw;
+                if (r.mass_t) {
+                    r.price = Math.round(r.payment_raw * r.mass_t);
+                    if (r.distance_km) r.price_per_km = Math.round((r.price / r.distance_km) * 100) / 100;
+                }
+            }
         }
         ROWS = out;
         fillPlaces();
