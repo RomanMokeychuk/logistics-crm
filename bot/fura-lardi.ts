@@ -284,8 +284,13 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string,
     const distance = distM ? Math.round(distM > 20000 ? distM / 1000 : distM) : null; // метри → км
 
     const size = p.size || {};
-    const mass = num(size.massTo ?? size.massFrom ?? size.mass ?? p.gruzMass);
-    const volume = num(size.volumeTo ?? size.volumeFrom ?? size.volume ?? p.gruzVolume);
+    // машини: size.body (+ size.trailer для зчіпки) — { mass, volume }
+    const sumOf = (k: string) => {
+        const v = (num(size.body?.[k]) || 0) + (num(size.trailer?.[k]) || 0);
+        return v > 0 ? v : null;
+    };
+    const mass = num(size.massTo ?? size.massFrom ?? size.mass ?? p.gruzMass) ?? sumOf("mass");
+    const volume = num(size.volumeTo ?? size.volumeFrom ?? size.volume ?? p.gruzVolume) ?? sumOf("volume");
 
     // «1 €», «10 €» — заглушки замість ціни: такі заявки не беремо
     if (value != null && (perKm ? value < 0.3 : !perT && value < 50)) {
@@ -321,12 +326,12 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string,
         date_from: day(p.dateFrom),
         date_to: day(p.dateTo),
         distance_km: distance,
-        cargo: nameOf(p.content) ?? txt(p.gruzName),
+        cargo: nameOf(p.content) ?? txt(p.gruzName) ?? nameOf(p.transBodyTypeCategory), // у машин — «Тягач + напівпричіп» тощо
         mass_t: mass,
         volume_m3: volume,
-        body_types: names(p.cargoBodyTypes) ?? nameOf(p.bodyType),
+        body_types: names(p.cargoBodyTypes) ?? nameOf(p.bodyType) ?? nameOf(p.transBodyType),
         load_types: names(p.loadTypes),
-        adr: nameOf(p.cargoAdr) ?? txt(p.adr),
+        adr: nameOf(p.cargoAdr) ?? names(p.transAdr) ?? (num(p.adr) ? txt(p.adr) : null),
         groupage: p.groupage === true,
         price,
         price_per_km: pricePerKm,
