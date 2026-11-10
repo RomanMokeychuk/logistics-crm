@@ -267,10 +267,7 @@ const CUR: Record<string, string> = { "€": "EUR", EUR: "EUR", "$": "USD", USD:
 function toRow(p: Any, from: string, to: string, ownerType: string, now: string, kind: Kind = "cargo"): Any | null {
     const pay = p.payment || {};
     let value = num(pay.value ?? p.paymentValue);
-    if (!value || value <= 0) {
-        if (kind === "cargo") return null; // вантажі — лише з ціною; машини беремо всі
-        value = null;
-    }
+    if (!value || value <= 0) return null; // і вантажі, і машини — лише з ціною
 
     const unitRaw = String(nameOf(pay.unit) ?? "").toLowerCase();
     const perKm = /км|km/.test(unitRaw);
@@ -293,10 +290,7 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string,
     const volume = num(size.volumeTo ?? size.volumeFrom ?? size.volume ?? p.gruzVolume) ?? sumOf("volume");
 
     // «1 €», «10 €» — заглушки замість ціни: такі заявки не беремо
-    if (value != null && (perKm ? value < 0.3 : !perT && value < 50)) {
-        if (kind === "cargo") return null;
-        value = null; // машина з «ціною-заглушкою» — показуємо без ціни
-    }
+    if (perKm ? value < 0.3 : !perT && value < 50) return null; // «1 €», «10 €» — заглушки
     const price = value == null ? null : perKm ? (distance ? Math.round(value * distance) : null) : perT ? null : value;
     const pricePerKm = value == null ? null : perKm ? value : price && distance ? Math.round((price / distance) * 100) / 100 : null;
 
@@ -558,8 +552,14 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind
             const uniq = [...new Map(rows.map((r: Any) => [r.id, r])).values()];
             found += uniq.length;
 
-            for (let i = 0; i < uniq.length; i += 200) {
-                const { error: e } = await db.from(TABLE).upsert(uniq.slice(i, i + 200), { onConflict: "id" });
+            // пачками по 100; якщо база не встигла (statement timeout) — ще раз дрібніше
+            for (let i = 0; i < uniq.length; i += 100) {
+                const part = uniq.slice(i, i + 100);
+                let { error: e } = await db.from(TABLE).upsert(part, { onConflict: "id" });
+                if (e && /timeout/i.test(e.message)) {
+                    e = null;
+                    for (let j = 0; j < part.length && !e; j += 20) ({ error: e } = await db.from(TABLE).upsert(part.slice(j, j + 20), { onConflict: "id" }));
+                }
                 if (e) throw new Error("База: " + e.message);
             }
             saved += uniq.length;
