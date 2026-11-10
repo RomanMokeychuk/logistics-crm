@@ -158,16 +158,22 @@ const LD = (() => {
             const inFura = new Set(rows.filter((r) => r.carrier_id).map((r) => r.carrier_id)).size;
             const pricedTr = rows.filter((r) => r.currency === "EUR" && r.price_per_km != null);
             const trMed = median(pricedTr.map((r) => r.price_per_km));
-            // вантажі на тих самих напрямках, що й машини з ціною (кожну машину порівнюємо зі своїм напрямком)
-            const diffs = pricedTr.map((r) => { const b = benchFor(r); return b && b.med ? r.price_per_km / b.med - 1 : null; }).filter((x) => x != null);
-            const cargoMed = median(CARGO.filter((c) => (!st.fromC || c.from_country === st.fromC) && (!st.toC || c.to_country === st.toC)).map((c) => c.price_per_km));
-            const d = median(diffs);
+            // вантажі — з тими самими фільтрами напрямку (країни, міста/області/квадрат, вибраний рядок «Напрямків»)
+            const cargoRows = CARGO.filter((c) =>
+                (!st.fromC || c.from_country === st.fromC) && (!st.toC || c.to_country === st.toC) &&
+                placeMatch(c, "from", st.fromQ) && placeMatch(c, "to", st.toQ) &&
+                (!st.route || rkey(c) === st.route));
+            const cargoMed = median(cargoRows.map((c) => c.price_per_km));
+            const d = trMed != null && cargoMed ? trMed / cargoMed - 1 : null;
+            const side = (c, q) => [c || "усі", q ? `(${q})` : ""].filter(Boolean).join(" ");
+            const where = st.route || (st.fromC || st.toC || st.fromQ || st.toQ ? `${side(st.fromC, st.fromQ)} → ${side(st.toC, st.toQ)}` : "усі напрямки");
+            const verdict = d == null ? "немає з чим порівняти" : d > 0.005 ? "машина дорожча за вантаж" : d < -0.005 ? "машина дешевша за вантаж" : "машина й вантаж — однаково";
             $("#ldKpis").innerHTML = [
-                [fmt(rows.length), `машин на Lardi · з ціною ${fmt(rows.filter((r) => r.price != null || r.payment_raw != null).length)}`],
-                [trMed != null ? fmt(trMed, 2) + " €/км" : "—", "машини просять (медіана, EUR)"],
-                [cargoMed != null ? fmt(cargoMed, 2) + " €/км" : "—", "вантажі платять (медіана, повні, EUR)"],
-                [d != null ? pctTxt(d) : "—", `машина дорожча за вантаж на тому ж напрямку (${fmt(diffs.length)} машин) · у FURA ${fmt(inFura)}`],
-            ].map(([b, s], i) => `<div class="ld-kpi ${i === 3 ? "ld-kpi-hl" : ""}"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
+                [fmt(rows.length), `машин на Lardi · з ціною ${fmt(rows.filter((r) => r.price != null || r.payment_raw != null).length)} · у FURA ${fmt(inFura)}`],
+                [trMed != null ? fmt(trMed, 2) + " €/км" : "—", `машини просять (медіана, EUR, ${fmt(pricedTr.length)} шт.)`],
+                [cargoMed != null ? fmt(cargoMed, 2) + " €/км" : "—", `вантажі платять (медіана, повні, EUR, ${fmt(cargoRows.length)} шт.)`],
+                [d != null ? pctTxt(d) : "—", `${verdict} · ${where}`],
+            ].map(([b, s], i) => `<div class="ld-kpi ${i === 3 ? "ld-kpi-hl" : ""}"><b class="${i === 3 ? pctCls(d) : ""}">${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
             return;
         }
         $("#ldKpis").innerHTML = [
@@ -503,7 +509,7 @@ const LD = (() => {
         // «Авто»: вантажі з ціною за той самий період — щоб порівняти ціну машин з ціною вантажів
         let cargo = [];
         if (TRUCK) {
-            const sel = "id,from_country,to_country,from_region,to_region,from_town,to_town,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
+            const sel = "id,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
             for (let from = 0; from < 30000; from += 1000) {
                 if (cnt) cnt.textContent = `Завантажую вантажі для порівняння… ${fmt(cargo.length)}`;
                 const data = await page(from, "lardi_cargo", sel);
