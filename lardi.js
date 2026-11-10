@@ -136,7 +136,7 @@ const LD = (() => {
             if (!TRUCK && st.kind && kindOf(r) !== st.kind) return false;
             if (TRUCK && st.fura === "yes" && !r.carrier_id) return false;
             if (TRUCK && st.fura === "no" && r.carrier_id) return false;
-            if (TRUCK && st.priced === "1" && r.price == null && r.payment_raw == null) return false;
+            if (TRUCK && r.price == null && r.payment_raw == null) return false; // «Авто» — лише машини з ціною
             if (st.adr === "adr" && !r.adr) return false;
             if (st.adr === "noadr" && r.adr) return false;
             if (st.route && `${r.from_region || "—"} → ${r.to_region || "—"}` !== st.route) return false;
@@ -169,7 +169,7 @@ const LD = (() => {
             const where = st.route || (st.fromC || st.toC || st.fromQ || st.toQ ? `${side(st.fromC, st.fromQ)} → ${side(st.toC, st.toQ)}` : "усі напрямки");
             const verdict = d == null ? "немає з чим порівняти" : d > 0.005 ? "машина дорожча за вантаж" : d < -0.005 ? "машина дешевша за вантаж" : "машина й вантаж — однаково";
             $("#ldKpis").innerHTML = [
-                [fmt(rows.length), `машин на Lardi · з ціною ${fmt(rows.filter((r) => r.price != null || r.payment_raw != null).length)} · у FURA ${fmt(inFura)}`],
+                [fmt(rows.length), `машин з ціною · перевізників у FURA ${fmt(inFura)}`],
                 [trMed != null ? fmt(trMed, 2) + " €/км" : "—", `машини просять (медіана, EUR, ${fmt(pricedTr.length)} шт.)`],
                 [cargoMed != null ? fmt(cargoMed, 2) + " €/км" : "—", `вантажі платять (медіана, повні, EUR, ${fmt(cargoRows.length)} шт.)`],
                 [d != null ? pctTxt(d) : "—", `${verdict} · ${where}`],
