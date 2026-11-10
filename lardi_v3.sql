@@ -30,24 +30,7 @@ on conflict (from_country, to_country) do nothing;
 update public.lardi_directions set active = true
  where (to_country = 'UA' or from_country = 'UA');
 
--- Розклад: напрямків близько сотні, тож оновлюємо порціями кожні 30 хв з 07:17 до 10:47 за Києвом
--- (зимовий час: 05–08 UTC). Кожен запуск бере ті напрямки, що довше не оновлювались.
--- Якщо раніше вмикали інший розклад Ларді — спершу вимкніть його:
---   select cron.unschedule('fura-lardi-morning');
---   select cron.unschedule('fura-lardi-batches');
--- Замініть <LARDI_CRON_SECRET> на той самий рядок, що в секреті функції.
---
--- select cron.schedule(
---     'fura-lardi-batches',
---     '17,47 5-8 * * *',
---     $$ select net.http_post(
---            url     := 'https://prbfscwmemshwigiftha.supabase.co/functions/v1/fura-lardi',
---            headers := jsonb_build_object(
---                'content-type', 'application/json',
---                'x-lardi-secret', '<LARDI_CRON_SECRET>'),
---            body    := '{"action":"tick"}'::jsonb,
---            timeout_milliseconds := 300000) $$
--- );
+-- Оновлення — лише вручну, кнопкою «Оновити зараз» на сторінці «Ларді» (вона сама проходить усі напрямки порціями).
 
 select case when to_country = 'UA' then 'імпорт' when from_country = 'UA' then 'експорт' else 'інше' end as kind,
        count(*) filter (where active) as active, count(*) as total
