@@ -25,6 +25,11 @@ function toggleSidebar() {
 }
 
 const LD = (() => {
+    // Одна сторінка для двох вкладок: «Вантажі» (lardi.html) і «Авто» (lardi-trucks.html, window.LD_KIND = "truck")
+    const TRUCK = window.LD_KIND === "truck";
+    const KIND_RUN = TRUCK ? "truck" : "cargo";
+    const TABLE = TRUCK ? "lardi_trucks" : "lardi_cargo";
+    const ITEMS = TRUCK ? "машин" : "заявок";
     const $ = (s) => document.querySelector(s);
     const esc = (s) =>
         String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
@@ -53,7 +58,7 @@ const LD = (() => {
     const lardiUrl = (r) => {
         if (r.lardi_url) return r.lardi_url;
         const f = LARDI_C[r.from_country], t = LARDI_C[r.to_country];
-        return `https://lardi-trans.com/log/search/gruz${f && t ? `/wf1i${f}iwt1i${t}iq1pc4pt1` : ""}?currentId=${encodeURIComponent(r.id)}`;
+        return `https://lardi-trans.com/log/search/${TRUCK ? "trans" : "gruz"}${f && t ? `/wf1i${f}iwt1i${t}iq1pc4pt1` : ""}?currentId=${encodeURIComponent(r.id)}`;
     };
     const OWNER_CLS = { "Вантажовласник": "own-ship", "Перевізник": "own-car", "Експедиція / інші": "own-exp" };
     const CN = { UA: "Україна", PL: "Польща", DE: "Німеччина", CZ: "Чехія", SK: "Словаччина", HU: "Угорщина", RO: "Румунія", BG: "Болгарія",
@@ -70,13 +75,13 @@ const LD = (() => {
     const POPULAR = ["UA", "PL", "DE", "RO", "NL", "TR"];
     const OWNER_LBL = { "Вантажовласник": "Вантажовласник", "Перевізник": "Власник транспорту", "Експедиція / інші": "Експедиція" };
     const PAGE = 100;
-    const FKEY = "fura_lardi_filters";
+    const FKEY = TRUCK ? "fura_lardi_trucks_filters" : "fura_lardi_filters";
 
     let ROWS = [];
     let DIRS = [];
     let BOSS = false;
     const DEF = { period: "3", fromC: "", fromQ: "", toC: "", toQ: "", massMin: "", massMax: "", volMin: "", volMax: "", dateFrom: "", dateTo: "",
-        body: "", priceMin: "", cur: "", unit: "total", owners: [], kind: "", adr: "" };
+        body: "", priceMin: "", cur: "", unit: "total", owners: [], kind: "", adr: "", fura: "" };
     const st = { view: "loads", q: "", ...DEF, page: 0, sort: "seen", asc: false, route: "" };
 
     /* ---------------- фільтри ---------------- */
@@ -93,6 +98,7 @@ const LD = (() => {
         document.querySelectorAll("#ldForm [data-f]").forEach((el) => { el.value = st[el.dataset.f] ?? ""; });
         document.querySelectorAll("#ldForm [data-combo]").forEach((c) => { c.querySelector("input").value = st[c.dataset.combo] || ""; });
         document.querySelectorAll("#ldOwners [data-owner]").forEach((b) => b.classList.toggle("on", st.owners.includes(b.dataset.owner)));
+        document.querySelectorAll("#ldFura [data-fura]").forEach((b) => b.classList.toggle("on", st.fura === b.dataset.fura));
         document.querySelectorAll(".ld-seg [data-unit]").forEach((b) => b.classList.toggle("on", b.dataset.unit === st.unit));
         const flow = st.toC === "UA" && st.fromC !== "UA" ? "import" : st.fromC === "UA" && st.toC !== "UA" ? "export" : "";
         document.querySelectorAll(".ld-flow [data-flow]").forEach((b) => b.classList.toggle("on", b.dataset.flow === flow));
@@ -125,8 +131,10 @@ const LD = (() => {
             if (st.body && !String(r.body_types || "").toLowerCase().includes(st.body)) return false;
             if (st.cur && r.currency !== st.cur) return false;
             if (pMin != null && !((st.unit === "km" ? r.price_per_km : r.price) >= pMin)) return false;
-            if (st.owners.length && !st.owners.includes(r.owner_type)) return false;
-            if (st.kind && kindOf(r) !== st.kind) return false;
+            if (!TRUCK && st.owners.length && !st.owners.includes(r.owner_type)) return false;
+            if (!TRUCK && st.kind && kindOf(r) !== st.kind) return false;
+            if (TRUCK && st.fura === "yes" && !r.carrier_id) return false;
+            if (TRUCK && st.fura === "no" && r.carrier_id) return false;
             if (st.adr === "adr" && !r.adr) return false;
             if (st.adr === "noadr" && r.adr) return false;
             if (st.route && `${r.from_region || "—"} → ${r.to_region || "—"}` !== st.route) return false;
@@ -144,6 +152,16 @@ const LD = (() => {
         const med = median(eur.map((r) => r.price_per_km));
         const medPrice = median(eur.map((r) => r.price));
         const owners = new Set(rows.map((r) => r.owner_ref || r.owner_name)).size;
+        if (TRUCK) {
+            const inFura = new Set(rows.filter((r) => r.carrier_id).map((r) => r.carrier_id)).size;
+            $("#ldKpis").innerHTML = [
+                [fmt(rows.length), "машин на Lardi"],
+                [fmt(owners), "компаній виставляють"],
+                [fmt(inFura), "з них є у FURA"],
+                [med != null ? fmt(med, 2) : "—", "медіана €/км (де є ціна)"],
+            ].map(([b, s], i) => `<div class="ld-kpi ${i === 2 ? "ld-kpi-hl" : ""}"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
+            return;
+        }
         $("#ldKpis").innerHTML = [
             [fmt(rows.length), "заявок з ціною"],
             [med != null ? fmt(med, 2) : "—", "медіана €/км (повні, EUR)"],
@@ -166,6 +184,41 @@ const LD = (() => {
             const c = typeof va === "number" ? va - vb : String(va).localeCompare(String(vb), "uk");
             return st.asc ? c : -c;
         });
+    }
+
+    // Позначка «є у FURA» з посиланням на картку перевізника
+    const furaBadge = (r) => (r.carrier_id
+        ? `<a class="ld-fura ld-fura-yes" href="index.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника у FURA">✓ у FURA ↗</a>`
+        : `<span class="ld-fura ld-fura-no" title="Цього перевізника немає в «Перевізниках» FURA">немає у FURA</span>`);
+
+    function renderTrucks(rows) {
+        rows = sortRows(rows, {
+            seen: (r) => r.seen_last, date: (r) => r.date_from, price: (r) => r.price, km: (r) => r.price_per_km,
+            mass: (r) => r.mass_t, owner: (r) => r.owner_name,
+        });
+        const total = rows.length;
+        const pageRows = rows.slice(st.page * PAGE, st.page * PAGE + PAGE);
+        $("#ldTable").innerHTML =
+            `<thead><tr>${th("date", "Вільна")}${th("", "Звідки")}${th("", "Куди")}${th("", "Кузов")}${th("mass", "Вантажність", "num")}${th("", "Об'єм", "num")}` +
+            `${th("price", "Ціна", "num")}${th("owner", "Перевізник")}${th("", "FURA")}</tr></thead><tbody>` +
+            (pageRows.length
+                ? pageRows.map((r) => `<tr>
+                        <td class="nw">${esc(dd(r.date_from))}${r.date_to && r.date_to !== r.date_from ? "–" + esc(dd(r.date_to)) : ""}<div class="ld-sm ld-muted">${esc(r.direction || "")}</div>
+                            <a class="ld-open" href="${esc(lardiUrl(r))}" target="_blank" rel="noopener" title="Відкрити машину на Lardi">Lardi ↗</a></td>
+                        <td><b>${esc(r.from_town || "")}</b>${r.from_zone ? ` <span class="ld-muted ld-sm">${esc(r.from_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}${r.from_country && r.from_country !== "UA" ? " · " + esc(r.from_country) : ""}</div></td>
+                        <td><b>${esc(r.to_town || "")}</b>${r.to_zone ? ` <span class="ld-muted ld-sm">${esc(r.to_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}${r.to_country !== "UA" ? " · " + esc(r.to_country || "") : ""}</div></td>
+                        <td class="ld-clip" title="${esc(r.body_types || "")}">${esc(r.body_types || "")}${r.adr ? `<div class="ld-tags"><span class="ld-tag ld-tag-adr">ADR ${esc(r.adr)}</span></div>` : ""}</td>
+                        <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
+                        <td class="num nw">${r.volume_m3 != null ? fmt(r.volume_m3) + " м³" : ""}</td>
+                        <td class="num nw">${r.price != null || r.payment_raw != null ? `<b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>` : `<span class="ld-muted">—</span>`}${r.price_per_km != null ? `<div class="ld-sm ld-muted">${fmt(r.price_per_km, 2)} ${CUR[r.currency] || ""}/км</div>` : ""}</td>
+                        <td><div><b>${esc(r.owner_name || "")}</b>${r.owner_rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.owner_rating, 1)}</span>` : ""}</div>
+                            <div class="ld-sm">${esc(r.owner_face || "")} ${r.owner_phone ? `<a href="tel:${esc(r.owner_phone)}">${esc(r.owner_phone)}</a>` : ""}</div></td>
+                        <td>${furaBadge(r)}</td>
+                    </tr>`).join("")
+                : `<tr><td colspan="9" class="ld-empty">Немає машин за цими фільтрами</td></tr>`) +
+            "</tbody>";
+        pager(total);
+        $("#ldCount").textContent = `${fmt(total)} машин`;
     }
 
     function renderLoads(rows) {
@@ -223,7 +276,7 @@ const LD = (() => {
     function renderRoutes(rows) {
         const g = groupBy(rows, (r) => `${r.from_region || "—"} → ${r.to_region || "—"}`);
         let list = [...g].map(([route, a]) => {
-            const full = a.filter((r) => kindOf(r) === "full" && r.currency === "EUR");
+            const full = a.filter((r) => (TRUCK || kindOf(r) === "full") && r.currency === "EUR");
             const owners = groupBy(a, (r) => r.owner_type || "");
             return {
                 route, n: a.length, full: a.filter((r) => kindOf(r) === "full").length,
@@ -231,6 +284,7 @@ const LD = (() => {
                 price: rangeTxt(full.map((r) => r.price), (v) => fmt(v)),
                 med: median(full.map((r) => r.price_per_km)),
                 km: rangeTxt(full.map((r) => r.price_per_km), (v) => fmt(v, 1)),
+                fura: a.filter((r) => r.carrier_id).length,
                 ship: (owners.get("Вантажовласник") || []).length,
                 car: (owners.get("Перевізник") || []).length,
                 exp: (owners.get("Експедиція / інші") || []).length,
@@ -241,6 +295,20 @@ const LD = (() => {
         list = sortRows(list, { seen: (r) => r.n, n: (r) => r.n, med: (r) => r.med, route: (r) => r.route });
         const total = list.length;
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
+        if (TRUCK) {
+            $("#ldTable").innerHTML =
+                `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Машин", "num")}${th("", "Є у FURA", "num")}${th("", "Вантажність, т", "num")}` +
+                `${th("med", "Медіана €/км", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
+                (pageRows.length
+                    ? pageRows.map((r) => `<tr class="ld-click" data-route="${esc(r.route)}">
+                        <td><b>${esc(r.route)}</b></td><td class="num">${r.n}</td><td class="num">${r.fura || ""}</td><td class="num">${esc(r.mass)}</td>
+                        <td class="num"><b>${r.med != null ? fmt(r.med, 2) : ""}</b></td><td class="ld-muted">${esc(r.bodies)}</td></tr>`).join("")
+                    : `<tr><td colspan="6" class="ld-empty">Немає даних</td></tr>`) +
+                "</tbody>";
+            pager(total);
+            $("#ldCount").textContent = `${fmt(total)} напрямків · клік по рядку — його машини`;
+            return;
+        }
         $("#ldTable").innerHTML =
             `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Заявок", "num")}${th("", "Повних", "num")}${th("", "Вага, т", "num")}` +
             `${th("", "Ціна повних, €", "num")}${th("med", "Медіана €/км", "num")}${th("", "€/км від–до", "num")}${th("", "Вантажовл. / Власн. трансп. / Експед.", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
@@ -269,6 +337,7 @@ const LD = (() => {
             const ratios = p.filter((r) => bench.has(route(r))).map((r) => r.price_per_km / bench.get(route(r)) - 1);
             return {
                 name: a[0].owner_name, type: a[0].owner_type, face: a[0].owner_face, phone: a[0].owner_phone, rating: a[0].owner_rating,
+                carrier_id: (a.find((r) => r.carrier_id) || {}).carrier_id || null,
                 n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), vs: median(ratios),
                 routes: new Set(a.map(route)).size,
             };
@@ -278,12 +347,12 @@ const LD = (() => {
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         const pct = (v) => (v == null ? "" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%");
         $("#ldTable").innerHTML =
-            `<thead><tr>${th("name", "Компанія")}${th("", "Хто")}${th("n", "Заявок", "num")}${th("med", "Медіана €/км", "num")}` +
+            `<thead><tr>${th("name", "Компанія")}${th("", TRUCK ? "FURA" : "Хто")}${th("n", TRUCK ? "Машин" : "Заявок", "num")}${th("med", "Медіана €/км", "num")}` +
             `${th("vs", "До ринку", "num")}${th("", "Напрямків", "num")}${th("", "Контакт")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr>
                     <td><b>${esc(r.name || "")}</b>${r.rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.rating, 1)}</span>` : ""}</td>
-                    <td><span class="ld-own ${OWNER_CLS[r.type] || ""}">${esc(OWNER_LBL[r.type] || r.type || "")}</span></td>
+                    <td>${TRUCK ? furaBadge(r) : `<span class="ld-own ${OWNER_CLS[r.type] || ""}">${esc(OWNER_LBL[r.type] || r.type || "")}</span>`}</td>
                     <td class="num">${r.n}</td><td class="num">${r.med != null ? fmt(r.med, 2) : ""}</td>
                     <td class="num ${r.vs > 0.05 ? "ld-up" : r.vs < -0.05 ? "ld-down" : ""}" title="Наскільки ставка компанії вища/нижча за звичайну на тих самих напрямках">${pct(r.vs)}</td>
                     <td class="num">${r.routes}</td>
@@ -323,6 +392,7 @@ const LD = (() => {
         document.querySelectorAll("#ldViews button").forEach((b) => b.classList.toggle("active", b.dataset.v === st.view));
         if (st.view === "routes") renderRoutes(rows);
         else if (st.view === "owners") renderOwners(rows);
+        else if (TRUCK) renderTrucks(rows);
         else renderLoads(rows);
         if (st.route && st.view === "loads") $("#ldCount").textContent += ` · напрямок: ${st.route} (✕ скинути — «Скинути»)`;
     }
@@ -337,7 +407,7 @@ const LD = (() => {
         const page = async (from) => {
             // запит не може «висіти» вічно: 40 с і ще одна спроба
             for (let attempt = 1; ; attempt++) {
-                const q = sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString())
+                const q = sbClient.from(TABLE).select(TRUCK ? cols + ",carrier_id" : cols).gte("seen_last", since.toISOString())
                     .order("seen_last", { ascending: false }).order("id").range(from, from + 999);
                 const { data, error } = await (AbortSignal.timeout ? q.abortSignal(AbortSignal.timeout(40000)) : q);
                 if (!error) return data || [];
@@ -345,7 +415,7 @@ const LD = (() => {
             }
         };
         for (let from = 0; from < 30000; from += 1000) {
-            if (cnt) cnt.textContent = `Завантажую заявки… ${fmt(out.length)}`;
+            if (cnt) cnt.textContent = `Завантажую ${ITEMS}… ${fmt(out.length)}`;
             const data = await page(from);
             out.push(...data);
             if (data.length < 1000) break;
@@ -397,16 +467,17 @@ const LD = (() => {
         const fresh = ROWS.filter((r) => r.seen_first && new Date(r.seen_first) >= today).length;
         const last = new Date(times[times.length - 1] || LAST_RUN.finished_at || LAST_RUN.started_at);
         const t = last.toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-        el.innerHTML = `Оновлено <b>${esc(t)}</b> · напрямків сьогодні <b>${fmt(done.length)} з ${fmt(active.length)}</b> · заявок з ціною <b>${fmt(loads)}</b> · нових сьогодні <b>${fmt(fresh)}</b>`;
+        el.innerHTML = `Оновлено <b>${esc(t)}</b> · напрямків сьогодні <b>${fmt(done.length)} з ${fmt(active.length)}</b> · ${TRUCK ? "машин" : "заявок з ціною"} <b>${fmt(loads)}</b> · нових сьогодні <b>${fmt(fresh)}</b>`;
         el.title = done.length < active.length ? `Ще не оновлені сьогодні напрямків: ${active.length - done.length} — натисніть «Оновити зараз»` : "Усі напрямки оновлені сьогодні";
     }
 
     async function loadMeta() {
         const [{ data: dirs }, { data: runs }] = await Promise.all([
             sbClient.from("lardi_directions").select("*").order("id"),
-            sbClient.from("lardi_runs").select("*").order("started_at", { ascending: false }).limit(1),
+            sbClient.from("lardi_runs").select("*").eq("kind", KIND_RUN).order("started_at", { ascending: false }).limit(1),
         ]);
-        DIRS = dirs || [];
+        // «Авто» має власний облік оновлень по напрямках
+        DIRS = (dirs || []).map((d) => (TRUCK ? { ...d, last_run_at: d.truck_last_run_at, last_found: d.truck_last_found } : d));
         const r = runs?.[0];
         LAST_RUN = r || null;
         renderSync();
@@ -451,17 +522,17 @@ const LD = (() => {
         btn.disabled = true;
         const scope = { from: st.fromC || "", to: st.toC || "" };
         const what = scope.from || scope.to ? ` ${scope.from || "усі"} → ${scope.to || "усі"}` : "";
-        let round = 0, found = 0, done = 0, left = null, fails = 0;
+        let round = 0, found = 0, done = 0, left = null, fails = 0, linked = 0, cards = 0;
         try {
             do {
                 round++;
                 btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Оновлюю… ${left == null ? "" : `(лишилось ${left} напрямків)`}`;
                 info(left == null
                     ? (what ? `Оновлюю${what}… Зазвичай це до хвилини.` : "Оновлення почалося. Напрямків багато, тож Lardi віддає їх порціями — це може тривати 10–20 хвилин. Сторінку можна не закривати й працювати далі.")
-                    : `Оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною. Лишилось ${left} — продовжую…`);
+                    : `Оновлено ${done} напрямків, знайдено ${fmt(found)} ${TRUCK ? "машин" : "заявок з ціною"}. Лишилось ${left} — продовжую…`);
                 let res;
                 try {
-                    res = await call({ action: "run", from: scope.from, to: scope.to });
+                    res = await call({ action: "run", kind: KIND_RUN, from: scope.from, to: scope.to });
                     fails = 0;
                 } catch (e) {
                     // обрив за часом або попередня порція ще дописується — чекаємо й продовжуємо
@@ -474,12 +545,15 @@ const LD = (() => {
                 }
                 if (res?.error && !(res.directions || []).length) throw new Error(res.error);
                 found += res?.found || 0;
+                linked += res?.linked || 0;
+                cards += res?.cardsUpdated || 0;
                 done += (res?.directions || []).length;
                 left = res?.left || 0;
                 await load();
             } while (left > 0 && round < 40);
             await loadMeta();
-            info(`Готово${what}: оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною.`);
+            info(`Готово${what}: оновлено ${done} напрямків, знайдено ${fmt(found)} ${TRUCK ? "машин" : "заявок з ціною"}.` +
+                (TRUCK ? ` Перевізників з бази FURA: ${fmt(linked)}, карток доповнено напрямками: ${fmt(cards)}.` : ""));
         } catch (e) {
             await loadMeta().catch(() => {});
             a.textContent = e.message;
@@ -576,7 +650,14 @@ const LD = (() => {
             clearTimeout(t);
             t = setTimeout(() => onField(el), 300);
         });
-        $("#ldOwners").addEventListener("click", (e) => {
+        $("#ldFura")?.addEventListener("click", (e) => {
+            const b = e.target.closest("[data-fura]");
+            if (!b) return;
+            st.fura = st.fura === b.dataset.fura ? "" : b.dataset.fura;
+            syncForm();
+            rerender();
+        });
+        $("#ldOwners")?.addEventListener("click", (e) => {
             const b = e.target.closest("[data-owner]");
             if (!b) return;
             const o = b.dataset.owner;
