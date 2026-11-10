@@ -15,7 +15,7 @@
         <link rel="stylesheet" href="style.css?v=202611101345" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
         <link rel="stylesheet" href="theme.css?v=202611101700" />
-        <link rel="stylesheet" href="lardi.css?v=202611101710" />
+        <link rel="stylesheet" href="lardi.css?v=202611101720" />
         <link rel="stylesheet" href="design.css?v=202611101345" />
     </head>
     <body>
@@ -97,6 +97,7 @@
                         <span class="ld-owners" id="ldFura">
                             <button type="button" data-fura="yes" class="own-car">Є у FURA</button>
                             <button type="button" data-fura="no" class="own-exp">Немає у FURA</button>
+                            <button type="button" data-priced="1" class="own-ship">Лише з ціною</button>
                         </span>
                         <select data-f="adr" class="ld-in">
                             <option value="">ADR: усі</option>
@@ -129,6 +130,7 @@
                 <p class="ld-note">
                     Машини — як їх виставили на Lardi. «Є у FURA» — перевізник уже є в «Перевізниках» (збіг за телефоном або назвою):
                     при кожному оновленні йому в картку дописуються напрямки з Lardi — країна з воєводством/областю в «Закордон» і область України.
+                    «Різниця» — наскільки машина просить більше (+) чи менше (−) за €/км, ніж платять вантажі з ціною на тому ж напрямку (повні, EUR; спершу область → область, якщо там мало вантажів — країна → країна).
                     Нових перевізників FURA не додає. Оновлення — кнопкою «Оновити».
                 </p>
             </div>
@@ -153,7 +155,7 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script>window.LD_KIND = "truck";</script>
-        <script src="lardi.js?v=202611101710"></script>
+        <script src="lardi.js?v=202611101720"></script>
         <script src="shell.js?v=202611101700"></script>
         <script src="notify.js?v=202611101345"></script>
         <script src="lock.js?v=202611101345"></script>
