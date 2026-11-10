@@ -306,7 +306,17 @@ const LD = (() => {
         $("#ldPagerTop").innerHTML = html;
     }
 
+    // Кнопка оновлення: якщо вибрано країну у «Звідки»/«Куди» — оновлюємо лише цей напрямок
+    function runLabel() {
+        const btn = $("#ldRunBtn");
+        if (!btn || btn.disabled) return;
+        const f = st.fromC || "", t = st.toC || "";
+        btn.innerHTML = `<i class="bx bx-refresh"></i> ${f || t ? `Оновити ${esc(f || "усі")} → ${esc(t || "усі")}` : "Оновити все"}`;
+        btn.title = f || t ? "Оновлюється лише цей напрямок. Щоб оновити все — очистіть країни або натисніть «Скинути»." : "Оновлюються всі напрямки";
+    }
+
     function render() {
+        runLabel();
         const rows = filtered();
         $("#ldFound").textContent = `Знайдено ${fmt(rows.length)}`;
         kpis(rows);
@@ -439,17 +449,19 @@ const LD = (() => {
         const a = $("#ldAlert");
         const info = (t) => { a.textContent = t; a.classList.add("ld-info"); a.classList.remove("hidden"); };
         btn.disabled = true;
+        const scope = { from: st.fromC || "", to: st.toC || "" };
+        const what = scope.from || scope.to ? ` ${scope.from || "усі"} → ${scope.to || "усі"}` : "";
         let round = 0, found = 0, done = 0, left = null, fails = 0;
         try {
             do {
                 round++;
                 btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Оновлюю… ${left == null ? "" : `(лишилось ${left} напрямків)`}`;
                 info(left == null
-                    ? "Оновлення почалося. Напрямків багато, тож Lardi віддає їх порціями — це може тривати 10–20 хвилин. Сторінку можна не закривати й працювати далі."
+                    ? (what ? `Оновлюю${what}… Зазвичай це до хвилини.` : "Оновлення почалося. Напрямків багато, тож Lardi віддає їх порціями — це може тривати 10–20 хвилин. Сторінку можна не закривати й працювати далі.")
                     : `Оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною. Лишилось ${left} — продовжую…`);
                 let res;
                 try {
-                    res = await call({ action: "run" });
+                    res = await call({ action: "run", from: scope.from, to: scope.to });
                     fails = 0;
                 } catch (e) {
                     // обрив за часом або попередня порція ще дописується — чекаємо й продовжуємо
@@ -467,14 +479,14 @@ const LD = (() => {
                 await load();
             } while (left > 0 && round < 40);
             await loadMeta();
-            info(`Готово: оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною.`);
+            info(`Готово${what}: оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною.`);
         } catch (e) {
             await loadMeta().catch(() => {});
             a.textContent = e.message;
             a.classList.remove("hidden", "ld-info");
         } finally {
             btn.disabled = false;
-            btn.innerHTML = `<i class="bx bx-refresh"></i> Оновити зараз`;
+            runLabel();
         }
     }
 

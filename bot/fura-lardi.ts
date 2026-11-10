@@ -322,7 +322,7 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
 /* Запуск                                                              */
 /* ------------------------------------------------------------------ */
 
-async function run(trigger: string, by: string) {
+async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
     if (!KEY) return { ok: false, error: "Не задано LARDI_API_KEY у секретах функції" };
     // не запускаємо друге оновлення, поки йде перше (інакше Lardi відповідає «забагато запитів»)
     const { data: running } = await db.from("lardi_runs").select("id, started_at").is("finished_at", null)
@@ -335,8 +335,16 @@ async function run(trigger: string, by: string) {
 
     // Найдавніше оновлені — першими; один запуск працює до ~100 с, решта — наступного разу
     await loadCountryIds();
-    const { data: dirs } = await db.from("lardi_directions").select("*").eq("active", true)
+    // можна оновити лише вибраний напрямок (напр. PL → UA) або всі напрямки з/в одну країну
+    let dq = db.from("lardi_directions").select("*").eq("active", true);
+    if (onlyFrom) dq = dq.eq("from_country", onlyFrom);
+    if (onlyTo) dq = dq.eq("to_country", onlyTo);
+    const { data: dirs } = await dq
         .order("last_run_at", { ascending: true, nullsFirst: true }).order("id");
+    if (!(dirs || []).length) {
+        if (runId) await db.from("lardi_runs").update({ finished_at: new Date().toISOString(), found: 0, saved: 0, requests: requestCount }).eq("id", runId);
+        return { ok: false, error: `Напрямку ${onlyFrom || "усі"} → ${onlyTo || "усі"} немає в списку — додайте його в «Напрямки»`, found: 0, saved: 0, requests: requestCount, directions: [], left: 0 };
+    }
     const t0 = Date.now();
     // Supabase обриває функцію через ~150 с — беремо порцію до ~100 с
     const BUDGET_MS = Number(Deno.env.get("LARDI_BUDGET_MS") || 100000);
@@ -441,7 +449,10 @@ Deno.serve(async (req) => {
 
         switch (body.action) {
             case "run":
-                return json(200, await run("manual", me.full_name || me.email || "співробітник"));
+            {
+                const cc = (v: unknown) => String(v || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
+                return json(200, await run("manual", me.full_name || me.email || "співробітник", cc(body.from), cc(body.to)));
+            }
             case "directions": {
                 if (!isBoss(me)) return json(403, { error: "Напрямки змінює лише керівник" });
                 const out = await directions(body);
