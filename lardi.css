@@ -141,3 +141,12 @@
 .ld-found { font-size: 13px; color: #334155; font-weight: 600; }
 .ld-alert.ld-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
 .ld-cc { width: 150px; }
+
+.ld-combo { position: relative; }
+.ld-combo .ld-cc { width: 110px; text-transform: uppercase; }
+.ld-combo .ld-cc::placeholder { text-transform: none; }
+.ld-combo-list { position: absolute; top: calc(100% + 4px); left: 0; width: 260px; max-height: 360px; overflow-y: auto; background: #fff;
+    border: 1px solid #cbd5e1; border-radius: 10px; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18); z-index: 50; padding: 4px 0; }
+.ld-combo-grp { font-size: 12px; font-weight: 700; color: #334155; padding: 7px 12px 4px; background: #f1f5f9; }
+.ld-combo-item { padding: 7px 12px; font-size: 13px; cursor: pointer; color: #1f2937; }
+.ld-combo-item:hover, .ld-combo-item.on { background: #fde7c7; }

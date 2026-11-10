@@ -12,11 +12,11 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611101330" />
+        <link rel="stylesheet" href="style.css?v=202611101345" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611101330" />
-        <link rel="stylesheet" href="lardi.css?v=202611101330" />
-        <link rel="stylesheet" href="design.css?v=202611101330" />
+        <link rel="stylesheet" href="theme.css?v=202611101345" />
+        <link rel="stylesheet" href="lardi.css?v=202611101345" />
+        <link rel="stylesheet" href="design.css?v=202611101345" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -64,7 +64,7 @@
                         <div class="ld-side">
                             <label>Звідки</label>
                             <div class="ld-side-inputs">
-                                <select data-f="fromC" class="ld-in ld-cc"><option value="">Країна</option></select>
+                                <div class="ld-combo" data-combo="fromC"><input class="ld-in ld-cc" placeholder="Країна" autocomplete="off" spellcheck="false" /><div class="ld-combo-list hidden"></div></div>
                                 <input data-f="fromQ" class="ld-in" list="ldFromList" placeholder="Місто, область, квадрат, індекс" autocomplete="off" />
                             </div>
                         </div>
@@ -72,7 +72,7 @@
                         <div class="ld-side">
                             <label>Куди</label>
                             <div class="ld-side-inputs">
-                                <select data-f="toC" class="ld-in ld-cc"><option value="">Країна</option></select>
+                                <div class="ld-combo" data-combo="toC"><input class="ld-in ld-cc" placeholder="Країна" autocomplete="off" spellcheck="false" /><div class="ld-combo-list hidden"></div></div>
                                 <input data-f="toQ" class="ld-in" list="ldToList" placeholder="Місто, область, квадрат, індекс" autocomplete="off" />
                             </div>
                         </div>
@@ -158,9 +158,9 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="lardi.js?v=202611101330"></script>
-        <script src="shell.js?v=202611101330"></script>
-        <script src="notify.js?v=202611101330"></script>
-        <script src="lock.js?v=202611101330"></script>
+        <script src="lardi.js?v=202611101345"></script>
+        <script src="shell.js?v=202611101345"></script>
+        <script src="notify.js?v=202611101345"></script>
+        <script src="lock.js?v=202611101345"></script>
     </body>
 </html>

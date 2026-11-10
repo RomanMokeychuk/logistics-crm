@@ -63,6 +63,11 @@ const LD = (() => {
         RS: "Сербія", ME: "Чорногорія", MK: "Північна Македонія", AL: "Албанія", XK: "Косово", GR: "Греція", CY: "Кіпр", MT: "Мальта",
         TR: "Туреччина", GE: "Грузія", AM: "Вірменія", AZ: "Азербайджан", KZ: "Казахстан", UZ: "Узбекистан", KG: "Киргизстан",
         TJ: "Таджикистан", TM: "Туркменістан" };
+    // Усі країни світу (ISO), назви українською — як у списку Lardi «AD / Андорра»
+    const ISO = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW".split(" ");
+    let regionName = (c) => CN[c] || c;
+    try { const dn = new Intl.DisplayNames(["uk"], { type: "region" }); regionName = (c) => CN[c] || (c === "XK" ? "Косово" : dn.of(c)) || c; } catch (e) { /* лише CN */ }
+    const POPULAR = ["UA", "PL", "DE", "RO", "NL", "TR"];
     const OWNER_LBL = { "Вантажовласник": "Вантажовласник", "Перевізник": "Власник транспорту", "Експедиція / інші": "Експедиція" };
     const PAGE = 100;
     const FKEY = "fura_lardi_filters";
@@ -86,6 +91,7 @@ const LD = (() => {
     // Поля форми ↔ стан: кожне поле має data-f="ключ"
     function syncForm() {
         document.querySelectorAll("#ldForm [data-f]").forEach((el) => { el.value = st[el.dataset.f] ?? ""; });
+        document.querySelectorAll("#ldForm [data-combo]").forEach((c) => { c.querySelector("input").value = st[c.dataset.combo] || ""; });
         document.querySelectorAll("#ldOwners [data-owner]").forEach((b) => b.classList.toggle("on", st.owners.includes(b.dataset.owner)));
         document.querySelectorAll(".ld-seg [data-unit]").forEach((b) => b.classList.toggle("on", b.dataset.unit === st.unit));
         const flow = st.toC === "UA" && st.fromC !== "UA" ? "import" : st.fromC === "UA" && st.toC !== "UA" ? "export" : "";
@@ -337,14 +343,6 @@ const LD = (() => {
         const sorted = (set) => [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, "uk"));
         const set = (side) => {
             const c = st[side + "C"];
-            // Усі робочі країни завжди в списку (навіть якщо заявок ще немає) + будь-які інші з даних
-            const countries = sorted(new Set([...Object.keys(CN), ...ROWS.map((r) => r[side + "_country"])]));
-            const have = new Set(ROWS.map((r) => r[side + "_country"]));
-            const sel = document.querySelector(`#ldForm [data-f="${side}C"]`);
-            countries.sort((a, b) => (a === "UA" ? -1 : b === "UA" ? 1 : (CN[a] || a).localeCompare(CN[b] || b, "uk")));
-            sel.innerHTML = `<option value="">Країна — усі</option>` +
-                countries.map((v) => `<option value="${esc(v)}">${esc(v)} · ${esc(CN[v] || v)}${have.has(v) ? "" : " (ще немає заявок)"}</option>`).join("");
-            sel.value = c;
             const rows = ROWS.filter((r) => !c || r[side + "_country"] === c);
             const names = sorted(new Set(rows.flatMap((r) => [r[side + "_region"], r[side + "_town"]])));
             $(side === "from" ? "#ldFromList" : "#ldToList").innerHTML = names.slice(0, 400).map((v) => `<option value="${esc(v)}"></option>`).join("");
@@ -439,11 +437,68 @@ const LD = (() => {
     }
 
     /* ---------------- події ---------------- */
+    // Поле країни як на Lardi: друкуєш код або назву, список «Популярні» / «Усі»
+    function initCombo(box) {
+        const key = box.dataset.combo;
+        const input = box.querySelector("input");
+        const list = box.querySelector(".ld-combo-list");
+        let active = -1, items = [];
+        const item = (c) => `<div class="ld-combo-item" data-c="${c}">${c} / ${esc(regionName(c))}</div>`;
+        const draw = () => {
+            const q = input.value.trim().toLowerCase();
+            const match = (c) => !q || c.toLowerCase().startsWith(q) || regionName(c).toLowerCase().includes(q);
+            const pop = POPULAR.filter(match), all = ISO.filter(match);
+            list.innerHTML = (pop.length ? `<div class="ld-combo-grp">Популярні</div>` + pop.map(item).join("") : "") +
+                (all.length ? `<div class="ld-combo-grp">Усі</div>` + all.map(item).join("") : `<div class="ld-combo-grp">Нічого не знайдено</div>`);
+            items = [...list.querySelectorAll(".ld-combo-item")];
+            active = items.length ? 0 : -1;
+            items.forEach((el, i) => el.classList.toggle("on", i === active));
+            list.classList.remove("hidden");
+        };
+        const pick = (c) => {
+            st[key] = c;
+            input.value = c;
+            list.classList.add("hidden");
+            fillPlaces();
+            syncForm();
+            st.page = 0; save(); render();
+        };
+        input.addEventListener("focus", () => { input.select(); draw(); });
+        input.addEventListener("input", draw);
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault();
+                if (!items.length) return;
+                active = (active + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+                items.forEach((el, i) => el.classList.toggle("on", i === active));
+                items[active].scrollIntoView({ block: "nearest" });
+            } else if (e.key === "Enter") {
+                e.preventDefault();
+                if (!input.value.trim()) pick("");
+                else if (items[active]) pick(items[active].dataset.c);
+            } else if (e.key === "Escape") { list.classList.add("hidden"); input.blur(); }
+        });
+        list.addEventListener("mousedown", (e) => {
+            const it = e.target.closest("[data-c]");
+            if (it) { e.preventDefault(); pick(it.dataset.c); }
+        });
+        input.addEventListener("blur", () => {
+            setTimeout(() => {
+                list.classList.add("hidden");
+                const v = input.value.trim().toUpperCase();
+                if (!v) { if (st[key]) pick(""); }
+                else if (ISO.includes(v) && v !== st[key]) pick(v);
+                else input.value = st[key] || "";
+            }, 120);
+        });
+    }
+
     function bind() {
         const rerender = () => { st.page = 0; save(); render(); };
         let t;
         $("#ldQ").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; rerender(); }, 200); });
         const form = $("#ldForm");
+        form.querySelectorAll("[data-combo]").forEach(initCombo);
         const onField = (el) => {
             const k = el.dataset.f;
             st[k] = el.value;
