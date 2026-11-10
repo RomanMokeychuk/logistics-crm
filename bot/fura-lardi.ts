@@ -346,9 +346,14 @@ async function run(trigger: string, by: string) {
         const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
         try {
             const all = await searchAll(from, to);
+            if (!all.length) {
+                perDir.push({ direction: `${from} → ${to}`, received: 0, priced: 0 });
+                await db.from("lardi_directions").update({ last_run_at: new Date().toISOString(), last_found: 0 }).eq("id", d.id);
+                continue;
+            }
             // хто розмістив: окремі запити з фільтрами Lardi
-            const shippers = new Set((await searchAll(from, to, { onlyShippers: true }, 2)).map((x) => String(x.id)));
-            const carriers = new Set((await searchAll(from, to, { onlyCarrier: true }, 2)).map((x) => String(x.id)));
+            const shippers = new Set((await searchAll(from, to, { onlyShippers: true }, 1)).map((x) => String(x.id)));
+            const carriers = new Set((await searchAll(from, to, { onlyCarrier: true }, 1)).map((x) => String(x.id)));
 
             const rows = all
                 .map((p) => {
