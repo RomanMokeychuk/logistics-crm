@@ -194,6 +194,34 @@ const LD = (() => {
         });
     }
 
+
+    // Компанія з Lardi: назва з посиланням на профіль, відгуки, місто; контакт з кнопками месенджерів
+    const profileUrl = (ref) => (ref ? `https://lardi-trans.com/user/${encodeURIComponent(ref)}/` : "");
+    function ownerHtml(o) {
+        const url = profileUrl(o.ref);
+        const name = url
+            ? `<a class="ld-prof" href="${esc(url)}" target="_blank" rel="noopener" title="Профіль компанії на Lardi">${esc(o.name || "")} ↗</a>`
+            : esc(o.name || "");
+        const rev = o.pos != null || o.neg != null
+            ? ` <span class="ld-rev" title="Відгуки на Lardi"><span class="ld-up-ok">👍 ${fmt(o.pos || 0)}</span>${o.neg ? ` <span class="ld-down">👎 ${fmt(o.neg)}</span>` : ""}</span>` : "";
+        const city = [o.city, o.area].filter(Boolean).join(", ");
+        return `<div><b>${name}</b>${rev}</div>${city ? `<div class="ld-sm ld-muted">${esc(city)}</div>` : ""}`;
+    }
+    function contactHtml(o) {
+        const ph = String(o.phone || "");
+        const d = ph.replace(/\D/g, "");
+        const msg = Array.isArray(o.msg) ? o.msg : [];
+        const icons = d
+            ? [
+                msg.includes("VIBER") ? `<a class="ld-msg ld-viber" href="viber://chat?number=%2B${d}" title="Viber">V</a>` : "",
+                msg.includes("TELEGRAM") ? `<a class="ld-msg ld-tg" href="https://t.me/+${d}" target="_blank" rel="noopener" title="Telegram">T</a>` : "",
+                msg.includes("WHATSAPP") ? `<a class="ld-msg ld-wa" href="https://wa.me/${d}" target="_blank" rel="noopener" title="WhatsApp">W</a>` : "",
+            ].join("")
+            : "";
+        return `<div class="ld-sm">${esc(o.face || "")} ${ph ? `<a href="tel:${esc(ph)}">${esc(ph)}</a>` : ""} ${icons}</div>`;
+    }
+    const ownerOf = (r) => ({ ref: r.owner_ref, name: r.owner_name, pos: r.rev_pos != null ? Number(r.rev_pos) : null, neg: r.rev_neg != null ? Number(r.rev_neg) : null, city: r.owner_city, area: r.owner_area, face: r.owner_face, phone: r.owner_phone, msg: r.owner_msg });
+
     // Позначка «є у FURA» з посиланням на картку перевізника
     const furaBadge = (r) => (r.carrier_id
         ? `<a class="ld-fura ld-fura-yes" href="index.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника у FURA">✓ у FURA ↗</a>`
@@ -251,8 +279,8 @@ const LD = (() => {
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
                         <td class="num nw">${r.volume_m3 != null ? fmt(r.volume_m3) + " м³" : ""}</td>
                         <td class="num nw">${r.price != null || r.payment_raw != null ? `<b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>` : `<span class="ld-muted">—</span>`}${r.price_per_km != null ? `<div class="ld-sm ld-muted">${fmt(r.price_per_km, 2)} ${CUR[r.currency] || ""}/км</div>` : ""}${vsCargo(r)}</td>
-                        <td><div><b>${esc(r.owner_name || "")}</b>${r.owner_rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.owner_rating, 1)}</span>` : ""}</div>
-                            <div class="ld-sm">${esc(r.owner_face || "")} ${r.owner_phone ? `<a href="tel:${esc(r.owner_phone)}">${esc(r.owner_phone)}</a>` : ""}</div></td>
+                        <td>${ownerHtml(ownerOf(r))}
+                            ${contactHtml(ownerOf(r))}</td>
                         <td>${furaBadge(r)}</td>
                     </tr>`).join("")
                 : `<tr><td colspan="9" class="ld-empty">Немає машин за цими фільтрами</td></tr>`) +
@@ -287,8 +315,8 @@ const LD = (() => {
                         <td class="num nw"><b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>${r.per_t != null ? `<div class="ld-sm ld-muted">${esc(money(r.per_t, r.currency))}/т × ${fmt(r.mass_t, 1)} т</div>` : ""}${r.payment_forms ? `<div class="ld-sm ld-muted">${esc(r.payment_forms)}</div>` : ""}${r.delay_days ? `<div class="ld-sm ld-muted">відстрочка ${fmt(r.delay_days)} дн.</div>` : ""}</td>
                         <td class="num nw">${r.price_per_km != null ? fmt(r.price_per_km, 2) + " " + (CUR[r.currency] || "") : ""}</td>
                         <td><span class="ld-own ${OWNER_CLS[r.owner_type] || ""}">${esc(OWNER_LBL[r.owner_type] || r.owner_type || "")}</span>
-                            <div><b>${esc(r.owner_name || "")}</b>${r.owner_rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.owner_rating, 1)}</span>` : ""}</div>
-                            <div class="ld-sm">${esc(r.owner_face || "")} ${r.owner_phone ? `<a href="tel:${esc(r.owner_phone)}">${esc(r.owner_phone)}</a>` : ""}</div></td>
+                            ${ownerHtml(ownerOf(r))}
+                            ${contactHtml(ownerOf(r))}</td>
                     </tr>`;
                 }).join("")
                 : `<tr><td colspan="10" class="ld-empty">Немає заявок за цими фільтрами</td></tr>`) +
@@ -386,6 +414,7 @@ const LD = (() => {
             const ratios = p.filter((r) => bench.has(route(r))).map((r) => r.price_per_km / bench.get(route(r)) - 1);
             return {
                 name: a[0].owner_name, type: a[0].owner_type, face: a[0].owner_face, phone: a[0].owner_phone, rating: a[0].owner_rating,
+                o: ownerOf(a[0]),
                 carrier_id: (a.find((r) => r.carrier_id) || {}).carrier_id || null,
                 n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), vs: median(ratios),
                 routes: new Set(a.map(route)).size,
@@ -400,12 +429,12 @@ const LD = (() => {
             `${th("vs", "До ринку", "num")}${th("", "Напрямків", "num")}${th("", "Контакт")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr>
-                    <td><b>${esc(r.name || "")}</b>${r.rating ? ` <span class="ld-muted ld-sm">★ ${fmt(r.rating, 1)}</span>` : ""}</td>
+                    <td>${ownerHtml(r.o)}</td>
                     <td>${TRUCK ? furaBadge(r) : `<span class="ld-own ${OWNER_CLS[r.type] || ""}">${esc(OWNER_LBL[r.type] || r.type || "")}</span>`}</td>
                     <td class="num">${r.n}</td><td class="num">${r.med != null ? fmt(r.med, 2) : ""}</td>
                     <td class="num ${r.vs > 0.05 ? "ld-up" : r.vs < -0.05 ? "ld-down" : ""}" title="Наскільки ставка компанії вища/нижча за звичайну на тих самих напрямках">${pct(r.vs)}</td>
                     <td class="num">${r.routes}</td>
-                    <td class="ld-sm">${esc(r.face || "")} ${r.phone ? `<a href="tel:${esc(r.phone)}">${esc(r.phone)}</a>` : ""}</td></tr>`).join("")
+                    <td>${contactHtml(r.o)}</td></tr>`).join("")
                 : `<tr><td colspan="7" class="ld-empty">Немає даних</td></tr>`) +
             "</tbody>";
         pager(total);
@@ -450,7 +479,9 @@ const LD = (() => {
     async function load() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
-        const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
+        const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating," +
+            "owner_city:raw->owner->address->town->>name,owner_area:raw->owner->address->area->>name,owner_msg:raw->owner->phones->0->messengers," +
+            "rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
         const out = [];
         const cnt = $("#ldCount");
         const page = async (from, table = TABLE, sel = TRUCK ? cols + ",carrier_id" : cols) => {

@@ -385,7 +385,7 @@ const nameKey = (v: unknown) =>
         .replace(/\s+/g, " ")
         .trim();
 
-type Carrier = { id: number; name: string | null; phone_1: string | null; phone_2: string | null; destinations: string | null; ukraine_directions: string | null };
+type Carrier = { id: number; name: string | null; phone_1: string | null; phone_2: string | null; destinations: string | null; ukraine_directions: string | null; profile_url?: string | null };
 let CARRIERS: { byPhone: Map<string, Carrier[]>; byName: Map<string, Carrier[]> } | null = null;
 
 async function loadCarriers() {
@@ -393,7 +393,7 @@ async function loadCarriers() {
     const byPhone = new Map<string, Carrier[]>(), byName = new Map<string, Carrier[]>();
     const add = (m: Map<string, Carrier[]>, k: string, c: Carrier) => { if (!k) return; const a = m.get(k) || []; if (!a.includes(c)) a.push(c); m.set(k, a); };
     for (let from = 0; from < 100000; from += 1000) {
-        const { data, error } = await db.from("carriers").select("id, name, phone_1, phone_2, destinations, ukraine_directions").order("id").range(from, from + 999);
+        const { data, error } = await db.from("carriers").select("id, name, phone_1, phone_2, destinations, ukraine_directions, profile_url").order("id").range(from, from + 999);
         if (error) throw new Error("Перевізники FURA: " + error.message);
         for (const c of (data || []) as Carrier[]) {
             for (const ph of [...phonesIn(c.phone_1), ...phonesIn(c.phone_2)]) add(byPhone, ph, c);
@@ -545,6 +545,11 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind
                         if (c) {
                             linked++;
                             if (addRoute(c, row)) touched.set(c.id, c);
+                            // посилання на профіль Lardi — у картку, якщо там ще порожньо
+                            if (!c.profile_url && row.owner_ref) {
+                                c.profile_url = `https://lardi-trans.com/user/${row.owner_ref}/`;
+                                touched.set(c.id, c);
+                            }
                         }
                     }
                     return row;
@@ -562,7 +567,7 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind
             await db.from("lardi_directions").update({ [LAST]: new Date().toISOString(), [FOUND]: uniq.length }).eq("id", d.id);
             // картки перевізників FURA: дописуємо нові напрямки одразу (якщо функцію оборве — вже збережено)
             for (const c of touched.values()) {
-                const { error: e } = await db.from("carriers").update({ destinations: c.destinations, ukraine_directions: c.ukraine_directions }).eq("id", c.id);
+                const { error: e } = await db.from("carriers").update({ destinations: c.destinations, ukraine_directions: c.ukraine_directions, profile_url: c.profile_url ?? null }).eq("id", c.id);
                 if (e) errors.push("Картка перевізника: " + e.message);
                 else cardsUpdated++;
             }

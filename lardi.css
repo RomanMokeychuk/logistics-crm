@@ -156,3 +156,13 @@
 .ld-fura-yes { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
 .ld-fura-yes:hover { background: #bbf7d0; }
 .ld-fura-no { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; font-weight: 500; }
+
+/* Компанія з Lardi: профіль, відгуки, месенджери */
+.ld-prof { color: inherit; text-decoration: none; border-bottom: 1px dashed #94a3b8; }
+.ld-prof:hover { color: #f57c00; border-bottom-color: #f57c00; }
+.ld-rev { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.ld-up-ok { color: #15803d; }
+.ld-msg { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; color: #fff; text-decoration: none; margin-left: 3px; vertical-align: middle; }
+.ld-viber { background: #7360f2; }
+.ld-tg { background: #229ed9; }
+.ld-wa { background: #25d366; }
