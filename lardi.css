@@ -166,3 +166,6 @@
 .ld-viber { background: #7360f2; }
 .ld-tg { background: #229ed9; }
 .ld-wa { background: #25d366; }
+.ld-alert { position: relative; }
+.ld-alert-x { position: absolute; top: 6px; right: 10px; background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: inherit; opacity: 0.6; }
+.ld-alert-x:hover { opacity: 1; }

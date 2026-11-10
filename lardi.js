@@ -583,12 +583,23 @@ const LD = (() => {
         LAST_RUN = r || null;
         renderSync();
         const alert = $("#ldAlert");
-        // помилки по напрямках, які вже вимкнені (напр. XK — Косово), більше не показуємо
+        // Не показуємо помилки: по вимкнених напрямках (напр. XK — Косово); по напрямках, які після тієї помилки
+        // вже оновились успішно; і ті, що закрили хрестиком
         const off = new Set(DIRS.filter((d) => !d.active).map((d) => `${d.from_country} → ${d.to_country}`));
-        const errText = String(r?.error || "").split(" | ").filter((x) => x && !off.has(x.split(":")[0].trim())).join(" | ");
-        if (errText) {
-            alert.textContent = "Останнє оновлення з помилкою: " + errText;
+        const errAt = r ? new Date(r.finished_at || r.started_at) : null;
+        const fixed = new Set(DIRS.filter((d) => d.last_run_at && errAt && new Date(d.last_run_at) > errAt).map((d) => `${d.from_country} → ${d.to_country}`));
+        const DKEY = "fura_lardi_alert_closed_" + KIND_RUN;
+        let closed = "";
+        try { closed = localStorage.getItem(DKEY) || ""; } catch (e) { /* без пам'яті */ }
+        const errText = String(r?.error || "").split(" | ")
+            .filter((x) => { const dir = x.split(":")[0].trim(); return x && !off.has(dir) && !fixed.has(dir); }).join(" | ");
+        if (errText && String(r.id) !== closed) {
+            alert.innerHTML = `${esc("Останнє оновлення з помилкою: " + errText)} <button type="button" class="ld-x ld-alert-x" title="Закрити">&times;</button>`;
             alert.classList.remove("hidden", "ld-info");
+            alert.querySelector(".ld-alert-x").addEventListener("click", () => {
+                try { localStorage.setItem(DKEY, String(r.id)); } catch (e) { /* без пам'яті */ }
+                alert.classList.add("hidden");
+            });
         } else alert.classList.add("hidden");
         renderDirs();
     }
