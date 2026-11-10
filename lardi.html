@@ -12,11 +12,11 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611101300" />
+        <link rel="stylesheet" href="style.css?v=202611101330" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611101300" />
-        <link rel="stylesheet" href="lardi.css?v=202611101300" />
-        <link rel="stylesheet" href="design.css?v=202611101300" />
+        <link rel="stylesheet" href="theme.css?v=202611101330" />
+        <link rel="stylesheet" href="lardi.css?v=202611101330" />
+        <link rel="stylesheet" href="design.css?v=202611101330" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -55,49 +55,68 @@
                     </div>
                 </div>
 
-                <div class="ld-filters">
-                    <select id="ldPeriod" class="ld-sel" title="Коли заявку бачили на Lardi востаннє">
-                        <option value="1">За сьогодні</option>
-                        <option value="3" selected>За 3 дні</option>
-                        <option value="7">За тиждень</option>
-                        <option value="30">За місяць</option>
-                    </select>
-                    <select id="ldFlow" class="ld-sel" title="Імпорт чи експорт">
-                        <option value="">Імпорт і експорт</option>
-                        <option value="import">Імпорт → UA</option>
-                        <option value="export">Експорт з UA →</option>
-                    </select>
-                    <span class="ld-grp" title="Звідки: країна, воєводство / область, індекс (квадрат)">
-                        <b>Звідки</b>
-                        <select id="ldFromC" class="ld-sel ld-sel-s"><option value="">країна</option></select>
-                        <select id="ldFromR" class="ld-sel"><option value="">регіон</option></select>
-                        <input id="ldFromZ" class="ld-zip" placeholder="індекс" maxlength="6" />
-                    </span>
-                    <span class="ld-grp" title="Куди: країна, область / воєводство, індекс (квадрат)">
-                        <b>Куди</b>
-                        <select id="ldToC" class="ld-sel ld-sel-s"><option value="">країна</option></select>
-                        <select id="ldToR" class="ld-sel"><option value="">регіон</option></select>
-                        <input id="ldToZ" class="ld-zip" placeholder="індекс" maxlength="6" />
-                    </span>
-                    <select id="ldOwner" class="ld-sel" title="Хто розмістив заявку">
-                        <option value="">Усі, хто виставляє</option>
-                        <option>Вантажовласник</option>
-                        <option>Перевізник</option>
-                        <option>Експедиція / інші</option>
-                    </select>
-                    <select id="ldKind" class="ld-sel" title="Повна машина чи догруз">
-                        <option value="">Усі вантажі</option>
-                        <option value="full">Повна машина (від 10 т)</option>
-                        <option value="light">До 10 т</option>
-                        <option value="groupage">Догруз</option>
-                    </select>
-                    <select id="ldBody" class="ld-sel" title="Тип кузова"><option value="">Усі кузови</option></select>
-                    <select id="ldCur" class="ld-sel" title="Валюта ціни">
-                        <option value="">Усі валюти</option>
-                        <option>EUR</option><option>USD</option><option>UAH</option><option>PLN</option>
-                    </select>
-                    <label class="ld-check"><input type="checkbox" id="ldAdr" /> Лише ADR</label>
-                    <button type="button" class="ld-link" id="ldReset">Скинути</button>
+                <div class="ld-form" id="ldForm">
+                    <div class="ld-form-head"><i class="bx bx-package"></i> Пошук вантажів з ціною <span class="ld-muted ld-sm">як на Lardi, але по всіх напрямках одразу</span></div>
+                    <div class="ld-form-row ld-route">
+                        <div class="ld-side">
+                            <label>Звідки</label>
+                            <div class="ld-side-inputs">
+                                <select data-f="fromC" class="ld-in ld-cc"><option value="">Країна</option></select>
+                                <input data-f="fromQ" class="ld-in" list="ldFromList" placeholder="Місто, область, квадрат, індекс" autocomplete="off" />
+                            </div>
+                        </div>
+                        <button type="button" class="ld-swap" id="ldSwap" title="Поміняти місцями">⇄</button>
+                        <div class="ld-side">
+                            <label>Куди</label>
+                            <div class="ld-side-inputs">
+                                <select data-f="toC" class="ld-in ld-cc"><option value="">Країна</option></select>
+                                <input data-f="toQ" class="ld-in" list="ldToList" placeholder="Місто, область, квадрат, індекс" autocomplete="off" />
+                            </div>
+                        </div>
+                        <datalist id="ldFromList"></datalist>
+                        <datalist id="ldToList"></datalist>
+                    </div>
+
+                    <div class="ld-form-row ld-params">
+                        <div class="ld-pair"><input data-f="massMin" class="ld-in" type="number" min="0" step="0.5" placeholder="Вага від" /><span>т</span><input data-f="massMax" class="ld-in" type="number" min="0" step="0.5" placeholder="Вага до" /><span>т</span></div>
+                        <div class="ld-pair"><input data-f="volMin" class="ld-in" type="number" min="0" placeholder="Об'єм від" /><span>м³</span><input data-f="volMax" class="ld-in" type="number" min="0" placeholder="Об'єм до" /><span>м³</span></div>
+                        <div class="ld-pair" title="Дата завантаження"><span>Завантаження</span><input data-f="dateFrom" class="ld-in" type="date" /><span>–</span><input data-f="dateTo" class="ld-in" type="date" /></div>
+                        <select data-f="body" class="ld-in" id="ldBody"><option value="">Тип транспорту</option></select>
+                        <div class="ld-pair" title="Мінімальна ціна">
+                            <input data-f="priceMin" class="ld-in ld-num" type="number" min="0" placeholder="Сума від" />
+                            <select data-f="cur" class="ld-in ld-cur"><option value="">усі</option><option>EUR</option><option>USD</option><option>UAH</option><option>PLN</option></select>
+                            <span class="ld-seg"><button type="button" data-unit="total" class="on">Всього</button><button type="button" data-unit="km">За км</button></span>
+                        </div>
+                    </div>
+
+                    <div class="ld-form-row ld-more">
+                        <span class="ld-lbl">Показувати лише</span>
+                        <span class="ld-owners" id="ldOwners">
+                            <button type="button" data-owner="Перевізник" class="own-car">Від власників транспорту</button>
+                            <button type="button" data-owner="Вантажовласник" class="own-ship">Від вантажовласників</button>
+                            <button type="button" data-owner="Експедиція / інші" class="own-exp">Від експедиції</button>
+                        </span>
+                        <select data-f="kind" class="ld-in">
+                            <option value="">Повні й догрузи</option>
+                            <option value="full">Повна машина (від 10 т)</option>
+                            <option value="light">До 10 т</option>
+                            <option value="groupage">Догруз (LTL)</option>
+                        </select>
+                        <select data-f="adr" class="ld-in">
+                            <option value="">ADR: усі</option>
+                            <option value="adr">Лише ADR</option>
+                            <option value="noadr">Без ADR</option>
+                        </select>
+                        <select data-f="period" class="ld-in" title="Коли заявку бачили на Lardi востаннє">
+                            <option value="1">Додані сьогодні</option>
+                            <option value="3">За 3 дні</option>
+                            <option value="7">За тиждень</option>
+                            <option value="30">За місяць</option>
+                        </select>
+                        <span class="ld-grow"></span>
+                        <span class="ld-found" id="ldFound"></span>
+                        <button type="button" class="ld-link" id="ldReset">Скинути</button>
+                    </div>
                 </div>
 
                 <div class="ld-card">
@@ -136,9 +155,9 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="lardi.js?v=202611101300"></script>
-        <script src="shell.js?v=202611101300"></script>
-        <script src="notify.js?v=202611101300"></script>
-        <script src="lock.js?v=202611101300"></script>
+        <script src="lardi.js?v=202611101330"></script>
+        <script src="shell.js?v=202611101330"></script>
+        <script src="notify.js?v=202611101330"></script>
+        <script src="lock.js?v=202611101330"></script>
     </body>
 </html>
