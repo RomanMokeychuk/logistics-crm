@@ -3,7 +3,7 @@
 // Що робить:
 //   1. Бере активні напрямки з таблиці lardi_directions (PL → UA, DE → UA, …).
 //   2. По кожному напрямку питає офіційний Lardi API (POST /v2/proposals/search/cargo)
-//      ключем компанії — лише заявки з ціною.
+//      ключем компанії; заявки без ціни («запит вартості») відкидаємо самі.
 //   3. Визначає, хто розмістив: окремо питає «лише вантажовласники» (onlyShippers)
 //      і «лише перевізники» (onlyCarrier); решта — «Експедиція / інші».
 //   4. Записує заявки в lardi_cargo (повторно знайдена — оновлюється), запуск — у lardi_runs.
@@ -16,7 +16,7 @@
 //   LARDI_API_KEY       — токен API з налаштувань компанії на Lardi
 //   LARDI_CRON_SECRET   — будь-який довгий випадковий рядок (той самий — у розкладі в lardi.sql)
 // Необов'язково:
-//   LARDI_MAX_PAGES     — скільки сторінок по кожному напрямку (типово 3)
+//   LARDI_MAX_PAGES     — скільки сторінок по кожному напрямку (типово 5)
 //   LARDI_PAGE_SIZE     — заявок на сторінку (типово 100)
 //   LARDI_EXTRA_FILTER  — JSON, що додається до фільтра (наприклад {"onlyActual":true})
 //
@@ -32,7 +32,7 @@ const env = (k: string, d = "") => Deno.env.get(k) ?? d;
 const API = "https://api.lardi-trans.com/v2";
 const KEY = env("LARDI_API_KEY").replace(/\s+/g, ""); // без пробілів і переносів рядка
 const CRON_SECRET = env("LARDI_CRON_SECRET");
-const MAX_PAGES = Math.max(1, Math.min(10, Number(env("LARDI_MAX_PAGES", "3")) || 3));
+const MAX_PAGES = Math.max(1, Math.min(10, Number(env("LARDI_MAX_PAGES", "5")) || 5));
 const PAGE_SIZE = Math.max(10, Math.min(150, Number(env("LARDI_PAGE_SIZE", "100")) || 100));
 let EXTRA: Any = {};
 try { EXTRA = JSON.parse(env("LARDI_EXTRA_FILTER", "{}")) || {}; } catch { EXTRA = {}; }
@@ -87,13 +87,26 @@ class LardiError extends Error {
 
 let requestCount = 0;
 
+// Безкоштовний метод API (пошук користувачів) — чи Lardi взагалі знає цей ключ
+async function basicKeyWorks(): Promise<boolean> {
+    try {
+        requestCount++;
+        const res = await fetch(`${API}/users/search?language=uk&query=${encodeURIComponent("Грандар")}&queryLimit=1`, {
+            headers: { Authorization: KEY, Accept: "application/json" },
+        });
+        await res.text();
+        return res.ok;
+    } catch {
+        return false;
+    }
+}
+
 async function searchPage(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
     requestCount++;
     const body = {
         filter: {
             directionFrom: { directionRows: [{ countrySign: from }] },
             directionTo: { directionRows: [{ countrySign: to }] },
-            paymentValue: 1, // «Сума від 1» — заявки з «запит вартості» Lardi не віддає
             ...EXTRA,
             ...extra,
         },
@@ -107,10 +120,18 @@ async function searchPage(from: string, to: string, page: number, extra: Any): P
     const text = await res.text();
     if (!res.ok) {
         let msg = text.slice(0, 300);
-        try { const j = JSON.parse(text); msg = j.message || j.error || j.errors?.[0]?.message || msg; } catch { /* текст як є */ }
+        try {
+            const j = JSON.parse(text);
+            msg = j.message || j.error || j.errors?.[0]?.message || msg;
+            if (j.wrongFields) msg += " — поля: " + JSON.stringify(j.wrongFields).slice(0, 300);
+        } catch { /* текст як є */ }
         if (res.status === 401 || res.status === 403) {
-            throw new LardiError(res.status, `Lardi не пускає до пошуку заявок (${res.status}): ${msg}. ` +
-                "Перевірте ключ і чи активний пакет «Розширений API» на Lardi.");
+            // Розрізняємо: ключ невірний чи ключ правильний, але немає пакета «Розширений API»
+            const keyOk = await basicKeyWorks();
+            throw new LardiError(res.status, keyOk
+                ? `Ключ Lardi правильний, але пошук заявок закритий (${res.status}: ${msg}). ` +
+                  "Потрібен платний пакет «Розширений API» на Lardi (Послуги та ціни → Розширений API)."
+                : `Lardi не знає цей ключ (${res.status}: ${msg}). Скопіюйте токен заново в Lardi → Налаштування → API.`);
         }
         if (res.status === 429) throw new LardiError(429, "Lardi просить зачекати (забагато запитів). Спробуйте пізніше.");
         throw new LardiError(res.status, `Lardi API ${res.status}: ${msg}`);
