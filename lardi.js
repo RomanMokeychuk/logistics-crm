@@ -38,6 +38,14 @@ const LD = (() => {
         const m = Math.floor(s.length / 2);
         return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
     };
+    const regionOf = (r, side) => r[side + "_region"] || r[side + "_town"] || "—";
+    // «50» знайде квадрат 50 і індекси 50-001, 50123…; шукаємо також у тексті точок («85 кв.»)
+    const zipMatch = (r, side, z) => {
+        const q = String(z).replace(/\D/g, "");
+        if (!q) return true;
+        const zone = String(r[side + "_zone"] || ""), pc = String(r[side + "_postcode"] || "").replace(/\D/g, "");
+        return zone.startsWith(q) || pc.startsWith(q) || (q.length <= 2 && zone && q.startsWith(zone));
+    };
     const kindOf = (r) => (r.groupage ? "groupage" : r.mass_t != null && r.mass_t < 10 ? "light" : "full");
     const KIND = { full: "Повна", light: "До 10 т", groupage: "Догруз" };
     // Посилання на заявку на Lardi (відкриває пошук вантажів з картою цієї заявки)
@@ -49,7 +57,7 @@ const LD = (() => {
     let ROWS = [];
     let DIRS = [];
     let BOSS = false;
-    const st = { view: "loads", q: "", period: "3", dir: "", owner: "", kind: "", body: "", cur: "", adr: false, page: 0, sort: "seen", asc: false, route: "" };
+    const st = { view: "loads", q: "", period: "3", flow: "", fromC: "", fromR: "", fromZ: "", toC: "", toR: "", toZ: "", owner: "", kind: "", body: "", cur: "", adr: false, page: 0, sort: "seen", asc: false, route: "" };
 
     /* ---------------- фільтри ---------------- */
     function save() {
@@ -58,6 +66,9 @@ const LD = (() => {
     function restore() {
         try { Object.assign(st, JSON.parse(localStorage.getItem(FKEY) || "{}")); } catch (e) { /* типові */ }
         $("#ldPeriod").value = st.period;
+        $("#ldFlow").value = st.flow || "";
+        $("#ldFromZ").value = st.fromZ || "";
+        $("#ldToZ").value = st.toZ || "";
         $("#ldOwner").value = st.owner;
         $("#ldKind").value = st.kind;
         $("#ldCur").value = st.cur;
@@ -67,7 +78,14 @@ const LD = (() => {
     function filtered() {
         const q = st.q.trim().toLowerCase();
         return ROWS.filter((r) => {
-            if (st.dir && r.direction !== st.dir) return false;
+            if (st.flow === "import" && r.to_country !== "UA") return false;
+            if (st.flow === "export" && r.from_country !== "UA") return false;
+            if (st.fromC && r.from_country !== st.fromC) return false;
+            if (st.toC && r.to_country !== st.toC) return false;
+            if (st.fromR && regionOf(r, "from") !== st.fromR) return false;
+            if (st.toR && regionOf(r, "to") !== st.toR) return false;
+            if (st.fromZ && !zipMatch(r, "from", st.fromZ)) return false;
+            if (st.toZ && !zipMatch(r, "to", st.toZ)) return false;
             if (st.owner && r.owner_type !== st.owner) return false;
             if (st.kind && kindOf(r) !== st.kind) return false;
             if (st.body && !String(r.body_types || "").toLowerCase().includes(st.body)) return false;
@@ -128,8 +146,8 @@ const LD = (() => {
                     return `<tr>
                         <td class="nw">${esc(dd(r.date_from))}${r.date_to && r.date_to !== r.date_from ? "–" + esc(dd(r.date_to)) : ""}<div class="ld-sm ld-muted">${esc(r.direction || "")}</div>
                             <a class="ld-open" href="${esc(lardiUrl(r.id))}" target="_blank" rel="noopener" title="Відкрити заявку на Lardi">Lardi ↗</a></td>
-                        <td><b>${esc(r.from_town || "")}</b><div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}</div></td>
-                        <td><b>${esc(r.to_town || "")}</b><div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}</div></td>
+                        <td><b>${esc(r.from_town || "")}</b>${r.from_zone ? ` <span class="ld-muted ld-sm">${esc(r.from_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}${r.from_country && r.from_country !== "UA" ? " · " + esc(r.from_country) : ""}</div></td>
+                        <td><b>${esc(r.to_town || "")}</b>${r.to_zone ? ` <span class="ld-muted ld-sm">${esc(r.to_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}${r.to_country !== "UA" ? " · " + esc(r.to_country || "") : ""}</div></td>
                         <td class="ld-clip" title="${esc(r.cargo || "")}">${esc(r.cargo || "")}
                             <div class="ld-tags">${k !== "full" ? `<span class="ld-tag">${KIND[k]}</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">ADR ${esc(r.adr)}</span>` : ""}</div></td>
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
@@ -264,7 +282,7 @@ const LD = (() => {
     async function load() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
-        const cols = "id,seen_last,direction,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
+        const cols = "id,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
         const out = [];
         for (let from = 0; from < 20000; from += 1000) {
             const { data, error } = await sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString()).order("seen_last", { ascending: false }).range(from, from + 999);
@@ -273,11 +291,28 @@ const LD = (() => {
             if (data.length < 1000) break;
         }
         ROWS = out;
+        fillPlaces();
         const bodies = new Set();
         ROWS.forEach((r) => String(r.body_types || "").split(",").forEach((b) => b.trim() && bodies.add(b.trim().toLowerCase())));
         $("#ldBody").innerHTML = `<option value="">Усі кузови</option>` + [...bodies].sort().map((b) => `<option value="${esc(b)}">${esc(b)}</option>`).join("");
         $("#ldBody").value = st.body;
         render();
+    }
+
+    // Списки країн і регіонів — з даних; регіони залежать від обраної країни
+    function fillPlaces() {
+        const opts = (vals, empty, cur) =>
+            `<option value="">${empty}</option>` + [...vals].sort((a, b) => a.localeCompare(b, "uk")).map((v) => `<option ${v === cur ? "selected" : ""} value="${esc(v)}">${esc(v)}</option>`).join("");
+        const set = (side) => {
+            const c = side === "from" ? st.fromC : st.toC;
+            const countries = new Set(ROWS.map((r) => r[side + "_country"]).filter(Boolean));
+            const regions = new Set(ROWS.filter((r) => !c || r[side + "_country"] === c).map((r) => regionOf(r, side)));
+            const cs = side === "from" ? "#ldFromC" : "#ldToC", rs = side === "from" ? "#ldFromR" : "#ldToR";
+            $(cs).innerHTML = opts(countries, "країна", c);
+            $(rs).innerHTML = opts(regions, "регіон", side === "from" ? st.fromR : st.toR);
+        };
+        set("from");
+        set("to");
     }
 
     async function loadMeta() {
@@ -286,9 +321,6 @@ const LD = (() => {
             sbClient.from("lardi_runs").select("*").order("started_at", { ascending: false }).limit(1),
         ]);
         DIRS = dirs || [];
-        $("#ldDir").innerHTML = `<option value="">Усі напрямки</option>` +
-            DIRS.filter((d) => d.active).map((d) => `<option>${esc(d.from_country)} → ${esc(d.to_country)}</option>`).join("");
-        $("#ldDir").value = st.dir;
         const r = runs?.[0];
         if (!r) {
             $("#ldSync").textContent = "Ще не оновлювалось";
@@ -305,10 +337,14 @@ const LD = (() => {
     }
 
     function renderDirs() {
+        const row = (d) => `<div class="ld-dir-row">
+                <label><input type="checkbox" data-dir-toggle="${d.id}" ${d.active ? "checked" : ""}/> <b>${esc(d.from_country)} → ${esc(d.to_country)}</b>
+                <small>${d.last_run_at ? new Date(d.last_run_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) + " · " + fmt(d.last_found) : "ще не оновлювався"}</small></label>
+                <button type="button" class="ld-link" data-dir-del="${d.id}">видалити</button></div>`;
+        const imp = DIRS.filter((d) => d.to_country === "UA"), exp = DIRS.filter((d) => d.from_country === "UA"), other = DIRS.filter((d) => d.to_country !== "UA" && d.from_country !== "UA");
         $("#ldDirsList").innerHTML = DIRS.length
-            ? DIRS.map((d) => `<div class="ld-dir-row">
-                <label><input type="checkbox" data-dir-toggle="${d.id}" ${d.active ? "checked" : ""}/> <b>${esc(d.from_country)} → ${esc(d.to_country)}</b></label>
-                <button type="button" class="ld-link" data-dir-del="${d.id}">видалити</button></div>`).join("")
+            ? [["Імпорт в Україну", imp], ["Експорт з України", exp], ["Інші", other]].filter(([, a]) => a.length)
+                .map(([t, a]) => `<div class="ld-dirs-sec">${t}</div>` + a.map(row).join("")).join("")
             : `<div class="ld-muted">Напрямків ще немає</div>`;
     }
 
@@ -357,16 +393,22 @@ const LD = (() => {
         let t;
         $("#ldQ").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; rerender(); }, 200); });
         $("#ldPeriod").addEventListener("change", (e) => { st.period = e.target.value; save(); load(); });
-        $("#ldDir").addEventListener("change", (e) => { st.dir = e.target.value; rerender(); });
+        $("#ldFlow").addEventListener("change", (e) => { st.flow = e.target.value; rerender(); });
+        $("#ldFromC").addEventListener("change", (e) => { st.fromC = e.target.value; st.fromR = ""; fillPlaces(); rerender(); });
+        $("#ldToC").addEventListener("change", (e) => { st.toC = e.target.value; st.toR = ""; fillPlaces(); rerender(); });
+        $("#ldFromR").addEventListener("change", (e) => { st.fromR = e.target.value; rerender(); });
+        $("#ldToR").addEventListener("change", (e) => { st.toR = e.target.value; rerender(); });
+        $("#ldFromZ").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.fromZ = e.target.value.trim(); rerender(); }, 250); });
+        $("#ldToZ").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.toZ = e.target.value.trim(); rerender(); }, 250); });
         $("#ldOwner").addEventListener("change", (e) => { st.owner = e.target.value; rerender(); });
         $("#ldKind").addEventListener("change", (e) => { st.kind = e.target.value; rerender(); });
         $("#ldBody").addEventListener("change", (e) => { st.body = e.target.value; rerender(); });
         $("#ldCur").addEventListener("change", (e) => { st.cur = e.target.value; rerender(); });
         $("#ldAdr").addEventListener("change", (e) => { st.adr = e.target.checked; rerender(); });
         $("#ldReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", dir: "", owner: "", kind: "", body: "", cur: "", adr: false, route: "", page: 0 });
-            $("#ldQ").value = "";
-            ["#ldDir", "#ldOwner", "#ldKind", "#ldBody", "#ldCur"].forEach((s) => ($(s).value = ""));
+            Object.assign(st, { q: "", flow: "", fromC: "", fromR: "", fromZ: "", toC: "", toR: "", toZ: "", owner: "", kind: "", body: "", cur: "", adr: false, route: "", page: 0 });
+            ["#ldQ", "#ldFlow", "#ldFromZ", "#ldToZ", "#ldOwner", "#ldKind", "#ldBody", "#ldCur"].forEach((s) => ($(s).value = ""));
+            fillPlaces();
             $("#ldAdr").checked = false;
             save();
             render();
