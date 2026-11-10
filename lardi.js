@@ -391,29 +391,33 @@ const LD = (() => {
         return data;
     }
 
+    // Одне натискання проходить усі напрямки: функція бере порцію (до ~4 хв), повторюємо, поки є залишок
     async function runNow() {
         const btn = $("#ldRunBtn");
+        const a = $("#ldAlert");
+        const info = (t) => { a.textContent = t; a.classList.add("ld-info"); a.classList.remove("hidden"); };
         btn.disabled = true;
-        btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Оновлюю… (до 2 хв)`;
+        let round = 0, found = 0, done = 0, left = null;
         try {
-            const res = await call({ action: "run" });
+            do {
+                round++;
+                btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Оновлюю… ${left == null ? "" : `(лишилось ${left} напрямків)`}`;
+                info(left == null
+                    ? "Оновлення почалося. Напрямків багато, тож Lardi віддає їх порціями — це може тривати 10–20 хвилин. Сторінку можна не закривати й працювати далі."
+                    : `Оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною. Лишилось ${left} — продовжую…`);
+                const res = await call({ action: "run" });
+                if (res?.error && !(res.directions || []).length) throw new Error(res.error);
+                found += res?.found || 0;
+                done += (res?.directions || []).length;
+                left = res?.left || 0;
+                await load();
+            } while (left > 0 && round < 12);
             await loadMeta();
-            await load();
-            const a = $("#ldAlert");
-            const done = (res?.directions || []).length;
-            if (res?.error) {
-                a.textContent = res.error;
-                a.classList.remove("ld-info", "hidden");
-            } else if (res?.left) {
-                a.textContent = `Оновлено ${done} напрямків, знайдено ${fmt(res.found)} заявок з ціною. Ще ${res.left} напрямків — натисніть «Оновити зараз» ще раз або дочекайтесь ранкового розкладу.`;
-                a.classList.add("ld-info");
-                a.classList.remove("hidden");
-            }
+            info(`Готово: оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною.`);
         } catch (e) {
-            const alert = $("#ldAlert");
-            alert.textContent = e.message;
-            alert.classList.remove("hidden", "ld-info");
             await loadMeta().catch(() => {});
+            a.textContent = e.message;
+            a.classList.remove("hidden", "ld-info");
         } finally {
             btn.disabled = false;
             btn.innerHTML = `<i class="bx bx-refresh"></i> Оновити зараз`;
