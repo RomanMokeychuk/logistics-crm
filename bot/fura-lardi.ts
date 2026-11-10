@@ -168,6 +168,28 @@ async function searchAll(from: string, to: string, extra: Any = {}, maxPages = M
     return out;
 }
 
+/* Коди країн Lardi для посилань на пошук (…/log/search/gruz/wf1i491iwt1i640…) */
+const COUNTRY_IDS: Record<string, number> = { PL: 491, DE: 100, TR: 625, UA: 640 }; // відомі заздалегідь
+async function loadCountryIds() {
+    try {
+        requestCount++;
+        const res = await fetch(`${API}/references/countries?language=uk`, { headers: { Authorization: KEY, Accept: "application/json" } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : (data.content || data.items || data.countries || []);
+        for (const c of list) {
+            const sign = String(c.sign ?? c.countrySign ?? c.code ?? c.alpha2 ?? "").toUpperCase();
+            const id = Number(c.id ?? c.countryId);
+            if (sign.length === 2 && id) COUNTRY_IDS[sign] = id;
+        }
+    } catch { /* лишаються відомі коди */ }
+}
+const lardiUrl = (id: unknown, from: string, to: string) => {
+    const f = COUNTRY_IDS[from], t = COUNTRY_IDS[to];
+    const filter = f && t ? `/wf1i${f}iwt1i${t}iq1pc4pt1` : "";
+    return `https://lardi-trans.com/log/search/gruz${filter}?currentId=${id}`;
+};
+
 /* ------------------------------------------------------------------ */
 /* Перетворення заявки Lardi → рядок FURA                              */
 /* ------------------------------------------------------------------ */
@@ -201,13 +223,17 @@ function ts(v: unknown): string | null {
     return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-function point(w: Any): { town: string | null; region: string | null; country: string | null } {
+type Pt = { town: string | null; region: string | null; country: string | null; zone: string | null; postcode: string | null };
+const first = (v: Any): string | null => (Array.isArray(v) ? txt(v[0]) : txt(v));
+function point(w: Any): Pt {
     const town = nameOf(w?.town) ?? txt(w?.townName) ?? txt(w?.address);
     const region = nameOf(w?.region) ?? txt(w?.regionName) ?? nameOf(w?.area) ?? txt(w?.areaName);
     const country = txt(w?.countrySign) ?? nameOf(w?.country);
-    return { town, region, country };
+    const postcode = first(w?.postalCodes) ?? txt(w?.postalCode) ?? txt(w?.postcode) ?? txt(w?.zip);
+    const zone = first(w?.postalZones) ?? txt(w?.postalZone) ?? (postcode ? postcode.replace(/\D/g, "").slice(0, 2) || null : null);
+    return { town, region, country, zone, postcode };
 }
-const pointText = (p: { town: string | null; region: string | null; country: string | null }) =>
+const pointText = (p: Pt) =>
     [p.town, p.region ? `(${p.region})` : null].filter(Boolean).join(" ") || p.country || "";
 
 const CUR: Record<string, string> = { "€": "EUR", EUR: "EUR", "$": "USD", USD: "USD", "ГРН": "UAH", UAH: "UAH", PLN: "PLN", "ZŁ": "PLN" };
@@ -232,6 +258,8 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
     const mass = num(size.massTo ?? size.massFrom ?? size.mass ?? p.gruzMass);
     const volume = num(size.volumeTo ?? size.volumeFrom ?? size.volume ?? p.gruzVolume);
 
+    // «1 €», «10 €» — заглушки замість ціни: такі заявки не беремо
+    if (perKm ? value < 0.3 : !perT && value < 50) return null;
     const price = perKm ? (distance ? Math.round(value * distance) : null) : perT ? null : value;
     const pricePerKm = perKm ? value : price && distance ? Math.round((price / distance) * 100) / 100 : null;
 
@@ -254,6 +282,10 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
         to_town: dst[0]?.town ?? null,
         to_region: dst[0]?.region ?? dst[0]?.town ?? null,
         to_points: dst.map(pointText).join("; ") || null,
+        from_zone: src[0]?.zone ?? null,
+        from_postcode: src[0]?.postcode ?? null,
+        to_zone: dst[0]?.zone ?? null,
+        to_postcode: dst[0]?.postcode ?? null,
         date_from: day(p.dateFrom),
         date_to: day(p.dateTo),
         distance_km: distance,
@@ -278,7 +310,7 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
         owner_phone: phone,
         owner_type: ownerType,
         owner_rating: rating,
-        raw: p,
+        raw: { ...p, _lardi_url: lardiUrl(p.id, from, to) },
     };
 }
 
@@ -297,13 +329,20 @@ async function run(trigger: string, by: string) {
     const runId = runRow?.id;
     const now = new Date().toISOString();
 
-    const { data: dirs } = await db.from("lardi_directions").select("*").eq("active", true).order("id");
+    // Найдавніше оновлені — першими; один запуск працює до ~4 хв, решта — наступного разу
+    await loadCountryIds();
+    const { data: dirs } = await db.from("lardi_directions").select("*").eq("active", true)
+        .order("last_run_at", { ascending: true, nullsFirst: true }).order("id");
+    const t0 = Date.now();
+    const BUDGET_MS = 240000;
+    let skipped = 0;
     const perDir: Any[] = [];
     let found = 0, saved = 0;
     let error: string | null = null;
 
     const errors: string[] = [];
     for (const d of dirs || []) {
+        if (Date.now() - t0 > BUDGET_MS) { skipped++; continue; }
         const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
         try {
             const all = await searchAll(from, to);
@@ -327,6 +366,7 @@ async function run(trigger: string, by: string) {
             }
             saved += uniq.length;
             perDir.push({ direction: `${from} → ${to}`, received: all.length, priced: uniq.length, shippers: shippers.size, carriers: carriers.size });
+            await db.from("lardi_directions").update({ last_run_at: new Date().toISOString(), last_found: uniq.length }).eq("id", d.id);
         } catch (e) {
             const msg = String((e as Error)?.message || e).slice(0, 300);
             console.error("fura-lardi:", from, to, msg);
@@ -341,10 +381,10 @@ async function run(trigger: string, by: string) {
     if (runId) {
         await db.from("lardi_runs").update({
             finished_at: new Date().toISOString(), found, saved, requests: requestCount, error,
-            details: { directions: perDir, page_size: PAGE_SIZE, max_pages: MAX_PAGES },
+            details: { directions: perDir, page_size: PAGE_SIZE, max_pages: MAX_PAGES, left_for_next_run: skipped },
         }).eq("id", runId);
     }
-    return { ok: !error, error, found, saved, requests: requestCount, directions: perDir };
+    return { ok: !error, error, found, saved, requests: requestCount, directions: perDir, left: skipped };
 }
 
 /* Напрямки: додати / вимкнути / видалити (лише керівник) */
