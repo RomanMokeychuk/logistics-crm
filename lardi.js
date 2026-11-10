@@ -321,7 +321,7 @@ const LD = (() => {
     async function load() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
-        const cols = "id,lardi_url:raw->>_lardi_url,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
+        const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating";
         const out = [];
         for (let from = 0; from < 20000; from += 1000) {
             const { data, error } = await sbClient.from("lardi_cargo").select(cols).gte("seen_last", since.toISOString()).order("seen_last", { ascending: false }).range(from, from + 999);
@@ -340,6 +340,7 @@ const LD = (() => {
             }
         }
         ROWS = out;
+        renderSync();
         fillPlaces();
         const bodies = new Set();
         ROWS.forEach((r) => String(r.body_types || "").split(",").forEach((b) => b.trim() && bodies.add(b.trim().toLowerCase())));
@@ -361,6 +362,24 @@ const LD = (() => {
         set("to");
     }
 
+    // Рядок стану: коли оновлено, скільки напрямків пройдено сьогодні, скільки заявок і скільки нових
+    let LAST_RUN = null;
+    function renderSync() {
+        const el = $("#ldSync");
+        if (!el) return;
+        const active = DIRS.filter((d) => d.active);
+        const times = active.map((d) => d.last_run_at).filter(Boolean).sort();
+        if (!times.length && !LAST_RUN) { el.textContent = "Ще не оновлювалось"; return; }
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const done = active.filter((d) => d.last_run_at && new Date(d.last_run_at) >= today);
+        const loads = done.reduce((s, d) => s + (d.last_found || 0), 0);
+        const fresh = ROWS.filter((r) => r.seen_first && new Date(r.seen_first) >= today).length;
+        const last = new Date(times[times.length - 1] || LAST_RUN.finished_at || LAST_RUN.started_at);
+        const t = last.toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+        el.innerHTML = `Оновлено <b>${esc(t)}</b> · напрямків сьогодні <b>${fmt(done.length)} з ${fmt(active.length)}</b> · заявок з ціною <b>${fmt(loads)}</b> · нових сьогодні <b>${fmt(fresh)}</b>`;
+        el.title = done.length < active.length ? `Ще не оновлені сьогодні напрямків: ${active.length - done.length} — натисніть «Оновити зараз»` : "Усі напрямки оновлені сьогодні";
+    }
+
     async function loadMeta() {
         const [{ data: dirs }, { data: runs }] = await Promise.all([
             sbClient.from("lardi_directions").select("*").order("id"),
@@ -368,12 +387,8 @@ const LD = (() => {
         ]);
         DIRS = dirs || [];
         const r = runs?.[0];
-        if (!r) {
-            $("#ldSync").textContent = "Ще не оновлювалось";
-        } else {
-            const t = new Date(r.finished_at || r.started_at);
-            $("#ldSync").innerHTML = `Оновлено ${esc(t.toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))} · знайдено ${fmt(r.found)}`;
-        }
+        LAST_RUN = r || null;
+        renderSync();
         const alert = $("#ldAlert");
         if (r?.error) {
             alert.textContent = "Останнє оновлення з помилкою: " + r.error;
