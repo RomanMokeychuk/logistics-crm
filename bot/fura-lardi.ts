@@ -381,6 +381,13 @@ async function run(trigger: string, by: string) {
             const msg = String((e as Error)?.message || e).slice(0, 300);
             console.error("fura-lardi:", from, to, msg);
             perDir.push({ direction: `${from} → ${to}`, error: msg });
+            // країни, якої Lardi не знає (напр. XK — Косово): вимикаємо напрямок і не вважаємо це помилкою
+            const known = Object.keys(COUNTRY_IDS).length > 4;
+            if (e instanceof LardiError && e.status === 406 && known && (!COUNTRY_IDS[from] || !COUNTRY_IDS[to])) {
+                await db.from("lardi_directions").update({ active: false, last_run_at: new Date().toISOString(), last_found: 0 }).eq("id", d.id);
+                perDir[perDir.length - 1].error = "Lardi не знає цю країну — напрямок вимкнено";
+                continue;
+            }
             // ключ / пакет — далі немає сенсу; інші помилки — пробуємо наступні напрямки
             if (e instanceof LardiError && (e.status === 401 || e.status === 403)) { errors.push(msg); break; }
             errors.push(`${from} → ${to}: ${msg}`);
