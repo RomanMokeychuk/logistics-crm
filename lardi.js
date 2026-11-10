@@ -394,13 +394,13 @@ const LD = (() => {
         return data;
     }
 
-    // Одне натискання проходить усі напрямки: функція бере порцію (до ~4 хв), повторюємо, поки є залишок
+    // Одне натискання проходить усі напрямки: функція бере порцію (до ~100 с), повторюємо, поки є залишок
     async function runNow() {
         const btn = $("#ldRunBtn");
         const a = $("#ldAlert");
         const info = (t) => { a.textContent = t; a.classList.add("ld-info"); a.classList.remove("hidden"); };
         btn.disabled = true;
-        let round = 0, found = 0, done = 0, left = null;
+        let round = 0, found = 0, done = 0, left = null, fails = 0;
         try {
             do {
                 round++;
@@ -408,13 +408,25 @@ const LD = (() => {
                 info(left == null
                     ? "Оновлення почалося. Напрямків багато, тож Lardi віддає їх порціями — це може тривати 10–20 хвилин. Сторінку можна не закривати й працювати далі."
                     : `Оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною. Лишилось ${left} — продовжую…`);
-                const res = await call({ action: "run" });
+                let res;
+                try {
+                    res = await call({ action: "run" });
+                    fails = 0;
+                } catch (e) {
+                    // обрив за часом або попередня порція ще дописується — чекаємо й продовжуємо
+                    const m = String(e.message || "");
+                    if (!(/не відповів|вже йде/.test(m)) || ++fails > 4) throw e;
+                    info(`Lardi відповідає повільно — чекаю 20 секунд і продовжую… (оновлено ${done} напрямків)`);
+                    await new Promise((r) => setTimeout(r, 20000));
+                    left = left ?? 1;
+                    continue;
+                }
                 if (res?.error && !(res.directions || []).length) throw new Error(res.error);
                 found += res?.found || 0;
                 done += (res?.directions || []).length;
                 left = res?.left || 0;
                 await load();
-            } while (left > 0 && round < 12);
+            } while (left > 0 && round < 40);
             await loadMeta();
             info(`Готово: оновлено ${done} напрямків, знайдено ${fmt(found)} заявок з ціною.`);
         } catch (e) {

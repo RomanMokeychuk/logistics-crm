@@ -326,19 +326,20 @@ async function run(trigger: string, by: string) {
     if (!KEY) return { ok: false, error: "Не задано LARDI_API_KEY у секретах функції" };
     // не запускаємо друге оновлення, поки йде перше (інакше Lardi відповідає «забагато запитів»)
     const { data: running } = await db.from("lardi_runs").select("id, started_at").is("finished_at", null)
-        .gte("started_at", new Date(Date.now() - 6 * 60000).toISOString()).limit(1);
+        .gte("started_at", new Date(Date.now() - 160000).toISOString()).limit(1);
     if (running?.length) return { ok: false, error: "Оновлення вже йде — зачекайте кілька хвилин і оновіть сторінку." };
     requestCount = 0;
     const { data: runRow } = await db.from("lardi_runs").insert({ trigger, started_by: by }).select("id").single();
     const runId = runRow?.id;
     const now = new Date().toISOString();
 
-    // Найдавніше оновлені — першими; один запуск працює до ~4 хв, решта — наступного разу
+    // Найдавніше оновлені — першими; один запуск працює до ~100 с, решта — наступного разу
     await loadCountryIds();
     const { data: dirs } = await db.from("lardi_directions").select("*").eq("active", true)
         .order("last_run_at", { ascending: true, nullsFirst: true }).order("id");
     const t0 = Date.now();
-    const BUDGET_MS = 240000;
+    // Supabase обриває функцію через ~150 с — беремо порцію до ~100 с
+    const BUDGET_MS = Number(Deno.env.get("LARDI_BUDGET_MS") || 100000);
     let skipped = 0;
     const perDir: Any[] = [];
     let found = 0, saved = 0;
