@@ -67,7 +67,13 @@
                 { href: "requests.html", icon: "bx-list-ul", label: "Запити" },
                 { href: "deals.html", icon: "bx-file", label: "Угоди" },
                 { href: "echerha.html", svg: "cherga", label: "Черга" },
-                { href: "lardi.html", icon: "bx-line-chart", label: "Ларді" },
+                {
+                    icon: "bx-line-chart", label: "Ларді", key: "lardi",
+                    children: [
+                        { href: "lardi.html", icon: "bx-package", label: "Вантажі" },
+                        { href: "lardi-trucks.html", icon: "bxs-truck", label: "Авто" },
+                    ],
+                },
                 { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
                 { href: "comms.html", icon: "bx-chat", label: "Переписка", only: ["head", "admin"] }, // поки канали не підключено — лише керівнику; потім прибрати only
             ],
@@ -128,6 +134,18 @@
         const groups = MENU.map((g) => {
             const links = g.items
                 .map((it) => {
+                    // Пункт з підпунктами (напр. «Ларді» → «Вантажі», «Авто»): клік розгортає список
+                    if (it.children) {
+                        const child = it.children.find((c) => c.href === page);
+                        if (child) activeLabel = `${it.label} · ${child.label}`;
+                        let open = !!child;
+                        try { open = open || localStorage.getItem("fura_nav_open_" + it.key) === "1"; } catch (e) { /* без пам'яті */ }
+                        const subs = it.children.map((c) =>
+                            `<a href="${c.href}" class="fura-nav-item fura-nav-subitem${c.href === page ? " active" : ""}"><i class="bx ${c.icon}"></i><span>${c.label}</span></a>`).join("");
+                        return `<div class="fura-nav-branch${open ? " open" : ""}${child ? " has-active" : ""}" data-branch="${it.key}">
+                            <a href="#" class="fura-nav-item fura-nav-parent" data-branch-toggle="${it.key}"><i class="bx ${it.icon}"></i><span>${it.label}</span><i class="bx bx-chevron-down fura-nav-caret"></i></a>
+                            <div class="fura-nav-sub">${subs}</div></div>`;
+                    }
                     const active = it.href === page;
                     if (active) activeLabel = it.label;
                     if (it.href === "#shlyah") {
@@ -158,6 +176,12 @@
                 <button type="button" class="fura-logout" title="Вийти"><i class="bx bx-log-out"></i></button>
             </div>`;
 
+        aside.querySelectorAll("[data-branch-toggle]").forEach((a) => a.addEventListener("click", (e) => {
+            e.preventDefault();
+            const br = a.closest(".fura-nav-branch");
+            const open = br.classList.toggle("open");
+            try { localStorage.setItem("fura_nav_open_" + br.dataset.branch, open ? "1" : "0"); } catch (err) { /* без пам'яті */ }
+        }));
         aside.querySelector("[data-shlyah]")?.addEventListener("click", (e) => {
             e.preventDefault();
             if (typeof openShlyahModal === "function") openShlyahModal();

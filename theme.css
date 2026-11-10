@@ -583,3 +583,15 @@ html.fura-embed.fura-cpop .modal {
 .fura-nav-item[hidden] {
     display: none !important;
 }
+
+/* Пункт меню з підпунктами («Ларді» → «Вантажі», «Авто») */
+.fura-nav-parent .fura-nav-caret { margin-left: auto; font-size: 18px; transition: transform 0.15s ease; }
+.fura-nav-branch.open .fura-nav-caret { transform: rotate(180deg); }
+.fura-nav-branch.has-active > .fura-nav-parent { color: #fff; }
+.fura-nav-branch.has-active > .fura-nav-parent i { color: #ffb366; }
+.fura-nav-sub { display: none; margin: 0 0 4px 18px; padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, 0.14); }
+.fura-nav-branch.open .fura-nav-sub { display: block; }
+.fura-nav-subitem { padding: 8px 12px; font-size: 14px; }
+.fura-nav-subitem i { font-size: 18px; }
+body.sidebar-collapsed .fura-nav-sub { margin-left: 0; padding-left: 0; border-left: 0; }
+body.sidebar-collapsed .fura-nav-caret { display: none; }

@@ -103,11 +103,33 @@ async function basicKeyWorks(): Promise<boolean> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function searchPage(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
+// Вантажі — /proposals/search/cargo; машини — шлях визначаємо при першому запиті (Lardi називає їх по-різному)
+type Kind = "cargo" | "truck";
+const TRUCK_PATHS = ["lorry", "truck", "transport", "trans"];
+let truckPath = "";
+async function searchPage(from: string, to: string, page: number, extra: Any, kind: Kind = "cargo"): Promise<{ items: Any[]; pages: number }> {
+    if (kind === "truck" && !truckPath) {
+        let last: unknown = null;
+        for (const path of TRUCK_PATHS) {
+            try {
+                const r = await searchPageRetry(from, to, page, extra, path);
+                truckPath = path;
+                return r;
+            } catch (e) {
+                last = e;
+                if (!(e instanceof LardiError) || (e.status !== 404 && e.status !== 405)) throw e;
+            }
+        }
+        throw last instanceof Error ? last : new Error("Lardi: пошук машин недоступний");
+    }
+    return await searchPageRetry(from, to, page, extra, kind === "truck" ? truckPath : "cargo");
+}
+
+async function searchPageRetry(from: string, to: string, page: number, extra: Any, path: string): Promise<{ items: Any[]; pages: number }> {
     // Lardi обмежує частоту запитів: на 429 чекаємо й пробуємо ще (5 с, 15 с, 30 с)
     for (const wait of [5000, 15000, 30000, 0]) {
         try {
-            return await searchPageOnce(from, to, page, extra);
+            return await searchPageOnce(from, to, page, extra, path);
         } catch (e) {
             if (!(e instanceof LardiError) || e.status !== 429 || !wait) throw e;
             await sleep(wait);
@@ -116,7 +138,7 @@ async function searchPage(from: string, to: string, page: number, extra: Any): P
     throw new LardiError(429, "Lardi просить зачекати");
 }
 
-async function searchPageOnce(from: string, to: string, page: number, extra: Any): Promise<{ items: Any[]; pages: number }> {
+async function searchPageOnce(from: string, to: string, page: number, extra: Any, path = "cargo"): Promise<{ items: Any[]; pages: number }> {
     requestCount++;
     const body = {
         filter: {
@@ -127,7 +149,7 @@ async function searchPageOnce(from: string, to: string, page: number, extra: Any
         },
         options: { pageNumber: page, pageSize: PAGE_SIZE },
     };
-    const res = await fetch(`${API}/proposals/search/cargo?language=uk`, {
+    const res = await fetch(`${API}/proposals/search/${path}?language=uk`, {
         method: "POST",
         headers: { Authorization: KEY, "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(body),
@@ -157,11 +179,11 @@ async function searchPageOnce(from: string, to: string, page: number, extra: Any
     return { items, pages: Number(pag.pages ?? pag.totalPages ?? 0) || 0 };
 }
 
-async function searchAll(from: string, to: string, extra: Any = {}, maxPages = MAX_PAGES): Promise<Any[]> {
+async function searchAll(from: string, to: string, extra: Any = {}, maxPages = MAX_PAGES, kind: Kind = "cargo"): Promise<Any[]> {
     const out: Any[] = [];
     for (let p = 1; p <= maxPages; p++) {
         if (requestCount) await sleep(1500); // м'яко, без шквалу запитів
-        const { items, pages } = await searchPage(from, to, p, extra);
+        const { items, pages } = await searchPage(from, to, p, extra, kind);
         out.push(...items);
         if (!items.length || items.length < PAGE_SIZE || (pages && p >= pages)) break;
     }
@@ -186,11 +208,11 @@ async function loadCountryIds() {
 }
 // Пошук Lardi в адресі: «wf» — звідки, «wt» — куди; «5i<id>» — місто, «1i<id>» — країна.
 // Місто → місто звужує пошук, тож заявка завжди на першій сторінці й картка не закривається.
-const lardiUrl = (id: unknown, from: string, to: string, fromTown: number | null, toTown: number | null) => {
+const lardiUrl = (id: unknown, from: string, to: string, fromTown: number | null, toTown: number | null, kind: Kind = "cargo") => {
     const part = (town: number | null, cc: string) => (town ? `5i${town}` : COUNTRY_IDS[cc] ? `1i${COUNTRY_IDS[cc]}` : "");
     const f = part(fromTown, from), t = part(toTown, to);
     const filter = f && t ? `/wf${f}iwt${t}iq1pc4pt1` : "";
-    return `https://lardi-trans.com/log/search/gruz${filter}?currentId=${id}`;
+    return `https://lardi-trans.com/log/search/${kind === "truck" ? "trans" : "gruz"}${filter}?currentId=${id}`;
 };
 
 /* ------------------------------------------------------------------ */
@@ -242,10 +264,13 @@ const pointText = (p: Pt) =>
 
 const CUR: Record<string, string> = { "€": "EUR", EUR: "EUR", "$": "USD", USD: "USD", "ГРН": "UAH", UAH: "UAH", PLN: "PLN", "ZŁ": "PLN" };
 
-function toRow(p: Any, from: string, to: string, ownerType: string, now: string): Any | null {
+function toRow(p: Any, from: string, to: string, ownerType: string, now: string, kind: Kind = "cargo"): Any | null {
     const pay = p.payment || {};
-    const value = num(pay.value ?? p.paymentValue);
-    if (!value || value <= 0) return null; // лише з ціною
+    let value = num(pay.value ?? p.paymentValue);
+    if (!value || value <= 0) {
+        if (kind === "cargo") return null; // вантажі — лише з ціною; машини беремо всі
+        value = null;
+    }
 
     const unitRaw = String(nameOf(pay.unit) ?? "").toLowerCase();
     const perKm = /км|km/.test(unitRaw);
@@ -263,9 +288,12 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
     const volume = num(size.volumeTo ?? size.volumeFrom ?? size.volume ?? p.gruzVolume);
 
     // «1 €», «10 €» — заглушки замість ціни: такі заявки не беремо
-    if (perKm ? value < 0.3 : !perT && value < 50) return null;
-    const price = perKm ? (distance ? Math.round(value * distance) : null) : perT ? null : value;
-    const pricePerKm = perKm ? value : price && distance ? Math.round((price / distance) * 100) / 100 : null;
+    if (value != null && (perKm ? value < 0.3 : !perT && value < 50)) {
+        if (kind === "cargo") return null;
+        value = null; // машина з «ціною-заглушкою» — показуємо без ціни
+    }
+    const price = value == null ? null : perKm ? (distance ? Math.round(value * distance) : null) : perT ? null : value;
+    const pricePerKm = value == null ? null : perKm ? value : price && distance ? Math.round((price / distance) * 100) / 100 : null;
 
     const owner = p.owner || p.proposalUser || {};
     const phones = owner.phones || owner.contact?.phones || [];
@@ -314,22 +342,150 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
         owner_phone: phone,
         owner_type: ownerType,
         owner_rating: rating,
-        raw: { ...p, _lardi_url: lardiUrl(p.id, from, to, src[0]?.townId ?? null, dst[0]?.townId ?? null) },
+        raw: { ...p, _lardi_url: lardiUrl(p.id, from, to, src[0]?.townId ?? null, dst[0]?.townId ?? null, kind) },
     };
+}
+
+
+/* ------------------------------------------------------------------ */
+/* «Авто»: перевізники з Lardi ↔ «Перевізники» FURA                    */
+/* ------------------------------------------------------------------ */
+// Збіг — за телефоном (останні 9 цифр) або за назвою без «ФОП/ТОВ/ПП» і лапок.
+// Знайденому перевізнику дописуємо в картку напрямок: країну (з областю/воєводством)
+// у «Закордон» і область України у «Напрямки в Україні». Нових перевізників не додаємо.
+
+// Назви країн — як у списку «Закордон» картки перевізника
+const CARRIER_COUNTRY: Record<string, string> = {
+    PL: "ПОЛЬША", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", ES: "ІСПАНІЯ", IT: "ІТАЛІЯ", RO: "РУМУНІЯ",
+    CZ: "ЧЕХІЯ", AT: "АВСТРІЯ", AZ: "АЗЕРБАЙДЖАН", AM: "ВІРМЕНІЯ", BE: "БЕЛЬГІЯ", BG: "БОЛГАРІЯ",
+    GB: "ВЕЛИКОБРИТАНІЯ", HU: "УГОРЩИНА", FR: "ФРАНЦІЯ", DK: "ДАНІЯ", MD: "МОЛДОВА", NL: "НІДЕРЛАНДИ",
+    SK: "СЛОВАЧЧИНА", SI: "СЛОВЕНІЯ", TR: "ТУРЕЧЧИНА", GE: "ГРУЗІЯ", FI: "ФІНЛЯНДІЯ", EE: "ЕСТОНІЯ", KZ: "КАЗАХСТАН",
+};
+let regionNames: Intl.DisplayNames | null = null;
+try { regionNames = new Intl.DisplayNames(["uk"], { type: "region" }); } catch { regionNames = null; }
+const carrierCountry = (cc: string) => CARRIER_COUNTRY[cc] || (regionNames?.of(cc) || cc).toLocaleUpperCase("uk");
+
+const digits9 = (v: unknown) => String(v ?? "").replace(/\D/g, "").slice(-9);
+const phonesIn = (v: unknown): string[] =>
+    (String(v ?? "").match(/\+?\d[\d\s()\-]{7,}\d/g) || []).map(digits9).filter((x) => x.length === 9);
+const nameKey = (v: unknown) =>
+    String(v ?? "")
+        .toLocaleUpperCase("uk")
+        .replace(/[«»"“”'’ʼ`]/g, "")
+        .replace(/ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ/g, "ТОВ")
+        .replace(/ПРИВАТНЕ ПІДПРИЄМСТВО/g, "ПП")
+        .replace(/ФІЗИЧНА ОСОБА[- ]+ПІДПРИЄМЕЦЬ/g, "ФОП")
+        .replace(/(^|[\s,.])(ФОП|ТОВ|ПП|ПРАТ|ПАТ|ТЗОВ|LTD|LLC|SP\. Z O\.O\.|SP Z OO)(?=$|[\s,.])/g, " ")
+        .replace(/[.,]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+type Carrier = { id: number; name: string | null; phone_1: string | null; phone_2: string | null; destinations: string | null; ukraine_directions: string | null };
+let CARRIERS: { byPhone: Map<string, Carrier[]>; byName: Map<string, Carrier[]> } | null = null;
+
+async function loadCarriers() {
+    if (CARRIERS) return CARRIERS;
+    const byPhone = new Map<string, Carrier[]>(), byName = new Map<string, Carrier[]>();
+    const add = (m: Map<string, Carrier[]>, k: string, c: Carrier) => { if (!k) return; const a = m.get(k) || []; if (!a.includes(c)) a.push(c); m.set(k, a); };
+    for (let from = 0; from < 100000; from += 1000) {
+        const { data, error } = await db.from("carriers").select("id, name, phone_1, phone_2, destinations, ukraine_directions").order("id").range(from, from + 999);
+        if (error) throw new Error("Перевізники FURA: " + error.message);
+        for (const c of (data || []) as Carrier[]) {
+            for (const ph of [...phonesIn(c.phone_1), ...phonesIn(c.phone_2)]) add(byPhone, ph, c);
+            const k = nameKey(c.name);
+            if (k.length >= 4) add(byName, k, c);
+        }
+        if (!data || data.length < 1000) break;
+    }
+    CARRIERS = { byPhone, byName };
+    return CARRIERS;
+}
+
+// Усі телефони з машини Lardi (власник і контакт)
+function lardiPhones(p: Any): string[] {
+    const o = p.owner || p.proposalUser || {};
+    const raw = JSON.stringify([o.phones, o.contact?.phones, o.contact?.phoneItem1, o.contact?.phoneItem2, o.contact?.phoneItem3, p.contact]);
+    return [...new Set(phonesIn(raw))];
+}
+
+function matchCarrier(p: Any, ownerName: string | null): Carrier | null {
+    if (!CARRIERS) return null;
+    for (const ph of lardiPhones(p)) {
+        const a = CARRIERS.byPhone.get(ph);
+        if (a?.length === 1) return a[0];
+    }
+    const k = nameKey(ownerName);
+    const a = k.length >= 4 ? CARRIERS.byName.get(k) : undefined;
+    return a?.length === 1 ? a[0] : null;
+}
+
+// «ПОЛЬША - Поморське воєв., Мазовецьке воєв.; БЕЛЬГІЯ» ⇄ Map
+function parseDest(s: string | null): Map<string, string[]> {
+    const m = new Map<string, string[]>();
+    for (const item of String(s || "").split(";")) {
+        const i = item.indexOf("-");
+        const c = (i >= 0 ? item.slice(0, i) : item).trim();
+        if (!c) continue;
+        const regs = i >= 0 ? item.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : [];
+        m.set(c, [...new Set([...(m.get(c) || []), ...regs])]);
+    }
+    return m;
+}
+const serDest = (m: Map<string, string[]>) => [...m].map(([c, r]) => (r.length ? `${c} - ${r.join(", ")}` : c)).join("; ");
+
+const uaOblast = (region: string | null, town: string | null): string | null => {
+    const r = String(region || "").trim();
+    if (/^м\.?\s*київ$/i.test(r) || (!r && /^київ$/i.test(String(town || "")))) return "М. КИЇВ";
+    if (!/обл\.?$/i.test(r)) return null;
+    return r.replace(/\s*обл\.?$/i, "").toLocaleUpperCase("uk") + " ОБЛ.";
+};
+
+// Дописати перевізнику напрямок машини; повертає true, якщо картку змінено
+function addRoute(c: Carrier, row: Any): boolean {
+    const imp = row.to_country === "UA" && row.from_country !== "UA";
+    const exp = row.from_country === "UA" && row.to_country !== "UA";
+    if (!imp && !exp) return false;
+    const foreignCc = imp ? row.from_country : row.to_country;
+    const foreignRegion = imp ? row.from_region : row.to_region;
+    const ua = imp ? uaOblast(row.to_region, row.to_town) : uaOblast(row.from_region, row.from_town);
+
+    const dest = parseDest(c.destinations);
+    const country = carrierCountry(foreignCc);
+    const regs = dest.get(country) || [];
+    const reg = foreignRegion ? String(foreignRegion).trim() : "";
+    const nextRegs = reg && !regs.some((x) => x.toLowerCase() === reg.toLowerCase()) ? [...regs, reg] : regs;
+    let changed = false;
+    if (!dest.has(country) || nextRegs.length !== regs.length) {
+        dest.set(country, nextRegs);
+        c.destinations = serDest(dest);
+        changed = true;
+    }
+    if (ua) {
+        const list = String(c.ukraine_directions || "").split(";").map((x) => x.trim()).filter(Boolean);
+        if (!list.includes(ua)) {
+            c.ukraine_directions = [...list, ua].join("; ");
+            changed = true;
+        }
+    }
+    return changed;
 }
 
 /* ------------------------------------------------------------------ */
 /* Запуск                                                              */
 /* ------------------------------------------------------------------ */
 
-async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
+async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind: Kind = "cargo") {
+    const TRUCK = kind === "truck";
+    const TABLE = TRUCK ? "lardi_trucks" : "lardi_cargo";
+    const LAST = TRUCK ? "truck_last_run_at" : "last_run_at", FOUND = TRUCK ? "truck_last_found" : "last_found";
     if (!KEY) return { ok: false, error: "Не задано LARDI_API_KEY у секретах функції" };
     // не запускаємо друге оновлення, поки йде перше (інакше Lardi відповідає «забагато запитів»)
     const { data: running } = await db.from("lardi_runs").select("id, started_at").is("finished_at", null)
         .gte("started_at", new Date(Date.now() - 160000).toISOString()).limit(1);
     if (running?.length) return { ok: false, error: "Оновлення вже йде — зачекайте кілька хвилин і оновіть сторінку." };
     requestCount = 0;
-    const { data: runRow } = await db.from("lardi_runs").insert({ trigger, started_by: by }).select("id").single();
+    let { data: runRow } = await db.from("lardi_runs").insert({ trigger, started_by: by, kind }).select("id").single();
+    if (!runRow) ({ data: runRow } = await db.from("lardi_runs").insert({ trigger, started_by: by }).select("id").single()); // ще без колонки kind
     const runId = runRow?.id;
     const now = new Date().toISOString();
 
@@ -340,7 +496,7 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
     if (onlyFrom) dq = dq.eq("from_country", onlyFrom);
     if (onlyTo) dq = dq.eq("to_country", onlyTo);
     const { data: dirs } = await dq
-        .order("last_run_at", { ascending: true, nullsFirst: true }).order("id");
+        .order(LAST, { ascending: true, nullsFirst: true }).order("id");
     if (!(dirs || []).length) {
         if (runId) await db.from("lardi_runs").update({ finished_at: new Date().toISOString(), found: 0, saved: 0, requests: requestCount }).eq("id", runId);
         return { ok: false, error: `Напрямку ${onlyFrom || "усі"} → ${onlyTo || "усі"} немає в списку — додайте його в «Напрямки»`, found: 0, saved: 0, requests: requestCount, directions: [], left: 0 };
@@ -354,37 +510,58 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
     let error: string | null = null;
 
     const errors: string[] = [];
+    let linked = 0, cardsUpdated = 0;
+    const touched = new Map<number, Carrier>();
+    if (TRUCK) {
+        try { await loadCarriers(); } catch (e) { errors.push(String((e as Error).message || e)); }
+    }
     for (const d of dirs || []) {
         if (Date.now() - t0 > BUDGET_MS) { skipped++; continue; }
         const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
         try {
-            const all = await searchAll(from, to);
+            const all = await searchAll(from, to, {}, MAX_PAGES, kind);
             if (!all.length) {
                 perDir.push({ direction: `${from} → ${to}`, received: 0, priced: 0 });
-                await db.from("lardi_directions").update({ last_run_at: new Date().toISOString(), last_found: 0 }).eq("id", d.id);
+                await db.from("lardi_directions").update({ [LAST]: new Date().toISOString(), [FOUND]: 0 }).eq("id", d.id);
                 continue;
             }
-            // хто розмістив: окремі запити з фільтрами Lardi
-            const shippers = new Set((await searchAll(from, to, { onlyShippers: true }, 1)).map((x) => String(x.id)));
-            const carriers = new Set((await searchAll(from, to, { onlyCarrier: true }, 1)).map((x) => String(x.id)));
+            // хто розмістив вантаж: окремі запити з фільтрами Lardi (для машин — не потрібно)
+            const shippers = TRUCK ? new Set<string>() : new Set((await searchAll(from, to, { onlyShippers: true }, 1)).map((x) => String(x.id)));
+            const carriers = TRUCK ? new Set<string>() : new Set((await searchAll(from, to, { onlyCarrier: true }, 1)).map((x) => String(x.id)));
 
             const rows = all
                 .map((p) => {
                     const id = String(p.id);
-                    const type = shippers.has(id) ? "Вантажовласник" : carriers.has(id) ? "Перевізник" : "Експедиція / інші";
-                    return toRow(p, from, to, type, now);
+                    const type = TRUCK ? "Перевізник" : shippers.has(id) ? "Вантажовласник" : carriers.has(id) ? "Перевізник" : "Експедиція / інші";
+                    const row = toRow(p, from, to, type, now, kind);
+                    if (row && TRUCK) {
+                        const c = matchCarrier(p, row.owner_name);
+                        row.carrier_id = c?.id ?? null;
+                        if (c) {
+                            linked++;
+                            if (addRoute(c, row)) touched.set(c.id, c);
+                        }
+                    }
+                    return row;
                 })
                 .filter(Boolean);
             const uniq = [...new Map(rows.map((r: Any) => [r.id, r])).values()];
             found += uniq.length;
 
             for (let i = 0; i < uniq.length; i += 200) {
-                const { error: e } = await db.from("lardi_cargo").upsert(uniq.slice(i, i + 200), { onConflict: "id" });
+                const { error: e } = await db.from(TABLE).upsert(uniq.slice(i, i + 200), { onConflict: "id" });
                 if (e) throw new Error("База: " + e.message);
             }
             saved += uniq.length;
             perDir.push({ direction: `${from} → ${to}`, received: all.length, priced: uniq.length, shippers: shippers.size, carriers: carriers.size });
-            await db.from("lardi_directions").update({ last_run_at: new Date().toISOString(), last_found: uniq.length }).eq("id", d.id);
+            await db.from("lardi_directions").update({ [LAST]: new Date().toISOString(), [FOUND]: uniq.length }).eq("id", d.id);
+            // картки перевізників FURA: дописуємо нові напрямки одразу (якщо функцію оборве — вже збережено)
+            for (const c of touched.values()) {
+                const { error: e } = await db.from("carriers").update({ destinations: c.destinations, ukraine_directions: c.ukraine_directions }).eq("id", c.id);
+                if (e) errors.push("Картка перевізника: " + e.message);
+                else cardsUpdated++;
+            }
+            touched.clear();
         } catch (e) {
             const msg = String((e as Error)?.message || e).slice(0, 300);
             console.error("fura-lardi:", from, to, msg);
@@ -392,7 +569,7 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
             // країни, якої Lardi не знає (напр. XK — Косово): вимикаємо напрямок і не вважаємо це помилкою
             const known = Object.keys(COUNTRY_IDS).length > 4;
             if (e instanceof LardiError && e.status === 406 && known && (!COUNTRY_IDS[from] || !COUNTRY_IDS[to])) {
-                await db.from("lardi_directions").update({ active: false, last_run_at: new Date().toISOString(), last_found: 0 }).eq("id", d.id);
+                await db.from("lardi_directions").update({ active: false, [LAST]: new Date().toISOString(), [FOUND]: 0 }).eq("id", d.id);
                 perDir[perDir.length - 1].error = "Lardi не знає цю країну — напрямок вимкнено";
                 continue;
             }
@@ -406,10 +583,10 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "") {
     if (runId) {
         await db.from("lardi_runs").update({
             finished_at: new Date().toISOString(), found, saved, requests: requestCount, error,
-            details: { directions: perDir, page_size: PAGE_SIZE, max_pages: MAX_PAGES, left_for_next_run: skipped },
+            details: { kind, truck_path: truckPath || null, linked, cards_updated: cardsUpdated, directions: perDir, page_size: PAGE_SIZE, max_pages: MAX_PAGES, left_for_next_run: skipped },
         }).eq("id", runId);
     }
-    return { ok: !error, error, found, saved, requests: requestCount, directions: perDir, left: skipped };
+    return { ok: !error, error, found, saved, linked, cardsUpdated, requests: requestCount, directions: perDir, left: skipped };
 }
 
 /* Напрямки: додати / вимкнути / видалити (лише керівник) */
@@ -451,7 +628,8 @@ Deno.serve(async (req) => {
             case "run":
             {
                 const cc = (v: unknown) => String(v || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
-                return json(200, await run("manual", me.full_name || me.email || "співробітник", cc(body.from), cc(body.to)));
+                const kind: Kind = body.kind === "truck" ? "truck" : "cargo";
+                return json(200, await run("manual", me.full_name || me.email || "співробітник", cc(body.from), cc(body.to), kind));
             }
             case "directions": {
                 if (!isBoss(me)) return json(403, { error: "Напрямки змінює лише керівник" });
