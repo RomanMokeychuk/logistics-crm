@@ -184,9 +184,12 @@ async function loadCountryIds() {
         }
     } catch { /* лишаються відомі коди */ }
 }
-const lardiUrl = (id: unknown, from: string, to: string) => {
-    const f = COUNTRY_IDS[from], t = COUNTRY_IDS[to];
-    const filter = f && t ? `/wf1i${f}iwt1i${t}iq1pc4pt1` : "";
+// Пошук Lardi в адресі: «wf» — звідки, «wt» — куди; «5i<id>» — місто, «1i<id>» — країна.
+// Місто → місто звужує пошук, тож заявка завжди на першій сторінці й картка не закривається.
+const lardiUrl = (id: unknown, from: string, to: string, fromTown: number | null, toTown: number | null) => {
+    const part = (town: number | null, cc: string) => (town ? `5i${town}` : COUNTRY_IDS[cc] ? `1i${COUNTRY_IDS[cc]}` : "");
+    const f = part(fromTown, from), t = part(toTown, to);
+    const filter = f && t ? `/wf${f}iwt${t}iq1pc4pt1` : "";
     return `https://lardi-trans.com/log/search/gruz${filter}?currentId=${id}`;
 };
 
@@ -223,7 +226,7 @@ function ts(v: unknown): string | null {
     return isNaN(d.getTime()) ? null : d.toISOString();
 }
 
-type Pt = { town: string | null; region: string | null; country: string | null; zone: string | null; postcode: string | null };
+type Pt = { town: string | null; region: string | null; country: string | null; zone: string | null; postcode: string | null; townId: number | null };
 const first = (v: Any): string | null => (Array.isArray(v) ? txt(v[0]) : txt(v));
 function point(w: Any): Pt {
     const town = nameOf(w?.town) ?? txt(w?.townName) ?? txt(w?.address);
@@ -231,7 +234,8 @@ function point(w: Any): Pt {
     const country = txt(w?.countrySign) ?? nameOf(w?.country);
     const postcode = first(w?.postalCodes) ?? txt(w?.postalCode) ?? txt(w?.postcode) ?? txt(w?.zip);
     const zone = first(w?.postalZones) ?? txt(w?.postalZone) ?? (postcode ? postcode.replace(/\D/g, "").slice(0, 2) || null : null);
-    return { town, region, country, zone, postcode };
+    const townId = Number(w?.townId ?? w?.town?.id ?? 0) || null;
+    return { town, region, country, zone, postcode, townId };
 }
 const pointText = (p: Pt) =>
     [p.town, p.region ? `(${p.region})` : null].filter(Boolean).join(" ") || p.country || "";
@@ -310,7 +314,7 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string)
         owner_phone: phone,
         owner_type: ownerType,
         owner_rating: rating,
-        raw: { ...p, _lardi_url: lardiUrl(p.id, from, to) },
+        raw: { ...p, _lardi_url: lardiUrl(p.id, from, to, src[0]?.townId ?? null, dst[0]?.townId ?? null) },
     };
 }
 
