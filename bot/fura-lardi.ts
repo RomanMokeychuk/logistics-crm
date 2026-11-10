@@ -173,9 +173,10 @@ async function searchAll(from: string, to: string, extra: Any = {}, maxPages = M
 /* ------------------------------------------------------------------ */
 
 const ZW = /[​-‏⁠﻿]/g; // невидимі мітки в текстах
+const ENT: Record<string, string> = { "&quot;": '"', "&amp;": "&", "&#039;": "'", "&#39;": "'", "&apos;": "'", "&lt;": "<", "&gt;": ">", "&nbsp;": " " };
 const txt = (v: unknown, max = 500): string | null => {
     if (v === null || v === undefined) return null;
-    const s = String(v).replace(ZW, "").trim();
+    const s = String(v).replace(ZW, "").replace(/&(quot|amp|#0?39|apos|lt|gt|nbsp);/g, (m) => ENT[m] ?? m).trim();
     return s ? s.slice(0, max) : null;
 };
 const nameOf = (v: Any): string | null => (v && typeof v === "object" ? txt(v.name ?? v.value ?? v.title) : txt(v));
