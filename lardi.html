@@ -12,11 +12,11 @@
         <link rel="icon" href="favicon.ico?v=2" sizes="any" />
         <link rel="icon" href="logo.svg?v=2" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-        <link rel="stylesheet" href="style.css?v=202611101240" />
+        <link rel="stylesheet" href="style.css?v=202611101300" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611101240" />
-        <link rel="stylesheet" href="lardi.css?v=202611101240" />
-        <link rel="stylesheet" href="design.css?v=202611101240" />
+        <link rel="stylesheet" href="theme.css?v=202611101300" />
+        <link rel="stylesheet" href="lardi.css?v=202611101300" />
+        <link rel="stylesheet" href="design.css?v=202611101300" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -62,7 +62,23 @@
                         <option value="7">За тиждень</option>
                         <option value="30">За місяць</option>
                     </select>
-                    <select id="ldDir" class="ld-sel" title="Напрямок пошуку"><option value="">Усі напрямки</option></select>
+                    <select id="ldFlow" class="ld-sel" title="Імпорт чи експорт">
+                        <option value="">Імпорт і експорт</option>
+                        <option value="import">Імпорт → UA</option>
+                        <option value="export">Експорт з UA →</option>
+                    </select>
+                    <span class="ld-grp" title="Звідки: країна, воєводство / область, індекс (квадрат)">
+                        <b>Звідки</b>
+                        <select id="ldFromC" class="ld-sel ld-sel-s"><option value="">країна</option></select>
+                        <select id="ldFromR" class="ld-sel"><option value="">регіон</option></select>
+                        <input id="ldFromZ" class="ld-zip" placeholder="індекс" maxlength="6" />
+                    </span>
+                    <span class="ld-grp" title="Куди: країна, область / воєводство, індекс (квадрат)">
+                        <b>Куди</b>
+                        <select id="ldToC" class="ld-sel ld-sel-s"><option value="">країна</option></select>
+                        <select id="ldToR" class="ld-sel"><option value="">регіон</option></select>
+                        <input id="ldToZ" class="ld-zip" placeholder="індекс" maxlength="6" />
+                    </span>
                     <select id="ldOwner" class="ld-sel" title="Хто розмістив заявку">
                         <option value="">Усі, хто виставляє</option>
                         <option>Вантажовласник</option>
@@ -115,14 +131,14 @@
                     <input id="ldDirTo" maxlength="2" placeholder="UA" />
                     <button type="button" class="ld-btn ld-btn-main" id="ldDirAdd">Додати</button>
                 </div>
-                <p class="ld-muted ld-sm">Коди країн латиницею, як на Lardi: PL, DE, CZ, RO, TR, UA… Кожен напрямок — кілька запитів до Lardi при оновленні.</p>
+                <p class="ld-muted ld-sm">Коди країн латиницею, як на Lardi: PL, DE, CZ, RO, TR, UA… Імпорт — «PL → UA», експорт — «UA → PL». Кожне оновлення бере напрямки, які довше не оновлювались, тож багато напрямків оновлюються за кілька запусків.</p>
             </div>
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="lardi.js?v=202611101240"></script>
-        <script src="shell.js?v=202611101240"></script>
-        <script src="notify.js?v=202611101240"></script>
-        <script src="lock.js?v=202611101240"></script>
+        <script src="lardi.js?v=202611101300"></script>
+        <script src="shell.js?v=202611101300"></script>
+        <script src="notify.js?v=202611101300"></script>
+        <script src="lock.js?v=202611101300"></script>
     </body>
 </html>
