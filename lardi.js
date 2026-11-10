@@ -401,8 +401,11 @@ const LD = (() => {
         LAST_RUN = r || null;
         renderSync();
         const alert = $("#ldAlert");
-        if (r?.error) {
-            alert.textContent = "Останнє оновлення з помилкою: " + r.error;
+        // помилки по напрямках, які вже вимкнені (напр. XK — Косово), більше не показуємо
+        const off = new Set(DIRS.filter((d) => !d.active).map((d) => `${d.from_country} → ${d.to_country}`));
+        const errText = String(r?.error || "").split(" | ").filter((x) => x && !off.has(x.split(":")[0].trim())).join(" | ");
+        if (errText) {
+            alert.textContent = "Останнє оновлення з помилкою: " + errText;
             alert.classList.remove("hidden", "ld-info");
         } else alert.classList.add("hidden");
         renderDirs();
