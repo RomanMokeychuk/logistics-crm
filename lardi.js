@@ -88,6 +88,8 @@ const LD = (() => {
         document.querySelectorAll("#ldForm [data-f]").forEach((el) => { el.value = st[el.dataset.f] ?? ""; });
         document.querySelectorAll("#ldOwners [data-owner]").forEach((b) => b.classList.toggle("on", st.owners.includes(b.dataset.owner)));
         document.querySelectorAll(".ld-seg [data-unit]").forEach((b) => b.classList.toggle("on", b.dataset.unit === st.unit));
+        const flow = st.toC === "UA" && st.fromC !== "UA" ? "import" : st.fromC === "UA" && st.toC !== "UA" ? "export" : "";
+        document.querySelectorAll(".ld-flow [data-flow]").forEach((b) => b.classList.toggle("on", b.dataset.flow === flow));
     }
 
     // «Місто, область, квадрат, індекс»: цифри — квадрат / індекс, текст — місто, область, точки
@@ -335,10 +337,13 @@ const LD = (() => {
         const sorted = (set) => [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, "uk"));
         const set = (side) => {
             const c = st[side + "C"];
-            const countries = sorted(new Set(ROWS.map((r) => r[side + "_country"])));
+            // Усі робочі країни завжди в списку (навіть якщо заявок ще немає) + будь-які інші з даних
+            const countries = sorted(new Set([...Object.keys(CN), ...ROWS.map((r) => r[side + "_country"])]));
+            const have = new Set(ROWS.map((r) => r[side + "_country"]));
             const sel = document.querySelector(`#ldForm [data-f="${side}C"]`);
             countries.sort((a, b) => (a === "UA" ? -1 : b === "UA" ? 1 : (CN[a] || a).localeCompare(CN[b] || b, "uk")));
-            sel.innerHTML = `<option value="">Країна</option>` + countries.map((v) => `<option value="${esc(v)}">${esc(v)} · ${esc(CN[v] || v)}</option>`).join("");
+            sel.innerHTML = `<option value="">Країна — усі</option>` +
+                countries.map((v) => `<option value="${esc(v)}">${esc(v)} · ${esc(CN[v] || v)}${have.has(v) ? "" : " (ще немає заявок)"}</option>`).join("");
             sel.value = c;
             const rows = ROWS.filter((r) => !c || r[side + "_country"] === c);
             const names = sorted(new Set(rows.flatMap((r) => [r[side + "_region"], r[side + "_town"]])));
@@ -462,6 +467,15 @@ const LD = (() => {
             rerender();
         });
         form.querySelectorAll(".ld-seg [data-unit]").forEach((b) => b.addEventListener("click", () => { st.unit = b.dataset.unit; syncForm(); rerender(); }));
+        document.querySelectorAll(".ld-flow [data-flow]").forEach((b) => b.addEventListener("click", () => {
+            const f = b.dataset.flow;
+            if (f === "import") { if (st.fromC === "UA") st.fromC = ""; st.toC = "UA"; }
+            else if (f === "export") { if (st.toC === "UA") st.toC = ""; st.fromC = "UA"; }
+            else { st.fromC = ""; st.toC = ""; }
+            fillPlaces();
+            syncForm();
+            rerender();
+        }));
         $("#ldSwap").addEventListener("click", () => {
             [st.fromC, st.toC, st.fromQ, st.toQ] = [st.toC, st.fromC, st.toQ, st.fromQ];
             fillPlaces();
