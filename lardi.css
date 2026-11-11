@@ -170,3 +170,11 @@
 .ld-alert-x { position: absolute; top: 6px; right: 10px; background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: inherit; opacity: 0.6; }
 .ld-alert-x:hover { opacity: 1; }
 .ld-vs { margin-top: 4px; line-height: 1.4; white-space: nowrap; text-align: right; }
+.ld-bodies { min-width: 120px; max-width: 200px; }
+
+/* style.css звужує 8-й і 9-й стовпці всіх таблиць (для «Перевізників») — у «Ларді» це не потрібно */
+.ld-table th:nth-child(n), .ld-table td:nth-child(n) { max-width: none; }
+.ld-table td.nw:nth-child(n) { white-space: nowrap; }
+.ld-table th:nth-child(n) { white-space: normal; }
+.ld-table td.ld-clip:nth-child(n) { max-width: 220px; }
+.ld-table td.ld-bodies:nth-child(n) { max-width: 200px; }
