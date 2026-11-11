@@ -744,6 +744,114 @@ function resetCarriersFilters() {
 }
 
 // Фільтрує, сортує і малює ОДНУ сторінку таблиці з кешу
+/* =====================================================================
+ * Фільтри колонок: кожне значення клітинки розбивається на «токени»
+ * (країна, область, тип причепа…) і порівнюється ТОЧНО, без «входить у текст».
+ * Токени рахуються один раз і кешуються — фільтри працюють миттєво.
+ * ===================================================================== */
+const EMPTY_TOKEN = "(порожньо)";
+const COUNTRY_CODES = {
+    "УКРАЇНА": "UA", "ПОЛЬША": "PL", "НІМЕЧЧИНА": "DE", "ЛИТВА": "LT", "ЛАТВІЯ": "LV", "ЕСТОНІЯ": "EE",
+    "ІСПАНІЯ": "ES", "ІТАЛІЯ": "IT", "РУМУНІЯ": "RO", "ЧЕХІЯ": "CZ", "АВСТРІЯ": "AT", "АЗЕРБАЙДЖАН": "AZ",
+    "ВІРМЕНІЯ": "AM", "БЕЛЬГІЯ": "BE", "БОЛГАРІЯ": "BG", "ВЕЛИКОБРИТАНІЯ": "GB", "УГОРЩИНА": "HU",
+    "ФРАНЦІЯ": "FR", "ДАНІЯ": "DK", "МОЛДОВА": "MD", "НІДЕРЛАНДИ": "NL", "СЛОВАЧЧИНА": "SK", "СЛОВЕНІЯ": "SI",
+    "ТУРЕЧЧИНА": "TR", "ГРУЗІЯ": "GE", "ФІНЛЯНДІЯ": "FI", "КАЗАХСТАН": "KZ", "КИРГИЗСТАН": "KG",
+    "УЗБЕКИСТАН": "UZ", "ТАДЖИКИСТАН": "TJ", "ТУРКМЕНИСТАН": "TM", "ГРЕЦІЯ": "GR", "ШВЕЦІЯ": "SE",
+    "НОРВЕГІЯ": "NO", "ШВЕЙЦАРІЯ": "CH", "ПОРТУГАЛІЯ": "PT", "СЕРБІЯ": "RS", "ХОРВАТІЯ": "HR",
+    "БОСНІЯ": "BA", "ЛЮКСЕМБУРГ": "LU", "ІРЛАНДІЯ": "IE", "БІЛОРУСЬ": "BY", "МОНГОЛІЯ": "MN",
+    "КИТАЙ": "CN", "ІРАН": "IR", "ІРАК": "IQ", "ОАЕ": "AE", "АЛБАНІЯ": "AL", "ЧОРНОГОРІЯ": "ME",
+    "МАКЕДОНІЯ": "MK", "ПІВНІЧНА МАКЕДОНІЯ": "MK", "КОСОВО": "XK", "СИРІЯ": "SY", "ЙОРДАНІЯ": "JO",
+};
+const OBLAST_CODES = {
+    "ВІННИЦЬКА": "ВІН", "ВОЛИНСЬКА": "ВОЛ", "ДНІПРОПЕТРОВСЬКА": "ДНП", "ДОНЕЦЬКА": "ДОН", "ЖИТОМИРСЬКА": "ЖИТ",
+    "ЗАКАРПАТСЬКА": "ЗАК", "ЗАПОРІЗЬКА": "ЗАП", "ІВАНО-ФРАНКІВСЬКА": "ІФР", "КИЇВСЬКА": "КИЇВ", "КІРОВОГРАДСЬКА": "КІР",
+    "ЛУГАНСЬКА": "ЛУГ", "ЛЬВІВСЬКА": "ЛЬВ", "МИКОЛАЇВСЬКА": "МИК", "ОДЕСЬКА": "ОДЕ", "ПОЛТАВСЬКА": "ПОЛ",
+    "РІВНЕНСЬКА": "РІВ", "СУМСЬКА": "СУМ", "ТЕРНОПІЛЬСЬКА": "ТЕР", "ХАРКІВСЬКА": "ХАР", "ХЕРСОНСЬКА": "ХЕР",
+    "ХМЕЛЬНИЦЬКА": "ХМЕ", "ЧЕРКАСЬКА": "ЧКС", "ЧЕРНІВЕЦЬКА": "ЧРВ", "ЧЕРНІГІВСЬКА": "ЧРГ", "КРИМ": "КРМ",
+};
+function normCountryName(v) {
+    const c = String(v || "").trim().toUpperCase().replace(/\s+/g, " ");
+    return c === "ПОЛЬЩА" ? "ПОЛЬША" : c;
+}
+function normOblast(v) {
+    let o = String(v || "").trim().toUpperCase().replace(/\s+/g, " ").replace(/^\uFFFD/, "Х");
+    if (/^(М\.?\s*)?КИЇВ$/.test(o)) return "М. КИЇВ";
+    o = o.replace(/\s*(ОБЛАСТЬ|ОБЛ\.?)$/, "");
+    return o ? o + " ОБЛ." : "";
+}
+function oblastCode(o) {
+    const n = normOblast(o);
+    if (n === "М. КИЇВ") return "м.Київ";
+    const base = n.replace(/ ОБЛ\.$/, "");
+    return OBLAST_CODES[base] || base.slice(0, 3);
+}
+const countryCode = (c) => COUNTRY_CODES[normCountryName(c)] || normCountryName(c).slice(0, 3);
+const splitList = (v) => String(v || "").split(";").map((x) => x.trim()).filter(Boolean);
+
+// Токени (видимі назви) значення колонки для перевізника
+function columnTokens(item, col) {
+    let out;
+    switch (col) {
+        case "destinations":
+            out = splitList(item.destinations).map((p) => normCountryName(p.split(/\s+-\s+|-(?=\s)/)[0]));
+            break;
+        case "ukraine_directions":
+            out = splitList(item.ukraine_directions).map(normOblast);
+            break;
+        case "region_ukr":
+            out = [normOblast(item.region_ukr)];
+            break;
+        case "trailer_type":
+            out = String(item.trailer_type || "").split(/[;,]/).map((x) => x.trim().toUpperCase());
+            break;
+        case "city":
+            out = [String(item.city || "").trim()];
+            break;
+        case "carrier_col":
+            out = [String(item.name || item.company || "").trim()];
+            break;
+        case "contacts_col":
+            out = [item.contact_person_1, item.contact_person_2].map((x) => String(x || "").replace(/:\s*$/, "").trim());
+            break;
+        case "rating":
+            out = [item.rating ? `${item.rating} ★` : "Без оцінки"];
+            break;
+        default:
+            out = splitList(item[col] ?? (col === "company" ? item.name : ""));
+    }
+    out = out.filter(Boolean);
+    return out.length ? [...new Set(out)] : [EMPTY_TOKEN];
+}
+const tokKey = (t) => String(t).toLowerCase();
+// Кеш: item → { col: {src, keys:Set} }
+const tokenCache = new WeakMap();
+function columnKeys(item, col) {
+    let byCol = tokenCache.get(item);
+    if (!byCol) tokenCache.set(item, (byCol = {}));
+    const src = col === "carrier_col" ? `${item.name}|${item.company}` : col === "contacts_col" ? `${item.contact_person_1}|${item.contact_person_2}` : String(item[col] ?? "");
+    const hit = byCol[col];
+    if (hit && hit.src === src) return hit.keys;
+    const keys = new Set(columnTokens(item, col).map(tokKey));
+    byCol[col] = { src, keys };
+    return keys;
+}
+// Збережений фільтр → ключі (старі збереження «ПОЛЬЩА - Wojnicz» теж розуміємо)
+function selectedKeys(col, vals) {
+    return new Set(
+        (vals || []).map((v) => {
+            if (v === EMPTY_TOKEN) return tokKey(v);
+            if (col === "destinations") return tokKey(normCountryName(String(v).split(/\s+-\s+/)[0]));
+            if (col === "ukraine_directions" || col === "region_ukr") return tokKey(normOblast(v));
+            if (col === "trailer_type") return tokKey(String(v).trim().toUpperCase());
+            return tokKey(String(v).trim());
+        }),
+    );
+}
+function itemPassesColumn(item, col, keys) {
+    for (const k of columnKeys(item, col)) if (keys.has(k)) return true;
+    return false;
+}
+
 function renderCarriers() {
     saveCarriersView();
     markFilteredHeaders();
@@ -762,6 +870,7 @@ function renderCarriers() {
     }
 
     // JS-фільтрація
+    const colFilterKeys = Object.entries(activeFiltersState).map(([c, v]) => [c, selectedKeys(c, v)]);
     let filteredData = data.filter((item) => {
         const name = (item.name || item.company || "").toLowerCase();
         const edrpou = (item.edrpou || "").toLowerCase();
@@ -794,30 +903,9 @@ function renderCarriers() {
             }
         }
 
-        // Динамічні фільтри за конкретними стовпцями (через іконку фільтра у заголовку)
-        for (const [colKey, selectedVals] of Object.entries(
-            activeFiltersState,
-        )) {
-            let itemVal = String(item[colKey] || "").toLowerCase();
-            if (colKey === "carrier_col") {
-                itemVal = `${name} ${edrpou}`;
-            } else if (colKey === "location_col") {
-                itemVal = `${city} ${regionUkr}`;
-            } else if (colKey === "contacts_col") {
-                itemVal =
-                    `${item.contact_person_1 || ""} ${item.phone_1 || ""} ${item.contact_person_2 || ""} ${item.phone_2 || ""}`.toLowerCase();
-            } else if (colKey === "rating") {
-                itemVal = item.rating
-                    ? `${item.rating} ★`.toLowerCase()
-                    : "без оцінки";
-            } else if (!itemVal && colKey === "company" && item.name) {
-                itemVal = String(item.name).toLowerCase();
-            }
-
-            const matchesCol = selectedVals.some((val) =>
-                itemVal.includes(val.toLowerCase()),
-            );
-            if (!matchesCol) return false;
+        // Фільтри колонок (іконка у заголовку) — точне порівняння токенів
+        for (const [colKey, keys] of colFilterKeys) {
+            if (!itemPassesColumn(item, colKey, keys)) return false;
         }
 
         return true;
@@ -910,56 +998,26 @@ function renderCarriers() {
             openCarrierCard(item.id);
         });
 
-        // 1. Напрямки (закордон): країна, а під нею — Квадрат / Воєводство
-        let destBadges = "—";
-        if (item.destinations) {
-            destBadges = item.destinations
-                .split(";")
-                .map((pair) => {
-                    const dashIndex = pair.indexOf("-");
-                    const country = escapeHtml(
-                        dashIndex !== -1
-                            ? pair.substring(0, dashIndex).trim()
-                            : pair.trim(),
-                    );
-                    const region = escapeHtml(
-                        dashIndex !== -1
-                            ? pair.substring(dashIndex + 1).trim()
-                            : "",
-                    );
-
-                    if (country && region) {
-                        return `
-                        <div class="dest-item">
-                          <span class="badge-country">${country}</span>
-                          <div class="dest-region">
-                            <span class="dest-region-label"></span> ${region}
-                          </div>
-                        </div>`;
-                    } else if (country) {
-                        return `
-                        <div class="dest-item">
-                          <span class="badge-country">${country}</span>
-                        </div>`;
-                    }
-                    return "";
-                })
-                .join("");
-        }
-
-        // 1.1 Напрямки в Україні (області)
-        let ukraineBadges = "—";
-        if (item.ukraine_directions) {
-            ukraineBadges = item.ukraine_directions
-                .split(";")
-                .map((oblast) => {
-                    const trimmed = oblast.trim();
-                    return trimmed
-                        ? `<div style="margin-bottom: 4px;"><span class="badge-country">${trimmed}</span></div>`
-                        : "";
-                })
-                .join("");
-        }
+        // 1. Напрямки (закордон) і 1.1 по Україні — короткі коди (TR, GE… / ЛЬВ, ОДЕ…), повна назва — при наведенні
+        const codeChips = (list, code, full, cls) => {
+            if (!list.length) return "—";
+            const MAX = 8;
+            const chips = list.slice(0, MAX).map((x) => `<span class="cc-chip ${cls}" title="${escapeHtml(full(x))}">${escapeHtml(code(x))}</span>`);
+            if (list.length > MAX) chips.push(`<span class="cc-chip cc-more" title="${escapeHtml(list.slice(MAX).map(full).join(", "))}">+${list.length - MAX}</span>`);
+            return `<div class="cc-chips">${chips.join("")}</div>`;
+        };
+        const destMap = new Map(); // одна країна — один код, регіони разом у підказці
+        splitList(item.destinations).forEach((p) => {
+            const i = p.indexOf("-");
+            const c = normCountryName(i >= 0 ? p.slice(0, i) : p), r = i >= 0 ? p.slice(i + 1).trim() : "";
+            const d = destMap.get(c) || { c, r: "" };
+            if (r) d.r = d.r ? d.r + ", " + r : r;
+            destMap.set(c, d);
+        });
+        const destList = [...destMap.values()];
+        const destBadges = codeChips(destList, (d) => countryCode(d.c), (d) => d.c + (d.r ? " — " + d.r : ""), "cc-country");
+        const ukrList = [...new Set(splitList(item.ukraine_directions).map(normOblast))];
+        const ukraineBadges = codeChips(ukrList, oblastCode, (o) => o, "cc-oblast");
 
         // 2. Оцінка (зірочки)
         let starsHtml = `<div class="star-rating">`;
@@ -998,16 +1056,14 @@ function renderCarriers() {
           ${renderContactLine(item.contact_person_2, item.phone_2)}
           ${!item.contact_person_1 && !item.phone_1 && !item.contact_person_2 && !item.phone_2 ? "—" : ""}
         </td>
-        <td>
+        <td class="cc-trailers">
           ${
               item.trailer_type
                   ? item.trailer_type
                         .split(";")
                         .map((itemStr) => {
                             const trimmed = itemStr.trim();
-                            return trimmed
-                                ? `<div style="margin-bottom: 4px;"><span class="badge badge-warning">${trimmed}</span></div>`
-                                : "";
+                            return trimmed ? `<span class="badge badge-warning">${escapeHtml(trimmed)}</span>` : "";
                         })
                         .join("")
                   : "—"
@@ -1621,37 +1677,20 @@ function openColumnFilter(event, columnKey) {
     if (searchInputEl) searchInputEl.value = "";
     optionsContainer.innerHTML = "";
 
-    // Збираємо унікальні значення для фільтрації
-    let uniqueValues = new Set();
+    // Варіанти: кожна країна / область / тип окремо, з кількістю перевізників
+    const counts = new Map(); // key → {label, n}
     allCarriersCache.forEach((item) => {
-        let val = item[columnKey];
-        if (columnKey === "carrier_col") {
-            val =
-                `${item.name || item.company || ""} ${item.edrpou || ""}`.trim();
-        } else if (columnKey === "location_col") {
-            val = `${item.city || ""} ${item.region_ukr || ""}`.trim();
-        } else if (columnKey === "contacts_col") {
-            val = `${item.contact_person_1 || ""} ${item.phone_1 || ""}`.trim();
-        } else if (columnKey === "company" && !val && item.name) {
-            val = item.name;
-        } else if (columnKey === "rating") {
-            val = item.rating ? `${item.rating} ★` : "Без оцінки";
-        }
-
-        if (val) {
-            String(val)
-                .split(";")
-                .forEach((subVal) => {
-                    let cleaned = subVal.trim();
-                    if (cleaned) uniqueValues.add(cleaned);
-                });
+        for (const t of columnTokens(item, columnKey)) {
+            const k = tokKey(t);
+            const c = counts.get(k);
+            if (c) c.n++;
+            else counts.set(k, { label: t, n: 1 });
         }
     });
-
     const currentSelected = activeFiltersState[columnKey];
-    // Виправляємо сортування українською мовою (від А до Я)
-    const sortedValues = Array.from(uniqueValues).sort((a, b) =>
-        a.localeCompare(b, "uk"),
+    const curKeys = currentSelected ? selectedKeys(columnKey, currentSelected) : null;
+    const sortedValues = [...counts.values()].sort((a, b) =>
+        a.label === EMPTY_TOKEN ? 1 : b.label === EMPTY_TOKEN ? -1 : columnKey === "rating" ? b.label.localeCompare(a.label) : a.label.localeCompare(b.label, "uk"),
     );
 
     const selectAllLink = document.getElementById("selectAllLink");
@@ -1659,21 +1698,15 @@ function openColumnFilter(event, columnKey) {
         selectAllLink.textContent = `Вибрати всі (${sortedValues.length})`;
     }
 
-    sortedValues.forEach((val) => {
-        // Якщо фільтр для цього стовпця ще не застосовувався (currentSelected === undefined) -> ставимо галочки скрізь.
-        const isChecked =
-            currentSelected === undefined || currentSelected.includes(val)
-                ? "checked"
-                : "";
-
-        const label = document.createElement("label");
-        label.className = "filter-option-item";
-        label.innerHTML = `
-            <input type="checkbox" value="${escapeHtml(val)}" ${isChecked} onchange="updateFilterCountText()">
-            <span>${escapeHtml(val)}</span>
-        `;
-        optionsContainer.appendChild(label);
-    });
+    const short = (lbl) =>
+        columnKey === "destinations" && lbl !== EMPTY_TOKEN ? `<b class="cf-code">${escapeHtml(countryCode(lbl))}</b> ` :
+        (columnKey === "ukraine_directions" || columnKey === "region_ukr") && lbl !== EMPTY_TOKEN ? `<b class="cf-code">${escapeHtml(oblastCode(lbl))}</b> ` : "";
+    optionsContainer.innerHTML = sortedValues
+        .map(({ label, n }) => {
+            const checked = !curKeys || curKeys.has(tokKey(label)) ? "checked" : "";
+            return `<label class="filter-option-item"><input type="checkbox" value="${escapeHtml(label)}" ${checked} onchange="updateFilterCountText()"><span>${short(label)}${escapeHtml(label)}</span><small class="cf-n">${n}</small></label>`;
+        })
+        .join("");
 
     dropdown.style.display = "block";
 
@@ -1714,23 +1747,9 @@ function updateFilterCountText() {
         if (cb.checked) tempSelected.push(cb.value);
     });
 
-    let count = allCarriersCache.filter((item) => {
-        let itemVal = String(item[activeFilterColumn] || "");
-        if (activeFilterColumn === "carrier_col") {
-            itemVal = `${item.name || item.company || ""} ${item.edrpou || ""}`;
-        } else if (activeFilterColumn === "location_col") {
-            itemVal = `${item.city || ""} ${item.region_ukr || ""}`;
-        } else if (activeFilterColumn === "contacts_col") {
-            itemVal = `${item.contact_person_1 || ""} ${item.phone_1 || ""}`;
-        } else if (activeFilterColumn === "rating") {
-            itemVal = item.rating ? `${item.rating} ★` : "Без оцінки";
-        } else if (!itemVal && activeFilterColumn === "company" && item.name) {
-            itemVal = String(item.name);
-        }
-        return tempSelected.some((val) =>
-            itemVal.toLowerCase().includes(val.toLowerCase()),
-        );
-    }).length;
+    const keys = selectedKeys(activeFilterColumn, tempSelected);
+    const col = activeFilterColumn;
+    const count = allCarriersCache.reduce((n, item) => n + (itemPassesColumn(item, col, keys) ? 1 : 0), 0);
 
     const filterShownCount = document.getElementById("filterShownCount");
     if (filterShownCount) {
