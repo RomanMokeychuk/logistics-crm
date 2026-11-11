@@ -27,6 +27,16 @@
             .replace(/\s*область$/i, " обл.")
             .replace(/^Автономна Республіка Крим$/i, "АР Крим");
 
+    // "Луцький район" → "Луцький р-н" (якщо район не збігається з областю)
+    const shortCounty = (r) => {
+        const c = String(r.county || r.district || "").trim();
+        if (!c || c === r.state || c === settlementOf(r)) return "";
+        return c.replace(/\s*район$/i, " р-н").replace(/\s*міська громада$/i, " громада");
+    };
+    // "Поморське воєводство" → "Поморське воєв."
+    const shortRegion = (s) =>
+        shortState(s).replace(/\s*воєводство$/i, " воєв.").replace(/\s*край$/i, " край").trim();
+
     function settlementOf(r) {
         return r.city || (["city", "postcode", "suburb", "district", "county"].includes(r.type) ? r.name : "") || r.name || "";
     }
@@ -158,7 +168,7 @@
                         const town = settlementOf(r);
                         const street = streetOf(r);
                         const main = street ? `${street}, ${town}` : town || r.formatted;
-                        const sub = [r.postcode, shortState(r.state), r.country].filter(Boolean).join(", ");
+                        const sub = [r.postcode, shortCounty(r), shortState(r.state), r.country].filter(Boolean).join(", ");
                         const icon = street ? "bx-map-pin" : r.type === "postcode" ? "bx-envelope" : "bx-buildings";
                         return `<div class="addr-item${i === active ? " active" : ""}" data-i="${i}">
                             <i class='bx ${icon}'></i>
@@ -174,7 +184,9 @@
             if (!r) return;
             const town = settlementOf(r);
             const street = streetOf(r);
-            if (opts.mode === "city") {
+            if (opts.apply) {
+                opts.apply(r, { town, street, county: shortCounty(r), region: shortRegion(r.state) });
+            } else if (opts.mode === "city") {
                 input.value = town;
             } else {
                 input.value = [town, street, r.postcode, street ? "" : shortState(r.state)]
@@ -199,7 +211,7 @@
         }
 
         async function load() {
-            const text = input.value.trim();
+            const text = opts.list ? input.value.split(",").pop().trim() : input.value.trim();
             if (text.length < 2) return close();
             const my = ++reqNo;
             show(`<div class="addr-note">Шукаю…</div>`);
@@ -286,6 +298,10 @@
         attach($("city"), {
             fixedCountry: "ua",
             mode: "city",
+            // Місто, індекс, район — одразу в поле; область — у список «Область України»
+            apply: (r, x) => {
+                $("city").value = [x.town, r.postcode, x.county].filter(Boolean).join(", ");
+            },
             onPick: (r) => {
                 const sel = $("region_ukr");
                 const v = oblastFromState(r.state);
@@ -295,6 +311,24 @@
     }
 
     window.furaAddressSuggest = attach;
+    // Поле зі списком регіонів через кому (воєводства / квадрати країни):
+    // вводите місто або регіон — підставляється воєводство/регіон цієї країни
+    window.furaRegionSuggest = (input, countryName) => {
+        const cc = COUNTRY_CODES[String(countryName || "").toUpperCase()];
+        if (!input || !cc) return;
+        attach(input, {
+            fixedCountry: cc,
+            list: true,
+            apply: (r, x) => {
+                const val = x.region || x.town;
+                const parts = input.value.split(",").map((t) => t.trim());
+                parts.pop();
+                const kept = parts.filter(Boolean);
+                if (val && !kept.some((t) => t.toLowerCase() === val.toLowerCase())) kept.push(val);
+                input.value = kept.join(", ") + (kept.length ? ", " : "");
+            },
+        });
+    };
     window.furaCountryCode = (name) => COUNTRY_CODES[String(name || "").toUpperCase()] || "";
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
     else init();

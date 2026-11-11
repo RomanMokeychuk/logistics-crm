@@ -1289,12 +1289,14 @@ function addCountryRow(countryName = "", regionName = "") {
     rowDiv.innerHTML = `
         <span class="badge-country" style="margin: 0; font-size: 13px; white-space: nowrap;">${escapeHtml(countryName)}</span>
         <input type="hidden" class="input-country" value="${escapeHtml(countryName)}" />
-        <input type="text" class="input-country-region" value="${escapeHtml(regionName)}" placeholder="Введіть Квадрат / Воєводство (наприклад: Поморське, Мазовецьке)" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: 13px; background: #ffffff; outline: none;" />
+        <input type="text" class="input-country-region" value="${escapeHtml(regionName)}" placeholder="Почніть вводити місто або воєводство — підкажу регіон" style="flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px 8px; font-size: 13px; background: #ffffff; outline: none;" />
         <button type="button" class="btn-icon text-danger" onclick="this.parentElement.remove()" style="border: none; background: transparent; cursor: pointer; padding: 4px;">
           <i class='bx bx-trash' style="font-size: 18px;"></i>
         </button>
     `;
     container.appendChild(rowDiv);
+    // Підказки: вводите місто або регіон — підставляється воєводство / регіон
+    if (window.furaRegionSuggest) window.furaRegionSuggest(rowDiv.querySelector(".input-country-region"), countryName);
 }
 
 // Серіалізація даних у формат: "ПОЛЬША - Поморське воєв., Мазовецьке воєв.; БЕЛЬГІЯ - Фландрія"
@@ -1307,7 +1309,7 @@ function serializeDestinations() {
 
     rows.forEach((row) => {
         const country = row.querySelector(".input-country")?.value.trim();
-        const region = row.querySelector(".input-country-region")?.value.trim();
+        const region = (row.querySelector(".input-country-region")?.value || "").replace(/[\s,]+$/, "").trim();
         if (country) {
             result.push(region ? `${country} - ${region}` : country);
         }
