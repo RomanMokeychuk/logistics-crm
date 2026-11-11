@@ -152,6 +152,27 @@ if (searchInput) {
         }, 250);
     });
 }
+// Верхній пошук FURA на цій сторінці ще й фільтрує таблицю (окреме поле пошуку прибрано)
+(function linkTopSearch() {
+    if (!searchInput || new URLSearchParams(location.search).get("cpop") === "1") return;
+    const hook = () => {
+        const top = document.getElementById("gsInput");
+        if (!top) return false;
+        if (searchInput.value && !top.value) top.value = searchInput.value; // збережений пошук
+        const sync = () => {
+            if (searchInput.value === top.value) return;
+            searchInput.value = top.value;
+            searchInput.dispatchEvent(new Event("input"));
+        };
+        ["input", "search", "keyup", "change"].forEach((ev) => top.addEventListener(ev, sync));
+        return true;
+    };
+    if (!hook()) {
+        let n = 0;
+        const t = setInterval(() => (hook() || ++n > 40) && clearInterval(t), 150);
+    }
+})();
+
 if (filterTrailer) {
     filterTrailer.addEventListener("change", () => {
         currentPage = 1;
@@ -739,6 +760,8 @@ function resetCarriersFilters() {
     if (filterTrailer) filterTrailer.value = "";
     if (filterRegion) filterRegion.value = "";
     activeFiltersState = {};
+    const gs = document.getElementById("gsInput");
+    if (gs) gs.value = "";
     currentPage = 1;
     renderCarriers();
 }
