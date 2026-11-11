@@ -638,3 +638,16 @@ html.fura-cpop #carrierCardOverlay .carrier-card-modal,
 #carrierCardBody .qe { cursor: default; user-select: text; }
 #carrierCardBody .qe-actions .qe-del { margin-right: 0; padding: 0 10px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 #carrierCardBody .qe-actions { justify-content: flex-start; }
+/* Директор + місто в одному рядку; фото й профіль — по половині */
+#addCarrierForm .form-group:has(#director) { grid-column: span 2 !important; }
+#addCarrierForm .form-group:has(#logo_url), #addCarrierForm .form-group:has(#profile_url) { grid-column: span 2 !important; }
+/* Кнопка «Копіювати» */
+#carrierCardBody .card-row.has-copy .card-row-value { display: flex; align-items: center; gap: 6px; }
+#carrierCardBody .qe-copy {
+    flex-shrink: 0; width: 24px; height: 24px; border: 1px solid #e2e8f0; background: #fff; border-radius: 7px;
+    color: #64748b; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;
+    transition: background .12s, color .12s, border-color .12s; margin-left: auto;
+}
+#carrierCardBody .qe-copy:hover { background: #eff6ff; color: #2563eb; border-color: rgba(37, 99, 235, .35); }
+#carrierCardBody .qe-copy.done { background: #ecfdf5; color: #059669; border-color: #a7f3d0; }
+#carrierCardBody .card-row.has-copy:hover .card-row-value::after { right: 34px; }

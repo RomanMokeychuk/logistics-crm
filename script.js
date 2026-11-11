@@ -488,11 +488,14 @@ function contactsListHtml(item) {
 }
 
 // Один рядок "підпис — значення" в картці
-function cardRow(label, valueHtml, editKey) {
+function cardRow(label, valueHtml, editKey, copyText) {
+    const copy = copyText
+        ? `<button type="button" class="qe-copy" data-copy="${escapeHtml(copyText)}" title="Копіювати"><i class='bx bx-copy'></i></button>`
+        : "";
     return `
-        <div class="card-row${editKey ? " qe" : ""}"${editKey ? ` data-qe="${editKey}" title="Двічі натисніть, щоб змінити"` : ""}>
+        <div class="card-row${editKey ? " qe" : ""}${copy ? " has-copy" : ""}"${editKey ? ` data-qe="${editKey}" title="Двічі натисніть, щоб змінити"` : ""}>
             <div class="card-row-label">${label}</div>
-            <div class="card-row-value">${valueHtml || "—"}</div>
+            <div class="card-row-value">${valueHtml || "—"}${copy}</div>
         </div>`;
 }
 
@@ -621,8 +624,9 @@ function openCarrierCard(id) {
         <div class="card-grid">
             <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🏢 Основне</div>
-                ${cardRow("Найменування:", name, "name")}
-                ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "", "edrpou")}
+                ${cardRow("Найменування:", name, "name", item.name || item.company)}
+                ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "", "edrpou", item.edrpou)}
+                ${cardRow("Директор:", escapeHtml(item.director || ""), "director", item.director)}
                 ${cardRow("Область:", escapeHtml(item.region_ukr || ""), "region_ukr")}
                 ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""), "city")}
                 ${cardRow("Lardi / профіль:", item.profile_url ? `<a href="${escapeHtml(item.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(item.profile_url))} <i class='bx bx-link-external'></i></a>` : "", "profile_url")}
@@ -1477,6 +1481,7 @@ if (addCarrierForm) {
 
         const payload = {
             name: getValue("company_name") || getValue("name"),
+            ...(allCarriersCache.some((c) => "director" in c) ? { director: getValue("director") } : {}),
             edrpou: getValue("edrpou"),
             region_ukr: getValue("region_ukr"),
             destinations: getValue("destinations"),
@@ -1625,6 +1630,7 @@ async function editCarrier(id, inline = false) {
     setVal("carrierId", data.id);
     setVal("company_name", data.name || data.company || "");
     setVal("edrpou", data.edrpou || "");
+    setVal("director", data.director || "");
     setVal("region_ukr", data.region_ukr || "");
 
     // Безопасная установка значения для quadrant (не вызывает ошибку, если инпута нет в HTML)
@@ -2000,6 +2006,7 @@ function carrierPopupReady(id) {
     const SPEC = {
         name: { fields: [["name", "Назва компанії"]] },
         edrpou: { fields: [["edrpou", "Код ЄДРПОУ / ІПН"]] },
+        director: { fields: [["director", "ПІБ директора"]] },
         region_ukr: { fields: [["region_ukr", "Область"]], select: true },
         city: { fields: [["city", "Місто, село або індекс"]] },
         volume: { fields: [["volume", "Об'єм, м³"]] },
@@ -2132,8 +2139,8 @@ function carrierPopupReady(id) {
         if (!error && Array.isArray(res.data) && res.data.length === 0)
             error = { message: "зміни не збереглися — немає прав або перевізника вже видалили. Оновіть сторінку." };
         if (error) {
-            alert(/extra_contacts/.test(error.message || "")
-                ? "Щоб додавати більше 2 контактів, один раз виконайте файл carriers_contacts.sql у Supabase → SQL Editor."
+            alert(/extra_contacts|director/.test(error.message || "")
+                ? "Щоб це поле запрацювало, один раз виконайте файл carriers_contacts.sql у Supabase → SQL Editor (Run)."
                 : "Не вдалося зберегти: " + error.message);
             if (btn) { btn.disabled = false; btn.textContent = "✓"; }
             return;
@@ -2142,7 +2149,7 @@ function carrierPopupReady(id) {
         const merged = { ...item, ...ret, ...payload };
         merged._search = [merged.name, merged.company, merged.edrpou, merged.destinations, merged.city,
             merged.fleet_params, merged.trailer_type, merged.quadrant, merged.notes, merged.ukraine_directions,
-            merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2,
+            merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2, merged.director,
             ...extraContactsOf(merged).map((c) => `${c.name || ""} ${c.phone || ""}`)]
             .filter(Boolean).join(" ").toLowerCase();
         const idx = allCarriersCache.findIndex((c) => String(c.id) === String(item.id));
@@ -2201,6 +2208,19 @@ function carrierPopupReady(id) {
     });
 
     body.addEventListener("click", async (e) => {
+        const cp = e.target.closest(".qe-copy");
+        if (cp) {
+            e.stopPropagation();
+            const txt = cp.dataset.copy || "";
+            try { await navigator.clipboard.writeText(txt); } catch (err) {
+                const t = document.createElement("textarea"); t.value = txt; document.body.appendChild(t); t.select();
+                try { document.execCommand("copy"); } catch (x) { /* ні */ } t.remove();
+            }
+            cp.classList.add("done");
+            cp.innerHTML = "<i class='bx bx-check'></i>";
+            setTimeout(() => { cp.classList.remove("done"); cp.innerHTML = "<i class='bx bx-copy'></i>"; }, 1200);
+            return;
+        }
         if (body.classList.contains("cc-editing")) return; // повна форма відкрита
         if (open && open.el.contains(e.target)) {
             if (e.target.closest(".qe-save")) save();
