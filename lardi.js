@@ -267,11 +267,11 @@ const LD = (() => {
     const OTHER_NAME = TRUCK ? "вантажі" : "машини";
     // Різниця «я» − «інші»: €/км, ≈ € за рейс (на відстань рейсу) і %
     const sgn = (v, d = 2) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v), d);
-    function diffHtml(mine, other, dist) {
+    function diffHtml(mine, other, dist, sep = " ") {
         if (mine == null || !other) return "";
         const dk = mine - other, d = mine / other - 1;
         const trip = dist ? Math.round((dk * dist) / 10) * 10 : null;
-        return `<b class="${pctCls(d)}">${sgn(dk)} €/км</b>${trip != null ? ` <span class="${pctCls(d)}">≈ ${sgn(trip, 0)} € за рейс</span>` : ""} <span class="ld-muted">(${pctTxt(d)})</span>`;
+        return `<b class="${pctCls(d)}">${sgn(dk)} €/км</b> <span class="ld-muted">(${pctTxt(d)})</span>${trip != null ? `${sep}<span class="${pctCls(d)}">≈ ${sgn(trip, 0)} € за рейс</span>` : ""}`;
     }
     const otherMedHtml = (b) => (b && b.med != null
         ? `${fmt(b.med, 2)}${b.label ? ` <span class="ld-muted ld-sm" title="На цьому напрямку мало даних — середнє по країнах">по ${esc(b.label)}</span>` : ""}`
@@ -282,7 +282,7 @@ const LD = (() => {
         const b = benchFor(r);
         if (!b || b.med == null) return `<div class="ld-sm ld-muted">${OTHER_NAME} з ціною тут немає</div>`;
         const tip = TRUCK ? "Наскільки машина просить більше (+) чи менше (−), ніж платять вантажі" : "Наскільки вантаж платить більше (+) чи менше (−), ніж просять машини";
-        return `<div class="ld-sm ld-vs" title="${tip}. Медіана: ${b.where}, ${b.n} шт.">${OTHER_NAME}: ${otherMedHtml(b)} €/км<br>${diffHtml(r.price_per_km, b.med, r.distance_km)}</div>`;
+        return `<div class="ld-sm ld-vs" title="${tip}. Медіана: ${b.where}, ${b.n} шт.">${OTHER_NAME}: ${fmt(b.med, 2)} €/км${b.label ? `<br><span class="ld-muted">по ${esc(b.label)}</span>` : ""}<br>${diffHtml(r.price_per_km, b.med, r.distance_km, "<br>")}</div>`;
     }
 
     function renderTrucks(rows) {
