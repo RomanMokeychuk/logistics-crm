@@ -1883,3 +1883,76 @@ function carrierPopupReady(id) {
     };
     new MutationObserver(check).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
 }
+
+// ── Форма перевізника: блоки, які можна згортати/розгортати ──
+(function setupCarrierFormSections() {
+    const form = document.getElementById("addCarrierForm");
+    if (!form) return;
+    const KEY = "fura_carrier_form_closed";
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) { return []; } };
+    const save = (arr) => { try { localStorage.setItem(KEY, JSON.stringify(arr)); } catch (e) {} };
+    const secs = () => [...form.querySelectorAll(".cf-sec")];
+    const itemsOf = (sec) => {
+        const out = [];
+        let n = sec.nextElementSibling;
+        while (n && !n.classList.contains("cf-sec")) { out.push(n); n = n.nextElementSibling; }
+        return out;
+    };
+    const filled = (sec) => {
+        let all = 0, ok = 0;
+        itemsOf(sec).forEach((g) => {
+            if (!g.classList.contains("form-group")) return;
+            const el = g.querySelector("input:not([type=hidden]):not([type=button]), select, textarea");
+            const hid = g.querySelector("input[type=hidden]");
+            if (!el && !hid) return;
+            all++;
+            const v = (hid && hid.value) || (el && el.value) || "";
+            if (String(v).trim() && v !== "0") ok++;
+        });
+        return all ? `${ok}/${all}` : "";
+    };
+    const apply = (sec, closed) => {
+        sec.classList.toggle("closed", closed);
+        itemsOf(sec).forEach((n) => n.classList.toggle("cf-hidden", closed));
+        const n = sec.querySelector(".cf-sec-n");
+        if (n) n.textContent = closed ? filled(sec) : "";
+    };
+    const syncAllBtn = () => {
+        const b = document.getElementById("cfCollAll");
+        if (b) b.textContent = secs().every((s) => s.classList.contains("closed")) ? "Розгорнути все" : "Згорнути все";
+    };
+    const persist = () => save(secs().filter((s) => s.classList.contains("closed")).map((s) => s.dataset.sec));
+    const restore = () => {
+        const closed = load();
+        secs().forEach((s) => apply(s, closed.includes(s.dataset.sec)));
+        syncAllBtn();
+    };
+    form.addEventListener("click", (e) => {
+        const sec = e.target.closest(".cf-sec");
+        if (sec) {
+            apply(sec, !sec.classList.contains("closed"));
+            persist(); syncAllBtn();
+            return;
+        }
+        if (e.target.closest("#cfCollAll")) {
+            const close = !secs().every((s) => s.classList.contains("closed"));
+            secs().forEach((s) => apply(s, close));
+            persist(); syncAllBtn();
+        }
+    });
+    // Якщо поле не заповнене і браузер хоче показати помилку — розгорнути його блок
+    form.addEventListener("invalid", (e) => {
+        const g = e.target.closest(".cf-hidden");
+        if (!g) return;
+        let p = g.previousElementSibling;
+        while (p && !p.classList.contains("cf-sec")) p = p.previousElementSibling;
+        if (p) { apply(p, false); persist(); syncAllBtn(); }
+    }, true);
+    restore();
+    // Після відкриття форми (заповнення полів) — оновити лічильники в згорнутих блоках
+    window.refreshCarrierFormSections = () => setTimeout(restore, 0);
+    if (typeof editCarrier === "function") {
+        const orig = editCarrier;
+        editCarrier = async function () { const r = await orig.apply(this, arguments); restore(); return r; };
+    }
+})();

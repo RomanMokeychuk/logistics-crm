@@ -500,3 +500,26 @@ html.fura-cpop #carrierCardOverlay .carrier-card-modal,
 .filters-bar.carriers-tools { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 10px; }
 .filters-bar.carriers-tools + .fura-cols-bar, .carriers-tools ~ .fura-cols-bar { margin-top: -50px; margin-bottom: 10px; display: flex; justify-content: flex-end; padding-right: 230px; pointer-events: none; }
 .carriers-tools ~ .fura-cols-bar > * { pointer-events: auto; }
+
+/* ── Форма перевізника: блоки, що згортаються ── */
+#addCarrierForm .cf-hidden { display: none !important; }
+#addCarrierForm .cf-tools { display: flex; justify-content: flex-end; margin: -4px 0 -6px; }
+#addCarrierForm .cf-coll-all {
+    border: 1px solid rgba(37, 99, 235, .25); background: rgba(37, 99, 235, .06); color: #2563eb;
+    font: 600 12px/1 inherit; padding: 7px 12px; border-radius: 999px; cursor: pointer; transition: background .15s;
+}
+#addCarrierForm .cf-coll-all:hover { background: rgba(37, 99, 235, .14); }
+#addCarrierForm .cf-sec {
+    display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;
+    padding: 9px 12px; margin-top: 4px; border-radius: 12px;
+    background: rgba(241, 245, 249, .8); border: 1px solid rgba(148, 163, 184, .25);
+    font-size: 13px; font-weight: 700; color: #0f172a; letter-spacing: .01em;
+    transition: background .15s, border-color .15s;
+}
+#addCarrierForm .cf-sec:hover { background: rgba(226, 232, 240, .9); border-color: rgba(37, 99, 235, .3); }
+#addCarrierForm .cf-sec-ic { font-size: 14px; }
+#addCarrierForm .cf-sec-n { margin-left: auto; font-size: 11px; font-weight: 600; color: #64748b; }
+#addCarrierForm .cf-sec-n:empty { display: none; }
+#addCarrierForm .cf-sec-chev { margin-left: auto; color: #64748b; transition: transform .2s; }
+#addCarrierForm .cf-sec-n:not(:empty) + .cf-sec-chev { margin-left: 6px; }
+#addCarrierForm .cf-sec.closed .cf-sec-chev { transform: rotate(-90deg); }
