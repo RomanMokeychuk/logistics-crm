@@ -462,6 +462,31 @@ function exitInlineEdit() {
     return id;
 }
 
+// Коротке посилання для показу: lardi-trans.com/log/user/123…
+function shortUrl(u) {
+    const t = String(u || "").replace(/^https?:\/\/(www\.)?/i, "").replace(/\/$/, "");
+    return t.length > 38 ? t.slice(0, 36) + "…" : t;
+}
+
+// Додаткові контакти (3-й, 4-й…) — поле extra_contacts: [{name, phone}]
+function extraContactsOf(item) {
+    const v = item?.extra_contacts;
+    if (Array.isArray(v)) return v.filter((c) => c && (c.name || c.phone));
+    if (typeof v === "string") { try { return JSON.parse(v) || []; } catch (e) { return []; } }
+    return [];
+}
+
+// Список контактів у картці: кожен клікається для редагування + «Додати контакт»
+function contactsListHtml(item) {
+    const rows = [];
+    if (item.contact_person_1 || item.phone_1) rows.push(["c1", item.contact_person_1, item.phone_1]);
+    if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
+    extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
+    return rows
+        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Натисніть, щоб змінити">${renderContactLine(n, p)}</div>`)
+        .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
+}
+
 // Один рядок "підпис — значення" в картці
 function cardRow(label, valueHtml, editKey) {
     return `
@@ -523,6 +548,10 @@ function openCarrierCard(id) {
     const item = allCarriersCache.find((c) => String(c.id) === String(id));
     if (!item || !carrierCardOverlay) return;
 
+    // Нове відкриття картки — усі блоки згорнуті (carrier-match.js)
+    if (!carrierCardOverlay.classList.contains("active")) {
+        try { sessionStorage.removeItem("furaCardOpenSecs"); } catch (e) { /* немає */ }
+    }
     currentCardCarrierId = item.id;
     setCarrierUrlParam("open", item.id);
     setCarrierUrlParam("last", item.id);
@@ -575,7 +604,7 @@ function openCarrierCard(id) {
 
     body.innerHTML = `
         <div class="card-header-block">
-            <div class="card-avatar-wrap">${renderAvatar(item.logo_url)}</div>
+            <div class="card-avatar-wrap qe-ava" title="Змінити фото (вставте посилання)">${renderAvatar(item.logo_url)}</div>
             <div class="card-header-info">
                 <div class="card-title">
                     ${name}
@@ -596,13 +625,14 @@ function openCarrierCard(id) {
                 ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "", "edrpou")}
                 ${cardRow("Область:", escapeHtml(item.region_ukr || ""), "region_ukr")}
                 ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""), "city")}
+                ${cardRow("Lardi / профіль:", item.profile_url ? `<a href="${escapeHtml(item.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(item.profile_url))} <i class='bx bx-link-external'></i></a>` : "", "profile_url")}
+                ${cardRow("Фото (посилання):", item.logo_url ? `<span class="qe-link-muted">${escapeHtml(shortUrl(item.logo_url))}</span>` : "", "logo_url")}
             </div>
 
             <div class="card-section">
                 <div class="card-section-title">📞 Контакти</div>
                 <div class="card-block-text">
-                    <div class="qe qe-block" data-qe="c1" title="Натисніть, щоб змінити">${renderContactLine(item.contact_person_1, item.phone_1) || '<span class="qe-add">+ Контакт 1</span>'}</div>
-                    <div class="qe qe-block" data-qe="c2" title="Натисніть, щоб змінити">${renderContactLine(item.contact_person_2, item.phone_2) || '<span class="qe-add">+ Контакт 2</span>'}</div>
+                    ${contactsListHtml(item)}
                 </div>
             </div>
 
@@ -1976,9 +2006,24 @@ function carrierPopupReady(id) {
         tonnage: { fields: [["tonnage", "Тоннаж, т"]] },
         additional: { fields: [["additional", "ЕКМТ, ADR, LTL…"]] },
         trailer_type: { fields: [["trailer_type", "Типи через ;"]], trailers: true },
-        c1: { fields: [["contact_person_1", "ПІБ"], ["phone_1", "Телефон"]] },
-        c2: { fields: [["contact_person_2", "ПІБ"], ["phone_2", "Телефон"]] },
+        c1: { fields: [["contact_person_1", "ПІБ"], ["phone_1", "Телефон"]], del: true },
+        c2: { fields: [["contact_person_2", "ПІБ"], ["phone_2", "Телефон"]], del: true },
         notes: { fields: [["notes", "Замітка"]], textarea: true },
+        profile_url: { fields: [["profile_url", "https://lardi-trans.com/…"]] },
+        logo_url: { fields: [["logo_url", "Посилання на фото https://…"]] },
+    };
+    // Додаткові контакти: x0, x1… (новий — "xnew")
+    const specFor = (key) => {
+        if (SPEC[key]) return SPEC[key];
+        if (/^x(\d+|new)$/.test(key)) return { fields: [["_x_name", "ПІБ"], ["_x_phone", "Телефон"]], extra: true, del: true };
+        return null;
+    };
+    const valueOf = (item, key, f) => {
+        if (f === "_x_name" || f === "_x_phone") {
+            const c = extraContactsOf(item)[Number(key.slice(1))] || {};
+            return f === "_x_name" ? c.name : c.phone;
+        }
+        return item[f];
     };
     let open = null; // { el, key, html }
 
@@ -1986,6 +2031,7 @@ function carrierPopupReady(id) {
 
     function cancel() {
         if (!open) return;
+        if (open.temp) { open.temp.remove(); open = null; return; }
         open.el.innerHTML = open.html;
         open.el.classList.remove("qe-on");
         open = null;
@@ -2004,7 +2050,7 @@ function carrierPopupReady(id) {
             });
             return;
         }
-        const spec = SPEC[key];
+        const spec = specFor(key);
         if (!spec || open?.el === el) return;
         cancel();
         // Для рядка "підпис — значення" редагуємо лише значення
@@ -2013,7 +2059,7 @@ function carrierPopupReady(id) {
         target.classList.add("qe-on");
         const inputs = spec.fields
             .map(([f, ph]) => {
-                const v = escapeHtml(item[f] ?? "");
+                const v = escapeHtml(valueOf(item, key, f) ?? "");
                 if (spec.textarea) return `<textarea data-f="${f}" rows="5" placeholder="${ph}">${v}</textarea>`;
                 if (spec.select) return `<select data-f="${f}">${regionOptions()}</select>`;
                 return `<input type="text" data-f="${f}" value="${v}" placeholder="${ph}" autocomplete="off" />`;
@@ -2023,7 +2069,7 @@ function carrierPopupReady(id) {
             ? `<div class="qe-chips">${TRAILERS.map((t) => `<button type="button" class="qe-chip" data-chip="${t}">${t}</button>`).join("")}</div>`
             : "";
         target.innerHTML = `<div class="qe-editor">${chips}<div class="qe-inputs${spec.fields.length > 1 ? " two" : ""}">${inputs}</div>
-            <div class="qe-actions"><button type="button" class="qe-save" title="Зберегти (Enter)">✓</button><button type="button" class="qe-cancel" title="Скасувати (Esc)">✕</button></div></div>`;
+            <div class="qe-actions">${spec.del ? `<button type="button" class="qe-del" title="Видалити контакт"><i class='bx bx-trash'></i></button>` : ""}<button type="button" class="qe-save" title="Зберегти (Enter)">✓</button><button type="button" class="qe-cancel" title="Скасувати (Esc)">✕</button></div></div>`;
         if (spec.select) target.querySelector("select").value = item.region_ukr || "";
         if (spec.trailers) paintChips(target);
         if (key === "city" && window.furaAddressSuggest) {
@@ -2059,13 +2105,24 @@ function carrierPopupReady(id) {
             const v = el.value.trim();
             payload[el.dataset.f] = v === "" ? null : v;
         });
+        if ("_x_name" in payload) {
+            const list = extraContactsOf(item).map((c) => ({ name: c.name || "", phone: c.phone || "" }));
+            const entry = { name: payload._x_name || "", phone: payload._x_phone || "" };
+            const i = open.key === "xnew" ? list.length : Number(open.key.slice(1));
+            if (entry.name || entry.phone) list[i] = entry;
+            else list.splice(i, 1);
+            delete payload._x_name;
+            delete payload._x_phone;
+            payload.extra_contacts = list;
+        }
         const cityInp = open.el.querySelector('[data-f="city"]');
         if (cityInp?.dataset.region && !item.region_ukr) payload.region_ukr = cityInp.dataset.region;
         if ("name" in payload && !payload.name) {
             alert("Назва компанії не може бути порожньою");
             return;
         }
-        const changed = Object.keys(payload).some((k) => (item[k] ?? null) !== payload[k]);
+        const changed = Object.keys(payload).some((k) =>
+            k === "extra_contacts" ? JSON.stringify(extraContactsOf(item)) !== JSON.stringify(payload[k]) : (item[k] ?? null) !== payload[k]);
         if (!changed) return cancel();
         if ("notes" in payload) payload.notes_updated_at = new Date().toISOString();
         const btn = open.el.querySelector(".qe-save");
@@ -2075,7 +2132,9 @@ function carrierPopupReady(id) {
         if (!error && Array.isArray(res.data) && res.data.length === 0)
             error = { message: "зміни не збереглися — немає прав або перевізника вже видалили. Оновіть сторінку." };
         if (error) {
-            alert("Не вдалося зберегти: " + error.message);
+            alert(/extra_contacts/.test(error.message || "")
+                ? "Щоб додавати більше 2 контактів, один раз виконайте файл carriers_contacts.sql у Supabase → SQL Editor."
+                : "Не вдалося зберегти: " + error.message);
             if (btn) { btn.disabled = false; btn.textContent = "✓"; }
             return;
         }
@@ -2083,7 +2142,8 @@ function carrierPopupReady(id) {
         const merged = { ...item, ...ret, ...payload };
         merged._search = [merged.name, merged.company, merged.edrpou, merged.destinations, merged.city,
             merged.fleet_params, merged.trailer_type, merged.quadrant, merged.notes, merged.ukraine_directions,
-            merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2]
+            merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2,
+            ...extraContactsOf(merged).map((c) => `${c.name || ""} ${c.phone || ""}`)]
             .filter(Boolean).join(" ").toLowerCase();
         const idx = allCarriersCache.findIndex((c) => String(c.id) === String(item.id));
         if (idx >= 0) allCarriersCache[idx] = merged;
@@ -2123,6 +2183,11 @@ function carrierPopupReady(id) {
         if (open && open.el.contains(e.target)) {
             if (e.target.closest(".qe-save")) save();
             else if (e.target.closest(".qe-cancel")) cancel();
+            else if (e.target.closest(".qe-del")) {
+                if (!confirm("Видалити цей контакт?")) return;
+                open.el.querySelectorAll("[data-f]").forEach((i) => (i.value = ""));
+                save();
+            }
             else if (e.target.closest(".qe-chip")) {
                 const chip = e.target.closest(".qe-chip").dataset.chip;
                 const inp = open.el.querySelector('[data-f="trailer_type"]');
@@ -2131,6 +2196,30 @@ function carrierPopupReady(id) {
                 inp.value = list.join("; ");
                 paintChips(open.el);
             }
+            return;
+        }
+        // «Додати контакт»: спочатку заповнюємо порожні 1-й/2-й, далі — додаткові
+        if (e.target.closest("[data-qe-add]")) {
+            if (open) await save();
+            if (open) return;
+            const item = itemNow();
+            const btn = body.querySelector("[data-qe-add]");
+            if (!item || !btn) return;
+            const key = !(item.contact_person_1 || item.phone_1) ? "c1" : !(item.contact_person_2 || item.phone_2) ? "c2" : "xnew";
+            const slot = document.createElement("div");
+            slot.className = "qe qe-block";
+            slot.dataset.qe = key;
+            btn.before(slot);
+            start(slot);
+            open && (open.html = "", open.temp = slot);
+            return;
+        }
+        if (e.target.closest(".qe-ava")) {
+            if (open) await save();
+            if (open) return;
+            const row = body.querySelector('[data-qe="logo_url"]');
+            row?.closest(".card-section")?.classList.remove("cm-collapsed");
+            if (row) start(row);
             return;
         }
         const el = e.target.closest("[data-qe]");

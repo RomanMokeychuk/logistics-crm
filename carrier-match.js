@@ -899,18 +899,33 @@
     });
 
     /* ---------- Розділи картки перевізника згортаються кліком по заголовку (стан пам'ятається) ---------- */
-    const COLL_KEY = "furaCardCollapsed";
-    const collSaved = () => {
-        try { return JSON.parse(localStorage.getItem(COLL_KEY) || "{}"); } catch (e) { return {}; }
+    // Кожен новий перевізник відкривається з УСІМА блоками згорнутими. Що ви розгорнули —
+    // пам'ятається, поки відкрита ця картка (і після оновлення сторінки).
+    const COLL_KEY = "furaCardOpenSecs";
+    const curId = () => { try { return String(currentCardCarrierId ?? ""); } catch (e) { return ""; } };
+    const openState = () => {
+        let st = {};
+        try { st = JSON.parse(sessionStorage.getItem(COLL_KEY) || "{}"); } catch (e) { /* немає */ }
+        if (st.id !== curId()) { st = { id: curId(), open: [] }; saveColl(st); }
+        return st;
     };
+    const saveColl = (st) => { try { sessionStorage.setItem(COLL_KEY, JSON.stringify(st)); } catch (e) { /* без збереження */ } };
     const secKey = (title) => title.textContent.replace(/\s+/g, " ").trim().slice(0, 40);
     function applyCollapsed(root) {
-        const saved = collSaved();
+        const st = openState();
         root.querySelectorAll(".card-section-title, .ch-title, .eqc-title, .regc-title, .pa-title").forEach((t) => {
             const sec = t.parentElement;
             sec.classList.add("cm-coll");
-            sec.classList.toggle("cm-collapsed", !!saved[secKey(t)]);
+            const want = !st.open.includes(secKey(t));
+            if (sec.classList.contains("cm-collapsed") !== want) sec.classList.toggle("cm-collapsed", want);
         });
+    }
+    function setOpen(t, isOpen) {
+        const st = openState();
+        const k = secKey(t);
+        st.open = st.open.filter((x) => x !== k);
+        if (isOpen) st.open.push(k);
+        saveColl(st);
     }
     document.addEventListener("click", (e) => {
         if (e.target.closest("a, button")) return; // посилання й кнопки в заголовку працюють як звичайно
@@ -919,10 +934,7 @@
         const sec = t.parentElement;
         sec.classList.add("cm-coll");
         const now = sec.classList.toggle("cm-collapsed");
-        const saved = collSaved();
-        if (now) saved[secKey(t)] = 1;
-        else delete saved[secKey(t)];
-        try { localStorage.setItem(COLL_KEY, JSON.stringify(saved)); } catch (err) { /* без збереження */ }
+        setOpen(t, !now);
     });
     // Кнопка «Згорнути все / Розгорнути все» у шапці картки
     const TITLES = ".card-section-title, .ch-title, .eqc-title, .regc-title, .pa-title";
@@ -947,15 +959,12 @@
         btn.addEventListener("click", () => {
             const body = document.getElementById("carrierCardBody");
             const close = btn.dataset.mode === "close";
-            const saved = collSaved();
             body.querySelectorAll(TITLES).forEach((t) => {
                 const sec = t.parentElement;
                 sec.classList.add("cm-coll");
                 sec.classList.toggle("cm-collapsed", close);
-                if (close) saved[secKey(t)] = 1;
-                else delete saved[secKey(t)];
+                setOpen(t, !close);
             });
-            try { localStorage.setItem(COLL_KEY, JSON.stringify(saved)); } catch (err) { /* без збереження */ }
             paintAllBtn();
         });
     }
