@@ -271,10 +271,12 @@ const LD = (() => {
         if (mine == null || !other) return "";
         const dk = mine - other, d = mine / other - 1;
         const trip = dist ? Math.round((dk * dist) / 10) * 10 : null;
-        return `<b class="${pctCls(d)}">${sgn(dk)} €/км</b> <span class="ld-muted">(${pctTxt(d)})</span>${trip != null ? `${sep}<span class="${pctCls(d)}">≈ ${sgn(trip, 0)} € за рейс</span>` : ""}`;
+        if (sep === "<br>") // у вузькій колонці — два короткі рядки
+            return `<b class="${pctCls(d)}">${sgn(dk)} €/км</b><br><span class="${pctCls(d)}">${trip != null ? `≈ ${sgn(trip, 0)} €/рейс · ` : ""}</span><span class="ld-muted">${pctTxt(d)}</span>`;
+        return `<b class="${pctCls(d)}">${sgn(dk)} €/км</b> <span class="ld-muted">(${pctTxt(d)})</span>${trip != null ? ` <span class="${pctCls(d)}">≈ ${sgn(trip, 0)} € за рейс</span>` : ""}`;
     }
     const otherMedHtml = (b) => (b && b.med != null
-        ? `${fmt(b.med, 2)}${b.label ? ` <span class="ld-muted ld-sm" title="На цьому напрямку мало даних — середнє по країнах">по ${esc(b.label)}</span>` : ""}`
+        ? `${fmt(b.med, 2)}${b.label ? `<br><span class="ld-muted ld-sm" title="На цьому напрямку мало даних — середнє по країнах">по ${esc(b.label)}</span>` : ""}`
         : `<span class="ld-muted">—</span>`);
     function vsOther(r) {
         if (r.price_per_km == null || r.currency !== "EUR") return "";
@@ -396,7 +398,7 @@ const LD = (() => {
         if (TRUCK) {
             $("#ldTable").innerHTML =
                 `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Машин", "num")}${th("", "З ціною", "num")}${th("med", "Машини €/км", "num")}` +
-                `${th("", "Вантажі €/км", "num")}${th("diff", "Машина vs вантаж", "num")}${th("", "Є у FURA", "num")}${th("", "Вантажність, т", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
+                `${th("", "Вантажі €/км", "num")}${th("diff", "Різниця", "num")}${th("", "Є у FURA", "num")}${th("", "Вантажність, т", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
                 (pageRows.length
                     ? pageRows.map((r) => {
                         const cm = r.cargo?.med;
@@ -404,7 +406,7 @@ const LD = (() => {
                         <td><b>${esc(r.route)}</b></td><td class="num">${r.n}</td><td class="num">${r.pricedN || ""}</td>
                         <td class="num"><b>${r.med != null ? fmt(r.med, 2) : ""}</b></td>
                         <td class="num nw" title="${r.cargo ? `Медіана вантажів (${r.cargo.where}, ${r.cargo.n} шт.)` : ""}">${otherMedHtml(r.cargo)}</td>
-                        <td class="num nw" title="Наскільки машина просить більше (+) чи менше (−), ніж платять вантажі">${diffHtml(r.med, cm, r.dist)}</td>
+                        <td class="num nw" title="Наскільки машина просить більше (+) чи менше (−), ніж платять вантажі">${diffHtml(r.med, cm, r.dist, "<br>")}</td>
                         <td class="num">${r.fura || ""}</td><td class="num">${esc(r.mass)}</td><td class="ld-muted">${esc(r.bodies)}</td></tr>`;
                     }).join("")
                     : `<tr><td colspan="9" class="ld-empty">Немає даних</td></tr>`) +
@@ -414,17 +416,18 @@ const LD = (() => {
             return;
         }
         $("#ldTable").innerHTML =
-            `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Заявок", "num")}${th("", "Повних", "num")}${th("", "Вага, т", "num")}` +
-            `${th("", "Ціна повних, €", "num")}${th("med", "Медіана €/км", "num")}${th("", "€/км від–до", "num")}${th("", "Машини €/км", "num")}${th("diff", "Вантаж vs машина", "num")}` +
-            `${th("", "Вантажовл. / Власн. трансп. / Експед.", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
+            `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Заявок", "num")}${th("", "Вага, т", "num")}` +
+            `${th("", "Ціна повних, €", "num")}${th("med", "Медіана €/км", "num")}${th("", "Машини €/км", "num")}${th("diff", "Різниця", "num")}` +
+            `${th("", "Кузов")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr class="ld-click" data-route="${esc(r.route)}">
-                    <td><b>${esc(r.route)}</b></td><td class="num">${r.n}</td><td class="num">${r.full || ""}</td><td class="num">${esc(r.mass)}</td>
-                    <td class="num">${esc(r.price)}</td><td class="num"><b>${r.med != null ? fmt(r.med, 2) : ""}</b></td><td class="num ld-muted">${esc(r.km)}</td>
+                    <td><b>${esc(r.route)}</b><div class="ld-sm ld-muted" title="Вантажовласник / Власник транспорту / Експедиція">хто: ${r.ship} вантажовл. · ${r.car} власн. тр. · ${r.exp} експед.</div></td>
+                    <td class="num nw">${r.n}${r.full ? `<div class="ld-sm ld-muted">повних ${r.full}</div>` : ""}</td><td class="num">${esc(r.mass)}</td>
+                    <td class="num">${esc(r.price)}</td><td class="num nw"><b>${r.med != null ? fmt(r.med, 2) : ""}</b>${r.km ? `<div class="ld-sm ld-muted" title="€/км від–до">${esc(r.km)}</div>` : ""}</td>
                     <td class="num nw" title="${r.cargo ? `Медіана машин (${r.cargo.where}, ${r.cargo.n} шт.)` : "Машин з ціною на цьому напрямку немає"}">${otherMedHtml(r.cargo)}</td>
-                    <td class="num nw" title="Наскільки вантаж платить більше (+) чи менше (−), ніж просять машини">${diffHtml(r.med, r.cargo?.med, r.dist)}</td>
-                    <td class="num">${r.ship} / ${r.car} / ${r.exp}</td><td class="ld-muted">${esc(r.bodies)}</td></tr>`).join("")
-                : `<tr><td colspan="11" class="ld-empty">Немає даних</td></tr>`) +
+                    <td class="num nw" title="Наскільки вантаж платить більше (+) чи менше (−), ніж просять машини">${diffHtml(r.med, r.cargo?.med, r.dist, "<br>")}</td>
+                    <td class="ld-muted ld-bodies">${esc(r.bodies)}</td></tr>`).join("")
+                : `<tr><td colspan="8" class="ld-empty">Немає даних</td></tr>`) +
             "</tbody>";
         pager(total);
         $("#ldCount").textContent = `${fmt(total)} напрямків · клік по рядку — його заявки`;
