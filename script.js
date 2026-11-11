@@ -463,9 +463,9 @@ function exitInlineEdit() {
 }
 
 // Один рядок "підпис — значення" в картці
-function cardRow(label, valueHtml) {
+function cardRow(label, valueHtml, editKey) {
     return `
-        <div class="card-row">
+        <div class="card-row${editKey ? " qe" : ""}"${editKey ? ` data-qe="${editKey}" title="Натисніть, щоб змінити"` : ""}>
             <div class="card-row-label">${label}</div>
             <div class="card-row-value">${valueHtml || "—"}</div>
         </div>`;
@@ -537,7 +537,7 @@ function openCarrierCard(id) {
     const rating = item.rating || 0;
     let starsHtml = `<div class="card-stars">`;
     for (let i = 1; i <= 5; i++) {
-        starsHtml += `<i class='bx bxs-star ${i <= rating ? "active" : ""}'></i>`;
+        starsHtml += `<i class='bx bxs-star qe-star ${i <= rating ? "active" : ""}' data-star="${i}" title="Оцінка: ${i}"></i>`;
     }
     starsHtml += `</div>`;
 
@@ -589,42 +589,40 @@ function openCarrierCard(id) {
             </div>
         </div>
 
-        <div class="card-columns">
-            <div class="card-col">
-                <div class="card-section">
-                    <div class="card-section-title">Реєстраційні дані</div>
-                    ${cardRow("Найменування:", name)}
-                    ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "")}
-                    ${cardRow("Область:", escapeHtml(item.region_ukr || ""))}
-                    ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""))}
-                    
-                </div>
+        <div class="card-grid">
+            <div class="card-section">
+                <div class="card-section-title">🏢 Основне</div>
+                ${cardRow("Найменування:", name, "name")}
+                ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "", "edrpou")}
+                ${cardRow("Область:", escapeHtml(item.region_ukr || ""), "region_ukr")}
+                ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""), "city")}
+            </div>
 
-                <div class="card-section">
-                    <div class="card-section-title">Контакти</div>
-                    <div class="card-block-text">${contactsHtml || "—"}</div>
-                </div>
-
-                <div class="card-section">
-                    <div class="card-section-title">Замітки</div>
-                    <div class="card-block-text">${notesHtml || "—"}</div>
+            <div class="card-section">
+                <div class="card-section-title">📞 Контакти</div>
+                <div class="card-block-text">
+                    <div class="qe qe-block" data-qe="c1" title="Натисніть, щоб змінити">${renderContactLine(item.contact_person_1, item.phone_1) || '<span class="qe-add">+ Контакт 1</span>'}</div>
+                    <div class="qe qe-block" data-qe="c2" title="Натисніть, щоб змінити">${renderContactLine(item.contact_person_2, item.phone_2) || '<span class="qe-add">+ Контакт 2</span>'}</div>
                 </div>
             </div>
 
-            <div class="card-col">
-                <div class="card-section">
-                    <div class="card-section-title">Автопарк</div>
-                    ${cardRow("Тип причепу:", trailersHtml)}
-                    ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "")}
-                    ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "")}
-                    ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "")}
-                </div>
+            <div class="card-section">
+                <div class="card-section-title">🚛 Техніка</div>
+                ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
+                ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "", "volume")}
+                ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "", "tonnage")}
+                ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
+            </div>
 
-                <div class="card-section">
-                    <div class="card-section-title">Напрямки діяльності</div>
-                    ${cardRow("Закордон:", renderDestinationsHtml(item.destinations))}
-                    ${cardRow("В Україні:", renderListBadges(item.ukraine_directions, "badge-country"))}
-                </div>
+            <div class="card-section">
+                <div class="card-section-title">🧭 Напрямки</div>
+                ${cardRow("Закордон:", renderDestinationsHtml(item.destinations), "dirs")}
+                ${cardRow("В Україні:", renderListBadges(item.ukraine_directions, "badge-country"), "dirs")}
+            </div>
+
+            <div class="card-section card-section-wide">
+                <div class="card-section-title">📝 Нотатки</div>
+                <div class="card-block-text qe qe-block" data-qe="notes" title="Натисніть, щоб змінити">${notesHtml || '<span class="qe-add">+ Додати замітку</span>'}</div>
             </div>
         </div>
     `;
@@ -1957,4 +1955,210 @@ function carrierPopupReady(id) {
         const orig = editCarrier;
         editCarrier = async function () { const r = await orig.apply(this, arguments); restore(); return r; };
     }
+})();
+
+// ── Картка перевізника: швидке редагування прямо в картці (клік по значенню) ──
+(function setupCarrierQuickEdit() {
+    const body = document.getElementById("carrierCardBody");
+    if (!body) return;
+    const TRAILERS = ["ТЕНТ", "РЕФ", "ЦІЛЬНОМЕТ", "КОНТЕЙНЕРОВОЗ", "ІЗОТЕРМ"];
+    const regionOptions = () =>
+        [...(document.getElementById("region_ukr")?.options || [])]
+            .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.textContent.trim())}</option>`)
+            .join("");
+    // Що редагуємо: поля бази + вигляд редактора
+    const SPEC = {
+        name: { fields: [["name", "Назва компанії"]] },
+        edrpou: { fields: [["edrpou", "Код ЄДРПОУ / ІПН"]] },
+        region_ukr: { fields: [["region_ukr", "Область"]], select: true },
+        city: { fields: [["city", "Місто, село або індекс"]] },
+        volume: { fields: [["volume", "Об'єм, м³"]] },
+        tonnage: { fields: [["tonnage", "Тоннаж, т"]] },
+        additional: { fields: [["additional", "ЕКМТ, ADR, LTL…"]] },
+        trailer_type: { fields: [["trailer_type", "Типи через ;"]], trailers: true },
+        c1: { fields: [["contact_person_1", "ПІБ"], ["phone_1", "Телефон"]] },
+        c2: { fields: [["contact_person_2", "ПІБ"], ["phone_2", "Телефон"]] },
+        notes: { fields: [["notes", "Замітка"]], textarea: true },
+    };
+    let open = null; // { el, key, html }
+
+    const itemNow = () => allCarriersCache.find((c) => String(c.id) === String(currentCardCarrierId));
+
+    function cancel() {
+        if (!open) return;
+        open.el.innerHTML = open.html;
+        open.el.classList.remove("qe-on");
+        open = null;
+    }
+
+    function start(el) {
+        const key = el.dataset.qe;
+        const item = itemNow();
+        if (!item) return;
+        if (key === "dirs") {
+            // Напрямки — складний вибір країн/областей: відкриваємо повну форму на цьому блоці
+            editFromCard().then(() => {
+                const sec = document.querySelector('#addCarrierForm .cf-sec[data-sec="dirs"]');
+                if (sec?.classList.contains("closed")) sec.click();
+                sec?.scrollIntoView({ block: "start", behavior: "smooth" });
+            });
+            return;
+        }
+        const spec = SPEC[key];
+        if (!spec || open?.el === el) return;
+        cancel();
+        // Для рядка "підпис — значення" редагуємо лише значення
+        const target = el.classList.contains("card-row") ? el.querySelector(".card-row-value") : el;
+        open = { el: target, key, html: target.innerHTML };
+        target.classList.add("qe-on");
+        const inputs = spec.fields
+            .map(([f, ph]) => {
+                const v = escapeHtml(item[f] ?? "");
+                if (spec.textarea) return `<textarea data-f="${f}" rows="5" placeholder="${ph}">${v}</textarea>`;
+                if (spec.select) return `<select data-f="${f}">${regionOptions()}</select>`;
+                return `<input type="text" data-f="${f}" value="${v}" placeholder="${ph}" autocomplete="off" />`;
+            })
+            .join("");
+        const chips = spec.trailers
+            ? `<div class="qe-chips">${TRAILERS.map((t) => `<button type="button" class="qe-chip" data-chip="${t}">${t}</button>`).join("")}</div>`
+            : "";
+        target.innerHTML = `<div class="qe-editor">${chips}<div class="qe-inputs${spec.fields.length > 1 ? " two" : ""}">${inputs}</div>
+            <div class="qe-actions"><button type="button" class="qe-save" title="Зберегти (Enter)">✓</button><button type="button" class="qe-cancel" title="Скасувати (Esc)">✕</button></div></div>`;
+        if (spec.select) target.querySelector("select").value = item.region_ukr || "";
+        if (spec.trailers) paintChips(target);
+        if (key === "city" && window.furaAddressSuggest) {
+            const inp = target.querySelector("input");
+            window.furaAddressSuggest(inp, {
+                fixedCountry: "ua",
+                mode: "city",
+                apply: (r, x) => (inp.value = [x.town, r.postcode, x.county].filter(Boolean).join(", ")),
+                onPick: (r) => {
+                    const s = String(r.state || "").trim().toUpperCase();
+                    const v = s === "КИЇВ" ? "М. КИЇВ" : s ? s.replace(/\s*ОБЛАСТЬ$/, "") + " ОБЛ." : "";
+                    if (v) inp.dataset.region = v;
+                },
+            });
+        }
+        const first = target.querySelector("input, textarea, select");
+        first?.focus();
+        if (first?.setSelectionRange && first.value) first.setSelectionRange(first.value.length, first.value.length);
+    }
+
+    function paintChips(target) {
+        const v = (target.querySelector('[data-f="trailer_type"]')?.value || "").toUpperCase();
+        const have = v.split(/[;,]/).map((t) => t.trim());
+        target.querySelectorAll(".qe-chip").forEach((c) => c.classList.toggle("on", have.includes(c.dataset.chip)));
+    }
+
+    async function save() {
+        if (!open) return;
+        const item = itemNow();
+        if (!item) return cancel();
+        const payload = {};
+        open.el.querySelectorAll("[data-f]").forEach((el) => {
+            const v = el.value.trim();
+            payload[el.dataset.f] = v === "" ? null : v;
+        });
+        const cityInp = open.el.querySelector('[data-f="city"]');
+        if (cityInp?.dataset.region && !item.region_ukr) payload.region_ukr = cityInp.dataset.region;
+        if ("name" in payload && !payload.name) {
+            alert("Назва компанії не може бути порожньою");
+            return;
+        }
+        const changed = Object.keys(payload).some((k) => (item[k] ?? null) !== payload[k]);
+        if (!changed) return cancel();
+        if ("notes" in payload) payload.notes_updated_at = new Date().toISOString();
+        const btn = open.el.querySelector(".qe-save");
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        const res = await sbClient.from("carriers").update(payload).eq("id", item.id).select("*");
+        let error = res.error;
+        if (!error && Array.isArray(res.data) && res.data.length === 0)
+            error = { message: "зміни не збереглися — немає прав або перевізника вже видалили. Оновіть сторінку." };
+        if (error) {
+            alert("Не вдалося зберегти: " + error.message);
+            if (btn) { btn.disabled = false; btn.textContent = "✓"; }
+            return;
+        }
+        const ret = (res.data || []).find((r) => String(r.id) === String(item.id)) || {};
+        const merged = { ...item, ...ret, ...payload };
+        merged._search = [merged.name, merged.company, merged.edrpou, merged.destinations, merged.city,
+            merged.fleet_params, merged.trailer_type, merged.quadrant, merged.notes, merged.ukraine_directions,
+            merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2]
+            .filter(Boolean).join(" ").toLowerCase();
+        const idx = allCarriersCache.findIndex((c) => String(c.id) === String(item.id));
+        if (idx >= 0) allCarriersCache[idx] = merged;
+        open = null;
+        rerender(item.id);
+    }
+
+    function rerender(id) {
+        const modal = document.querySelector("#carrierCardOverlay .carrier-card-modal");
+        const top = modal ? modal.scrollTop : 0;
+        openCarrierCard(id);
+        if (modal) modal.scrollTop = top;
+        if (typeof CARRIER_POPUP === "undefined" || !CARRIER_POPUP) {
+            const box = document.querySelector(".table-card");
+            const keep = box ? box.scrollTop : 0;
+            renderCarriers();
+            if (box) box.scrollTop = keep;
+        }
+        window.showToast?.("Збережено");
+    }
+
+    body.addEventListener("click", async (e) => {
+        if (body.classList.contains("cc-editing")) return; // повна форма відкрита
+        // Зірочки: клік — нова оцінка
+        const star = e.target.closest(".qe-star");
+        if (star) {
+            const item = itemNow();
+            if (!item) return;
+            const n = Number(star.dataset.star);
+            const val = item.rating === n ? 0 : n;
+            const { error } = await sbClient.from("carriers").update({ rating: val }).eq("id", item.id);
+            if (error) return alert("Помилка оцінки: " + error.message);
+            item.rating = val;
+            rerender(item.id);
+            return;
+        }
+        if (open && open.el.contains(e.target)) {
+            if (e.target.closest(".qe-save")) save();
+            else if (e.target.closest(".qe-cancel")) cancel();
+            else if (e.target.closest(".qe-chip")) {
+                const chip = e.target.closest(".qe-chip").dataset.chip;
+                const inp = open.el.querySelector('[data-f="trailer_type"]');
+                let list = inp.value.split(/[;,]/).map((t) => t.trim()).filter(Boolean);
+                list = list.some((t) => t.toUpperCase() === chip) ? list.filter((t) => t.toUpperCase() !== chip) : [...list, chip];
+                inp.value = list.join("; ");
+                paintChips(open.el);
+            }
+            return;
+        }
+        const el = e.target.closest("[data-qe]");
+        // Клік повз поле, яке редагуєте, — зміни зберігаються (як у Google Таблицях)
+        if (open) {
+            const key = el?.dataset.qe;
+            await save();
+            if (!key) return;
+            if (e.target.closest("a")) return;
+            const again = body.querySelector(`[data-qe="${key}"]`);
+            if (again) start(again);
+            return;
+        }
+        if (!el) return;
+        // Посилання (телефон, Viber, профіль) працюють як раніше
+        if (e.target.closest("a")) return;
+        start(el);
+    });
+    body.addEventListener("input", (e) => {
+        if (open && e.target.dataset.f === "trailer_type") paintChips(open.el);
+    });
+    body.addEventListener("keydown", (e) => {
+        if (!open || !open.el.contains(e.target)) return;
+        if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); cancel(); }
+        else if (e.key === "Enter" && (e.target.tagName !== "TEXTAREA" || e.metaKey || e.ctrlKey)) {
+            if (document.querySelector(".addr-suggest.open .addr-item.active")) return; // вибір з підказки
+            e.preventDefault();
+            save();
+        }
+    }, true);
 })();
