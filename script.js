@@ -483,14 +483,14 @@ function contactsListHtml(item) {
     if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
     extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
     return rows
-        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Натисніть, щоб змінити">${renderContactLine(n, p)}</div>`)
+        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p)}</div>`)
         .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
 }
 
 // Один рядок "підпис — значення" в картці
 function cardRow(label, valueHtml, editKey) {
     return `
-        <div class="card-row${editKey ? " qe" : ""}"${editKey ? ` data-qe="${editKey}" title="Натисніть, щоб змінити"` : ""}>
+        <div class="card-row${editKey ? " qe" : ""}"${editKey ? ` data-qe="${editKey}" title="Двічі натисніть, щоб змінити"` : ""}>
             <div class="card-row-label">${label}</div>
             <div class="card-row-value">${valueHtml || "—"}</div>
         </div>`;
@@ -566,7 +566,7 @@ function openCarrierCard(id) {
     const rating = item.rating || 0;
     let starsHtml = `<div class="card-stars">`;
     for (let i = 1; i <= 5; i++) {
-        starsHtml += `<i class='bx bxs-star qe-star ${i <= rating ? "active" : ""}' data-star="${i}" title="Оцінка: ${i}"></i>`;
+        starsHtml += `<i class='bx bxs-star qe-star ${i <= rating ? "active" : ""}' data-star="${i}" title="Оцінка ${i} — двічі натисніть"></i>`;
     }
     starsHtml += `</div>`;
 
@@ -604,7 +604,7 @@ function openCarrierCard(id) {
 
     body.innerHTML = `
         <div class="card-header-block">
-            <div class="card-avatar-wrap qe-ava" title="Змінити фото (вставте посилання)">${renderAvatar(item.logo_url)}</div>
+            <div class="card-avatar-wrap qe-ava" title="Двічі натисніть, щоб змінити фото">${renderAvatar(item.logo_url)}</div>
             <div class="card-header-info">
                 <div class="card-title">
                     ${name}
@@ -619,7 +619,7 @@ function openCarrierCard(id) {
         </div>
 
         <div class="card-grid">
-            <div class="card-section">
+            <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🏢 Основне</div>
                 ${cardRow("Найменування:", name, "name")}
                 ${cardRow("ЄДРПОУ / ІПН:", item.edrpou ? `<code>${escapeHtml(item.edrpou)}</code>` : "", "edrpou")}
@@ -629,14 +629,14 @@ function openCarrierCard(id) {
                 ${cardRow("Фото (посилання):", item.logo_url ? `<span class="qe-link-muted">${escapeHtml(shortUrl(item.logo_url))}</span>` : "", "logo_url")}
             </div>
 
-            <div class="card-section">
+            <div class="card-section" data-def-open="1">
                 <div class="card-section-title">📞 Контакти</div>
                 <div class="card-block-text">
                     ${contactsListHtml(item)}
                 </div>
             </div>
 
-            <div class="card-section">
+            <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🚛 Техніка</div>
                 ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
                 ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "", "volume")}
@@ -644,7 +644,7 @@ function openCarrierCard(id) {
                 ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
             </div>
 
-            <div class="card-section">
+            <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🧭 Напрямки</div>
                 ${cardRow("Закордон:", renderDestinationsHtml(item.destinations), "dirs")}
                 ${cardRow("В Україні:", renderListBadges(item.ukraine_directions, "badge-country"), "dirs")}
@@ -652,7 +652,7 @@ function openCarrierCard(id) {
 
             <div class="card-section card-section-wide">
                 <div class="card-section-title">📝 Нотатки</div>
-                <div class="card-block-text qe qe-block" data-qe="notes" title="Натисніть, щоб змінити">${notesHtml || '<span class="qe-add">+ Додати замітку</span>'}</div>
+                <div class="card-block-text qe qe-block" data-qe="notes" title="Двічі натисніть, щоб змінити">${notesHtml || '<span class="qe-add">+ Додати замітку</span>'}</div>
             </div>
         </div>
     `;
@@ -1075,7 +1075,7 @@ function renderCarriers() {
         const currentRating = item.rating || 0;
         for (let i = 1; i <= 5; i++) {
             const activeClass = i <= currentRating ? "active" : "";
-            starsHtml += `<i class='bx bxs-star ${activeClass}' onclick="updateCarrierRating('${item.id}', ${i})" title="Оцінка: ${i}"></i>`;
+            starsHtml += `<i class='bx bxs-star ${activeClass}' onclick="updateCarrierRating('${item.id}', ${i})" title="Оцінка ${i} — двічі натисніть"></i>`;
         }
         starsHtml += `</div>`;
 
@@ -2069,7 +2069,7 @@ function carrierPopupReady(id) {
             ? `<div class="qe-chips">${TRAILERS.map((t) => `<button type="button" class="qe-chip" data-chip="${t}">${t}</button>`).join("")}</div>`
             : "";
         target.innerHTML = `<div class="qe-editor">${chips}<div class="qe-inputs${spec.fields.length > 1 ? " two" : ""}">${inputs}</div>
-            <div class="qe-actions">${spec.del ? `<button type="button" class="qe-del" title="Видалити контакт"><i class='bx bx-trash'></i></button>` : ""}<button type="button" class="qe-save" title="Зберегти (Enter)">✓</button><button type="button" class="qe-cancel" title="Скасувати (Esc)">✕</button></div></div>`;
+            ${spec.del ? `<div class="qe-actions"><button type="button" class="qe-del" title="Видалити контакт"><i class='bx bx-trash'></i> Видалити</button></div>` : ""}</div>`;
         if (spec.select) target.querySelector("select").value = item.region_ukr || "";
         if (spec.trailers) paintChips(target);
         if (key === "city" && window.furaAddressSuggest) {
@@ -2165,9 +2165,13 @@ function carrierPopupReady(id) {
         window.showToast?.("Збережено");
     }
 
-    body.addEventListener("click", async (e) => {
-        if (body.classList.contains("cc-editing")) return; // повна форма відкрита
-        // Зірочки: клік — нова оцінка
+    // Редагування — ПОДВІЙНИМ кліком (щоб випадково нічого не змінити)
+    body.addEventListener("dblclick", async (e) => {
+        if (body.classList.contains("cc-editing")) return;
+        if (open && open.el.contains(e.target)) return;
+        if (e.target.closest("a, button")) return;
+        window.getSelection?.()?.removeAllRanges();
+        // Зірочки: подвійний клік — нова оцінка
         const star = e.target.closest(".qe-star");
         if (star) {
             const item = itemNow();
@@ -2180,6 +2184,24 @@ function carrierPopupReady(id) {
             rerender(item.id);
             return;
         }
+        if (e.target.closest(".qe-ava")) {
+            if (open) await save();
+            if (open) return;
+            const row = body.querySelector('[data-qe="logo_url"]');
+            row?.closest(".card-section")?.classList.remove("cm-collapsed");
+            if (row) start(row);
+            return;
+        }
+        const el = e.target.closest("[data-qe]");
+        if (!el) return;
+        if (open) await save();
+        if (open) return;
+        const again = body.querySelector(`[data-qe="${el.dataset.qe}"]`) || el;
+        start(again.isConnected ? again : el);
+    });
+
+    body.addEventListener("click", async (e) => {
+        if (body.classList.contains("cc-editing")) return; // повна форма відкрита
         if (open && open.el.contains(e.target)) {
             if (e.target.closest(".qe-save")) save();
             else if (e.target.closest(".qe-cancel")) cancel();
@@ -2214,29 +2236,8 @@ function carrierPopupReady(id) {
             open && (open.html = "", open.temp = slot);
             return;
         }
-        if (e.target.closest(".qe-ava")) {
-            if (open) await save();
-            if (open) return;
-            const row = body.querySelector('[data-qe="logo_url"]');
-            row?.closest(".card-section")?.classList.remove("cm-collapsed");
-            if (row) start(row);
-            return;
-        }
-        const el = e.target.closest("[data-qe]");
         // Клік повз поле, яке редагуєте, — зміни зберігаються (як у Google Таблицях)
-        if (open) {
-            const key = el?.dataset.qe;
-            await save();
-            if (!key) return;
-            if (e.target.closest("a")) return;
-            const again = body.querySelector(`[data-qe="${key}"]`);
-            if (again) start(again);
-            return;
-        }
-        if (!el) return;
-        // Посилання (телефон, Viber, профіль) працюють як раніше
-        if (e.target.closest("a")) return;
-        start(el);
+        if (open) await save();
     });
     body.addEventListener("input", (e) => {
         if (open && e.target.dataset.f === "trailer_type") paintChips(open.el);

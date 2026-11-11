@@ -635,3 +635,6 @@ html.fura-cpop #carrierCardOverlay .carrier-card-modal,
     content: "✎"; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     background: rgba(15, 23, 42, .45); color: #fff; border-radius: inherit; font-size: 16px;
 }
+#carrierCardBody .qe { cursor: default; user-select: text; }
+#carrierCardBody .qe-actions .qe-del { margin-right: 0; padding: 0 10px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+#carrierCardBody .qe-actions { justify-content: flex-start; }

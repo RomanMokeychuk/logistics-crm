@@ -899,14 +899,14 @@
     });
 
     /* ---------- Розділи картки перевізника згортаються кліком по заголовку (стан пам'ятається) ---------- */
-    // Кожен новий перевізник відкривається з УСІМА блоками згорнутими. Що ви розгорнули —
+    // Кожен новий перевізник відкривається у стандартному вигляді (головні блоки розгорнуті, решта згорнуті). Що ви розгорнули —
     // пам'ятається, поки відкрита ця картка (і після оновлення сторінки).
     const COLL_KEY = "furaCardOpenSecs";
     const curId = () => { try { return String(currentCardCarrierId ?? ""); } catch (e) { return ""; } };
     const openState = () => {
         let st = {};
         try { st = JSON.parse(sessionStorage.getItem(COLL_KEY) || "{}"); } catch (e) { /* немає */ }
-        if (st.id !== curId()) { st = { id: curId(), open: [] }; saveColl(st); }
+        if (st.id !== curId() || !st.over) { st = { id: curId(), over: {} }; saveColl(st); }
         return st;
     };
     const saveColl = (st) => { try { sessionStorage.setItem(COLL_KEY, JSON.stringify(st)); } catch (e) { /* без збереження */ } };
@@ -916,15 +916,16 @@
         root.querySelectorAll(".card-section-title, .ch-title, .eqc-title, .regc-title, .pa-title").forEach((t) => {
             const sec = t.parentElement;
             sec.classList.add("cm-coll");
-            const want = !st.open.includes(secKey(t));
+            // Основне, Контакти, Техніка, Напрямки — розгорнуті з самого початку; решта — згорнуті
+            const k = secKey(t);
+            const want = k in st.over ? !st.over[k] : !sec.hasAttribute("data-def-open");
             if (sec.classList.contains("cm-collapsed") !== want) sec.classList.toggle("cm-collapsed", want);
         });
     }
     function setOpen(t, isOpen) {
         const st = openState();
         const k = secKey(t);
-        st.open = st.open.filter((x) => x !== k);
-        if (isOpen) st.open.push(k);
+        st.over[k] = !!isOpen;
         saveColl(st);
     }
     document.addEventListener("click", (e) => {
