@@ -169,3 +169,4 @@
 .ld-alert { position: relative; }
 .ld-alert-x { position: absolute; top: 6px; right: 10px; background: none; border: 0; font-size: 20px; line-height: 1; cursor: pointer; color: inherit; opacity: 0.6; }
 .ld-alert-x:hover { opacity: 1; }
+.ld-vs { margin-top: 3px; line-height: 1.35; white-space: nowrap; }
