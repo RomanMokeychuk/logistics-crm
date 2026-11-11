@@ -523,3 +523,54 @@ html.fura-cpop #carrierCardOverlay .carrier-card-modal,
 #addCarrierForm .cf-sec-chev { margin-left: auto; color: #64748b; transition: transform .2s; }
 #addCarrierForm .cf-sec-n:not(:empty) + .cf-sec-chev { margin-left: 6px; }
 #addCarrierForm .cf-sec.closed .cf-sec-chev { transform: rotate(-90deg); }
+
+/* ── Форма перевізника: компактна сітка на 4 колонки ── */
+#addCarrierForm > .modal-body {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px 10px !important;
+}
+#addCarrierForm .cf-tools,
+#addCarrierForm .cf-sec,
+#addCarrierForm .form-group:has(#company_name),
+#addCarrierForm .form-group:has(#city),
+#addCarrierForm .form-group:has(#trailersContainer) { grid-column: span 2 !important; }
+#addCarrierForm .cf-tools, #addCarrierForm .cf-sec,
+#addCarrierForm .form-group:has(#trailersContainer) { grid-column: 1 / -1 !important; }
+#addCarrierForm .form-group:has(#destinations),
+#addCarrierForm .form-group:has(#ukraine_directions),
+#addCarrierForm .form-group:has(#volume),
+#addCarrierForm .form-group:has(#additional) { grid-column: span 2 !important; }
+#addCarrierForm .form-group:has(#notes) { grid-column: span 3 !important; }
+#addCarrierForm .form-group:has(#carrierRating) { grid-column: span 1 !important; }
+
+#addCarrierForm .form-group { margin: 0 !important; gap: 4px; min-width: 0; }
+#addCarrierForm .form-group > label {
+    font-size: 11.5px !important; margin-bottom: 3px !important; color: #64748b !important;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#addCarrierForm .form-group input:not([type=hidden]),
+#addCarrierForm .form-group select {
+    height: 36px !important; min-height: 36px !important; padding: 6px 10px !important;
+    font-size: 13px !important; border-radius: 10px !important;
+}
+#addCarrierForm .form-group textarea { min-height: 60px !important; font-size: 13px !important; padding: 8px 10px !important; }
+#addCarrierForm .country-row { padding: 4px 8px !important; margin-top: 4px !important; }
+#addCarrierForm .country-row .input-country-region { height: 30px !important; min-height: 30px !important; }
+#addCarrierForm .btn-chip { padding: 4px 9px !important; font-size: 11.5px !important; }
+#addCarrierForm .trailer-chips { margin-bottom: 6px !important; }
+
+#addCarrierForm .cf-sec { padding: 6px 10px; margin-top: 6px; border-radius: 10px; font-size: 12.5px; }
+#addCarrierForm .cf-tools { margin: -2px 0 -8px; }
+#addCarrierForm .cf-coll-all { padding: 5px 10px; font-size: 11.5px; }
+#addCarrierForm .modal-footer { padding-top: 10px !important; padding-bottom: 10px !important; }
+
+@media (max-width: 760px) {
+    #addCarrierForm > .modal-body { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    #addCarrierForm .form-group:has(#notes),
+    #addCarrierForm .form-group:has(#destinations),
+    #addCarrierForm .form-group:has(#ukraine_directions) { grid-column: 1 / -1 !important; }
+}
+#addCarrierForm .form-group:has(#volume) > div { display: flex !important; gap: 8px !important; min-width: 0; }
+#addCarrierForm .form-group:has(#volume) > div > input { flex: 1 1 0 !important; min-width: 0 !important; width: auto !important; }
+#addCarrierForm .country-row .input-country-region { padding: 4px 8px !important; }
+#addCarrierForm #destinationsContainer, #addCarrierForm #ukraineDirectionsContainer { gap: 4px !important; }
