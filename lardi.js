@@ -154,19 +154,32 @@ const LD = (() => {
         const med = median(eur.map((r) => r.price_per_km));
         const medPrice = median(eur.map((r) => r.price));
         const owners = new Set(rows.map((r) => r.owner_ref || r.owner_name)).size;
-        if (TRUCK) {
+        const otherRows = OTHER.filter((c) =>
+            (!st.fromC || c.from_country === st.fromC) && (!st.toC || c.to_country === st.toC) &&
+            placeMatch(c, "from", st.fromQ) && placeMatch(c, "to", st.toQ) &&
+            (!st.route || rkey(c) === st.route));
+        const side = (c, q) => [c || "усі", q ? `(${q})` : ""].filter(Boolean).join(" ");
+        const where = st.route || (st.fromC || st.toC || st.fromQ || st.toQ ? `${side(st.fromC, st.fromQ)} → ${side(st.toC, st.toQ)}` : "усі напрямки");
+        if (!TRUCK) {
+            const trMed = median(otherRows.map((c) => c.price_per_km));
+            const d = med != null && trMed ? med / trMed - 1 : null;
+            const verdict = d == null ? "немає машин з ціною для порівняння" : d > 0.005 ? "вантаж платить більше, ніж просять машини" : d < -0.005 ? "вантаж платить менше, ніж просять машини" : "вантаж і машина — однаково";
+            $("#ldKpis").innerHTML = [
+                [fmt(rows.length), `заявок з ціною · компаній ${fmt(owners)}`],
+                [med != null ? fmt(med, 2) + " €/км" : "—", `вантажі платять (медіана, повні, EUR, ${fmt(eur.length)} шт.)${medPrice != null ? ` · за рейс ${fmt(medPrice)} €` : ""}`],
+                [trMed != null ? fmt(trMed, 2) + " €/км" : "—", `машини просять (медіана, EUR, ${fmt(otherRows.length)} шт.)`],
+                [d != null ? pctTxt(d) : "—", `${verdict} · ${where}`],
+            ].map(([b, s2], i) => `<div class="ld-kpi ${i === 3 ? "ld-kpi-hl" : ""}"><b class="${i === 3 ? pctCls(d) : ""}">${esc(b)}</b><span>${esc(s2)}</span></div>`).join("");
+            return;
+        }
+        {
             const inFura = new Set(rows.filter((r) => r.carrier_id).map((r) => r.carrier_id)).size;
             const pricedTr = rows.filter((r) => r.currency === "EUR" && r.price_per_km != null);
             const trMed = median(pricedTr.map((r) => r.price_per_km));
             // вантажі — з тими самими фільтрами напрямку (країни, міста/області/квадрат, вибраний рядок «Напрямків»)
-            const cargoRows = CARGO.filter((c) =>
-                (!st.fromC || c.from_country === st.fromC) && (!st.toC || c.to_country === st.toC) &&
-                placeMatch(c, "from", st.fromQ) && placeMatch(c, "to", st.toQ) &&
-                (!st.route || rkey(c) === st.route));
+            const cargoRows = otherRows;
             const cargoMed = median(cargoRows.map((c) => c.price_per_km));
             const d = trMed != null && cargoMed ? trMed / cargoMed - 1 : null;
-            const side = (c, q) => [c || "усі", q ? `(${q})` : ""].filter(Boolean).join(" ");
-            const where = st.route || (st.fromC || st.toC || st.fromQ || st.toQ ? `${side(st.fromC, st.fromQ)} → ${side(st.toC, st.toQ)}` : "усі напрямки");
             const verdict = d == null ? "немає з чим порівняти" : d > 0.005 ? "машина дорожча за вантаж" : d < -0.005 ? "машина дешевша за вантаж" : "машина й вантаж — однаково";
             $("#ldKpis").innerHTML = [
                 [fmt(rows.length), `машин з ціною · перевізників у FURA ${fmt(inFura)}`],
@@ -176,12 +189,6 @@ const LD = (() => {
             ].map(([b, s], i) => `<div class="ld-kpi ${i === 3 ? "ld-kpi-hl" : ""}"><b class="${i === 3 ? pctCls(d) : ""}">${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
             return;
         }
-        $("#ldKpis").innerHTML = [
-            [fmt(rows.length), "заявок з ціною"],
-            [med != null ? fmt(med, 2) : "—", "медіана €/км (повні, EUR)"],
-            [medPrice != null ? fmt(medPrice) + " €" : "—", "медіана за рейс (повні, EUR)"],
-            [fmt(owners), "компаній виставляють"],
-        ].map(([b, s], i) => `<div class="ld-kpi ${i === 1 ? "ld-kpi-hl" : ""}"><b>${esc(b)}</b><span>${esc(s)}</span></div>`).join("");
     }
 
     /* ---------------- таблиці ---------------- */
@@ -233,16 +240,16 @@ const LD = (() => {
         ? `<a class="ld-fura ld-fura-yes" href="index.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника у FURA">✓ у FURA ↗</a>`
         : `<span class="ld-fura ld-fura-no" title="Цього перевізника немає в «Перевізниках» FURA">немає у FURA</span>`);
 
-    // Порівняння з вантажами: медіана €/км вантажів (повні, EUR) на тому ж напрямку
-    // спершу область → область, якщо там мало вантажів — країна → країна
-    let CARGO = [];
+    // Порівняння вантажів і машин: на «Авто» — з вантажами (повні, EUR), на «Вантажах» — з машинами (EUR).
+    // Медіана €/км на тому ж напрямку: спершу область → область, якщо там мало — країна → країна
+    let OTHER = [];
     let BENCH = { route: new Map(), country: new Map() };
     const rkey = (r) => `${r.from_region || "—"} → ${r.to_region || "—"}`;
     const ckey = (r) => `${r.from_country} → ${r.to_country}`;
     function buildBench() {
         const route = new Map(), country = new Map();
         const push = (m, k, v) => { if (!m.has(k)) m.set(k, []); m.get(k).push(v); };
-        for (const c of CARGO) {
+        for (const c of OTHER) {
             push(route, rkey(c), c.price_per_km);
             push(country, ckey(c), c.price_per_km);
         }
@@ -257,12 +264,15 @@ const LD = (() => {
     };
     const pctTxt = (v) => (v == null || !isFinite(v) ? "" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%");
     const pctCls = (v) => (v > 0.05 ? "ld-up" : v < -0.05 ? "ld-down" : "");
-    function vsCargo(r) {
+    const OTHER_NAME = TRUCK ? "вантажі" : "машини";
+    function vsOther(r) {
         if (r.price_per_km == null || r.currency !== "EUR") return "";
+        if (!TRUCK && kindOf(r) !== "full") return "";
         const b = benchFor(r);
-        if (!b || b.med == null) return `<div class="ld-sm ld-muted">вантажів з ціною тут немає</div>`;
+        if (!b || b.med == null) return `<div class="ld-sm ld-muted">${OTHER_NAME} з ціною тут немає</div>`;
         const d = r.price_per_km / b.med - 1;
-        return `<div class="ld-sm" title="Медіана вантажів (${b.where}, ${b.n} шт.)">вантажі ${fmt(b.med, 2)} €/км · <b class="${pctCls(d)}">${pctTxt(d)}</b></div>`;
+        const tip = TRUCK ? "Наскільки машина просить більше (+) чи менше (−), ніж платять вантажі" : "Наскільки вантаж платить більше (+) чи менше (−), ніж просять машини";
+        return `<div class="ld-sm" title="${tip}. Медіана: ${b.where}, ${b.n} шт.">${OTHER_NAME} ${fmt(b.med, 2)} €/км · <b class="${pctCls(d)}">${pctTxt(d)}</b></div>`;
     }
 
     function renderTrucks(rows) {
@@ -284,7 +294,7 @@ const LD = (() => {
                         <td class="ld-clip" title="${esc([r.body_types, r.cargo].filter(Boolean).join(" · "))}"><b>${esc(r.body_types || "")}</b>${r.cargo ? `<div class="ld-sm ld-muted">${esc(r.cargo)}</div>` : ""}<div class="ld-tags">${r.groupage ? `<span class="ld-tag">Догруз</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">ADR ${esc(r.adr)}</span>` : ""}</div></td>
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
                         <td class="num nw">${r.volume_m3 != null ? fmt(r.volume_m3) + " м³" : ""}</td>
-                        <td class="num nw">${r.price != null || r.payment_raw != null ? `<b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>` : `<span class="ld-muted">—</span>`}${r.price_per_km != null ? `<div class="ld-sm ld-muted">${fmt(r.price_per_km, 2)} ${CUR[r.currency] || ""}/км</div>` : ""}${vsCargo(r)}</td>
+                        <td class="num nw">${r.price != null || r.payment_raw != null ? `<b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>` : `<span class="ld-muted">—</span>`}${r.price_per_km != null ? `<div class="ld-sm ld-muted">${fmt(r.price_per_km, 2)} ${CUR[r.currency] || ""}/км</div>` : ""}${vsOther(r)}</td>
                         <td>${ownerHtml(ownerOf(r))}
                             ${contactHtml(ownerOf(r))}</td>
                         <td>${furaBadge(r)}</td>
@@ -319,7 +329,7 @@ const LD = (() => {
                         <td class="ld-clip" title="${esc(r.body_types || "")}">${esc(r.body_types || "")}</td>
                         <td class="num">${fmt(r.distance_km)}</td>
                         <td class="num nw"><b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>${r.per_t != null ? `<div class="ld-sm ld-muted">${esc(money(r.per_t, r.currency))}/т × ${fmt(r.mass_t, 1)} т</div>` : ""}${r.payment_forms ? `<div class="ld-sm ld-muted">${esc(r.payment_forms)}</div>` : ""}${r.delay_days ? `<div class="ld-sm ld-muted">відстрочка ${fmt(r.delay_days)} дн.</div>` : ""}</td>
-                        <td class="num nw">${r.price_per_km != null ? fmt(r.price_per_km, 2) + " " + (CUR[r.currency] || "") : ""}</td>
+                        <td class="num nw">${r.price_per_km != null ? fmt(r.price_per_km, 2) + " " + (CUR[r.currency] || "") : ""}${vsOther(r)}</td>
                         <td><span class="ld-own ${OWNER_CLS[r.owner_type] || ""}">${esc(OWNER_LBL[r.owner_type] || r.owner_type || "")}</span>
                             ${ownerHtml(ownerOf(r))}
                             ${contactHtml(ownerOf(r))}</td>
@@ -360,7 +370,7 @@ const LD = (() => {
                 km: rangeTxt(full.map((r) => r.price_per_km), (v) => fmt(v, 1)),
                 fura: a.filter((r) => r.carrier_id).length,
                 pricedN: a.filter((r) => r.price_per_km != null && r.currency === "EUR").length,
-                cargo: TRUCK ? benchFor(a[0]) : null,
+                cargo: benchFor(a[0]),
                 ship: (owners.get("Вантажовласник") || []).length,
                 car: (owners.get("Перевізник") || []).length,
                 exp: (owners.get("Експедиція / інші") || []).length,
@@ -368,7 +378,7 @@ const LD = (() => {
                     .sort((x, y) => y[1].length - x[1].length).slice(0, 3).map((x) => x[0]).join(", "),
             };
         });
-        if (TRUCK) list.forEach((r) => { r.diff = r.med != null && r.cargo?.med ? r.med / r.cargo.med - 1 : null; });
+        list.forEach((r) => { r.diff = r.med != null && r.cargo?.med ? r.med / r.cargo.med - 1 : null; });
         list = sortRows(list, { seen: (r) => r.n, n: (r) => r.n, med: (r) => r.med, route: (r) => r.route, diff: (r) => r.diff });
         const total = list.length;
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
@@ -394,13 +404,16 @@ const LD = (() => {
         }
         $("#ldTable").innerHTML =
             `<thead><tr>${th("route", "Звідки → куди")}${th("n", "Заявок", "num")}${th("", "Повних", "num")}${th("", "Вага, т", "num")}` +
-            `${th("", "Ціна повних, €", "num")}${th("med", "Медіана €/км", "num")}${th("", "€/км від–до", "num")}${th("", "Вантажовл. / Власн. трансп. / Експед.", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
+            `${th("", "Ціна повних, €", "num")}${th("med", "Медіана €/км", "num")}${th("", "€/км від–до", "num")}${th("", "Машини €/км", "num")}${th("diff", "Різниця", "num")}` +
+            `${th("", "Вантажовл. / Власн. трансп. / Експед.", "num")}${th("", "Кузов")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr class="ld-click" data-route="${esc(r.route)}">
                     <td><b>${esc(r.route)}</b></td><td class="num">${r.n}</td><td class="num">${r.full || ""}</td><td class="num">${esc(r.mass)}</td>
                     <td class="num">${esc(r.price)}</td><td class="num"><b>${r.med != null ? fmt(r.med, 2) : ""}</b></td><td class="num ld-muted">${esc(r.km)}</td>
+                    <td class="num" title="${r.cargo ? `Медіана машин (${r.cargo.where}, ${r.cargo.n} шт.)` : "Машин з ціною на цьому напрямку немає"}">${r.cargo?.med != null ? fmt(r.cargo.med, 2) : ""}</td>
+                    <td class="num ${pctCls(r.diff)}" title="Наскільки вантаж платить більше (+) чи менше (−), ніж просять машини"><b>${pctTxt(r.diff)}</b></td>
                     <td class="num">${r.ship} / ${r.car} / ${r.exp}</td><td class="ld-muted">${esc(r.bodies)}</td></tr>`).join("")
-                : `<tr><td colspan="9" class="ld-empty">Немає даних</td></tr>`) +
+                : `<tr><td colspan="11" class="ld-empty">Немає даних</td></tr>`) +
             "</tbody>";
         pager(total);
         $("#ldCount").textContent = `${fmt(total)} напрямків · клік по рядку — його заявки`;
@@ -506,15 +519,19 @@ const LD = (() => {
             out.push(...data);
             if (data.length < 1000) break;
         }
-        // «Авто»: вантажі з ціною за той самий період — щоб порівняти ціну машин з ціною вантажів
+        // Для порівняння: на «Авто» — вантажі з ціною, на «Вантажах» — машини з ціною за той самий період
         let cargo = [];
-        if (TRUCK) {
+        {
             const sel = "id,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
-            for (let from = 0; from < 30000; from += 1000) {
-                if (cnt) cnt.textContent = `Завантажую вантажі для порівняння… ${fmt(cargo.length)}`;
-                const data = await page(from, "lardi_cargo", sel);
-                cargo.push(...data);
-                if (data.length < 1000) break;
+            try {
+                for (let from = 0; from < 30000; from += 1000) {
+                    if (cnt) cnt.textContent = `Завантажую ${TRUCK ? "вантажі" : "машини"} для порівняння… ${fmt(cargo.length)}`;
+                    const data = await page(from, TRUCK ? "lardi_cargo" : "lardi_trucks", sel);
+                    cargo.push(...data);
+                    if (data.length < 1000) break;
+                }
+            } catch (e) {
+                cargo = []; // немає таблиці машин чи база не відповіла — просто без порівняння
             }
         }
         // ціна «за тонну»: рахуємо суму за рейс (ціна × вага) і €/км, щоб заявка не випадала з медіан
@@ -528,10 +545,8 @@ const LD = (() => {
             }
         }
         ROWS = out;
-        if (TRUCK) {
-            CARGO = cargo.filter((c) => c.currency === "EUR" && c.price_per_km != null && kindOf(c) === "full");
-            buildBench();
-        }
+        OTHER = cargo.filter((c) => c.currency === "EUR" && c.price_per_km != null && (!TRUCK || kindOf(c) === "full"));
+        buildBench();
         renderSync();
         fillPlaces();
         const bodies = new Set();
