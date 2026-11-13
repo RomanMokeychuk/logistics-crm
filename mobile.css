@@ -630,3 +630,8 @@
     .quick-card:hover, .home-section:hover, .kpi:hover, .eq-kpi:hover, .rop-kpi:hover { transform: none !important; }
     .fura-nav-item:hover:not(.active) { transform: none !important; }
 }
+@media (max-width: 900px) {
+    /* панель «Колонки» на телефоні не потрібна — і не повинна підтягувати таблицю вгору */
+    .fura-cols-bar, .carriers-tools ~ .fura-cols-bar { display: none !important; margin: 0 !important; }
+    .filters-bar.carriers-tools { justify-content: flex-start; margin-bottom: 12px; }
+}
