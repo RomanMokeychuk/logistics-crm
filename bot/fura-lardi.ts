@@ -441,6 +441,16 @@ const uaOblast = (region: string | null, town: string | null): string | null => 
 
 // Дописати перевізнику напрямок машини; повертає true, якщо картку змінено
 function addRoute(c: Carrier, row: Any): boolean {
+    // По Україні: дописуємо обидві області (звідки й куди) у «Напрямки в Україні»
+    if (row.from_country === "UA" && row.to_country === "UA") {
+        const list = String(c.ukraine_directions || "").split(";").map((x) => x.trim()).filter(Boolean);
+        let changed = false;
+        for (const ob of [uaOblast(row.from_region, row.from_town), uaOblast(row.to_region, row.to_town)]) {
+            if (ob && !list.includes(ob)) { list.push(ob); changed = true; }
+        }
+        if (changed) c.ukraine_directions = list.join("; ");
+        return changed;
+    }
     const imp = row.to_country === "UA" && row.from_country !== "UA";
     const exp = row.from_country === "UA" && row.to_country !== "UA";
     if (!imp && !exp) return false;
@@ -520,7 +530,8 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind
         if (Date.now() - t0 > BUDGET_MS) { skipped++; continue; }
         const from = String(d.from_country).toUpperCase(), to = String(d.to_country).toUpperCase();
         try {
-            const all = await searchAll(from, to, {}, MAX_PAGES, kind);
+            // По Україні заявок набагато більше — беремо більше сторінок
+            const all = await searchAll(from, to, {}, from === to ? Math.max(MAX_PAGES, 8) : MAX_PAGES, kind);
             if (!all.length) {
                 perDir.push({ direction: `${from} → ${to}`, received: 0, priced: 0 });
                 await db.from("lardi_directions").update({ [LAST]: new Date().toISOString(), [FOUND]: 0 }).eq("id", d.id);

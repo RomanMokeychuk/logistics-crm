@@ -101,7 +101,7 @@ const LD = (() => {
         document.querySelectorAll("#ldFura [data-fura]").forEach((b) => b.classList.toggle("on", st.fura === b.dataset.fura));
         document.querySelectorAll("#ldFura [data-priced]").forEach((b) => b.classList.toggle("on", st.priced === "1"));
         document.querySelectorAll(".ld-seg [data-unit]").forEach((b) => b.classList.toggle("on", b.dataset.unit === st.unit));
-        const flow = st.toC === "UA" && st.fromC !== "UA" ? "import" : st.fromC === "UA" && st.toC !== "UA" ? "export" : "";
+        const flow = st.toC === "UA" && st.fromC === "UA" ? "domestic" : st.toC === "UA" && st.fromC !== "UA" ? "import" : st.fromC === "UA" && st.toC !== "UA" ? "export" : "";
         document.querySelectorAll(".ld-flow [data-flow]").forEach((b) => b.classList.toggle("on", b.dataset.flow === flow));
     }
 
@@ -815,6 +815,7 @@ const LD = (() => {
             const f = b.dataset.flow;
             if (f === "import") { if (st.fromC === "UA") st.fromC = ""; st.toC = "UA"; }
             else if (f === "export") { if (st.toC === "UA") st.toC = ""; st.fromC = "UA"; }
+            else if (f === "domestic") { st.fromC = "UA"; st.toC = "UA"; }
             else { st.fromC = ""; st.toC = ""; }
             fillPlaces();
             syncForm();
