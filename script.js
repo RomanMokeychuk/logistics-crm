@@ -688,6 +688,70 @@ async function loadCarriers() {
         allCarriersCache = data || [];
         return;
     }
+    // 1) Миттєво: показуємо перевізників із пам'яті браузера, 2) тихо довантажуємо з бази лише зміни
+    const cached = window.furaCache ? await window.furaCache.get("carriers") : null;
+    if (cached && Array.isArray(cached.rows) && cached.rows.length) {
+        cached.rows.forEach(prepCarrierSearch);
+        allCarriersCache = cached.rows;
+        renderCarriers();
+        const tooOld = !cached.fullAt || Date.now() - cached.fullAt > 3 * 24 * 3600 * 1000;
+        if (!tooOld && (await syncCarriersDelta(cached))) return;
+    }
+    await loadCarriersFull();
+}
+
+function prepCarrierSearch(item) {
+    // Один раз готуємо текст для пошуку, щоб не збирати його на кожну літеру
+    item._search = [
+        item.name, item.company, item.edrpou, item.destinations, item.city, item.fleet_params,
+        item.trailer_type, item.quadrant, item.notes, item.ukraine_directions, item.region_ukr,
+        item.phone_1, item.phone_2, item.contact_person_1, item.contact_person_2, item.director,
+        ...(Array.isArray(item.extra_contacts) ? item.extra_contacts.map((c) => `${c?.name || ""} ${c?.phone || ""}`) : []),
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+    return item;
+}
+
+const maxStamp = (rows, f, start) => rows.reduce((m, r) => (r[f] && String(r[f]) > m ? String(r[f]) : m), start || "");
+
+function saveCarriersCache(rows, since, delSince, fullAt) {
+    if (!window.furaCache || !rows.length || !rows[0] || !("updated_at" in rows[0])) return; // без carriers_sync.sql не кешуємо
+    const clean = rows.map(({ _search, ...r }) => r);
+    window.furaCache.set("carriers", { rows: clean, since, delSince, fullAt });
+}
+
+// Лише зміни з бази з моменту останнього завантаження (нові/змінені + видалені)
+async function syncCarriersDelta(cached) {
+    try {
+        const since = cached.since;
+        if (!since) return false;
+        const [chg, del] = await Promise.all([
+            sbClient.from("carriers").select("*").gte("updated_at", since).order("updated_at").limit(3000),
+            sbClient.from("carriers_deleted").select("id, deleted_at").gte("deleted_at", cached.delSince || since).limit(3000),
+        ]);
+        if (chg.error || del.error) return false;
+        if ((chg.data || []).length >= 3000 || (del.data || []).length >= 3000) return false; // забагато змін — повне завантаження
+        const changed = chg.data || [];
+        const gone = new Set((del.data || []).map((d) => String(d.id)));
+        if (!changed.length && !gone.size) return true;
+        const map = new Map(allCarriersCache.map((r) => [String(r.id), r]));
+        gone.forEach((id) => map.delete(id));
+        changed.forEach((r) => map.set(String(r.id), prepCarrierSearch(r)));
+        const rows = [...map.values()].sort((a, b) =>
+            String(b.created_at || "").localeCompare(String(a.created_at || "")) || (Number(a.id) - Number(b.id)));
+        allCarriersCache = rows;
+        renderCarriers();
+        saveCarriersCache(rows, maxStamp(changed, "updated_at", since), maxStamp(del.data || [], "deleted_at", cached.delSince || since), cached.fullAt);
+        return true;
+    } catch (e) {
+        console.warn("FURA: зміни перевізників не довантажились", e);
+        return false;
+    }
+}
+
+async function loadCarriersFull() {
     const CHUNK = 1000;
     const base = () =>
         sbClient
@@ -725,32 +789,11 @@ async function loadCarriers() {
         }
     }
 
-    // Один раз готуємо текст для пошуку, щоб не збирати його на кожну літеру
-    data.forEach((item) => {
-        item._search = [
-            item.name,
-            item.company,
-            item.edrpou,
-            item.destinations,
-            item.city,
-            item.fleet_params,
-            item.trailer_type,
-            item.quadrant,
-            item.notes,
-            item.ukraine_directions,
-            item.region_ukr,
-            item.phone_1,
-            item.phone_2,
-            item.contact_person_1,
-            item.contact_person_2,
-        ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-    });
-
+    data.forEach(prepCarrierSearch);
     allCarriersCache = data;
     renderCarriers();
+    const stamp = maxStamp(data, "updated_at");
+    saveCarriersCache(data, stamp, stamp, Date.now());
 }
 
 
