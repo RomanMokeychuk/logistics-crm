@@ -96,16 +96,25 @@
     ];
 
     // Логотип FURA (той самий, що logo.svg), але в помаранчевому квадраті
-    const LOGO_SVG = `<svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true">
-        <defs><linearGradient id="furaLg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".35" stop-color="#e9c46a"/><stop offset=".7" stop-color="#c9973a"/><stop offset="1" stop-color="#8f6a1f"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#furaLg)"/>
-        <path d="M5 22h6M3 29h8M6 36h5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
-        <rect x="14" y="16" width="27" height="22" rx="3" fill="#fff"/>
-        <path d="M43 22h7.6a2 2 0 0 1 1.6 .8l5.3 7a2 2 0 0 1 .5 1.3V36a2 2 0 0 1-2 2H43z" fill="#fff"/>
-        <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#c9973a"/>
-        <circle cx="21" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
-        <circle cx="34" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
-        <circle cx="50" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
-        <path d="M12 52h40" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+    const LOGO_SVG = `<svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true" class="fl-svg">
+        <defs>
+            <linearGradient id="furaLg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".35" stop-color="#e9c46a"/><stop offset=".7" stop-color="#c9973a"/><stop offset="1" stop-color="#8f6a1f"/></linearGradient>
+            <linearGradient id="furaGloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+            <linearGradient id="furaBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a5355"/><stop offset="1" stop-color="#2b3133"/></linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="14" fill="url(#furaLg)"/>
+        <rect width="64" height="64" rx="14" fill="url(#furaGloss)"/>
+        <g class="fl-speed" fill="none" stroke="#3a4244" stroke-width="3" stroke-linecap="round" opacity="0.7"><path d="M5 22h6"/><path d="M3 29h8"/><path d="M6 36h5"/></g>
+        <g class="fl-truck">
+            <rect x="14" y="16" width="27" height="22" rx="3" fill="url(#furaBody)"/>
+            <rect x="15" y="17" width="25" height="5" rx="2" fill="#fff" opacity=".14"/>
+            <path d="M43 22h7.6a2 2 0 0 1 1.6 .8l5.3 7a2 2 0 0 1 .5 1.3V36a2 2 0 0 1-2 2H43z" fill="url(#furaBody)"/>
+            <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#f0cd78"/>
+        </g>
+        <g class="fl-wheel" style="transform-origin:21px 41px"><circle cx="21" cy="41" r="4.6" fill="#e9c46a" stroke="#2b3133" stroke-width="3"/><path d="M21 37.6v6.8M17.6 41h6.8" stroke="#2b3133" stroke-width="1.3"/></g>
+        <g class="fl-wheel" style="transform-origin:34px 41px"><circle cx="34" cy="41" r="4.6" fill="#e9c46a" stroke="#2b3133" stroke-width="3"/><path d="M34 37.6v6.8M30.6 41h6.8" stroke="#2b3133" stroke-width="1.3"/></g>
+        <g class="fl-wheel" style="transform-origin:50px 41px"><circle cx="50" cy="41" r="4.6" fill="#e9c46a" stroke="#2b3133" stroke-width="3"/><path d="M50 37.6v6.8M46.6 41h6.8" stroke="#2b3133" stroke-width="1.3"/></g>
+        <path class="fl-road" d="M10 52h44" stroke="#3a4244" stroke-width="3" stroke-linecap="round" stroke-dasharray="7 5" opacity="0.7"/>
     </svg>`;
 
     // Своя іконка «Черга»: квадратик з літерою «Ч» (колір — як у тексту пункту меню)
@@ -301,7 +310,7 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611130758");
+        await addScript("helper.js?v=202611130817");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
@@ -434,7 +443,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130758");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130817");
         const label = buildSidebar();
         buildTopbar(label);
         setupMobileMenu();
@@ -443,7 +452,7 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611130758");
+            addScript("global-search.js?v=202611130817");
             // Фурик — персонаж із нагадуваннями (furik.js)
             addScript("furik.js?v=202610200830");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)

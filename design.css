@@ -761,3 +761,85 @@ html::before {
 .quick-card:hover, .home-section:hover, .kpi:hover, .eq-kpi:hover, .rop-kpi:hover {
     box-shadow: 0 0 0 1px rgba(201, 151, 58, .35), 0 12px 30px -14px rgba(201, 151, 58, .45) !important;
 }
+
+/* ================================================================= *
+ * 3D-логотип FURA з анімацією + легкі анімації по всій FURA          *
+ * ================================================================= */
+.fura-brand { perspective: 500px; }
+.fura-brand-icon {
+    position: relative;
+    width: 42px !important; height: 42px !important; border-radius: 12px !important;
+    transform-style: preserve-3d;
+    transform: rotateX(12deg) rotateY(-18deg);
+    /* «товщина» золотої плитки — шари тіні дають об'єм */
+    box-shadow:
+        1px 1px 0 #b8862e, 2px 2px 0 #a8781f, 3px 3px 0 #96691a, 4px 4px 0 #7f5915,
+        8px 12px 18px -4px rgba(0, 0, 0, .55), 0 0 22px rgba(240, 205, 120, .35) !important;
+    animation: fl-float 6s ease-in-out infinite;
+    transition: transform .5s cubic-bezier(.2, .8, .2, 1);
+}
+.fura-brand-icon svg { display: block; width: 42px; height: 42px; filter: none !important; }
+/* відблиск, що пробігає по золоту */
+.fura-brand-icon::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .75) 48%, transparent 62%) -150% 0 / 250% 100% no-repeat;
+    animation: fl-shine 5s ease-in-out infinite;
+}
+.fl-wheel { transform-box: view-box; animation: fl-spin 1.4s linear infinite; }
+.fl-truck { animation: fl-bump .7s ease-in-out infinite; }
+.fl-speed path { stroke-dasharray: 8 8; animation: fl-dash 1s linear infinite; }
+.fl-road { animation: fl-road .8s linear infinite; }
+.fura-brand:hover .fura-brand-icon { transform: rotateX(0) rotateY(0) scale(1.08); animation-play-state: paused; }
+.fura-brand:hover .fl-wheel { animation-duration: .45s; }
+.fura-brand:hover .fl-road { animation-duration: .3s; }
+.fura-brand-name {
+    background: linear-gradient(100deg, #c9973a 0%, #fff3c4 20%, #e9c46a 40%, #a8781f 60%, #e9c46a 80%, #fff3c4 100%) 0 0 / 250% 100% !important;
+    -webkit-background-clip: text !important; background-clip: text !important; color: transparent !important;
+    animation: fl-text 8s linear infinite;
+    text-shadow: none;
+    filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .35));
+}
+@keyframes fl-float { 0%, 100% { transform: rotateX(12deg) rotateY(-18deg) translateY(0); } 50% { transform: rotateX(6deg) rotateY(-6deg) translateY(-2px); } }
+@keyframes fl-shine { 0%, 55% { background-position: -150% 0; } 85%, 100% { background-position: 150% 0; } }
+@keyframes fl-spin { to { transform: rotate(360deg); } }
+@keyframes fl-bump { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-.6px); } }
+@keyframes fl-dash { to { stroke-dashoffset: 16; } }
+@keyframes fl-road { to { stroke-dashoffset: 12; } }
+@keyframes fl-text { to { background-position: -250% 0; } }
+
+/* Меню: пункт трохи «їде» при наведенні, активний золотий переливається */
+.fura-nav-item { transition: background .2s, transform .2s cubic-bezier(.2, .8, .2, 1), box-shadow .2s !important; }
+.fura-nav-item:hover:not(.active) { transform: translateX(4px); }
+.fura-nav-item:hover i, .fura-nav-item:hover svg { transform: scale(1.12); transition: transform .2s; }
+.fura-nav-item.active { background-size: 200% 100% !important; animation: gd-flow 6s ease-in-out infinite; }
+@keyframes gd-flow { 0%, 100% { background-position: 0 0; } 50% { background-position: 100% 0; } }
+
+/* Золоті кнопки: блиск пробігає при наведенні, легке «натискання» */
+.btn-primary::before, .btn-card-edit::before, .ld-btn-main::before {
+    content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%; pointer-events: none;
+    background: linear-gradient(105deg, transparent, rgba(255, 255, 255, .75), transparent);
+    transform: skewX(-18deg);
+}
+.btn-primary:hover::before, .btn-card-edit:hover::before, .ld-btn-main:hover::before { animation: gd-sweep .75s ease; }
+.btn-primary:active, .btn-card-edit:active { transform: translateY(1px) scale(.98); }
+@keyframes gd-sweep { to { left: 120%; } }
+
+/* Рядки таблиць з'являються каскадом, картки трохи піднімаються при наведенні */
+.table-card tbody tr { animation: gd-row .32s cubic-bezier(.2, .8, .2, 1) both; }
+.table-card tbody tr:nth-child(2) { animation-delay: .02s; } .table-card tbody tr:nth-child(3) { animation-delay: .04s; }
+.table-card tbody tr:nth-child(4) { animation-delay: .06s; } .table-card tbody tr:nth-child(5) { animation-delay: .08s; }
+.table-card tbody tr:nth-child(6) { animation-delay: .10s; } .table-card tbody tr:nth-child(7) { animation-delay: .12s; }
+.table-card tbody tr:nth-child(8) { animation-delay: .14s; } .table-card tbody tr:nth-child(n+9) { animation-delay: .16s; }
+@keyframes gd-row { from { opacity: 0; transform: translateY(6px); } }
+.table-card tbody tr { transition: background .15s, box-shadow .15s; }
+.table-card tbody tr:hover { box-shadow: inset 3px 0 0 #c9973a; }
+#carrierCardBody .card-section, .quick-card, .home-section, .kpi, .eq-kpi, .rop-kpi { transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s; }
+.quick-card:hover, .home-section:hover, .kpi:hover, .eq-kpi:hover, .rop-kpi:hover { transform: translateY(-3px); }
+/* золоте підкреслення активної вкладки «виїжджає» */
+.lead-tab.active { animation: gd-tab .35s ease both; }
+@keyframes gd-tab { from { box-shadow: inset 0 -3px 0 rgba(201, 151, 58, 0); } to { box-shadow: inset 0 -3px 0 rgba(201, 151, 58, .0); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .fura-brand-icon, .fura-brand-icon::after, .fl-wheel, .fl-truck, .fl-speed path, .fl-road, .fura-brand-name,
+    .fura-nav-item.active, .table-card tbody tr, .lead-tab.active { animation: none !important; }
+}
