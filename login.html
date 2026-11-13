@@ -7,7 +7,7 @@
         <link rel="icon" href="favicon.ico?v=3" sizes="any" />
         <link rel="icon" href="logo.svg?v=3" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3" />
-        <link rel="stylesheet" href="style.css?v=202611131143" />
+        <link rel="stylesheet" href="style.css?v=202611131345" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
@@ -71,12 +71,18 @@
                 <span id="brandName">FURA</span>
             </div>
             <h2>Вхід у FURA</h2>
-            <form id="loginForm">
+            <form id="loginForm" method="post" action="home.html" autocomplete="on">
                 <div class="form-group">
                     <label>Email</label>
                     <input
                         type="email"
                         id="authEmail"
+                        name="username"
+                        autocomplete="username"
+                        inputmode="email"
+                        autocapitalize="off"
+                        autocorrect="off"
+                        spellcheck="false"
                         required
                         placeholder="example@mail.com" />
                 </div>
@@ -85,6 +91,8 @@
                     <input
                         type="password"
                         id="authPassword"
+                        name="password"
+                        autocomplete="current-password"
                         required
                         placeholder="••••••••" />
                 </div>
@@ -135,6 +143,12 @@
                     try {
                         sessionStorage.setItem("fura_unlocked", "1");
                         sessionStorage.setItem("fura_tick", String(Date.now()));
+                    } catch (_) {}
+                    // Підказуємо браузеру/телефону зберегти логін і пароль (Chrome / Android; iPhone пропонує сам)
+                    try {
+                        if (window.PasswordCredential && navigator.credentials) {
+                            await navigator.credentials.store(new PasswordCredential({ id: authEmail.value, password: authPassword.value, name: authEmail.value }));
+                        }
                     } catch (_) {}
                     window.location.href = "home.html";
                 }

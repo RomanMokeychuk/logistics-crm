@@ -665,7 +665,8 @@
             const urgent = news.find((t) => t.kind === "warn") || news.find((t) => t.kind !== "calm");
             if (morning) say(morning.text);
             else if (urgent) say(urgent.text);
-            openBubble(true);
+            // на телефоні не відкриваємо вікно саме — воно закриває пів екрана; лічильник на Фурику видно
+            if (!matchMedia("(max-width: 900px)").matches) openBubble(true);
         }
     }
 

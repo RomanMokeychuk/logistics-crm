@@ -535,3 +535,48 @@
         padding-left: 0 !important;
     }
 }
+
+/* ================================================================= *
+ * Телефон: згортання фільтрів, пошук на весь екран, компактна шапка  *
+ * ================================================================= */
+.m-filt-btn { display: none; }
+@media (max-width: 900px) {
+    .m-filt-btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+        width: 100%; min-height: 42px; padding: 8px 14px; border-radius: 12px;
+        border: 1px solid rgba(214, 168, 72, .45); background: #fff; color: #5b4a2e;
+        font: 600 14px/1.2 inherit; cursor: pointer;
+    }
+    .m-filt-btn b { background: var(--gd-gold, #c9973a); color: #2b1d06; border-radius: 999px; padding: 0 7px; font-size: 12px; }
+    .m-filt-btn .m-chev { margin-left: auto; transition: transform .2s; }
+    .m-filt.m-open .m-filt-btn .m-chev { transform: rotate(180deg); }
+    /* згорнуто: видно лише пошук і кнопку */
+    .m-filt:not(.m-open) > :not(.m-keep):not(.m-filt-btn) { display: none !important; }
+    .m-filt { flex-wrap: wrap !important; gap: 8px !important; }
+    .m-filt > .m-keep { flex: 1 1 100% !important; width: 100% !important; }
+    #ldForm.m-filt:not(.m-open) { padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+
+    /* пошук на весь екран */
+    .m-hide-search { display: none !important; }
+    body.m-searching .fk, body.m-searching .fh-fab, body.m-searching .fura-fab { display: none !important; }
+
+    /* шапка: без стрілок назад/вперед (на телефоні є жест «назад»), без «FURA /» */
+    .fura-nav-arrows { display: none !important; }
+    .fura-topbar { flex-wrap: wrap !important; }
+    .fura-topbar .fura-left { order: 1; flex: 1 1 0 !important; }
+    .fura-topbar > :not(.fura-left):not(.gs) { order: 2; }
+    .fura-topbar .gs { order: 3 !important; }
+    .fura-crumbs > :not(:last-child) { display: none !important; }
+
+    /* вкладки гортаються пальцем, а не стискаються */
+    .lead-tabs, .ld-tabs, .eq-tabs, .cm-tabs, .sa-tabs, .guide-tabs { overflow-x: auto !important; flex-wrap: nowrap !important; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .lead-tabs::-webkit-scrollbar, .ld-tabs::-webkit-scrollbar { display: none; }
+    .lead-tabs > *, .ld-tabs > * { flex: 0 0 auto !important; }
+
+    /* поля не менші за 16px — iPhone не збільшує сторінку при натисканні */
+    input, select, textarea { font-size: 16px !important; }
+}
+@media (max-width: 900px) {
+    /* таблиці на телефоні — картками, тож вибір колонок не потрібен */
+    .fura-cols-btn, .fura-cols-wrap { display: none !important; }
+}
