@@ -415,8 +415,18 @@ function bindFields(root, c) {
             if (f === "edrpou" && v) {
                 v = digits(v);
                 el.value = v;
-                const other = clientsCache.find((x) => x.id !== c.id && digits(x.edrpou) === v) ||
-                    (await sbClient.from("leads").select("id, name").eq("edrpou", v).neq("id", c.id).limit(1)).data?.[0];
+                let other = clientsCache.find((x) => x.id !== c.id && digits(x.edrpou) === v);
+                if (!other) {
+                    // Клієнта колеги Sales не бачить — питаємо базу, чи такий код уже є
+                    const { data } = await sbClient.rpc("lead_find_duplicate", { p_edrpou: v, p_name: null, p_exclude: String(c.id) });
+                    const d = Array.isArray(data) ? data[0] : null;
+                    if (d && !d.visible) {
+                        alert(`Клієнт з кодом ${v} уже є в FURA: «${d.name}», закріплений за Sales: ${d.sales || "—"}.\n\nЩоб працювати з ним, зверніться до керівника.`);
+                        el.value = c.edrpou || "";
+                        return;
+                    }
+                    other = d || (await sbClient.from("leads").select("id, name").eq("edrpou", v).neq("id", c.id).limit(1)).data?.[0];
+                }
                 if (other && confirm(`Клієнт / лід з кодом ${v} уже є: «${other.name}».\nВідкрити його замість цього?`)) {
                     if (!c.name || c.name === "Новий клієнт") await sbClient.from("leads").delete().eq("id", c.id);
                     await loadClients();

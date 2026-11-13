@@ -185,7 +185,13 @@ const REQUEST_FIELDS = [
     "desired_date", "desired_date_to", "cargo", "transport_type", "weight", "sales", "logistician", "created_at",
 ];
 
-async function runTool(name: string, input: Any): Promise<unknown> {
+// «Лише Sales» (без head/admin/logist) бачить тільки своїх лідів і клієнтів
+function salesOnly(me: Any): boolean {
+    const roles: string[] = Array.isArray(me?.roles) && me.roles.length ? me.roles : me?.role ? [me.role] : [];
+    return roles.includes("sales") && !roles.some((r) => ["head", "admin", "logist"].includes(r));
+}
+
+async function runTool(name: string, input: Any, me: Any = null): Promise<unknown> {
     switch (name) {
         case "search_carriers": {
             let q = db
@@ -327,6 +333,10 @@ async function runTool(name: string, input: Any): Promise<unknown> {
             if (t) q = q.or(orIlike(["name", "edrpou", "contact_person", "phone", "city"], t));
             if (input.status) q = q.ilike("status", `%${term(input.status)}%`);
             if (input.due_today) q = q.lte("next_contact", new Date().toISOString().slice(0, 10));
+            if (salesOnly(me)) {
+                const nm = String(me.full_name || "").replace(/[,()"]/g, " ").trim();
+                q = q.or(`sales_id.eq.${me.id}` + (nm ? `,created_by.eq."${nm}"` : ""));
+            }
             const { data, error } = await q;
             if (error) return { error: error.message };
             return (data || []).map((l: Any) => ({
@@ -395,7 +405,7 @@ async function answer(me: Any, history: Any[]): Promise<{ reply: string; tools: 
             used.push(c.name);
             let out: unknown;
             try {
-                out = await runTool(c.name, c.input || {});
+                out = await runTool(c.name, c.input || {}, me);
             } catch (e) {
                 out = { error: String(e) };
             }

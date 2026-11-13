@@ -689,7 +689,7 @@ leadForm.addEventListener("submit", async (e) => {
     // Дублікати: той самий ЄДРПОУ або назва
     const name = val("lead_name");
     const edrpou = val("lead_edrpou");
-    const dup = leadsCache.find(
+    let dup = leadsCache.find(
         (l) =>
             String(l.id) !== String(id) &&
             ((edrpou && String(l.edrpou || "").trim() === edrpou) ||
@@ -697,6 +697,16 @@ leadForm.addEventListener("submit", async (e) => {
                     .trim()
                     .toLowerCase() === String(name || "").toLowerCase()),
     );
+    // Клієнта колеги Sales не бачить у списку — питаємо базу, чи такий уже є
+    if (!dup) {
+        const { data } = await sbClient.rpc("lead_find_duplicate", { p_edrpou: edrpou || null, p_name: name || null, p_exclude: id ? String(id) : null });
+        const d = Array.isArray(data) ? data[0] : null;
+        if (d && !d.visible) {
+            alert(`Клієнт «${d.name}» уже є в FURA і закріплений за Sales: ${d.sales || "—"}.\n\nЩоб працювати з ним, зверніться до керівника.`);
+            return;
+        }
+        if (d) dup = d;
+    }
     if (
         dup &&
         !confirm(
