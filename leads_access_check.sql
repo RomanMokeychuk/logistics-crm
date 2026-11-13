@@ -15,7 +15,7 @@ end;
 $$;
 
 select s.full_name                                  as "Співробітник",
-       coalesce(array_to_string(s.roles, ', '), s.role) as "Ролі",
+       coalesce(nullif(s.roles::text, '{}'), s.role) as "Ролі",
        pg_temp.fura_sees(s.email)                   as "Бачить лідів/клієнтів",
        (select count(*) from public.leads)          as "Усього в базі"
   from public.staff s
