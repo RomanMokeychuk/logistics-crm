@@ -33,7 +33,7 @@
     outline: none;
     background: #fff;
     border-color: var(--f-blue, #1d5bd8);
-    box-shadow: 0 0 0 3px rgba(29, 91, 216, 0.15);
+    box-shadow: 0 0 0 3px rgba(120, 134, 134, 0.15);
 }
 
 .gs-kbd {
@@ -93,7 +93,7 @@
 
 .gs-item i {
     font-size: 18px;
-    color: var(--f-orange, #7c3aed);
+    color: var(--f-orange, #c9973a);
     margin-top: 1px;
 }
 

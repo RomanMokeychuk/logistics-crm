@@ -23,7 +23,7 @@
 
 .fh-fab i {
     font-size: 20px;
-    color: var(--f-orange, #7c3aed);
+    color: var(--f-orange, #c9973a);
 }
 
 .fh-panel {
@@ -108,7 +108,7 @@
     height: 44px;
     border: none;
     border-radius: 10px;
-    background: var(--f-orange, #7c3aed);
+    background: var(--f-orange, #c9973a);
     color: var(--f-navy, #13203f);
     font-size: 20px;
     cursor: pointer;
@@ -281,7 +281,7 @@
 }
 
 .fh-add {
-    border-color: var(--f-orange, #7c3aed);
+    border-color: var(--f-orange, #c9973a);
     color: #7a3d00;
 }
 

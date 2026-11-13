@@ -97,14 +97,14 @@
 
     // Логотип FURA (той самий, що logo.svg), але в помаранчевому квадраті
     const LOGO_SVG = `<svg viewBox="0 0 64 64" width="40" height="40" aria-hidden="true">
-        <defs><linearGradient id="furaLg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#a855f7"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#furaLg)"/>
+        <defs><linearGradient id="furaLg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff3c4"/><stop offset=".35" stop-color="#e9c46a"/><stop offset=".7" stop-color="#c9973a"/><stop offset="1" stop-color="#8f6a1f"/></linearGradient></defs><rect width="64" height="64" rx="14" fill="url(#furaLg)"/>
         <path d="M5 22h6M3 29h8M6 36h5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
         <rect x="14" y="16" width="27" height="22" rx="3" fill="#fff"/>
         <path d="M43 22h7.6a2 2 0 0 1 1.6 .8l5.3 7a2 2 0 0 1 .5 1.3V36a2 2 0 0 1-2 2H43z" fill="#fff"/>
-        <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#7c3aed"/>
-        <circle cx="21" cy="41" r="4.6" fill="#7c3aed" stroke="#fff" stroke-width="3"/>
-        <circle cx="34" cy="41" r="4.6" fill="#7c3aed" stroke="#fff" stroke-width="3"/>
-        <circle cx="50" cy="41" r="4.6" fill="#7c3aed" stroke="#fff" stroke-width="3"/>
+        <path d="M46 25.5h4.3l3.6 4.8H46z" fill="#c9973a"/>
+        <circle cx="21" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
+        <circle cx="34" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
+        <circle cx="50" cy="41" r="4.6" fill="#c9973a" stroke="#fff" stroke-width="3"/>
         <path d="M12 52h40" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
     </svg>`;
 
@@ -301,7 +301,7 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611130725");
+        await addScript("helper.js?v=202611130758");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
@@ -434,7 +434,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130725");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130758");
         const label = buildSidebar();
         buildTopbar(label);
         setupMobileMenu();
@@ -443,7 +443,7 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611130725");
+            addScript("global-search.js?v=202611130758");
             // Фурик — персонаж із нагадуваннями (furik.js)
             addScript("furik.js?v=202610200830");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)

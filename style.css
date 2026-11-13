@@ -366,8 +366,8 @@ code {
 }
 
 .badge-warning {
-    background-color: #f3e8ff;
-    color: #6d28d9;
+    background-color: #f7ead0;
+    color: #8f6a1f;
 }
 
 .badge-success {
@@ -1206,7 +1206,7 @@ body,
 }
 
 /* Активний фільтр колонки і кнопка скидання */
-.filter-icon.filter-on { color: #7c3aed !important; opacity: 1 !important; }
+.filter-icon.filter-on { color: #a8781f !important; opacity: 1 !important; }
 .filters-reset { margin-left: 10px; border: 1px solid #fed7aa; background: #fff7ed; color: #c2410c; border-radius: 6px; padding: 2px 8px; font: inherit; font-size: 12px; cursor: pointer; }
 .filters-reset:hover { background: #ffedd5; }
 

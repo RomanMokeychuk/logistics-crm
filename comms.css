@@ -93,7 +93,7 @@
 }
 .cm-thread-item.active {
     border-color: var(--f-blue, #1d5bd8);
-    box-shadow: 0 0 0 2px rgba(29, 91, 216, 0.12);
+    box-shadow: 0 0 0 2px rgba(120, 134, 134, 0.12);
 }
 .cm-thread-item.waiting {
     border-left: 4px solid #f59e0b;

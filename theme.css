@@ -6,12 +6,12 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 :root {
-    --f-navy: #13203f;
-    --f-navy-2: #1b2a4d;
-    --f-orange: #7c3aed;
-    --f-orange-2: #a855f7;
-    --f-blue: #6366f1;
-    --f-blue-2: #4f46e5;
+    --f-navy: #3a4244;
+    --f-navy-2: #2b3133;
+    --f-orange: #c9973a;
+    --f-orange-2: #e9c46a;
+    --f-blue: #1d5bd8;
+    --f-blue-2: #1749b3;
     --f-bg: #f3f5f9;
     --f-card: #ffffff;
     --f-line: #e4e8ef;
@@ -56,7 +56,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+    box-shadow: 0 4px 12px rgba(201, 151, 58, 0.35);
 }
 
 .fura-brand-name {
@@ -110,7 +110,7 @@ body {
     background: var(--f-orange);
     color: #fff;
     font-weight: 600;
-    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
+    box-shadow: 0 6px 16px rgba(201, 151, 58, 0.3);
 }
 
 .fura-nav-item.active i {
@@ -269,7 +269,7 @@ body {
 
 .btn-primary {
     background: var(--f-blue);
-    box-shadow: 0 4px 12px rgba(29, 91, 216, 0.25);
+    box-shadow: 0 4px 12px rgba(120, 134, 134, 0.25);
 }
 
 .btn-primary:hover {
@@ -305,7 +305,7 @@ body {
 .form-group select:focus,
 .form-group textarea:focus {
     border-color: var(--f-blue);
-    box-shadow: 0 0 0 3px rgba(29, 91, 216, 0.12);
+    box-shadow: 0 0 0 3px rgba(120, 134, 134, 0.12);
     outline: none;
 }
 

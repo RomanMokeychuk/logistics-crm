@@ -23,7 +23,7 @@
 
 .fa-fab i {
     font-size: 20px;
-    color: var(--f-orange, #7c3aed);
+    color: var(--f-orange, #c9973a);
 }
 
 .fa-fab:hover {
@@ -198,7 +198,7 @@
     width: 6px;
     height: 6px;
     border-radius: 3px;
-    background: var(--f-orange, #7c3aed);
+    background: var(--f-orange, #c9973a);
     animation: fa-blink 1s infinite ease-in-out;
 }
 
@@ -253,7 +253,7 @@
     height: 44px;
     border: none;
     border-radius: 10px;
-    background: var(--f-orange, #7c3aed);
+    background: var(--f-orange, #c9973a);
     color: var(--f-navy, #13203f);
     font-size: 20px;
     cursor: pointer;

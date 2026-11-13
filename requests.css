@@ -128,7 +128,7 @@
 
 .status-quote {
     background: #fef3c7;
-    color: #be185d;
+    color: #9a6b1a;
     border-color: #fde68a;
 }
 
@@ -220,7 +220,7 @@
 }
 
 .req-timer-new {
-    color: #be185d;
+    color: #9a6b1a;
 }
 
 .req-timer-overdue {
@@ -759,9 +759,9 @@
 }
 
 .type-calc {
-    background: #fdf2f8;
-    color: #be185d;
-    border-color: #fbcfe8;
+    background: #fbf5e8;
+    color: #9a6b1a;
+    border-color: #efdcb0;
 }
 
 .type-search {
@@ -814,8 +814,8 @@
 }
 
 .form-group .type-option.type-calc:has(input:checked) {
-    background: #fdf2f8;
-    color: #be185d;
+    background: #fbf5e8;
+    color: #9a6b1a;
 }
 
 .form-group .type-option.type-search:has(input:checked) {
@@ -907,7 +907,7 @@
 }
 
 .client-lead-info.warn {
-    color: #be185d;
+    color: #9a6b1a;
 }
 
 .client-lead-info .status-badge {
@@ -1146,16 +1146,16 @@
 .req-chat-list { max-height: 320px; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; background: #f8fafc; }
 .req-chat-empty { color: #94a3b8; font-size: 13px; text-align: center; padding: 10px 4px; }
 .req-msg { max-width: 78%; align-self: flex-start; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px 12px 12px 4px; padding: 8px 12px; }
-.req-msg.mine { align-self: flex-end; background: #fdf2f8; border-color: #fbcfe8; border-radius: 12px 12px 4px 12px; }
+.req-msg.mine { align-self: flex-end; background: #fbf5e8; border-color: #efdcb0; border-radius: 12px 12px 4px 12px; }
 .req-msg-head { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; font-size: 12px; color: #334155; margin-bottom: 3px; }
 .req-msg-head span { color: #94a3b8; font-size: 11px; white-space: nowrap; }
 .req-msg-text { font-size: 14px; color: #0f172a; white-space: pre-wrap; word-break: break-word; line-height: 1.4; }
 .req-chat-form { display: flex; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid #e2e8f0; align-items: flex-end; }
 .req-chat-form textarea { flex: 1; resize: none; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 14px; min-height: 40px; outline: none; }
-.req-chat-form textarea:focus { border-color: #8b5cf6; box-shadow: 0 0 0 3px rgba(139, 92, 246,.12); }
-.req-chat-send { border: none; background: #8b5cf6; color: #fff; border-radius: 10px; padding: 0 14px; height: 40px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.req-chat-form textarea:focus { border-color: #c9973a; box-shadow: 0 0 0 3px rgba(201, 151, 58,.12); }
+.req-chat-send { border: none; background: #c9973a; color: #fff; border-radius: 10px; padding: 0 14px; height: 40px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .req-chat-send:disabled { opacity: .6; cursor: default; }
-.req-chat-send:hover:not(:disabled) { background: #7c3aed; }
+.req-chat-send:hover:not(:disabled) { background: #a8781f; }
 .req-chat-hint { display: flex; align-items: center; gap: 6px; padding: 8px 14px; font-size: 12.5px; color: #7c3aed; background: #f5f3ff; border-bottom: 1px solid #ede9fe; }
 
 /* Вибір конкретного варіанту ціни */
@@ -1193,7 +1193,7 @@
 .ans-carrier-item span { font-size: 12px; color: #64748b; }
 .ans-carrier-none { padding: 10px 12px; font-size: 13px; color: #94a3b8; }
 .offer-carrier { margin-top: 2px; font-size: 13px; color: #334155; font-weight: 600; }
-.offer-carrier i { color: #8b5cf6; }
+.offer-carrier i { color: #c9973a; }
 .ans-carrier-box input.ans-carrier { width: 100%; box-sizing: border-box; }
 .offer-carrier a { color: inherit; text-decoration: none; }
 .offer-carrier a:hover { color: #2563eb; text-decoration: underline; }
@@ -1242,24 +1242,24 @@
 /* Вкладення в переписці по запиту */
 .req-chat-form { align-items: flex-end; }
 .req-chat-clip { flex: none; width: 40px; height: 40px; border: 1px solid #e2e8f0; border-radius: 10px; display: grid; place-items: center; cursor: pointer; color: #64748b; background: #fff; font-size: 20px; }
-.req-chat-clip:hover { border-color: #8b5cf6; color: #8b5cf6; }
+.req-chat-clip:hover { border-color: #c9973a; color: #c9973a; }
 .req-chat-att { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 0; border-top: 1px solid #e2e8f0; }
 .req-chat-att[hidden] { display: none; }
 .req-chat-att + .req-chat-form { border-top: 0; }
-.req-att { display: flex; align-items: center; gap: 6px; max-width: 240px; background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 12px; }
+.req-att { display: flex; align-items: center; gap: 6px; max-width: 240px; background: #fbf5e8; border: 1px solid #efdcb0; border-radius: 10px; padding: 4px 6px 4px 4px; font-size: 12px; }
 .req-att img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
-.req-att > i { font-size: 22px; color: #9d174d; padding: 0 4px; }
+.req-att > i { font-size: 22px; color: #7a5414; padding: 0 4px; }
 .req-att span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.req-att button { border: 0; background: none; cursor: pointer; color: #9d174d; font-size: 16px; padding: 0; display: grid; place-items: center; }
+.req-att button { border: 0; background: none; cursor: pointer; color: #7a5414; font-size: 16px; padding: 0; display: grid; place-items: center; }
 .req-msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
 .req-msg-img img { display: block; max-width: 240px; max-height: 200px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f1f5f9; min-width: 60px; min-height: 40px; object-fit: cover; }
 .req-msg-doc { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; background: #f1f5f9; color: #1d4ed8; font-size: 13px; text-decoration: none; }
 .req-msg-doc span { color: #94a3b8; font-size: 11px; }
 .req-msg-noimg { font-size: 12px; color: #94a3b8; }
-.req-chat-drop { outline: 2px dashed #8b5cf6; outline-offset: -4px; }
+.req-chat-drop { outline: 2px dashed #c9973a; outline-offset: -4px; }
 
 /* Запит, який щойно відкривали — видно в списку */
 .requests-table tr.req-last > td:first-child { box-shadow: inset 4px 0 0 var(--f-blue, #1d5bd8); }
-.requests-table tr.req-last { outline: 2px solid rgba(29, 91, 216, .35); outline-offset: -2px; }
+.requests-table tr.req-last { outline: 2px solid rgba(120, 134, 134, .35); outline-offset: -2px; }
 .requests-table tr.req-flash { animation: req-flash 1.6s ease-out; }
-@keyframes req-flash { 0%, 30% { background: rgba(29, 91, 216, .16); } 100% { background: inherit; } }
+@keyframes req-flash { 0%, 30% { background: rgba(120, 134, 134, .16); } 100% { background: inherit; } }

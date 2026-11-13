@@ -387,14 +387,14 @@
     // Логіст — помаранчева кабіна й кепка; Sales — синя кабіна й гарнітура
     function furikSvg(m) {
         const sales = m === "sales";
-        const cab = sales ? "#1d5bd8" : "#7c3aed";
+        const cab = sales ? "#1d5bd8" : "#c9973a";
         const glass = sales ? "#dbe7ff" : "#ffe2bf";
-        const hub = sales ? "#7aa7ff" : "#7c3aed";
+        const hub = sales ? "#7aa7ff" : "#c9973a";
         const hat = sales
             ? `<path d="M64 20q10-12 20 0" stroke="#13203f" stroke-width="2.4" fill="none" stroke-linecap="round"/>
                <rect x="61.5" y="19" width="5" height="7" rx="2" fill="#13203f"/><rect x="81.5" y="19" width="5" height="7" rx="2" fill="#13203f"/>
                <path d="M84 26q2 8-5 11" stroke="#13203f" stroke-width="1.6" fill="none" stroke-linecap="round"/><circle cx="78.5" cy="37.3" r="1.8" fill="#13203f"/>`
-            : `<path d="M60 22q0-9 14-9t14 9z" fill="#13203f"/><path d="M74 21h17q1.5 0 0 2H74z" fill="#13203f"/><circle cx="74" cy="13.6" r="1.4" fill="#7c3aed"/>`;
+            : `<path d="M60 22q0-9 14-9t14 9z" fill="#13203f"/><path d="M74 21h17q1.5 0 0 2H74z" fill="#13203f"/><circle cx="74" cy="13.6" r="1.4" fill="#c9973a"/>`;
         return `
     <svg viewBox="0 0 96 72" width="72" height="54" aria-hidden="true" class="fk-svg">
         <g class="fk-body">

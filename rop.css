@@ -41,7 +41,7 @@
     font-weight: 600;
 }
 .ag-card-head h2 i {
-    color: var(--f-orange, #7c3aed);
+    color: var(--f-orange, #c9973a);
     vertical-align: -2px;
 }
 .btn-sm {
@@ -57,7 +57,7 @@
 /* ---------- Головне сьогодні ---------- */
 
 .rop-main {
-    border-left: 4px solid var(--f-orange, #7c3aed);
+    border-left: 4px solid var(--f-orange, #c9973a);
 }
 .rop-main .ag-card-head .ag-hint {
     font-size: 14px;
@@ -88,7 +88,7 @@
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background: var(--f-orange, #7c3aed);
+    background: var(--f-orange, #c9973a);
     color: #fff;
     font-weight: 700;
     font-size: 13px;
