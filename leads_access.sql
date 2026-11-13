@@ -1,13 +1,12 @@
--- FURA: кожен Sales бачить лише СВОЇХ лідів і клієнтів.
+-- FURA: доступ до «Лідів» і «Клієнтів».
 -- Виконати один раз: Supabase → SQL Editor → New query → вставити весь файл → Run (можна повторно).
 -- Потрібні функції з agent_bids.sql (is_active_staff) і rop.sql (rop_is_boss, rop_my_staff_id) — вони вже виконані.
 --
 -- Хто що бачить у Лідах і Клієнтах (обидві сторінки — таблиця public.leads):
---   • Керівник (роль head) і Адмін (admin) — усіх.
---   • Логіст (без ролі Sales) — усіх (йому потрібні клієнти для запитів і угод).
---   • Якщо в людини є роль Sales (навіть разом із «Логіст») — вона бачить лише своїх.
---   • Sales / менеджер — ЛИШЕ тих, де саме він вказаний як Sales (менеджер).
---     Інший Sales цих клієнтів не бачить. Передали клієнта колезі — він зникає зі списку того, хто передав.
+--   • Керівник (head) і Адмін (admin) — усіх.
+--   • Sales / менеджер (навіть якщо ще й логіст) — ЛИШЕ тих, де саме він вказаний як Sales.
+--   • Логіст без ролі Sales — НІКОГО (лідів і клієнтів не бачить; запити й угоди бачить як раніше —
+--     назва клієнта зберігається в самому запиті/угоді).
 --   • Ліди без Sales бачить лише керівник/адмін, поки не призначить Sales.
 -- Обмеження працює в самій базі: чужих клієнтів не видно ні в таблиці, ні в пошуку, ні у звітах, ні в Помічнику.
 
@@ -37,16 +36,20 @@ stable
 security definer
 set search_path = ''
 as $$
-declare me_id text; me_name text;
+declare me_id text; me_roles text; me_role text;
 begin
-    if not public.is_active_staff() then return false; end if;
-    if not public.lead_is_restricted() then return true; end if;
-    select s.id::text, lower(trim(s.full_name)) into me_id, me_name
+    select s.id::text, coalesce(s.roles::text, ''), coalesce(s.role, '')
+      into me_id, me_roles, me_role
       from public.staff s
      where lower(s.email) = lower(coalesce(auth.jwt() ->> 'email', '')) and s.active
      limit 1;
     if me_id is null then return false; end if;
-    return p_sales_id = me_id;
+    -- керівник / адмін — усіх
+    if me_roles ~ '(^|[^a-z_])(head|admin)([^a-z_]|$)' or me_role in ('head', 'admin') then return true; end if;
+    -- Sales — лише своїх
+    if me_roles ~ '(^|[^a-z_])sales([^a-z_]|$)' or me_role = 'sales' then return p_sales_id = me_id; end if;
+    -- логіст та інші — нікого
+    return false;
 end;
 $$;
 
