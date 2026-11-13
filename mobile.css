@@ -617,3 +617,16 @@
     .fura-topbar .gs input { font-size: 16px !important; }
     .gs-list, .gs-item { font-size: 13.5px !important; }
 }
+@media (max-width: 900px) {
+    /* плаваючі кнопки (Фурик, Помічник) ховаються при прокрутці вниз */
+    .fk, .fh-fab, .fura-fab { transition: transform .25s ease, opacity .25s ease; }
+    body.m-scroll-down .fk, body.m-scroll-down .fh-fab, body.m-scroll-down .fura-fab { transform: translateX(140%); opacity: 0; pointer-events: none; }
+    /* місце знизу — щоб останні кнопки не ховались під панеллю Safari і Фуриком */
+    main.main-content { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
+}
+/* На сенсорних екранах без «наведення» — не лишати золоті смужки й рамки після дотику */
+@media (hover: none) {
+    .table-card tbody tr:hover { box-shadow: none !important; }
+    .quick-card:hover, .home-section:hover, .kpi:hover, .eq-kpi:hover, .rop-kpi:hover { transform: none !important; }
+    .fura-nav-item:hover:not(.active) { transform: none !important; }
+}

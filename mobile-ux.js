@@ -21,7 +21,9 @@
             // що лишається видимим у згорнутому стані — поле пошуку
             const keep = isForm ? [] : [...box.children].filter((ch) => ch.matches(SEARCH) || ch.querySelector(SEARCH));
             const rest = isForm ? [...box.children] : [...box.children].filter((ch) => !keep.includes(ch));
-            if (!rest.length) return;
+            // згортаємо лише справжні фільтри (списки, галочки, поля); звичайні кнопки лишаються на місці
+            const hasControls = rest.some((ch) => ch.matches("select, input:not([type=hidden]), textarea") || ch.querySelector("select, input:not([type=hidden]), textarea"));
+            if (!rest.length || !hasControls) return;
             box.dataset.mf = "1";
             keep.forEach((k) => k.classList.add("m-keep"));
             const btn = document.createElement("button");
@@ -79,6 +81,16 @@
             exitFocus();
         }, 250);
     });
+
+    // Фурик і «Помічник» ховаються, коли гортаєте вниз (не закривають кнопки), і повертаються, коли вгору
+    let lastY = scrollY;
+    addEventListener("scroll", () => {
+        if (!mq.matches) return;
+        const y = scrollY;
+        if (Math.abs(y - lastY) < 8) return;
+        document.body.classList.toggle("m-scroll-down", y > lastY && y > 120);
+        lastY = y;
+    }, { passive: true });
 
     function run() { if (mq.matches) setupFilters(); }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(run, 50));
