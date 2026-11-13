@@ -891,3 +891,48 @@ html::before {
 @media (prefers-reduced-motion: reduce) { .home-hero h1#homeGreeting, .home-date, .home-block { animation: none !important; } }
 
 .home-company-logo.gd-logo { width: 96px; }
+
+/* ================================================================= *
+ * Перехід між сторінками: меню зліва стоїть на місці,                *
+ * оновлюється лише робоча частина                                    *
+ * ================================================================= */
+@view-transition { navigation: auto; }
+aside.sidebar { view-transition-name: fura-sidebar; }
+#sidebarToggleBtn { view-transition-name: fura-sidebar-btn; }
+::view-transition-group(fura-sidebar), ::view-transition-group(fura-sidebar-btn) { animation: none; }
+::view-transition-old(fura-sidebar), ::view-transition-old(fura-sidebar-btn) { display: none; }
+::view-transition-new(fura-sidebar), ::view-transition-new(fura-sidebar-btn) { animation: none; }
+::view-transition-old(root) { animation: gd-vt-out .16s ease both; }
+::view-transition-new(root) { animation: gd-vt-in .22s ease both; }
+@keyframes gd-vt-out { to { opacity: 0; } }
+@keyframes gd-vt-in { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; } }
+
+/* Поки робоча частина вантажиться — меню зліва вже видно, заставка лише справа */
+@media (min-width: 901px) {
+    body:not([style*="visible"]) aside.sidebar,
+    body:not([style*="visible"]) aside.sidebar *:not([hidden]),
+    body:not([style*="visible"]) #sidebarToggleBtn { visibility: visible; }
+    body:not([style*="visible"])::before {
+        left: 250px;
+        background:
+            linear-gradient(90deg, rgba(255, 255, 255, 0) 0, rgba(255, 255, 255, .65) 50%, rgba(255, 255, 255, 0) 100%) -60% 0 / 40% 100% no-repeat,
+            linear-gradient(#ece6d8, #ece6d8) 32px 96px / 260px 30px no-repeat,
+            linear-gradient(#f1ece1, #f1ece1) 32px 150px / calc(100% - 64px) 44px no-repeat,
+            linear-gradient(#fff, #fff) 32px 214px / calc(100% - 64px) calc(100% - 250px) no-repeat,
+            var(--f-bg, #f6f4ef);
+        animation: gd-shimmer 1.3s ease-in-out infinite;
+    }
+    body.sidebar-collapsed:not([style*="visible"])::before { left: 0; }
+    body:not([style*="visible"])::after { left: 250px; width: calc(100% - 250px); }
+}
+@keyframes gd-shimmer { to { background-position: 160% 0, 32px 96px, 32px 150px, 32px 214px, 0 0; } }
+/* Доки FURA не побудувала меню — показуємо графітову заготовку, а не стару HTML-версію меню */
+aside.sidebar:not(.fura-sidebar) {
+    visibility: visible !important;
+    background: linear-gradient(180deg, #485052, #282d2f) !important;
+    width: 250px; min-width: 250px; padding: 0 !important; border-right: 1px solid rgba(214, 168, 72, .4);
+}
+aside.sidebar:not(.fura-sidebar) * { visibility: hidden !important; }
+body.sidebar-collapsed aside.sidebar:not(.fura-sidebar) { width: 0; min-width: 0; }
+@media (max-width: 900px) { aside.sidebar:not(.fura-sidebar) { visibility: hidden !important; } }

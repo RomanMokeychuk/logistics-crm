@@ -257,9 +257,31 @@
     }
     window.furaSetCrumbs = setCrumbs;
 
+    // Показати користувача й пункти меню одразу з пам'яті вкладки (без «блимання» при переході між сторінками)
+    function applyUser(box, name, roles) {
+        const initials = String(name || "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w) => w[0])
+            .join("")
+            .toUpperCase();
+        box.querySelector(".fura-avatar").textContent = initials || "?";
+        box.querySelector(".fura-user-name").textContent = name || "";
+        box.querySelector(".fura-user-name").title = name || "";
+        box.querySelector(".fura-user-roles").textContent = roles.map((r) => ROLE_LABELS[r] || r).join(" · ") || "—";
+        document.querySelectorAll(".fura-nav-item[data-only]").forEach((a) => {
+            a.hidden = !a.dataset.only.split(",").some((r) => roles.includes(r));
+        });
+    }
+
     async function fillUser() {
         const box = document.getElementById("furaUser");
         if (!box || typeof sbClient === "undefined") return;
+        try {
+            const c = JSON.parse(sessionStorage.getItem("fura_me") || "null");
+            if (c && c.name) applyUser(box, c.name, c.roles || []);
+        } catch (e) { /* немає кешу */ }
         try {
             const {
                 data: { session },
@@ -270,20 +292,8 @@
             const me = data?.[0];
             const name = me?.full_name || email;
             const roles = Array.isArray(me?.roles) && me.roles.length ? me.roles : me?.role ? [me.role] : [];
-            const initials = String(name)
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((w) => w[0])
-                .join("")
-                .toUpperCase();
-            box.querySelector(".fura-avatar").textContent = initials || "?";
-            box.querySelector(".fura-user-name").textContent = name;
-            box.querySelector(".fura-user-name").title = name;
-            box.querySelector(".fura-user-roles").textContent = roles.map((r) => ROLE_LABELS[r] || r).join(" · ") || "—";
-            document.querySelectorAll(".fura-nav-item[data-only]").forEach((a) => {
-                a.hidden = !a.dataset.only.split(",").some((r) => roles.includes(r));
-            });
+            applyUser(box, name, roles);
+            try { sessionStorage.setItem("fura_me", JSON.stringify({ name, roles })); } catch (e) { /* без кешу */ }
         } catch (e) {
             console.warn("FURA shell:", e);
         }
@@ -310,7 +320,7 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611130823");
+        await addScript("helper.js?v=202611130833");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
@@ -439,20 +449,46 @@
         } catch (e) { /* без перевірки */ }
     }
 
+    // Меню зліва пам'ятає, де було прокручене, — при переході на іншу сторінку не стрибає вгору
+    function keepSidebarScroll() {
+        const nav = document.querySelector(".fura-nav");
+        if (!nav) return;
+        try { nav.scrollTop = Number(sessionStorage.getItem("fura_nav_scroll") || 0); } catch (e) { /* ні */ }
+        addEventListener("pagehide", () => {
+            try { sessionStorage.setItem("fura_nav_scroll", String(nav.scrollTop)); } catch (e) { /* ні */ }
+            // Готове меню — у пам'ять вкладки: наступна сторінка покаже його миттєво, ще до завантаження решти
+            try { sessionStorage.setItem("fura_sb", document.querySelector("aside.sidebar")?.innerHTML || ""); } catch (e) { /* ні */ }
+        });
+    }
+
+    // Сторінки FURA підвантажуються заздалегідь, коли наводите мишку на пункт меню, — перехід майже миттєвий
+    function prefetchPages() {
+        if (window.top !== window.self) return;
+        if (!(HTMLScriptElement.supports && HTMLScriptElement.supports("speculationrules"))) return;
+        const s = document.createElement("script");
+        s.type = "speculationrules";
+        s.textContent = JSON.stringify({
+            prefetch: [{ where: { and: [{ href_matches: "*.html" }, { selector_matches: ".fura-nav-item" }] }, eagerness: "moderate" }],
+        });
+        document.head.appendChild(s);
+    }
+
     function init() {
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130823");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611130833");
         const label = buildSidebar();
+        keepSidebarScroll();
         buildTopbar(label);
+        prefetchPages();
         setupMobileMenu();
         watchTables();
         fillUser();
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611130823");
+            addScript("global-search.js?v=202611130833");
             // Фурик — персонаж із нагадуваннями (furik.js)
             addScript("furik.js?v=202610200830");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)

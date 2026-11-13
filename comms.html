@@ -12,13 +12,13 @@
         <link rel="icon" href="favicon.ico?v=3" sizes="any" />
         <link rel="icon" href="logo.svg?v=3" type="image/svg+xml" />
         <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3" />
-        <link rel="stylesheet" href="style.css?v=202611130823" />
+        <link rel="stylesheet" href="style.css?v=202611130833" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611130823" />
-        <link rel="stylesheet" href="agents.css?v=202611130823" />
-        <link rel="stylesheet" href="rop.css?v=202611130823" />
-        <link rel="stylesheet" href="comms.css?v=202611130823" />
-        <link rel="stylesheet" href="design.css?v=202611130823" />
+        <link rel="stylesheet" href="theme.css?v=202611130833" />
+        <link rel="stylesheet" href="agents.css?v=202611130833" />
+        <link rel="stylesheet" href="rop.css?v=202611130833" />
+        <link rel="stylesheet" href="comms.css?v=202611130833" />
+        <link rel="stylesheet" href="design.css?v=202611130833" />
     </head>
     <body>
         <aside class="sidebar">
@@ -30,6 +30,7 @@
                 <a href="comms.html" class="active"><i class="bx bx-chat"></i> Переписка</a>
             </nav>
         </aside>
+        <script>/* FURA: меню з пам'яті вкладки — одразу, без «блимання» (shell.js потім оновить його) */try{var a=document.querySelector("aside.sidebar"),h=sessionStorage.getItem("fura_sb");if(a&&h&&innerWidth>900){a.innerHTML=h;a.classList.add("fura-sidebar");var p=(location.pathname.split("/").pop()||"index.html").toLowerCase();a.querySelectorAll(".fura-nav-item.active").forEach(function(x){x.classList.remove("active")});var l=a.querySelector('.fura-nav-item[href="'+p+'"]');if(l)l.classList.add("active");var n=a.querySelector(".fura-nav");if(n)n.scrollTop=+sessionStorage.getItem("fura_nav_scroll")||0}}catch(e){}</script>
 
         <button
             type="button"
@@ -120,9 +121,9 @@
         <div class="ag-toast" id="agToast" role="status" aria-live="polite"></div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="comms.js?v=202611130823"></script>
-        <script src="shell.js?v=202611130823"></script>
-        <script src="notify.js?v=202611130823"></script>
-        <script src="lock.js?v=202611130823"></script>
+        <script src="comms.js?v=202611130833"></script>
+        <script src="shell.js?v=202611130833"></script>
+        <script src="notify.js?v=202611130833"></script>
+        <script src="lock.js?v=202611130833"></script>
     </body>
 </html>
