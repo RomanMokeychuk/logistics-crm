@@ -655,3 +655,11 @@
     }
     .column-filter-options { max-height: calc(70vh - 170px) !important; overflow-y: auto !important; }
 }
+@media (max-width: 900px) {
+    .m-colf-n { background: var(--gd-gold, #c9973a); color: #2b1d06; border-radius: 999px; padding: 0 7px; font-size: 11px; letter-spacing: 0; }
+    .m-colf-reset {
+        margin-left: auto; border: 1px solid #f3c4c4; background: #fff5f5; color: #b42318;
+        border-radius: 999px; padding: 5px 11px; font: 600 12px/1 inherit; letter-spacing: 0; text-transform: none; cursor: pointer;
+    }
+    .m-colf-reset[hidden] { display: none; }
+}

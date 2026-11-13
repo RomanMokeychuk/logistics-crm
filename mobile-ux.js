@@ -117,7 +117,24 @@
             const host = tbl.closest(".table-card") || tbl;
             host.parentElement.insertBefore(bar, host);
             // підсвічуємо увімкнені фільтри
-            const paint = () => row.querySelectorAll(".m-colf-btn").forEach((b) => b.classList.toggle("on", b._ic.classList.contains("filter-on")));
+            // «Скинути» — з'являється, коли увімкнено хоч один фільтр
+            const reset = document.createElement("button");
+            reset.type = "button";
+            reset.className = "m-colf-reset";
+            reset.innerHTML = "✕ Скинути фільтри";
+            reset.hidden = true;
+            reset.addEventListener("click", () => {
+                if (typeof window.resetCarriersFilters === "function") window.resetCarriersFilters();
+                else if (typeof window.resetFilters === "function") window.resetFilters();
+            });
+            bar.querySelector(".m-colf-title").appendChild(reset);
+            const paint = () => {
+                let n = 0;
+                row.querySelectorAll(".m-colf-btn").forEach((b) => { const on = b._ic.classList.contains("filter-on"); b.classList.toggle("on", on); if (on) n++; });
+                reset.hidden = !n;
+                bar.querySelector(".m-colf-n")?.remove();
+                if (n) bar.querySelector(".m-colf-title").insertBefore(Object.assign(document.createElement("b"), { className: "m-colf-n", textContent: n }), reset);
+            };
             new MutationObserver(paint).observe(tbl.querySelector("thead"), { subtree: true, attributes: true, attributeFilter: ["class"] });
             paint();
         });

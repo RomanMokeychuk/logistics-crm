@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611131402";
+            css.href = "mobile.css?v=202611131406";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -320,16 +320,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611131402");
+        await addScript("helper.js?v=202611131406");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611131402";
+        css.href = "mobile.css?v=202611131406";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611131402");
+        addScript("mobile-ux.js?v=202611131406");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -478,7 +478,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611131402");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611131406");
         const label = buildSidebar();
         keepSidebarScroll();
         buildTopbar(label);
@@ -489,11 +489,11 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611131402");
+            addScript("global-search.js?v=202611131406");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611131402");
+            addScript("furik.js?v=202611131406");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611131402");
+            addScript("presence.js?v=202611131406");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
         }
