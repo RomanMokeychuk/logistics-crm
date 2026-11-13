@@ -580,3 +580,40 @@
     /* таблиці на телефоні — картками, тож вибір колонок не потрібен */
     .fura-cols-btn, .fura-cols-wrap { display: none !important; }
 }
+
+/* ================================================================= *
+ * Телефон: трохи менший шрифт — більше вміщується на екран            *
+ * (поля вводу лишаються 16px, щоб iPhone не збільшував сторінку)      *
+ * ================================================================= */
+@media (max-width: 900px) {
+    body { font-size: 14px; }
+    .main-content h1, .page-title, .dv-num { font-size: 22px !important; line-height: 1.2 !important; }
+    .main-content h2 { font-size: 18px !important; }
+    .main-content h3, .card-section-title, .ch-title, .eqc-title { font-size: 14.5px !important; }
+    .fura-crumbs, .fura-crumbs b { font-size: 15px !important; }
+    td, .card-row-value, .card-block-text, .client-name, .client-sub, .lead-sub { font-size: 13.5px !important; }
+    td::before, .card-row-label { font-size: 10.5px !important; }
+    td strong, td b, .cell-client strong { font-size: 14px !important; }
+    .btn, .btn-primary, .btn-secondary, button.btn, .m-filt-btn { font-size: 14px !important; }
+    .lead-tabs button, .lead-tab, .ld-tabs button, .eq-tabs button, .guide-tabs a, .guide-tabs button { font-size: 14px !important; }
+    .badge, .status-badge, [class*="badge-"] { font-size: 11.5px !important; }
+    .fura-nav-item, .fura-nav-item span { font-size: 15px !important; }
+    p, li { font-size: 14px; }
+    .card-title { font-size: 18px !important; }
+    .kpi-value, .eq-kpi b, .rop-kpi b, .home-kpi b { font-size: 22px !important; }
+    .home-hero h1#homeGreeting { font-size: 22px !important; }
+    input, select, textarea { font-size: 16px !important; }
+}
+@media (max-width: 900px) {
+    .home-h, .home-block h2, .home-section h2 { font-size: 17px !important; }
+    .home-date { font-size: 12.5px !important; }
+    .quick-title { font-size: 14px !important; }
+    .quick-sub, .home-section, .home-section a { font-size: 12.5px !important; }
+    .quick-card { padding: 12px !important; }
+    .quick-icon { width: 36px !important; height: 36px !important; }
+    .home-hero { padding: 16px !important; }
+    .home-company-logo.gd-logo { width: 72px !important; }
+    td { padding-top: 6px !important; padding-bottom: 6px !important; }
+    .fura-topbar .gs input { font-size: 16px !important; }
+    .gs-list, .gs-item { font-size: 13.5px !important; }
+}
