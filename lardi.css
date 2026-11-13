@@ -4,9 +4,9 @@
 .ld-title { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .ld-logo {
     display: inline-flex; align-items: center; height: 36px; padding: 0 14px;
-    background: var(--f-orange, #f57c00); color: #fff; border-radius: 10px;
+    background: var(--f-orange, #7c3aed); color: #fff; border-radius: 10px;
     font-size: 20px; font-weight: 800; letter-spacing: 0.01em;
-    box-shadow: 0 6px 16px rgba(245, 124, 0, 0.25);
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.25);
 }
 .ld-sub { color: var(--f-muted, #6b7280); font-size: 13px; }
 .ld-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -20,8 +20,8 @@
     border: 1px solid #cbd5e1; background: #fff; color: #334155; border-radius: 10px; padding: 8px 12px;
     font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
-.ld-btn:hover { border-color: var(--f-orange, #f57c00); color: var(--f-orange, #f57c00); }
-.ld-btn-main { background: var(--f-orange, #f57c00); border-color: var(--f-orange, #f57c00); color: #fff; }
+.ld-btn:hover { border-color: var(--f-orange, #7c3aed); color: var(--f-orange, #7c3aed); }
+.ld-btn-main { background: var(--f-orange, #7c3aed); border-color: var(--f-orange, #7c3aed); color: #fff; }
 .ld-btn-main:hover { color: #fff; filter: brightness(1.05); }
 .ld-btn:disabled { opacity: 0.7; cursor: wait; }
 
@@ -43,7 +43,7 @@
     border: 0; background: transparent; padding: 7px 12px; border-radius: 8px; font-size: 13px; font-weight: 600;
     color: #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;
 }
-.ld-views button.active { background: #fff; color: var(--f-orange, #f57c00); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.ld-views button.active { background: #fff; color: var(--f-orange, #7c3aed); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
 .ld-search { flex: 1; min-width: 220px; position: relative; }
 .ld-search i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 18px; }
 .ld-search input { width: 100%; box-sizing: border-box; padding: 9px 12px 9px 34px; border: 1px solid #cbd5e1; border-radius: 10px; font-size: 14px; }
@@ -51,7 +51,7 @@
 .ld-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .ld-sel { padding: 7px 10px; border: 1px solid #cbd5e1; border-radius: 9px; font-size: 13px; background: #fff; color: #334155; max-width: 220px; }
 .ld-check { font-size: 13px; color: #334155; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
-.ld-link { border: 0; background: none; color: var(--f-orange, #f57c00); font-size: 13px; cursor: pointer; padding: 4px; }
+.ld-link { border: 0; background: none; color: var(--f-orange, #7c3aed); font-size: 13px; cursor: pointer; padding: 4px; }
 
 .ld-card { background: #fff; border: 1px solid var(--f-line, #e4e8ef); border-radius: 12px; overflow: hidden; }
 .ld-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; font-size: 13px; }
@@ -64,13 +64,13 @@
 }
 .ld-table th.num { text-align: right; }
 .ld-sortable { cursor: pointer; user-select: none; }
-.ld-sortable:hover { color: var(--f-orange, #f57c00); }
+.ld-sortable:hover { color: var(--f-orange, #7c3aed); }
 .ld-table td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; color: #1f2937; }
 .ld-table tr:hover td { background: #fafbfd; }
 .ld-click { cursor: pointer; }
 .ld-clip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .ld-empty { text-align: center; color: #94a3b8; padding: 30px !important; }
-.ld-table a { color: var(--f-orange, #f57c00); text-decoration: none; white-space: nowrap; }
+.ld-table a { color: var(--f-orange, #7c3aed); text-decoration: none; white-space: nowrap; }
 
 .ld-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
 .ld-tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: #f1f5f9; color: #475569; }
@@ -99,7 +99,7 @@
 }
 
 .ld-open { display: inline-block; margin-top: 4px; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 6px; background: #fff7ed; border: 1px solid #fdba74; }
-.ld-open:hover { background: var(--f-orange, #f57c00); color: #fff !important; }
+.ld-open:hover { background: var(--f-orange, #7c3aed); color: #fff !important; }
 
 .ld-grp { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
 .ld-grp b { font-size: 12px; color: #64748b; margin-right: 2px; }
@@ -118,10 +118,10 @@
 .ld-side-inputs { display: flex; gap: 6px; }
 .ld-side-inputs input { flex: 1; min-width: 0; }
 .ld-in { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 9px; font-size: 13px; background: #fff; color: #1f2937; box-sizing: border-box; }
-.ld-in:focus { outline: none; border-color: var(--f-orange, #f57c00); box-shadow: 0 0 0 3px rgba(245, 124, 0, 0.12); }
+.ld-in:focus { outline: none; border-color: var(--f-orange, #7c3aed); box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12); }
 .ld-cc { width: 96px; }
 .ld-swap { border: 1px solid #cbd5e1; background: #fff; border-radius: 9px; height: 36px; width: 40px; font-size: 18px; cursor: pointer; color: #475569; }
-.ld-swap:hover { border-color: var(--f-orange, #f57c00); color: var(--f-orange, #f57c00); }
+.ld-swap:hover { border-color: var(--f-orange, #7c3aed); color: var(--f-orange, #7c3aed); }
 .ld-pair { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #64748b; }
 .ld-pair .ld-in[type="number"] { width: 104px; }
 .ld-pair .ld-in[type="date"] { width: 140px; }
@@ -159,7 +159,7 @@
 
 /* Компанія з Lardi: профіль, відгуки, месенджери */
 .ld-prof { color: inherit; text-decoration: none; border-bottom: 1px dashed #94a3b8; }
-.ld-prof:hover { color: #f57c00; border-bottom-color: #f57c00; }
+.ld-prof:hover { color: #7c3aed; border-bottom-color: #7c3aed; }
 .ld-rev { font-size: 12px; font-weight: 500; white-space: nowrap; }
 .ld-up-ok { color: #15803d; }
 .ld-msg { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 700; color: #fff; text-decoration: none; margin-left: 3px; vertical-align: middle; }

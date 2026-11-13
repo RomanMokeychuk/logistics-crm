@@ -507,7 +507,7 @@
         else bar.appendChild(btn);
         const css = document.createElement("style");
         css.textContent = `.fura-bell{border:1px solid var(--f-line,#e4e8ef);background:#fff;border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer;flex:0 0 auto;margin-left:8px}
-            .fura-bell.off{background:#fff7ed;border-color:#fdba74;animation:furaBell 2.4s ease-in-out 3}
+            .fura-bell.off{background:#fdf2f8;border-color:#f9a8d4;animation:furaBell 2.4s ease-in-out 3}
             @keyframes furaBell{0%,100%{transform:none}10%{transform:rotate(-12deg)}20%{transform:rotate(12deg)}30%{transform:none}}`;
         document.head.appendChild(css);
         return true;

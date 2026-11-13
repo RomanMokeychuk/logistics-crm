@@ -8,10 +8,10 @@
 :root {
     --f-navy: #13203f;
     --f-navy-2: #1b2a4d;
-    --f-orange: #f57c00;
-    --f-orange-2: #ff9a2e;
-    --f-blue: #1d5bd8;
-    --f-blue-2: #1749b3;
+    --f-orange: #7c3aed;
+    --f-orange-2: #a855f7;
+    --f-blue: #6366f1;
+    --f-blue-2: #4f46e5;
     --f-bg: #f3f5f9;
     --f-card: #ffffff;
     --f-line: #e4e8ef;
@@ -56,7 +56,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 12px rgba(245, 124, 0, 0.35);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
 }
 
 .fura-brand-name {
@@ -110,7 +110,7 @@ body {
     background: var(--f-orange);
     color: #fff;
     font-weight: 600;
-    box-shadow: 0 6px 16px rgba(245, 124, 0, 0.3);
+    box-shadow: 0 6px 16px rgba(124, 58, 237, 0.3);
 }
 
 .fura-nav-item.active i {

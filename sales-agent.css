@@ -48,7 +48,7 @@
 .sa-step i {
     grid-row: span 2;
     font-size: 22px;
-    color: #f57c00;
+    color: #7c3aed;
 }
 .sa-step b {
     font-size: 20px;
@@ -92,7 +92,7 @@
 }
 .sa-tab.active {
     color: var(--f-navy, #13203f);
-    border-bottom-color: #f57c00;
+    border-bottom-color: #7c3aed;
 }
 .sa-panel[hidden] {
     display: none;
@@ -271,7 +271,7 @@
     color: #9b1c1c;
 }
 .sa-star {
-    color: #f57c00;
+    color: #7c3aed;
 }
 .sa-link-btn {
     border: none;
@@ -298,7 +298,7 @@
 }
 .sa-msg.in {
     background: #fbfcfe;
-    border-left: 3px solid #f57c00;
+    border-left: 3px solid #7c3aed;
 }
 .sa-reply {
     display: flex;

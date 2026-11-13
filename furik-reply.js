@@ -128,7 +128,7 @@
         <div class="card-section fr" id="furikHelp">
             <div class="card-section-title fr-title">
                 <span class="fr-face" aria-hidden="true">
-                    <svg viewBox="0 0 40 30" width="34" height="26"><rect x="1" y="5" width="22" height="17" rx="3" fill="#13203f"/><path d="M24 9h8l5 7v6H24z" fill="#f57c00"/><circle cx="28" cy="13" r="1.8" fill="#fff"/><circle cx="33" cy="13" r="1.8" fill="#fff"/><circle cx="28.4" cy="13.3" r=".9" fill="#13203f"/><circle cx="33.4" cy="13.3" r=".9" fill="#13203f"/><path d="M28 18q2.5 2 5 0" stroke="#13203f" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="8" cy="24" r="3" fill="#13203f"/><circle cx="30" cy="24" r="3" fill="#13203f"/></svg>
+                    <svg viewBox="0 0 40 30" width="34" height="26"><rect x="1" y="5" width="22" height="17" rx="3" fill="#13203f"/><path d="M24 9h8l5 7v6H24z" fill="#7c3aed"/><circle cx="28" cy="13" r="1.8" fill="#fff"/><circle cx="33" cy="13" r="1.8" fill="#fff"/><circle cx="28.4" cy="13.3" r=".9" fill="#13203f"/><circle cx="33.4" cy="13.3" r=".9" fill="#13203f"/><path d="M28 18q2.5 2 5 0" stroke="#13203f" stroke-width="1.2" fill="none" stroke-linecap="round"/><circle cx="8" cy="24" r="3" fill="#13203f"/><circle cx="30" cy="24" r="3" fill="#13203f"/></svg>
                 </span>
                 <span>Фурик підкаже</span>
             </div>

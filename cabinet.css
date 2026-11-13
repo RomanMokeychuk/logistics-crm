@@ -2,7 +2,7 @@
 :root {
     --navy: #13203f;
     --navy-2: #1b2a4f;
-    --orange: #f57c00;
+    --orange: #7c3aed;
     --orange-soft: #fff4e6;
     --blue: #1d5bd8;
     --bg: #f3f5f9;
@@ -54,7 +54,7 @@ a { color: var(--blue); text-decoration: none; }
 }
 .cb-nav a i { font-size: 20px; opacity: .9; }
 .cb-nav a:hover { background: var(--navy-2); }
-.cb-nav a.active { background: var(--orange); color: #fff; box-shadow: 0 6px 16px rgba(245, 124, 0, .35); }
+.cb-nav a.active { background: var(--orange); color: #fff; box-shadow: 0 6px 16px rgba(124, 58, 237, .35); }
 .cb-nav .cb-count { margin-left: auto; }
 .cb-me { display: flex; align-items: center; gap: 10px; border-top: 1px solid rgba(255,255,255,.08); padding: 14px 6px 0; }
 .cb-avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--navy-2); color: #fff; display: grid; place-items: center; font-weight: 700; flex: none; }
