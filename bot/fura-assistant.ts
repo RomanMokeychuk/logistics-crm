@@ -333,10 +333,7 @@ async function runTool(name: string, input: Any, me: Any = null): Promise<unknow
             if (t) q = q.or(orIlike(["name", "edrpou", "contact_person", "phone", "city"], t));
             if (input.status) q = q.ilike("status", `%${term(input.status)}%`);
             if (input.due_today) q = q.lte("next_contact", new Date().toISOString().slice(0, 10));
-            if (salesOnly(me)) {
-                const nm = String(me.full_name || "").replace(/[,()"]/g, " ").trim();
-                q = q.or(`sales_id.eq.${me.id}` + (nm ? `,created_by.eq."${nm}"` : ""));
-            }
+            if (salesOnly(me)) q = q.eq("sales_id", me.id); // Sales бачить лише клієнтів, де вказаний саме він
             const { data, error } = await q;
             if (error) return { error: error.message };
             return (data || []).map((l: Any) => ({

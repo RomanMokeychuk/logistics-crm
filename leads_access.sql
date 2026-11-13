@@ -5,7 +5,8 @@
 -- Хто що бачить у Лідах і Клієнтах (обидві сторінки — таблиця public.leads):
 --   • Керівник (роль head) і Адмін (admin) — усіх.
 --   • Логіст — усіх (йому потрібні клієнти для запитів і угод).
---   • Sales — лише тих, де він вказаний як Sales, або кого він сам створив.
+--   • Sales / менеджер — ЛИШЕ тих, де саме він вказаний як Sales (менеджер).
+--     Інший Sales цих клієнтів не бачить. Передали клієнта колезі — він зникає зі списку того, хто передав.
 --   • Ліди без Sales бачить лише керівник/адмін, поки не призначить Sales.
 -- Обмеження працює в самій базі: чужих клієнтів не видно ні в таблиці, ні в пошуку, ні у звітах, ні в Помічнику.
 
@@ -44,8 +45,7 @@ begin
      where lower(s.email) = lower(coalesce(auth.jwt() ->> 'email', '')) and s.active
      limit 1;
     if me_id is null then return false; end if;
-    return p_sales_id = me_id
-        or (p_created_by is not null and lower(trim(p_created_by)) = me_name);
+    return p_sales_id = me_id;
 end;
 $$;
 
