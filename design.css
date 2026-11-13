@@ -936,3 +936,9 @@ aside.sidebar:not(.fura-sidebar) {
 aside.sidebar:not(.fura-sidebar) * { visibility: hidden !important; }
 body.sidebar-collapsed aside.sidebar:not(.fura-sidebar) { width: 0; min-width: 0; }
 @media (max-width: 900px) { aside.sidebar:not(.fura-sidebar) { visibility: hidden !important; } }
+
+/* Клієнт колеги: контакти приховані */
+.lead-locked { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #8a7a5c; background: #f7f1e3; border: 1px dashed #d9c79c; border-radius: 999px; padding: 2px 9px; white-space: nowrap; }
+.lead-lock-ic { color: #b39a6a; font-size: 17px; }
+.lead-locked-note { display: flex; align-items: center; gap: 8px; margin: 10px 0 12px; padding: 10px 14px; border-radius: 12px; background: #fbf5e8; border: 1px solid #efdcb0; color: #6b5420; font-size: 13px; }
+.lead-locked-note i { font-size: 18px; color: #b8862e; }

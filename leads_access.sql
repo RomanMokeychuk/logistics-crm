@@ -47,7 +47,7 @@ begin
     -- керівник / адмін — усіх
     if me_roles ~ '(^|[^a-z_])(head|admin)([^a-z_]|$)' or me_role in ('head', 'admin') then return true; end if;
     -- Sales — лише своїх
-    if me_roles ~ '(^|[^a-z_])sales([^a-z_]|$)' or me_role = 'sales' then return p_sales_id = me_id; end if;
+    if me_roles ~ '(^|[^a-z_])sales([^a-z_]|$)' or me_role = 'sales' then return coalesce(p_sales_id = me_id, false); end if;
     -- логіст та інші — нікого
     return false;
 end;
@@ -96,3 +96,58 @@ grant execute on function public.lead_find_duplicate(text, text, text) to authen
 
 -- Перевірка (під своїм логіном у FURA видно лише своїх):
 -- select policyname, cmd from pg_policies where tablename = 'leads';
+
+-- ================================================================== --
+-- 5. СПИСОК УСІХ лідів/клієнтів для Sales — без контактів чужих клієнтів
+--    Sales бачить усіх у списку (назва, ЄДРПОУ, місто, напрямки, вантаж, етап, хто веде),
+--    але телефони, пошта, контактні особи, реквізити, договори, нотатки й історія
+--    видно ЛИШЕ в своїх клієнтів (у чужих — порожньо). Редагувати чужих не можна (правила вище).
+--    Логіст без ролі Sales список не бачить зовсім.
+--    Якщо в таблицю leads додали нову колонку — запустіть цей файл ще раз.
+-- ================================================================== --
+create or replace function public.lead_can_list()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+    select exists (
+        select 1 from public.staff s
+         where lower(s.email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+           and s.active
+           and (coalesce(s.roles::text, '') ~ '(^|[^a-z_])(head|admin|sales)([^a-z_]|$)' or s.role in ('head', 'admin', 'sales'))
+    );
+$$;
+
+do $$
+declare
+    -- ці поля видно в усіх клієнтів; РЕШТА (контакти, реквізити, договори, нотатки…) — лише у своїх
+    open_cols text[] := array['id', 'name', 'full_name', 'edrpou', 'status', 'sales', 'sales_id', 'logist_id',
+        'city', 'country', 'region_ukr', 'directions', 'destinations', 'trade_types', 'cargo', 'trailer_type',
+        'routes', 'source', 'created_at', 'created_by', 'updated_at', 'rating'];
+    cols text;
+begin
+    select string_agg(
+             case when a.attname = any(open_cols) then format('l.%I', a.attname)
+                  else format('case when v.mine then l.%I else %s end as %I', a.attname,
+                       case when format_type(a.atttypid, a.atttypmod) = 'jsonb' then '''[]''::jsonb'
+                            else 'null::' || format_type(a.atttypid, a.atttypmod) end,
+                       a.attname)
+             end, ', ' order by a.attnum)
+      into cols
+      from pg_attribute a
+     where a.attrelid = 'public.leads'::regclass and a.attnum > 0 and not a.attisdropped;
+    execute 'drop view if exists public.leads_dir';
+    execute format(
+        'create view public.leads_dir with (security_invoker = false) as
+           select %s, v.mine as _mine
+             from public.leads l
+             cross join lateral (select public.lead_visible(l.sales_id::text, l.created_by) as mine) v
+            where public.lead_can_list()', cols);
+end $$;
+
+revoke all on public.leads_dir from anon;
+grant select on public.leads_dir to authenticated;
+
+-- Перевірка: select name, sales, phone, _mine from public.leads_dir limit 10;

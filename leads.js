@@ -332,13 +332,15 @@ async function loadStaff(session) {
 }
 
 async function loadLeads() {
-    const [{ data, error }, { data: reqs }] = await Promise.all([
+    // leads_dir — усі ліди, але контакти чужих клієнтів приховані (leads_access.sql); якщо ще немає — звичайна таблиця
+    let [{ data, error }, { data: reqs }] = await Promise.all([
         sbClient
-            .from("leads")
+            .from("leads_dir")
             .select("*")
             .order("created_at", { ascending: false }),
         sbClient.from("requests").select("lead_id, status"),
     ]);
+    if (error) ({ data, error } = await sbClient.from("leads").select("*").order("created_at", { ascending: false }));
 
     if (error) {
         tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">Помилка завантаження: ${escapeHtml(error.message)}<br>Можливо, ще не виконано leads.sql у Supabase.</td></tr>`;
@@ -501,9 +503,10 @@ function renderLeads() {
             </td>
             <td class="lead-trade-cell">${tradeBadges(l)}</td>
             <td>
+                ${l._mine === false ? `<span class="lead-locked" title="Контакти бачить лише Sales цього клієнта і керівник"><i class='bx bx-lock-alt'></i> приховано</span>` : `
                 ${l.contact_person ? `<strong>${escapeHtml(l.contact_person)}</strong>` : ""}
                 ${l.phone ? `<div class="lead-sub">${phoneLink(l.phone)}</div>` : ""}
-                ${!l.contact_person && !l.phone ? "—" : ""}
+                ${!l.contact_person && !l.phone ? "—" : ""}`}
             </td>
             <td>${[l.city, l.country].filter(Boolean).map(escapeHtml).join(", ") || "—"}</td>
             <td class="lead-wrap">${escapeHtml(l.directions) || "—"}</td>
@@ -511,9 +514,9 @@ function renderLeads() {
             <td class="cell-person">${escapeHtml(l.sales) || "—"}</td>
             <td class="cell-date">${nextContactHtml(l)}</td>
             <td class="cell-date">${formatDateOnly(l.created_at)}</td>
-            <td class="cell-actions">
+            <td class="cell-actions">${l._mine === false ? `<i class='bx bx-lock-alt lead-lock-ic' title="Клієнт колеги — змінювати може лише його Sales і керівник"></i>` : `
                 <button class="btn-icon btn-icon-edit" data-action="edit" title="Редагувати"><i class='bx bx-edit'></i></button>
-                <button class="btn-icon text-danger" data-action="delete" title="Видалити"><i class='bx bx-trash'></i></button>
+                <button class="btn-icon text-danger" data-action="delete" title="Видалити"><i class='bx bx-trash'></i></button>`}
             </td>`;
 
         tr.addEventListener("click", (e) => {
@@ -822,6 +825,17 @@ function cardRow(label, valueHtml) {
         </div>`;
 }
 
+// Картка клієнта колеги: лише перегляд, без контактів (їх приховує база)
+function lockLeadCard(body, l) {
+    if (!body) return;
+    body.insertAdjacentHTML("afterbegin", `<div class="lead-locked-note"><i class='bx bx-lock-alt'></i> Клієнт колеги — веде <b>${escapeHtml(l.sales || "інший Sales")}</b>. Контакти, нотатки й історію бачить лише він і керівник; змінювати не можна.</div>`);
+    body.querySelectorAll("input, textarea, select, button").forEach((el) => {
+        if (el.closest(".modal-close, [data-close]")) return;
+        el.disabled = true;
+    });
+    body.querySelectorAll('a[href^="requests.html?new_lead"]').forEach((a) => a.remove());
+}
+
 async function openLeadCard(id) {
     const l = leadsCache.find((x) => String(x.id) === String(id));
     if (!l) return;
@@ -927,6 +941,9 @@ async function openLeadCard(id) {
     loadLeadRequests(l);
     // Outlook / Telegram / WhatsApp / Viber (comms-card.js)
     if (typeof window.furaCommsBlock === "function") window.furaCommsBlock(l.id, document.getElementById("leadComms"));
+    const editBtn = document.getElementById("editFromLeadCardBtn");
+    if (editBtn) editBtn.hidden = l._mine === false;
+    if (l._mine === false) lockLeadCard(document.getElementById("leadCardBody"), l);
 }
 
 // Запити цього ліда

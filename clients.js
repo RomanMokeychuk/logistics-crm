@@ -150,7 +150,8 @@ async function loadStaff(session) {
 
 async function loadClients() {
     const [{ data: leads, error }, { data: deals }] = await Promise.all([
-        sbClient.from("leads").select("*").order("name"),
+        // leads_dir — усі клієнти, але контакти й реквізити чужих приховані (leads_access.sql)
+        sbClient.from("leads_dir").select("*").order("name").then(async (r) => (r.error ? await sbClient.from("leads").select("*").order("name") : r)),
         sbClient
             .from("deals")
             .select("id, number, lead_id, client, created_at, load_country, load_address, unload_country, unload_address, load_date_plan, load_date, unload_date, carrier_name, carrier_id, carrier_edrpou, truck_plate, services, paid_by_client")
@@ -212,11 +213,11 @@ function renderClients() {
                     ${c.city ? `<div class="client-sub">${e(c.city)}</div>` : ""}
                 </td>
                 <td>${e(c.sales || "—")}</td>
-                <td>
+                <td>${c._mine === false ? `<span class="lead-locked" title="Контакти бачить лише менеджер цього клієнта і керівник"><i class="bx bx-lock-alt"></i> приховано</span>` : `
                     ${c.contact_person ? `<b>${e(c.contact_person)}</b>` : ""}
                     ${phoneHtml(c.phone)}
                     ${c.email ? `<div class="client-sub">${emailHtml(c.email)}</div>` : ""}
-                    ${!c.contact_person && !c.phone && !c.email ? "—" : ""}
+                    ${!c.contact_person && !c.phone && !c.email ? "—" : ""}`}
                 </td>
                 <td>${routesOf(c).length
                     ? routesOf(c).slice(0, 3).map((r) => `<div class="client-route">${tradeBadges([r.type])} <span>${e(routeText(r))}</span></div>`).join("") + (routesOf(c).length > 3 ? `<div class="client-sub">ще ${routesOf(c).length - 3}…</div>` : "")
@@ -226,7 +227,7 @@ function renderClients() {
                     ${deals.length ? `<b>${deals.length}</b> <span class="client-sub">угод</span>` : `<span class="client-sub">немає</span>`}
                     ${last ? `<div class="client-sub">остання № ${e(last.number)} · ${fmtDate(last.created_at)}</div>` : ""}
                 </td>
-                <td><button type="button" class="btn-icon" data-edit="${e(c.id)}" title="Редагувати"><i class="bx bx-edit"></i></button></td>
+                <td>${c._mine === false ? `<i class="bx bx-lock-alt lead-lock-ic" title="Клієнт колеги"></i>` : `<button type="button" class="btn-icon" data-edit="${e(c.id)}" title="Редагувати"><i class="bx bx-edit"></i></button>`}</td>
             </tr>`;
         })
         .join("");
@@ -462,6 +463,13 @@ function bindFields(root, c) {
     });
 }
 
+// Клієнт колеги: лише перегляд, без контактів і реквізитів (їх приховує база)
+function lockClientView(c) {
+    detailView.querySelector(".dv-head")?.insertAdjacentHTML("afterend", `<div class="lead-locked-note"><i class="bx bx-lock-alt"></i> Клієнт колеги — менеджер <b>${e(c.sales || "інший Sales")}</b>. Контакти, реквізити, договори й нотатки бачить лише він і керівник; змінювати не можна.</div>`);
+    detailView.querySelectorAll("input, textarea, select, .dv-body button, [data-add], [data-del]").forEach((el) => { el.disabled = true; });
+    detailView.querySelectorAll('a[href^="deals.html?new"]').forEach((a) => a.remove());
+}
+
 async function openClientView(id, tab, fromHistory = false) {
     const c = clientsCache.find((x) => String(x.id) === String(id));
     if (!c) return;
@@ -469,6 +477,7 @@ async function openClientView(id, tab, fromHistory = false) {
     if (tab) clientTab = tab;
     c.docs_same = !!(c.docs_address && c.legal_address && c.docs_address.trim() === c.legal_address.trim());
     renderClientView(c);
+    if (c._mine === false) lockClientView(c);
     listView.hidden = true;
     detailView.hidden = false;
     if (!fromHistory) {
@@ -898,3 +907,14 @@ window.addEventListener("popstate", () => {
         if (String(currentClientId) !== id) openClientView(id, undefined, true);
     } else if (currentClientId) closeClientView(true);
 });
+
+// Вкладки картки клієнта колеги теж лише для перегляду
+{
+    const _renderClientTab = renderClientTab;
+    renderClientTab = function (c) {
+        const r = _renderClientTab.apply(this, arguments);
+        if (c && c._mine === false)
+            detailView.querySelectorAll("input, textarea, select, .dv-body button, [data-add], [data-del]").forEach((el) => { el.disabled = true; });
+        return r;
+    };
+}
