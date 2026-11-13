@@ -92,7 +92,38 @@
         lastY = y;
     }, { passive: true });
 
-    function run() { if (mq.matches) setupFilters(); }
+    // Фільтри з шапки таблиці (на телефоні шапки не видно) — окремий рядок кнопок над таблицею
+    function setupColumnFilters() {
+        document.querySelectorAll("table").forEach((tbl) => {
+            if (tbl.dataset.mcf) return;
+            const icons = [...tbl.querySelectorAll("thead th .filter-icon, thead th [onclick*='openColumnFilter']")];
+            if (!icons.length) return;
+            tbl.dataset.mcf = "1";
+            const bar = document.createElement("div");
+            bar.className = "m-colf";
+            bar.innerHTML = `<div class="m-colf-title"><i class="bx bx-filter-alt"></i> Фільтри</div><div class="m-colf-row"></div>`;
+            const row = bar.querySelector(".m-colf-row");
+            icons.forEach((ic) => {
+                const th = ic.closest("th");
+                const label = (th.querySelector(".th-label")?.textContent || th.textContent).replace(/\s+/g, " ").trim();
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "m-colf-btn";
+                b.textContent = label.charAt(0) + label.slice(1).toLowerCase();
+                b.addEventListener("click", (e) => { e.stopPropagation(); ic.dispatchEvent(new MouseEvent("click", { bubbles: true })); document.body.classList.add("m-colf-open"); });
+                b._ic = ic;
+                row.appendChild(b);
+            });
+            const host = tbl.closest(".table-card") || tbl;
+            host.parentElement.insertBefore(bar, host);
+            // підсвічуємо увімкнені фільтри
+            const paint = () => row.querySelectorAll(".m-colf-btn").forEach((b) => b.classList.toggle("on", b._ic.classList.contains("filter-on")));
+            new MutationObserver(paint).observe(tbl.querySelector("thead"), { subtree: true, attributes: true, attributeFilter: ["class"] });
+            paint();
+        });
+    }
+
+    function run() { if (mq.matches) { setupFilters(); setupColumnFilters(); } }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => setTimeout(run, 50));
     else setTimeout(run, 50);
     // сторінки домальовують фільтри пізніше — перевіряємо ще раз

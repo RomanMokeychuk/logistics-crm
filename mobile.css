@@ -635,3 +635,23 @@
     .fura-cols-bar, .carriers-tools ~ .fura-cols-bar { display: none !important; margin: 0 !important; }
     .filters-bar.carriers-tools { justify-content: flex-start; margin-bottom: 12px; }
 }
+.m-colf { display: none; }
+@media (max-width: 900px) {
+    .m-colf { display: block; margin: 0 0 10px; }
+    .m-colf-title { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8f6a1f; margin: 0 2px 6px; display: flex; align-items: center; gap: 5px; }
+    .m-colf-row { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .m-colf-row::-webkit-scrollbar { display: none; }
+    .m-colf-btn {
+        flex: 0 0 auto; border: 1px solid rgba(214, 168, 72, .45); background: #fff; color: #3a4244;
+        border-radius: 999px; padding: 7px 13px; font: 600 13px/1.1 inherit; cursor: pointer; white-space: nowrap;
+    }
+    .m-colf-btn.on { background: var(--gd-gold, #c9973a); color: #2b1d06; border-color: transparent; }
+    .m-colf-btn.on::after { content: " ✓"; }
+    /* вікно фільтра колонки — знизу на весь екран */
+    .column-filter-dropdown {
+        position: fixed !important; left: 8px !important; right: 8px !important; top: auto !important;
+        bottom: calc(8px + env(safe-area-inset-bottom)) !important; width: auto !important; max-height: 70vh;
+        z-index: 10050 !important; border-radius: 18px !important; box-shadow: 0 -10px 40px rgba(0, 0, 0, .3) !important;
+    }
+    .column-filter-options { max-height: calc(70vh - 170px) !important; overflow-y: auto !important; }
+}
