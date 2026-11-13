@@ -720,18 +720,21 @@ const LD = (() => {
         const key = box.dataset.combo;
         const input = box.querySelector("input");
         const list = box.querySelector(".ld-combo-list");
-        let active = -1, items = [];
+        let active = -1, items = [], typed = false;
         const item = (c) => `<div class="ld-combo-item" data-c="${c}">${c} / ${esc(regionName(c))}</div>`;
         const draw = () => {
-            const q = input.value.trim().toLowerCase();
+            // щойно відкрили поле — показуємо ВСІ країни (а не лише вже вибрану); фільтр — коли почали друкувати
+            const q = typed ? input.value.trim().toLowerCase() : "";
             const match = (c) => !q || c.toLowerCase().startsWith(q) || regionName(c).toLowerCase().includes(q);
             const pop = POPULAR.filter(match), all = ISO.filter(match);
             list.innerHTML = (pop.length ? `<div class="ld-combo-grp">Популярні</div>` + pop.map(item).join("") : "") +
                 (all.length ? `<div class="ld-combo-grp">Усі</div>` + all.map(item).join("") : `<div class="ld-combo-grp">Нічого не знайдено</div>`);
             items = [...list.querySelectorAll(".ld-combo-item")];
-            active = items.length ? 0 : -1;
+            const cur = typed ? -1 : items.findIndex((el) => el.dataset.c === st[key]);
+            active = cur >= 0 ? cur : items.length ? 0 : -1;
             items.forEach((el, i) => el.classList.toggle("on", i === active));
             list.classList.remove("hidden");
+            if (active >= 0 && !typed) items[active].scrollIntoView({ block: "nearest" });
         };
         const pick = (c) => {
             st[key] = c;
@@ -741,8 +744,8 @@ const LD = (() => {
             syncForm();
             st.page = 0; save(); render();
         };
-        input.addEventListener("focus", () => { input.select(); draw(); });
-        input.addEventListener("input", draw);
+        input.addEventListener("focus", () => { typed = false; input.select(); draw(); });
+        input.addEventListener("input", () => { typed = true; draw(); });
         input.addEventListener("keydown", (e) => {
             if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault();

@@ -473,7 +473,7 @@ function addRoute(c: Carrier, row: Any): boolean {
 /* Запуск                                                              */
 /* ------------------------------------------------------------------ */
 
-async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind: Kind = "cargo") {
+async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind: Kind = "cargo", staleMs = 0) {
     const TRUCK = kind === "truck";
     const TABLE = TRUCK ? "lardi_trucks" : "lardi_cargo";
     const LAST = TRUCK ? "truck_last_run_at" : "last_run_at", FOUND = TRUCK ? "truck_last_found" : "last_found";
@@ -494,6 +494,8 @@ async function run(trigger: string, by: string, onlyFrom = "", onlyTo = "", kind
     let dq = db.from("lardi_directions").select("*").eq("active", true);
     if (onlyFrom) dq = dq.eq("from_country", onlyFrom);
     if (onlyTo) dq = dq.eq("to_country", onlyTo);
+    // розклад: лише напрямки, які давно не оновлювались (щоб кожен оновлювався ~3 рази на день)
+    if (staleMs > 0) dq = dq.or(`${LAST}.is.null,${LAST}.lt.${new Date(Date.now() - staleMs).toISOString()}`);
     const { data: dirs } = await dq
         .order(LAST, { ascending: true, nullsFirst: true }).order("id");
     if (!(dirs || []).length) {
@@ -628,7 +630,17 @@ Deno.serve(async (req) => {
     try {
         if (body.action === "tick") {
             if (!secretOk(req, url)) return json(403, { error: "forbidden" });
-            return json(200, await run("cron", "розклад"));
+            // body.kind: "cargo" (вантажі) або "truck" (машини); body.stale_hours — оновлювати напрямки, старші за N год
+            const kind: Kind = body.kind === "truck" ? "truck" : "cargo";
+            const hours = Math.max(0, Math.min(48, Number(body.stale_hours ?? 0) || 0));
+            if (hours > 0) {
+                const LAST = kind === "truck" ? "truck_last_run_at" : "last_run_at";
+                const cutoff = new Date(Date.now() - hours * 3600000).toISOString();
+                const { count } = await db.from("lardi_directions").select("id", { count: "exact", head: true })
+                    .eq("active", true).or(`${LAST}.is.null,${LAST}.lt.${cutoff}`);
+                if (!count) return json(200, { ok: true, skipped: "усі напрямки свіжі" });
+            }
+            return json(200, await run("cron", kind === "truck" ? "розклад · авто" : "розклад · вантажі", "", "", kind, hours * 3600000));
         }
 
         const me = await staffFromRequest(req);
