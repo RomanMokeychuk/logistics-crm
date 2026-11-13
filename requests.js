@@ -1624,6 +1624,17 @@ requestForm.addEventListener("submit", async (e) => {
     // Клієнт має бути в Лідах
     const clientName = getValue("req_client");
     let lead = leadById(selectedLeadId) || findLeadByName(clientName);
+    // Клієнт колеги-Sales може бути не видно у списку — тоді беремо його з самого запиту або знаходимо в базі
+    const editing = document.getElementById("requestId").value
+        ? requestsCache.find((x) => String(x.id) === String(document.getElementById("requestId").value))
+        : null;
+    if (!lead && editing?.lead_id && normName(editing.client) === normName(clientName))
+        lead = { id: editing.lead_id, name: editing.client };
+    if (!lead && clientName) {
+        const { data } = await sbClient.rpc("lead_find_duplicate", { p_edrpou: null, p_name: clientName, p_exclude: null });
+        const d = Array.isArray(data) ? data[0] : null;
+        if (d) lead = { id: d.id, name: d.name };
+    }
     if (!lead) {
         if (
             !confirm(

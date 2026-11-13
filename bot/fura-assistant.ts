@@ -185,10 +185,10 @@ const REQUEST_FIELDS = [
     "desired_date", "desired_date_to", "cargo", "transport_type", "weight", "sales", "logistician", "created_at",
 ];
 
-// «Лише Sales» (без head/admin/logist) бачить тільки своїх лідів і клієнтів
+// Sales (без head/admin) бачить тільки своїх лідів і клієнтів — навіть якщо він ще й логіст
 function salesOnly(me: Any): boolean {
     const roles: string[] = Array.isArray(me?.roles) && me.roles.length ? me.roles : me?.role ? [me.role] : [];
-    return roles.includes("sales") && !roles.some((r) => ["head", "admin", "logist"].includes(r));
+    return roles.includes("sales") && !roles.some((r) => ["head", "admin"].includes(r));
 }
 
 async function runTool(name: string, input: Any, me: Any = null): Promise<unknown> {

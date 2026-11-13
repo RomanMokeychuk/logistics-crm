@@ -4,13 +4,14 @@
 --
 -- Хто що бачить у Лідах і Клієнтах (обидві сторінки — таблиця public.leads):
 --   • Керівник (роль head) і Адмін (admin) — усіх.
---   • Логіст — усіх (йому потрібні клієнти для запитів і угод).
+--   • Логіст (без ролі Sales) — усіх (йому потрібні клієнти для запитів і угод).
+--   • Якщо в людини є роль Sales (навіть разом із «Логіст») — вона бачить лише своїх.
 --   • Sales / менеджер — ЛИШЕ тих, де саме він вказаний як Sales (менеджер).
 --     Інший Sales цих клієнтів не бачить. Передали клієнта колезі — він зникає зі списку того, хто передав.
 --   • Ліди без Sales бачить лише керівник/адмін, поки не призначить Sales.
 -- Обмеження працює в самій базі: чужих клієнтів не видно ні в таблиці, ні в пошуку, ні у звітах, ні в Помічнику.
 
--- 1. Чи поточний користувач — «лише Sales» (без ролей head / admin / logist)
+-- 1. Чи поточний користувач — Sales без ролей head / admin (роль «Логіст» не розширює доступ)
 create or replace function public.lead_is_restricted()
 returns boolean
 language sql
@@ -23,8 +24,8 @@ as $$
          where lower(s.email) = lower(coalesce(auth.jwt() ->> 'email', ''))
            and s.active
            and (coalesce(s.roles::text, '') ~ '(^|[^a-z_])sales([^a-z_]|$)' or s.role = 'sales')
-           and not (coalesce(s.roles::text, '') ~ '(^|[^a-z_])(head|admin|logist)([^a-z_]|$)')
-           and coalesce(s.role, '') not in ('head', 'admin', 'logist')
+           and not (coalesce(s.roles::text, '') ~ '(^|[^a-z_])(head|admin)([^a-z_]|$)')
+           and coalesce(s.role, '') not in ('head', 'admin')
     );
 $$;
 
