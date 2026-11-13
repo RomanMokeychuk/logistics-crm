@@ -843,3 +843,51 @@ html::before {
     .fura-brand-icon, .fura-brand-icon::after, .fl-wheel, .fl-truck, .fl-speed path, .fl-road, .fura-brand-name,
     .fura-nav-item.active, .table-card tbody tr, .lead-tab.active { animation: none !important; }
 }
+
+/* ================================================================= *
+ * Логотип Грандар «GD» — 3D, поява, блиск, сяйво, нахил за мишкою    *
+ * ================================================================= */
+.gd-logo { display: inline-block; position: relative; perspective: 600px; cursor: pointer; line-height: 0; flex-shrink: 0; }
+.gd-logo::before {
+    content: ""; position: absolute; inset: -18%; z-index: -1; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(closest-side, rgba(240, 205, 120, .55), rgba(233, 196, 106, .18) 60%, transparent);
+    filter: blur(8px); animation: gd-glow 4s ease-in-out infinite;
+}
+.gd-tilt {
+    display: block; transform-style: preserve-3d;
+    transform: rotateX(var(--rx, 8deg)) rotateY(var(--ry, -14deg));
+    transition: transform .35s cubic-bezier(.2, .8, .2, 1);
+    animation: gd-float 6s ease-in-out infinite;
+}
+.gd-logo:hover .gd-tilt { animation-play-state: paused; }
+.gd-tilt svg { width: 100%; height: auto; display: block; overflow: visible; filter: drop-shadow(0 10px 14px rgba(43, 49, 51, .35)); }
+.gd-logo:not(.gd-go) .gd-g, .gd-logo:not(.gd-go) .gd-d, .gd-logo:not(.gd-go) .gd-depth { opacity: 0; }
+.gd-go .gd-g { animation: gd-in-g 1s cubic-bezier(.2, .9, .25, 1.15) both; transform-box: fill-box; transform-origin: center; }
+.gd-go .gd-d { animation: gd-in-d 1s cubic-bezier(.2, .9, .25, 1.15) .12s both; transform-box: fill-box; transform-origin: center; }
+.gd-go .gd-depth { animation: gd-fade .6s ease .7s both; }
+.gd-shine { animation: gd-shine 5.5s ease-in-out 1.2s infinite; }
+.gd-logo.gd-spin .gd-tilt { animation: gd-spin 1s cubic-bezier(.4, 0, .2, 1); }
+@keyframes gd-in-g { from { opacity: 0; transform: translateX(-28%) rotate(-12deg) scale(.85); } }
+@keyframes gd-in-d { from { opacity: 0; transform: translateX(28%) rotate(10deg) scale(.85); } }
+@keyframes gd-fade { from { opacity: 0; } }
+@keyframes gd-shine { 0%, 50% { transform: skewX(-20deg) translateX(0); } 80%, 100% { transform: skewX(-20deg) translateX(1100px); } }
+@keyframes gd-float {
+    0%, 100% { transform: rotateX(var(--rx, 8deg)) rotateY(var(--ry, -14deg)) translateY(0); }
+    50% { transform: rotateX(var(--rx, 4deg)) rotateY(var(--ry, 8deg)) translateY(-3px); }
+}
+@keyframes gd-glow { 0%, 100% { opacity: .55; transform: scale(.95); } 50% { opacity: 1; transform: scale(1.05); } }
+@keyframes gd-spin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+    .gd-logo::before, .gd-tilt, .gd-g, .gd-d, .gd-depth, .gd-shine { animation: none !important; }
+}
+
+/* Головна: привітання з'являється плавно, заголовок — золотий перелив */
+.home-hero h1#homeGreeting { animation: gd-hello .7s cubic-bezier(.2, .8, .2, 1) .25s both; }
+.home-date { animation: gd-hello .7s cubic-bezier(.2, .8, .2, 1) .4s both; }
+@keyframes gd-hello { from { opacity: 0; transform: translateX(-10px); } }
+.home-block { animation: gd-row .5s cubic-bezier(.2, .8, .2, 1) both; }
+.home-block:nth-of-type(2) { animation-delay: .08s; } .home-block:nth-of-type(3) { animation-delay: .16s; }
+.home-block:nth-of-type(4) { animation-delay: .24s; } .home-block:nth-of-type(n+5) { animation-delay: .3s; }
+@media (prefers-reduced-motion: reduce) { .home-hero h1#homeGreeting, .home-date, .home-block { animation: none !important; } }
+
+.home-company-logo.gd-logo { width: 96px; }
