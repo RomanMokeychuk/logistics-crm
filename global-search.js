@@ -65,6 +65,63 @@
 
     const SECTIONS = [
         {
+            // «Сталь», «масло», «зерно»… — хто цей товар возив (угоди), хто відправляв (клієнти) і хто виставляє на Lardi
+            key: "goods",
+            title: "Товар — хто возив і хто відправляє",
+            icon: "bx-package",
+            async run(q, plates, digits) {
+                if (q.length < 3 || digits.length >= 3 || plates.length) return [];
+                const since = new Date(Date.now() - 30 * 86400000).toISOString();
+                const [deals, reqs, leads, lardi] = await Promise.all([
+                    client.from("deals").select("carrier_id, carrier_name, client, cargo, load_date").ilike("cargo", `%${q}%`).order("load_date", { ascending: false }).limit(300),
+                    client.from("requests").select("client, lead_id, cargo, created_at").ilike("cargo", `%${q}%`).order("created_at", { ascending: false }).limit(300),
+                    client.from("leads").select("id, name, cargo, status").ilike("cargo", `%${q}%`).limit(20),
+                    client.from("lardi_cargo").select("owner_name, owner_ref, cargo").ilike("cargo", `%${q}%`).gte("seen_last", since).limit(500),
+                ].map((p) => p.then((r) => r.data || []).catch(() => [])));
+                const dShort = (d) => (d ? String(d).slice(0, 10).split("-").reverse().join(".") : "");
+                const goods = (a) => [...new Set(a.map((x) => String(x.cargo || "").trim()).filter(Boolean))].slice(0, 2).join(", ");
+                const group = (arr, key) => {
+                    const m = new Map();
+                    arr.forEach((x) => { const k = key(x); if (!k) return; (m.get(k) || m.set(k, []).get(k)).push(x); });
+                    return [...m.values()].sort((a, b) => b.length - a.length);
+                };
+                const out = [];
+                // Перевізники, які возили
+                group(deals, (d) => d.carrier_id || d.carrier_name).slice(0, 4).forEach((a) => {
+                    const d = a[0];
+                    out.push({
+                        href: d.carrier_id ? `index.html?open=${encodeURIComponent(d.carrier_id)}` : `deals.html?q=${encodeURIComponent(d.carrier_name)}`,
+                        carrier: d.carrier_id || null,
+                        title: `🚛 ${d.carrier_name || "Перевізник"}`,
+                        sub: `возив: ${goods(a)} · ${a.length} рейс(и) · останній ${dShort(d.load_date)}`,
+                    });
+                });
+                // Клієнти, які відправляли (угоди + запити) і в кого це у «Що возить / виробляє»
+                const cl = group([...deals.map((d) => ({ name: d.client, cargo: d.cargo })), ...reqs.map((r) => ({ name: r.client, cargo: r.cargo, id: r.lead_id }))], (x) => String(x.name || "").trim().toLowerCase());
+                cl.slice(0, 3).forEach((a) => {
+                    const id = a.find((x) => x.id)?.id;
+                    out.push({
+                        href: id ? `clients.html?open=${encodeURIComponent(id)}` : `requests.html?q=${encodeURIComponent(a[0].name)}`,
+                        title: `🏢 ${a[0].name}`,
+                        sub: `відправляв: ${goods(a)} · ${a.length} раз(и)`,
+                    });
+                });
+                const shown = new Set(cl.slice(0, 3).map((a) => String(a[0].name || "").trim().toLowerCase()));
+                leads.filter((l) => !shown.has(String(l.name || "").trim().toLowerCase())).slice(0, 3).forEach((l) => out.push({
+                    href: l.status === "Працюємо" ? `clients.html?open=${encodeURIComponent(l.id)}` : `leads.html?open=${encodeURIComponent(l.id)}`,
+                    title: `🏢 ${l.name}`,
+                    sub: `возить / виробляє: ${String(l.cargo).slice(0, 80)}`,
+                }));
+                // Хто зараз виставляє такий вантаж на Lardi (за 30 днів)
+                group(lardi, (x) => x.owner_ref || x.owner_name).slice(0, 3).forEach((a) => out.push({
+                    href: `lardi.html?q=${encodeURIComponent(q)}`,
+                    title: `📦 ${a[0].owner_name || "Компанія"} (Lardi)`,
+                    sub: `виставляє: ${goods(a)} · ${a.length} заявок за 30 днів`,
+                }));
+                return out.slice(0, 12);
+            },
+        },
+        {
             key: "deals",
             title: "Угоди",
             icon: "bx-file",

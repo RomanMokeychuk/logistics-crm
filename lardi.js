@@ -91,6 +91,9 @@ const LD = (() => {
     function restore() {
         try { Object.assign(st, JSON.parse(localStorage.getItem(FKEY) || "{}")); } catch (e) { /* типові */ }
         if (!Array.isArray(st.owners)) st.owners = [];
+        // ?q=сталь — з верхнього пошуку FURA: показати заявки з цим товаром
+        const uq = new URLSearchParams(location.search).get("q");
+        if (uq) { st.q = uq; st.page = 0; setTimeout(() => { const i = $("#ldQ"); if (i) i.value = uq; }, 0); }
         syncForm();
     }
     // Поля форми ↔ стан: кожне поле має data-f="ключ"
