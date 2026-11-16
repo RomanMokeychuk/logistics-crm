@@ -253,7 +253,9 @@ const LD = (() => {
         return `<div class="ld-sm">${esc(o.face || "")} ${ph ? `<a href="tel:${esc(ph)}">${esc(ph)}</a>` : ""} ${icons}</div>`;
     }
     const LOGOS = new Map(); // carrier_id → фото з картки перевізника у FURA
-    const ownerOf = (r) => ({ pic: LOGOS.get(String(r.carrier_id)) || r.owner_pic || "", ref: r.owner_ref, name: r.owner_name, pos: r.rev_pos != null ? Number(r.rev_pos) : null, neg: r.rev_neg != null ? Number(r.rev_neg) : null, city: r.owner_city, area: r.owner_area, face: r.owner_face, phone: r.owner_phone, msg: r.owner_msg });
+    const NAME_LOGOS = new Map(); // назва компанії → фото з картки FURA (якщо назва збігається)
+    const nkey = (n) => String(n || "").toLowerCase().replace(/\b(тов|фоп|пп|тзов|прат|флп|ооо|ltd|llc|sp\.? z o\.?o\.?)\b/g, "").replace(/[^a-zа-яіїєґ0-9]+/gi, "");
+    const ownerOf = (r) => ({ pic: LOGOS.get(String(r.carrier_id)) || NAME_LOGOS.get(nkey(r.owner_name)) || r.owner_pic || "", ref: r.owner_ref, name: r.owner_name, pos: r.rev_pos != null ? Number(r.rev_pos) : null, neg: r.rev_neg != null ? Number(r.rev_neg) : null, city: r.owner_city, area: r.owner_area, face: r.owner_face, phone: r.owner_phone, msg: r.owner_msg });
 
     // Позначка «є у FURA» з посиланням на картку перевізника
     const furaBadge = (r) => (r.carrier_id
@@ -643,6 +645,27 @@ const LD = (() => {
     }
 
     async function loadLogos() {
+        // 1) усі фото перевізників FURA (за id і за назвою) — з пам'яті браузера або з бази
+        if (!NAME_LOGOS.size) {
+            let list = null;
+            const c = window.furaCache ? await window.furaCache.get("carriers") : null;
+            if (c && Array.isArray(c.rows)) list = c.rows;
+            if (!list) {
+                list = [];
+                for (let from = 0; from < 40000; from += 1000) {
+                    const { data, error } = await sbClient.from("carriers").select("id,name,company,logo_url").not("logo_url", "is", null).neq("logo_url", "").range(from, from + 999);
+                    if (error || !data) break;
+                    list.push(...data);
+                    if (data.length < 1000) break;
+                }
+            }
+            for (const c2 of list) {
+                if (!c2.logo_url) continue;
+                LOGOS.set(String(c2.id), c2.logo_url);
+                for (const n of [c2.name, c2.company]) { const k = nkey(n); if (k.length >= 4 && !NAME_LOGOS.has(k)) NAME_LOGOS.set(k, c2.logo_url); }
+            }
+            if (LOGOS.size) render();
+        }
         const ids = [...new Set(ROWS.map((r) => r.carrier_id).filter(Boolean).map(String))].filter((id) => !LOGOS.has(id));
         if (!ids.length) return;
         for (let i = 0; i < ids.length; i += 200) {
