@@ -534,43 +534,61 @@ const LD = (() => {
     }
 
     /* ---------------- дані ---------------- */
-    // Заявки зберігаються в пам'яті браузера: при відкритті сторінки — одразу з пам'яті,
-    // а з бази тягнемо, лише коли було нове оновлення Lardi (або минуло понад 2 год)
-    const CACHE_KEY = () => `lardi_${KIND_RUN}_${st.period || 3}`;
-    async function lastStamp() {
-        try {
-            const { data } = await sbClient.from("lardi_runs").select("started_at,finished_at").order("started_at", { ascending: false }).limit(4);
-            return (data || []).map((r) => r.finished_at || r.started_at || "").sort().pop() || "";
-        } catch (e) { return ""; }
-    }
+    // Заявки зберігаються в пам'яті браузера: при відкритті сторінки список з'являється одразу з пам'яті,
+    // а з бази тихо довантажуються лише НОВІ/оновлені заявки (з часу останнього завантаження)
+    const CACHE_KEY = () => `lardi2_${KIND_RUN}_${st.period || 3}`;
+    const maxSeen = (a) => a.reduce((m, r) => (r.seen_last && r.seen_last > m ? r.seen_last : m), "");
+    let LOADING = false;
     async function load(force = false) {
-        const cache = window.furaCache ? await window.furaCache.get(CACHE_KEY()) : null;
-        if (cache && cache.rows && !force) {
-            applyData(cache.rows, cache.other || []);
-            const stamp = await lastStamp();
-            const fresh = stamp && stamp === cache.stamp && Date.now() - (cache.at || 0) < 2 * 3600 * 1000;
-            const cnt = $("#ldCount");
-            if (fresh) return;
-            if (cnt) cnt.textContent += " · перевіряю нові…";
+        if (LOADING) return;
+        LOADING = true;
+        try {
+            const since = periodSince().toISOString();
+            const cache = window.furaCache ? await window.furaCache.get(CACHE_KEY()) : null;
+            const fullAgo = cache ? Date.now() - (cache.fullAt || 0) : Infinity;
+            if (cache && cache.rows && fullAgo < 24 * 3600 * 1000) {
+                applyData(cache.rows, cache.other || []);
+                // лише зміни з моменту останнього завантаження
+                const { out, cargo } = await fetchData(cache.seen || since, cache.seenOther || since, true);
+                if (!out.length && !cargo.length && !force) return;
+                const merge = (old, add) => {
+                    const m = new Map(old.map((r) => [r.id, r]));
+                    add.forEach((r) => m.set(r.id, r));
+                    return [...m.values()].filter((r) => !r.seen_last || r.seen_last >= since)
+                        .sort((x, y) => String(y.seen_last || "").localeCompare(String(x.seen_last || "")));
+                };
+                const rows = merge(cache.rows, out), other = merge(cache.other || [], cargo);
+                applyData(rows, other);
+                saveCache(rows, other, cache.fullAt);
+                return;
+            }
+            const { out, cargo } = await fetchData(since, since, false);
+            applyData(out, cargo);
+            saveCache(out, cargo, Date.now());
+        } finally {
+            LOADING = false;
         }
-        const stamp = await lastStamp();
-        const { out, cargo } = await fetchData();
-        applyData(out, cargo);
-        if (window.furaCache) window.furaCache.set(CACHE_KEY(), { rows: out, other: cargo, stamp, at: Date.now() });
     }
-
-    async function fetchData() {
+    function saveCache(rows, other, fullAt) {
+        if (!window.furaCache) return;
+        window.furaCache.set(CACHE_KEY(), { rows, other, seen: maxSeen(rows), seenOther: maxSeen(other), fullAt }).catch?.(() => {});
+    }
+    function periodSince() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
+        return since;
+    }
+
+    async function fetchData(sinceMain, sinceOther, quiet) {
         const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating," +
             "owner_city:raw->owner->address->town->>name,owner_area:raw->owner->address->area->>name,owner_msg:raw->owner->phones->0->messengers," +
             "rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
         const out = [];
         const cnt = $("#ldCount");
-        const page = async (from, table = TABLE, sel = TRUCK ? cols + ",carrier_id" : cols) => {
+        const page = async (from, table = TABLE, sel = TRUCK ? cols + ",carrier_id" : cols, since = sinceMain) => {
             // запит не може «висіти» вічно: 40 с і ще одна спроба
             for (let attempt = 1; ; attempt++) {
-                const q = sbClient.from(table).select(sel).gte("seen_last", since.toISOString())
+                const q = sbClient.from(table).select(sel).gt("seen_last", since)
                     .order("seen_last", { ascending: false }).order("id").range(from, from + 999);
                 const { data, error } = await (AbortSignal.timeout ? q.abortSignal(AbortSignal.timeout(40000)) : q);
                 if (!error) return data || [];
@@ -578,7 +596,7 @@ const LD = (() => {
             }
         };
         for (let from = 0; from < 30000; from += 1000) {
-            if (cnt) cnt.textContent = `Завантажую ${ITEMS}… ${fmt(out.length)}`;
+            if (cnt && !quiet) cnt.textContent = `Завантажую ${ITEMS}… ${fmt(out.length)}`;
             const data = await page(from);
             out.push(...data);
             if (data.length < 1000) break;
@@ -586,11 +604,11 @@ const LD = (() => {
         // Для порівняння: на «Авто» — вантажі з ціною, на «Вантажах» — машини з ціною за той самий період
         let cargo = [];
         {
-            const sel = "id,owner_ref,owner_name,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
+            const sel = "id,seen_last,owner_ref,owner_name,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
             try {
                 for (let from = 0; from < 30000; from += 1000) {
-                    if (cnt) cnt.textContent = `Завантажую ${TRUCK ? "вантажі" : "машини"} для порівняння… ${fmt(cargo.length)}`;
-                    const data = await page(from, TRUCK ? "lardi_cargo" : "lardi_trucks", sel);
+                    if (cnt && !quiet) cnt.textContent = `Завантажую ${TRUCK ? "вантажі" : "машини"} для порівняння… ${fmt(cargo.length)}`;
+                    const data = await page(from, TRUCK ? "lardi_cargo" : "lardi_trucks", sel, sinceOther);
                     cargo.push(...data);
                     if (data.length < 1000) break;
                 }
