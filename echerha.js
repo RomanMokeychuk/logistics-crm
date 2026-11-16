@@ -615,17 +615,37 @@ const EQ = (() => {
         if (mm || !parts.length) parts.push(plural(mm, "хвилина", "хвилини", "хвилин"));
         return parts.join(" ");
     }
+    // Час очікування для машини, яка стає в чергу зараз.
+    // Час в'їзду (слот) є лише в машин зі вкладки «Приготуватися до в'їзду»; решта черги («Черга очікування»)
+    // ще без часу. Тому: темп проїзду рахуємо за машинами зі слотами, і додаємо час на тих, хто ще без слоту.
     function waitByCp() {
-        const last = {};
+        const times = {};
         ROWS.forEach((r) => {
             const t = entryTime(r.entry_at)?.getTime();
-            if (t && (!last[r.checkpoint] || t > last[r.checkpoint])) last[r.checkpoint] = t;
+            if (t) (times[r.checkpoint] = times[r.checkpoint] || []).push(t);
         });
         const now = Date.now();
         const out = {};
-        Object.keys(last).forEach((k) => (out[k] = Math.max(0, last[k] - now)));
+        WAIT_EST = {};
+        Object.keys(times).forEach((k) => {
+            const a = times[k].sort((x, y) => x - y);
+            const last = a[a.length - 1];
+            let wait = Math.max(0, last - now);
+            const cp = CPS.find((c) => c.name === k);
+            const inQ = Number(cp?.in_queue) || 0;
+            const missing = Math.max(0, inQ - a.length);
+            // темп: скільки мс на одну машину (за останніми слотами, щонайменше за 3 год)
+            const span = last - a[0];
+            if (missing > 0 && a.length >= 5 && span >= 3 * 3600000) {
+                const perCar = span / (a.length - 1);
+                wait += missing * perCar;
+                WAIT_EST[k] = missing;
+            }
+            out[k] = wait;
+        });
         return out;
     }
+    let WAIT_EST = {};
     const waitCls = (ms) => (ms == null ? "eq-muted" : ms < 12 * 3600000 ? "eq-wait-ok" : ms < 3 * 86400000 ? "eq-wait-mid" : "eq-wait-bad");
 
     function renderCps(list) {
@@ -639,7 +659,7 @@ const EQ = (() => {
                 <td><b>${c.selected ? "★ " : ""}${esc(cpShort(c.name))}</b><div class="eq-muted eq-sm">${esc(cpNote(c.name))}</div></td>
                 <td>${esc(c.country || "—")}</td><td>${esc(c.qtype || "—")}</td>
                 <td><b>${n[c.name] || 0}</b></td><td>${c.in_queue}</td>
-                <td class="eq-wait ${waitCls(wait[c.name])}">${waitText(wait[c.name])}</td>
+                <td class="eq-wait ${waitCls(wait[c.name])}" title="${WAIT_EST[c.name] ? `Оцінка: ${WAIT_EST[c.name]} машин ще без часу в'їзду — додано час за поточним темпом проїзду` : "За часом в'їзду останньої машини"}">${WAIT_EST[c.name] ? "≈ " : ""}${waitText(wait[c.name])}</td>
                 <td class="eq-nw eq-muted">${dShort(c.last_scraped)}</td>
             </tr>`).join("") || `<tr><td colspan="7" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Пунктів: ${cps.length} · натисніть на пункт, щоб побачити його машини`;
