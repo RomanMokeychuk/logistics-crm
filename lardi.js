@@ -230,8 +230,14 @@ const LD = (() => {
         const rev = o.pos != null || o.neg != null
             ? ` <span class="ld-rev" title="Відгуки на Lardi"><span class="ld-up-ok">👍 ${fmt(o.pos || 0)}</span>${o.neg ? ` <span class="ld-down">👎 ${fmt(o.neg)}</span>` : ""}</span>` : "";
         const city = [o.city, o.area].filter(Boolean).join(", ");
+        // Фото компанії: з профілю Lardi, а якщо перевізник є у FURA — з його картки; інакше — ініціали
+        const ini = String(o.name || "?").replace(/^(ТОВ|ФОП|ПП|ТзОВ|ПрАТ|ФЛП|ООО)\s+/i, "").replace(/["«»']/g, "").trim().split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+        const hue = [...String(o.ref || o.name || "")].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 40);
+        const ava = o.pic
+            ? `<img class="ld-ava" src="${esc(o.pic)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ld-ava ld-ava-t',textContent:'${esc(ini)}'}))">`
+            : `<span class="ld-ava ld-ava-t" style="--h:${hue}">${esc(ini)}</span>`;
         const blk = `<button type="button" class="ld-block" data-block="${esc(bkey(o.ref, o.name))}" data-block-name="${esc(o.name || "")}" title="Заблокувати: не показувати заявки й машини цієї компанії">🚫</button>`;
-        return `<div><b>${name}</b>${rev} ${blk}</div>${city ? `<div class="ld-sm ld-muted">${esc(city)}</div>` : ""}`;
+        return `<div class="ld-owner">${ava}<div><div><b>${name}</b>${rev} ${blk}</div>${city ? `<div class="ld-sm ld-muted">${esc(city)}</div>` : ""}</div></div>`;
     }
     function contactHtml(o) {
         const ph = String(o.phone || "");
@@ -246,7 +252,8 @@ const LD = (() => {
             : "";
         return `<div class="ld-sm">${esc(o.face || "")} ${ph ? `<a href="tel:${esc(ph)}">${esc(ph)}</a>` : ""} ${icons}</div>`;
     }
-    const ownerOf = (r) => ({ ref: r.owner_ref, name: r.owner_name, pos: r.rev_pos != null ? Number(r.rev_pos) : null, neg: r.rev_neg != null ? Number(r.rev_neg) : null, city: r.owner_city, area: r.owner_area, face: r.owner_face, phone: r.owner_phone, msg: r.owner_msg });
+    const LOGOS = new Map(); // carrier_id → фото з картки перевізника у FURA
+    const ownerOf = (r) => ({ pic: LOGOS.get(String(r.carrier_id)) || r.owner_pic || "", ref: r.owner_ref, name: r.owner_name, pos: r.rev_pos != null ? Number(r.rev_pos) : null, neg: r.rev_neg != null ? Number(r.rev_neg) : null, city: r.owner_city, area: r.owner_area, face: r.owner_face, phone: r.owner_phone, msg: r.owner_msg });
 
     // Позначка «є у FURA» з посиланням на картку перевізника
     const furaBadge = (r) => (r.carrier_id
@@ -588,7 +595,7 @@ const LD = (() => {
     async function fetchData(sinceMain, sinceOther, quiet) {
         const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating," +
             "owner_city:raw->owner->address->town->>name,owner_area:raw->owner->address->area->>name,owner_msg:raw->owner->phones->0->messengers," +
-            "rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
+            "owner_pic:raw->owner->>avatar,rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
         const out = [];
         const cnt = $("#ldCount");
         const page = async (from, table = TABLE, sel = TRUCK ? cols + ",carrier_id" : cols, since = sinceMain) => {
@@ -635,7 +642,18 @@ const LD = (() => {
         return { out, cargo };
     }
 
+    async function loadLogos() {
+        const ids = [...new Set(ROWS.map((r) => r.carrier_id).filter(Boolean).map(String))].filter((id) => !LOGOS.has(id));
+        if (!ids.length) return;
+        for (let i = 0; i < ids.length; i += 200) {
+            const { data } = await sbClient.from("carriers").select("id,logo_url").in("id", ids.slice(i, i + 200)).not("logo_url", "is", null);
+            (data || []).forEach((c) => c.logo_url && LOGOS.set(String(c.id), c.logo_url));
+        }
+        if (LOGOS.size) render();
+    }
+
     function applyData(out, cargo) {
+        setTimeout(() => loadLogos().catch(() => {}), 0);
         ROWS = out;
         OTHER_RAW = cargo;
         setOther();

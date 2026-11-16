@@ -184,3 +184,8 @@
 tr:hover .ld-block, .ld-block:focus { opacity: .9; }
 @media (hover: none) { .ld-block { opacity: .6; } }
 #ldBlockedBtn b { background: #fee2e2; color: #b42318; border-radius: 999px; padding: 0 7px; font-size: 12px; margin-left: 2px; }
+
+/* Фото / ініціали компанії */
+.ld-owner { display: flex; align-items: flex-start; gap: 10px; }
+.ld-ava { flex: 0 0 34px; width: 34px; height: 34px; border-radius: 10px; object-fit: cover; background: #f4efe4; border: 1px solid rgba(214, 168, 72, .3); }
+.ld-ava-t { display: inline-flex; align-items: center; justify-content: center; font: 700 12px/1 inherit; color: hsl(var(--h, 40) 45% 30%); background: hsl(var(--h, 40) 55% 92%); border-color: hsl(var(--h, 40) 40% 80%); letter-spacing: .02em; }
