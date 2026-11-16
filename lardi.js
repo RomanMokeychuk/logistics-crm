@@ -461,20 +461,24 @@ const LD = (() => {
     function renderOwners(rows) {
         // ринок по напрямку: медіана медіан компаній (щоб одна компанія з 40 заявками не «тягнула» ринок)
         const route = (r) => `${r.from_region || "—"} → ${r.to_region || "—"}`;
-        const priced = rows.filter((r) => kindOf(r) === "full" && r.currency === "EUR" && r.price_per_km != null);
+        // у кожної валюти свій «ринок» (по Україні — гривня, за кордон — євро)
+        const priced = rows.filter((r) => kindOf(r) === "full" && r.price_per_km != null && sane(r));
         const bench = new Map();
-        for (const [k, a] of groupBy(priced, route)) {
+        for (const [k, a] of groupBy(priced, (r) => r.currency + "|" + route(r))) {
             const byOwner = groupBy(a, (r) => r.owner_ref || r.owner_name);
             if (byOwner.size >= 2) bench.set(k, median([...byOwner.values()].map((x) => median(x.map((r) => r.price_per_km)))));
         }
         let list = [...groupBy(rows, (r) => r.owner_ref || r.owner_name)].map(([, a]) => {
-            const p = a.filter((r) => kindOf(r) === "full" && r.currency === "EUR" && r.price_per_km != null);
-            const ratios = p.filter((r) => bench.has(route(r))).map((r) => r.price_per_km / bench.get(route(r)) - 1);
+            const all = a.filter((r) => kindOf(r) === "full" && r.price_per_km != null && sane(r));
+            const cur = mainCur(all);
+            const p = all.filter((r) => r.currency === cur);
+            const bk = (r) => r.currency + "|" + route(r);
+            const ratios = p.filter((r) => bench.has(bk(r))).map((r) => r.price_per_km / bench.get(bk(r)) - 1);
             return {
                 name: a[0].owner_name, type: a[0].owner_type, face: a[0].owner_face, phone: a[0].owner_phone, rating: a[0].owner_rating,
                 o: ownerOf(a[0]),
                 carrier_id: (a.find((r) => r.carrier_id) || {}).carrier_id || null,
-                n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), vs: median(ratios),
+                n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), cur, vs: median(ratios),
                 routes: new Set(a.map(route)).size,
             };
         });
@@ -483,13 +487,13 @@ const LD = (() => {
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         const pct = (v) => (v == null ? "" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%");
         $("#ldTable").innerHTML =
-            `<thead><tr>${th("name", "Компанія")}${th("", TRUCK ? "FURA" : "Хто")}${th("n", TRUCK ? "Машин" : "Заявок", "num")}${th("med", "Медіана €/км", "num")}` +
+            `<thead><tr>${th("name", "Компанія")}${th("", TRUCK ? "FURA" : "Хто")}${th("n", TRUCK ? "Машин" : "Заявок", "num")}${th("med", "Медіана за км", "num")}` +
             `${th("vs", "До ринку", "num")}${th("", "Напрямків", "num")}${th("", "Контакт")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr>
                     <td>${ownerHtml(r.o)}</td>
                     <td>${TRUCK ? furaBadge(r) : `<span class="ld-own ${OWNER_CLS[r.type] || ""}">${esc(OWNER_LBL[r.type] || r.type || "")}</span>`}</td>
-                    <td class="num">${r.n}</td><td class="num">${r.med != null ? fmt(r.med, 2) : ""}</td>
+                    <td class="num">${r.n}</td><td class="num nw">${r.med != null ? `${fmt(r.med, 2)} ${esc(CUR[r.cur] || r.cur || "")}` : ""}</td>
                     <td class="num ${r.vs > 0.05 ? "ld-up" : r.vs < -0.05 ? "ld-down" : ""}" title="Наскільки ставка компанії вища/нижча за звичайну на тих самих напрямках">${pct(r.vs)}</td>
                     <td class="num">${r.routes}</td>
                     <td>${contactHtml(r.o)}</td></tr>`).join("")
