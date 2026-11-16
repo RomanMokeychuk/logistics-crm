@@ -119,6 +119,7 @@ const LD = (() => {
         const q = st.q.trim().toLowerCase();
         const [mMin, mMax, vMin, vMax, pMin] = [num(st.massMin), num(st.massMax), num(st.volMin), num(st.volMax), num(st.priceMin)];
         return ROWS.filter((r) => {
+            if (isBlocked(r)) return false;
             if (st.fromC && r.from_country !== st.fromC) return false;
             if (st.toC && r.to_country !== st.toC) return false;
             if (!placeMatch(r, "from", st.fromQ)) return false;
@@ -229,7 +230,8 @@ const LD = (() => {
         const rev = o.pos != null || o.neg != null
             ? ` <span class="ld-rev" title="Відгуки на Lardi"><span class="ld-up-ok">👍 ${fmt(o.pos || 0)}</span>${o.neg ? ` <span class="ld-down">👎 ${fmt(o.neg)}</span>` : ""}</span>` : "";
         const city = [o.city, o.area].filter(Boolean).join(", ");
-        return `<div><b>${name}</b>${rev}</div>${city ? `<div class="ld-sm ld-muted">${esc(city)}</div>` : ""}`;
+        const blk = `<button type="button" class="ld-block" data-block="${esc(bkey(o.ref, o.name))}" data-block-name="${esc(o.name || "")}" title="Заблокувати: не показувати заявки й машини цієї компанії">🚫</button>`;
+        return `<div><b>${name}</b>${rev} ${blk}</div>${city ? `<div class="ld-sm ld-muted">${esc(city)}</div>` : ""}`;
     }
     function contactHtml(o) {
         const ph = String(o.phone || "");
@@ -255,6 +257,17 @@ const LD = (() => {
     // Медіана €/км на тому ж напрямку: спершу область → область, якщо там мало — країна → країна
     let OTHER = [];
     let OTHER_ALL = []; // для верхніх підсумків — в усіх валютах (по Україні ціни в гривнях)
+    let OTHER_RAW = [];
+    // Заблоковані компанії Lardi (таблиця lardi_blocked) — не показуються на «Вантажах» і «Авто»
+    let BLOCKED = new Map(); // key → {name, by}
+    const bkey = (ref, name) => (ref ? "r:" + ref : "n:" + String(name || "").trim().toLowerCase());
+    const isBlocked = (r) => BLOCKED.size && (BLOCKED.has(bkey(r.owner_ref, null)) || BLOCKED.has(bkey(null, r.owner_name)));
+    function setOther() {
+        const vis = OTHER_RAW.filter((c) => !isBlocked(c));
+        OTHER = vis.filter((c) => c.currency === "EUR" && c.price_per_km != null && (!TRUCK || kindOf(c) === "full"));
+        OTHER_ALL = vis.filter((c) => c.price != null && (!TRUCK || kindOf(c) === "full"));
+        buildBench();
+    }
     let BENCH = { route: new Map(), country: new Map() };
     const rkey = (r) => `${r.from_region || "—"} → ${r.to_region || "—"}`;
     const ckey = (r) => `${r.from_country} → ${r.to_country}`;
@@ -521,7 +534,32 @@ const LD = (() => {
     }
 
     /* ---------------- дані ---------------- */
-    async function load() {
+    // Заявки зберігаються в пам'яті браузера: при відкритті сторінки — одразу з пам'яті,
+    // а з бази тягнемо, лише коли було нове оновлення Lardi (або минуло понад 2 год)
+    const CACHE_KEY = () => `lardi_${KIND_RUN}_${st.period || 3}`;
+    async function lastStamp() {
+        try {
+            const { data } = await sbClient.from("lardi_runs").select("started_at,finished_at").order("started_at", { ascending: false }).limit(4);
+            return (data || []).map((r) => r.finished_at || r.started_at || "").sort().pop() || "";
+        } catch (e) { return ""; }
+    }
+    async function load(force = false) {
+        const cache = window.furaCache ? await window.furaCache.get(CACHE_KEY()) : null;
+        if (cache && cache.rows && !force) {
+            applyData(cache.rows, cache.other || []);
+            const stamp = await lastStamp();
+            const fresh = stamp && stamp === cache.stamp && Date.now() - (cache.at || 0) < 2 * 3600 * 1000;
+            const cnt = $("#ldCount");
+            if (fresh) return;
+            if (cnt) cnt.textContent += " · перевіряю нові…";
+        }
+        const stamp = await lastStamp();
+        const { out, cargo } = await fetchData();
+        applyData(out, cargo);
+        if (window.furaCache) window.furaCache.set(CACHE_KEY(), { rows: out, other: cargo, stamp, at: Date.now() });
+    }
+
+    async function fetchData() {
         const since = new Date(Date.now() - Number(st.period || 3) * 86400000);
         if (st.period === "1") since.setHours(0, 0, 0, 0);
         const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating," +
@@ -548,7 +586,7 @@ const LD = (() => {
         // Для порівняння: на «Авто» — вантажі з ціною, на «Вантажах» — машини з ціною за той самий період
         let cargo = [];
         {
-            const sel = "id,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
+            const sel = "id,owner_ref,owner_name,from_country,to_country,from_region,to_region,from_town,to_town,from_points,to_points,from_zone,to_zone,from_postcode,to_postcode,price,price_per_km,currency,mass_t,groupage,payment_raw,payment_unit,distance_km";
             try {
                 for (let from = 0; from < 30000; from += 1000) {
                     if (cnt) cnt.textContent = `Завантажую ${TRUCK ? "вантажі" : "машини"} для порівняння… ${fmt(cargo.length)}`;
@@ -570,10 +608,13 @@ const LD = (() => {
                 }
             }
         }
+        return { out, cargo };
+    }
+
+    function applyData(out, cargo) {
         ROWS = out;
-        OTHER = cargo.filter((c) => c.currency === "EUR" && c.price_per_km != null && (!TRUCK || kindOf(c) === "full"));
-        OTHER_ALL = cargo.filter((c) => c.price != null && (!TRUCK || kindOf(c) === "full"));
-        buildBench();
+        OTHER_RAW = cargo;
+        setOther();
         renderSync();
         fillPlaces();
         const bodies = new Set();
@@ -703,7 +744,7 @@ const LD = (() => {
                 cards += res?.cardsUpdated || 0;
                 done += (res?.directions || []).length;
                 left = res?.left || 0;
-                await load();
+                await load(true);
             } while (left > 0 && round < 40);
             await loadMeta();
             info(`Готово${what}: оновлено ${done} напрямків, знайдено ${fmt(found)} ${TRUCK ? "машин" : "заявок з ціною"}.` +
@@ -899,9 +940,55 @@ const LD = (() => {
         });
     }
 
+    async function loadBlocked() {
+        try {
+            const { data, error } = await sbClient.from("lardi_blocked").select("key,name,blocked_by,created_at").order("created_at", { ascending: false });
+            if (error) throw error;
+            BLOCKED = new Map((data || []).map((b) => [b.key, b]));
+        } catch (e) { BLOCKED = new Map(); }
+        const b = $("#ldBlockedBtn");
+        if (b) { b.hidden = false; b.innerHTML = `🚫 Заблоковані${BLOCKED.size ? ` <b>${BLOCKED.size}</b>` : ""}`; }
+    }
+    function renderBlocked() {
+        const list = [...BLOCKED.values()];
+        $("#ldBlockedList").innerHTML = list.length
+            ? list.map((b) => `<div class="ld-dir-row"><label><b>${esc(b.name || b.key)}</b><small>${esc(b.blocked_by || "")}${b.created_at ? " · " + new Date(b.created_at).toLocaleDateString("uk-UA") : ""}</small></label>
+                <button type="button" class="ld-link" data-unblock="${esc(b.key)}">розблокувати</button></div>`).join("")
+            : `<div class="ld-muted">Нікого не заблоковано. Натисніть 🚫 біля назви компанії в таблиці.</div>`;
+    }
+    async function setBlock(key, name, on) {
+        let error;
+        if (on) {
+            const me = document.querySelector(".fura-user-name")?.textContent?.trim() || "";
+            ({ error } = await sbClient.from("lardi_blocked").upsert({ key, name, blocked_by: me }, { onConflict: "key" }));
+        } else ({ error } = await sbClient.from("lardi_blocked").delete().eq("key", key));
+        if (error) return alert(/lardi_blocked/.test(error.message) ? "Спершу один раз виконайте lardi_blocked.sql у Supabase → SQL Editor." : "Не вдалося: " + error.message);
+        await loadBlocked();
+        setOther();
+        render();
+        renderBlocked();
+    }
+    function bindBlocked() {
+        document.addEventListener("click", (e) => {
+            const b = e.target.closest("[data-block]");
+            if (b) {
+                e.preventDefault(); e.stopPropagation();
+                if (confirm(`Заблокувати «${b.dataset.blockName}»?\nЇї заявки й машини більше не показуватимуться на «Ларді · Вантажі» і «Ларді · Авто» (для всіх). Розблокувати — кнопка «🚫 Заблоковані».`))
+                    setBlock(b.dataset.block, b.dataset.blockName, true);
+                return;
+            }
+            const u = e.target.closest("[data-unblock]");
+            if (u) { setBlock(u.dataset.unblock, "", false); return; }
+            if (e.target.closest("#ldBlockedBtn")) { renderBlocked(); $("#ldBlockedModal").classList.remove("hidden"); return; }
+            if (e.target.matches("#ldBlockedModal, #ldBlockedModal [data-close]")) $("#ldBlockedModal").classList.add("hidden");
+        }, true);
+    }
+
     async function init() {
         restore();
         bind();
+        bindBlocked();
+        await loadBlocked();
         await loadMeta();
         await load();
         try {

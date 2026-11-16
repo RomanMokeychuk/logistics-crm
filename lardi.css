@@ -178,3 +178,9 @@
 .ld-table th:nth-child(n) { white-space: normal; }
 .ld-table td.ld-clip:nth-child(n) { max-width: 220px; }
 .ld-table td.ld-bodies:nth-child(n) { max-width: 200px; }
+
+/* Заблокувати компанію */
+.ld-block { border: 0; background: transparent; cursor: pointer; font-size: 12px; opacity: .25; padding: 0 2px; vertical-align: middle; transition: opacity .15s; }
+tr:hover .ld-block, .ld-block:focus { opacity: .9; }
+@media (hover: none) { .ld-block { opacity: .6; } }
+#ldBlockedBtn b { background: #fee2e2; color: #b42318; border-radius: 999px; padding: 0 7px; font-size: 12px; margin-left: 2px; }
