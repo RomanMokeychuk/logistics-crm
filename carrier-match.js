@@ -1,3 +1,10 @@
+// Митний опис товару буває на пів сторінки — показуємо початок (до технічних деталей), повний — у підказці
+function shortGoods(g) {
+    let t = String(g || "").replace(/\s+/g, " ").trim();
+    const cut = t.search(/\s(\d[\d\s,.]*\s*(КГ|Т|МЕТРИЧ|ШТ|КОРОБ|%)|ВИРОБНИК|ТОРГОВЕЛЬНА МАРКА|КРАЇНА ВИРОБНИЦТВА|ДАТА ВИРОБНИЦТВА|\()/i);
+    if (cut > 15) t = t.slice(0, cut);
+    return t.length > 70 ? t.slice(0, 68).replace(/\s\S*$/, "") + "…" : t;
+}
 /* ================================================================= *
  * FURA — ПІДБІР ПЕРЕВІЗНИКІВ «ПІД ЗАПИТ»                              *
  * За митними даними (таблиця carrier_routes): хто реально возить      *
@@ -587,7 +594,7 @@
                             ${a.uaCities.size ? `<div class="cm-facts cm-light"><span>🇺🇦 ${[...a.dirs].length === 1 ? ([...a.dirs][0] === "Імпорт" ? "Куди в Україні" : "Звідки в Україні") : "В Україні"}: ${cityList(a.uaCities, 5, city)}</span></div>` : ""}
                             <div class="cm-facts cm-light">
                                 ${(cardTrailers(c).length ? cardTrailers(c) : [...a.trailers]).slice(0, 4).map((t) => `<span class="cm-trailer"${cardTrailers(c).length ? ' title="з картки перевізника"' : ' title="за митними даними (за товаром)"'}>${esc(t)}</span>`).join("")}
-                                ${a.goods.size ? `<span>везли: ${esc([...a.goods].slice(0, 3).join("; "))}</span>` : ""}
+                                ${a.goods.size ? `<span title="${esc([...a.goods].join("\n"))}">везли: ${esc([...a.goods].slice(0, 3).map(shortGoods).join("; "))}</span>` : ""}
                             </div>
                             ${c?.notes ? `<div class="cm-facts cm-note" title="${esc(c.notes)}">📝 ${esc(String(c.notes).replace(/\s+/g, " ").slice(0, 160))}${String(c.notes).length > 160 ? "…" : ""}</div>` : ""}
                             ${c ? `<div class="cm-facts cm-fb" data-fb-id="${esc(c.id)}"></div>` : ""}
@@ -723,7 +730,7 @@
                         ${a.trailers.size ? `<dt>🚚 Причіп</dt><dd>${[...a.trailers].map((t) => `<span class="cm-trailer">${esc(t)}</span>`).join(" ")}</dd>` : ""}
                     </dl>
                     ${a.borders.size ? `<details class="cm-pl"><summary>🛂 Кордон: <b>${a.borders.size}</b> — показати</summary><div class="cm-list">${[...a.borders.entries()].sort((x, y) => y[1] - x[1]).map(([b, n]) => `<div>${esc(b)}${n > 1 ? ` <span class="cm-sub">(${n})</span>` : ""}</div>`).join("")}</div></details>` : ""}
-                    ${a.goods.size ? `<details class="cm-pl"><summary>📦 Везли — показати</summary><div class="cm-list">${[...a.goods].map((g) => `<div>${esc(g)}</div>`).join("")}</div></details>` : ""}
+                    ${a.goods.size ? `<details class="cm-pl"><summary>📦 Везли — показати</summary><div class="cm-list">${[...a.goods].map((g) => `<div title="${esc(g)}">${esc(shortGoods(g))}</div>`).join("")}</div></details>` : ""}
                     ${a.plates.size ? `<details class="cm-pl"><summary>🔢 Тягачі: <b>${a.plates.size}</b> — показати номери</summary><div class="cm-plates">${[...a.plates].sort().map((p) => `<span>${esc(p)}</span>`).join("")}</div></details>` : ""}
                 </details>`,
             )

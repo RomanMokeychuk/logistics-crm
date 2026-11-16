@@ -72,11 +72,15 @@
             async run(q, plates, digits) {
                 if (q.length < 3 || digits.length >= 3 || plates.length) return [];
                 const since = new Date(Date.now() - 30 * 86400000).toISOString();
-                const [deals, reqs, leads, lardi] = await Promise.all([
+                const [deals, reqs, leads, lardi, notes, customs] = await Promise.all([
                     client.from("deals").select("carrier_id, carrier_name, client, cargo, load_date").ilike("cargo", `%${q}%`).order("load_date", { ascending: false }).limit(300),
                     client.from("requests").select("client, lead_id, cargo, created_at").ilike("cargo", `%${q}%`).order("created_at", { ascending: false }).limit(300),
                     client.from("leads").select("id, name, cargo, status").ilike("cargo", `%${q}%`).limit(20),
                     client.from("lardi_cargo").select("owner_name, owner_ref, cargo").ilike("cargo", `%${q}%`).gte("seen_last", since).limit(500),
+                    // перевізники, у нотатках яких є цей товар («Що везли: …»)
+                    client.from("carriers").select("id, name, notes").ilike("notes", `%${q}%`).limit(8),
+                    // митні дані: що везли перевізники (опис товару з декларацій)
+                    client.from("carrier_routes").select("edrpou, goods, records, direction, country").ilike("goods", `%${q}%`).limit(400),
                 ].map((p) => p.then((r) => r.data || []).catch(() => [])));
                 const dShort = (d) => (d ? String(d).slice(0, 10).split("-").reverse().join(".") : "");
                 const goods = (a) => [...new Set(a.map((x) => String(x.cargo || "").trim()).filter(Boolean))].slice(0, 2).join(", ");
@@ -95,6 +99,37 @@
                         title: `🚛 ${d.carrier_name || "Перевізник"}`,
                         sub: `возив: ${goods(a)} · ${a.length} рейс(и) · останній ${dShort(d.load_date)}`,
                     });
+                });
+                // Митні дані + нотатки перевізників
+                const snip = (t) => {
+                    const s2 = String(t || "").replace(/\s+/g, " ");
+                    const i = s2.toLowerCase().indexOf(q.toLowerCase());
+                    if (i < 0) return s2.slice(0, 70);
+                    const a = Math.max(0, i - 25), b = Math.min(s2.length, i + q.length + 45);
+                    return (a ? "…" : "") + s2.slice(a, b) + (b < s2.length ? "…" : "");
+                };
+                const seenC = new Set(out.map((o) => String(o.carrier || "")));
+                if (customs.length) {
+                    const byCode = group(customs, (r) => r.edrpou);
+                    const codes = byCode.slice(0, 12).map((a) => a[0].edrpou);
+                    const { data: cs } = await client.from("carriers").select("id, name, edrpou").in("edrpou", codes).limit(20);
+                    const byE = new Map((cs || []).map((c) => [String(c.edrpou), c]));
+                    byCode.forEach((a) => {
+                        const c = byE.get(String(a[0].edrpou));
+                        if (!c || seenC.has(String(c.id)) || out.length >= 8) return;
+                        seenC.add(String(c.id));
+                        const recs = a.reduce((n, r) => n + (Number(r.records) || 1), 0);
+                        out.push({
+                            href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id,
+                            title: `🚛 ${c.name}`,
+                            sub: `митниця: ${snip(a[0].goods)} · ${recs} запис(и) · ${[...new Set(a.map((r) => r.country))].slice(0, 3).join(", ")}`,
+                        });
+                    });
+                }
+                notes.forEach((c) => {
+                    if (seenC.has(String(c.id)) || out.length >= 10) return;
+                    seenC.add(String(c.id));
+                    out.push({ href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub: `у картці: ${snip(c.notes)}` });
                 });
                 // Клієнти, які відправляли (угоди + запити) і в кого це у «Що возить / виробляє»
                 const cl = group([...deals.map((d) => ({ name: d.client, cargo: d.cargo })), ...reqs.map((r) => ({ name: r.client, cargo: r.cargo, id: r.lead_id }))], (x) => String(x.name || "").trim().toLowerCase());
