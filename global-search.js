@@ -72,7 +72,7 @@
             async run(q, plates, digits) {
                 if (q.length < 3 || digits.length >= 3 || plates.length) return [];
                 const since = new Date(Date.now() - 30 * 86400000).toISOString();
-                const [deals, reqs, leads, lardi, notes, customs] = await Promise.all([
+                const [deals, reqs, leads, lardi, notes, customs, cgoods] = await Promise.all([
                     client.from("deals").select("carrier_id, carrier_name, client, cargo, load_date").ilike("cargo", `%${q}%`).order("load_date", { ascending: false }).limit(300),
                     client.from("requests").select("client, lead_id, cargo, created_at").ilike("cargo", `%${q}%`).order("created_at", { ascending: false }).limit(300),
                     client.from("leads").select("id, name, cargo, status").ilike("cargo", `%${q}%`).limit(20),
@@ -81,6 +81,8 @@
                     client.from("carriers").select("id, name, notes").ilike("notes", `%${q}%`).limit(8),
                     // митні дані: що везли перевізники (опис товару з декларацій)
                     client.from("carrier_routes").select("edrpou, goods, records, direction, country").ilike("goods", `%${q}%`).limit(400),
+                    // повна митна база: хто й коли возив цей товар (усі місяці)
+                    client.from("carrier_goods").select("edrpou, carrier, direction, goods, countries, last_month, records").or(`goods.ilike.%${q.replace(/[,()*%]/g, " ").trim()}%,groups.ilike.%${q.replace(/[,()*%]/g, " ").trim()}%`).order("records", { ascending: false }).limit(300),
                 ].map((p) => p.then((r) => r.data || []).catch(() => [])));
                 const dShort = (d) => (d ? String(d).slice(0, 10).split("-").reverse().join(".") : "");
                 const goods = (a) => [...new Set(a.map((x) => String(x.cargo || "").trim()).filter(Boolean))].slice(0, 2).join(", ");
@@ -126,6 +128,26 @@
                         });
                     });
                 }
+                if (cgoods.length) {
+                    const byCode = group(cgoods, (r) => r.edrpou);
+                    const codes = byCode.slice(0, 25).map((a) => a[0].edrpou);
+                    const { data: cs } = await client.from("carriers").select("id, name, edrpou").in("edrpou", codes).limit(40);
+                    const byE = new Map((cs || []).map((c) => [String(c.edrpou), c]));
+                    // спершу ті, хто вже є у FURA
+                    byCode.sort((a, b) => (byE.has(String(b[0].edrpou)) - byE.has(String(a[0].edrpou))) || b.reduce((n, r) => n + r.records, 0) - a.reduce((n, r) => n + r.records, 0));
+                    byCode.forEach((a) => {
+                        if (out.length >= 14) return;
+                        const c = byE.get(String(a[0].edrpou));
+                        if (c && seenC.has(String(c.id))) return;
+                        if (c) seenC.add(String(c.id));
+                        const recs = a.reduce((n, r) => n + (Number(r.records) || 0), 0);
+                        const last = a.map((r) => r.last_month).sort().pop() || "";
+                        const sub = `${[...new Set(a.map((r) => r.direction))].join("+").toLowerCase()} · ${snip(a[0].goods)} · ${recs} перевез. · ост. ${last.split("-").reverse().join(".")} · ${String(a[0].countries || "").split(", ").slice(0, 2).join(", ")}`;
+                        out.push(c
+                            ? { href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub }
+                            : { href: `https://opendatabot.ua/c/${encodeURIComponent(a[0].edrpou)}`, title: `🚚 ${a[0].carrier || a[0].edrpou} · немає у FURA`, sub: `ЄДРПОУ ${a[0].edrpou} · ${sub}` });
+                    });
+                }
                 notes.forEach((c) => {
                     if (seenC.has(String(c.id)) || out.length >= 10) return;
                     seenC.add(String(c.id));
@@ -153,7 +175,7 @@
                     title: `📦 ${a[0].owner_name || "Компанія"} (Lardi)`,
                     sub: `виставляє: ${goods(a)} · ${a.length} заявок за 30 днів`,
                 }));
-                return out.slice(0, 12);
+                return out.slice(0, 18);
             },
         },
         {
