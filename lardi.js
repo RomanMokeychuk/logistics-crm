@@ -417,7 +417,7 @@ const LD = (() => {
             };
         });
         list.forEach((r) => { r.diff = r.med != null && r.cargo?.med ? r.med / r.cargo.med - 1 : null; });
-        list = sortRows(list, { seen: (r) => r.n, n: (r) => r.n, med: (r) => r.med, route: (r) => r.route, diff: (r) => r.diff });
+        list = sortRows(list, { seen: (r) => r.n, n: (r) => r.n, med: (r) => r.med, sum: (r) => r.sum, route: (r) => r.route, diff: (r) => r.diff });
         const total = list.length;
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         if (TRUCK) {
@@ -478,7 +478,8 @@ const LD = (() => {
                 name: a[0].owner_name, type: a[0].owner_type, face: a[0].owner_face, phone: a[0].owner_phone, rating: a[0].owner_rating,
                 o: ownerOf(a[0]),
                 carrier_id: (a.find((r) => r.carrier_id) || {}).carrier_id || null,
-                n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), cur, vs: median(ratios),
+                n: a.length, priced: p.length, med: median(p.map((r) => r.price_per_km)), sum: median(p.map((r) => r.price)),
+                min: p.length ? Math.min(...p.map((r) => r.price)) : null, max: p.length ? Math.max(...p.map((r) => r.price)) : null, cur, vs: median(ratios),
                 routes: new Set(a.map(route)).size,
             };
         });
@@ -487,17 +488,18 @@ const LD = (() => {
         const pageRows = list.slice(st.page * PAGE, st.page * PAGE + PAGE);
         const pct = (v) => (v == null ? "" : (v > 0 ? "+" : "") + Math.round(v * 100) + "%");
         $("#ldTable").innerHTML =
-            `<thead><tr>${th("name", "Компанія")}${th("", TRUCK ? "FURA" : "Хто")}${th("n", TRUCK ? "Машин" : "Заявок", "num")}${th("med", "Медіана за км", "num")}` +
+            `<thead><tr>${th("name", "Компанія")}${th("", TRUCK ? "FURA" : "Хто")}${th("n", TRUCK ? "Машин" : "Заявок", "num")}${th("sum", "Ціна за рейс", "num")}${th("med", "За км", "num")}` +
             `${th("vs", "До ринку", "num")}${th("", "Напрямків", "num")}${th("", "Контакт")}</tr></thead><tbody>` +
             (pageRows.length
                 ? pageRows.map((r) => `<tr>
                     <td>${ownerHtml(r.o)}</td>
                     <td>${TRUCK ? furaBadge(r) : `<span class="ld-own ${OWNER_CLS[r.type] || ""}">${esc(OWNER_LBL[r.type] || r.type || "")}</span>`}</td>
-                    <td class="num">${r.n}</td><td class="num nw">${r.med != null ? `${fmt(r.med, 2)} ${esc(CUR[r.cur] || r.cur || "")}` : ""}</td>
+                    <td class="num">${r.n}</td><td class="num nw" title="Медіана ціни повних заявок компанії">${r.sum != null ? `<b>${fmt(r.sum)} ${esc(CUR[r.cur] || r.cur || "")}</b>${r.priced > 1 && r.min !== r.max ? `<div class="ld-sm ld-muted">${fmt(r.min)}–${fmt(r.max)}</div>` : ""}` : ""}</td>
+                    <td class="num nw">${r.med != null ? `${fmt(r.med, 2)} ${esc(CUR[r.cur] || r.cur || "")}` : ""}</td>
                     <td class="num ${r.vs > 0.05 ? "ld-up" : r.vs < -0.05 ? "ld-down" : ""}" title="Наскільки ставка компанії вища/нижча за звичайну на тих самих напрямках">${pct(r.vs)}</td>
                     <td class="num">${r.routes}</td>
                     <td>${contactHtml(r.o)}</td></tr>`).join("")
-                : `<tr><td colspan="7" class="ld-empty">Немає даних</td></tr>`) +
+                : `<tr><td colspan="8" class="ld-empty">Немає даних</td></tr>`) +
             "</tbody>";
         pager(total);
         $("#ldCount").textContent = `${fmt(total)} компаній`;
