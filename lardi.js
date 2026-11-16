@@ -595,7 +595,7 @@ const LD = (() => {
     async function fetchData(sinceMain, sinceOther, quiet) {
         const cols = "id,lardi_url:raw->>_lardi_url,seen_first,seen_last,direction,from_country,to_country,from_zone,from_postcode,to_zone,to_postcode,from_town,from_region,from_points,to_town,to_region,to_points,date_from,date_to,distance_km,cargo,mass_t,volume_m3,body_types,load_types,adr,groupage,price,price_per_km,currency,payment_raw,payment_unit,payment_forms,delay_days,owner_ref,owner_name,owner_face,owner_phone,owner_type,owner_rating," +
             "owner_city:raw->owner->address->town->>name,owner_area:raw->owner->address->area->>name,owner_msg:raw->owner->phones->0->messengers," +
-            "owner_pic:raw->owner->>avatar,rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
+            "rev_pos:raw->owner->rating->>positiveCommentCount,rev_neg:raw->owner->rating->>negativeCommentCount";
         const out = [];
         const cnt = $("#ldCount");
         const page = async (from, table = TABLE, sel = TRUCK ? cols + ",carrier_id" : cols, since = sinceMain) => {
