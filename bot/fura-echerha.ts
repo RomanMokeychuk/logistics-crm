@@ -141,6 +141,8 @@ Deno.serve(async (req) => {
             in_queue: Number(c.in_queue) || 0,
             selected: !!c.selected,
             last_scraped: s(c.last_scraped, 40),
+            // «Час очікування», як показує сама єЧерга (хвилини + текст «4 дн 3 год»)
+            ...(c.wait_min != null && Number.isFinite(Number(c.wait_min)) ? { wait_min: Number(c.wait_min), wait_text: s(c.wait_text, 40) } : {}),
         }));
         if (cps.length) {
             const { error } = await db.from("echerha_checkpoints").upsert(cps, { onConflict: "name" });

@@ -632,6 +632,7 @@ const EQ = (() => {
             const last = a[a.length - 1];
             let wait = Math.max(0, last - now);
             const cp = CPS.find((c) => c.name === k);
+            if (cp && cp.wait_min != null) return; // є офіційний час єЧерги — він нижче
             const inQ = Number(cp?.in_queue) || 0;
             const missing = Math.max(0, inQ - a.length);
             // темп: скільки мс на одну машину (за останніми слотами, щонайменше за 3 год)
@@ -643,9 +644,17 @@ const EQ = (() => {
             }
             out[k] = wait;
         });
+        // Офіційний «Час очікування» з єЧерги (програма Черги бере його зі сторінки пункту)
+        CPS.forEach((c) => {
+            if (c.wait_min == null) return;
+            out[c.name] = Number(c.wait_min) * 60000;
+            WAIT_EST[c.name] = 0;
+            WAIT_OFF[c.name] = true;
+        });
         return out;
     }
     let WAIT_EST = {};
+    let WAIT_OFF = {};
     const waitCls = (ms) => (ms == null ? "eq-muted" : ms < 12 * 3600000 ? "eq-wait-ok" : ms < 3 * 86400000 ? "eq-wait-mid" : "eq-wait-bad");
 
     function renderCps(list) {
@@ -659,7 +668,7 @@ const EQ = (() => {
                 <td><b>${c.selected ? "★ " : ""}${esc(cpShort(c.name))}</b><div class="eq-muted eq-sm">${esc(cpNote(c.name))}</div></td>
                 <td>${esc(c.country || "—")}</td><td>${esc(c.qtype || "—")}</td>
                 <td><b>${n[c.name] || 0}</b></td><td>${c.in_queue}</td>
-                <td class="eq-wait ${waitCls(wait[c.name])}" title="${WAIT_EST[c.name] ? `Оцінка: ${WAIT_EST[c.name]} машин ще без часу в'їзду — додано час за поточним темпом проїзду` : "За часом в'їзду останньої машини"}">${WAIT_EST[c.name] ? "≈ " : ""}${waitText(wait[c.name])}</td>
+                <td class="eq-wait ${waitCls(wait[c.name])}" title="${WAIT_OFF[c.name] ? "Як показує єЧерга (на момент оновлення)" : WAIT_EST[c.name] ? `Оцінка: ${WAIT_EST[c.name]} машин ще без часу в'їзду — додано час за поточним темпом проїзду` : "За часом в'їзду останньої машини"}">${WAIT_EST[c.name] ? "≈ " : ""}${waitText(wait[c.name])}</td>
                 <td class="eq-nw eq-muted">${dShort(c.last_scraped)}</td>
             </tr>`).join("") || `<tr><td colspan="7" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Пунктів: ${cps.length} · натисніть на пункт, щоб побачити його машини`;
