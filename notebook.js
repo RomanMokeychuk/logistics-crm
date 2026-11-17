@@ -100,7 +100,60 @@ const NB = (() => {
         sc.scrollTop = savedScroll || keep;
         savedScroll = 0;
         loadLinks().then(() => { const k = sc.scrollTop; render(); sc.scrollTop = k; }).catch(() => {});
+        syncRequests().catch((e) => console.warn("Запити → Блокнот:", e));
         geoQueue();
+    }
+
+    /* ---------- «Запити» FURA, де я логіст → у Блокнот ---------- */
+    let REQS = new Map(); // id запиту → запит (для статусу й посилання)
+    const ACTIVE_REQ = ["Запит", "Відповідь", "В роботі"];
+    const title = (x) => String(x || "").trim().toLowerCase().replace(/(^|[\s-])([a-zа-яіїєґ])/g, (m, a, b) => a + b.toUpperCase());
+    const logistIds = (r) => (Array.isArray(r.logistician_ids) && r.logistician_ids.length ? r.logistician_ids : r.logistician_id ? [r.logistician_id] : []).map(String);
+    function fromRequest(q) {
+        const d = (v) => (v ? String(v).slice(0, 10).split("-").reverse().join(".") : "");
+        const when = q.desired_date ? `${d(q.desired_date)}${q.desired_date_to ? " – " + d(q.desired_date_to) : ""}` : "";
+        return {
+            request_id: q.id,
+            direction: [title(q.load_country), title(q.unload_country)].filter(Boolean).join(" - ") || null,
+            addresses: [q.load_address || title(q.load_country), q.unload_address || title(q.unload_country)].filter(Boolean).join(" - ") || null,
+            cargo: [q.cargo, q.weight ? `${q.weight}${/т|t|кг/i.test(q.weight) ? "" : " т"}` : ""].filter(Boolean).join(", ") || null,
+            truck: q.transport_type || null,
+            comment: [when, q.request_type].filter(Boolean).join(" · ") || null,
+            status: "Актуальне",
+            carriers: [],
+        };
+    }
+    async function syncRequests() {
+        const { data: staff } = await sbClient.from("staff").select("id, email").ilike("email", me.email).limit(1);
+        const sid = staff?.[0]?.id;
+        if (!sid) return;
+        const { data: reqs, error } = await sbClient.from("requests").select("*").in("status", ACTIVE_REQ).order("created_at", { ascending: false }).limit(2000);
+        if (error) return;
+        const mine = (reqs || []).filter((q) => logistIds(q).includes(String(sid)));
+        // статуси для вже пов'язаних записів (навіть якщо запит уже закрито)
+        const linked = ROWS.map((r) => r.request_id).filter(Boolean);
+        const map = new Map(mine.map((q) => [q.id, q]));
+        const extra = linked.filter((id) => !map.has(id));
+        for (let i = 0; i < extra.length; i += 200) {
+            const { data } = await sbClient.from("requests").select("id, status, client, created_at").in("id", extra.slice(i, i + 200));
+            (data || []).forEach((q) => map.set(q.id, q));
+        }
+        REQS = map;
+        const have = new Set(linked);
+        const add = mine.filter((q) => !have.has(q.id)).map(fromRequest);
+        if (add.length) {
+            const { data, error: e2 } = await sbClient.from("my_requests").insert(add).select("*");
+            if (e2) {
+                if (/request_id/.test(e2.message)) console.warn("Виконайте notebook_requests.sql у Supabase");
+                else console.warn(e2.message);
+            } else if (data?.length) {
+                ROWS = [...data, ...ROWS];
+                cacheRows();
+            }
+        }
+        const sc = $(".nb-scroll"), k = sc.scrollTop;
+        render();
+        sc.scrollTop = k;
     }
 
     /* ---------- перевізники: Ларді (профіль з картки FURA) і чи стоять зараз у Черзі ---------- */
@@ -227,7 +280,7 @@ const NB = (() => {
             if (st.truck.size && !st.truck.has(norm(r.truck))) return false;
             if (st.region.size && !placeKeys(r).some((k) => st.region.has(k.country) || st.region.has(k.region))) return false;
             if (st.city.size && !placeKeys(r).some((k) => st.city.has(k.city))) return false;
-            if (st.has.size && ![...st.has].some((h) => (h === "with" ? cs.length : h === "without" ? !cs.length : cs.some((c) => c.id)))) return false;
+            if (st.has.size && ![...st.has].some((h) => (h === "with" ? cs.length : h === "without" ? !cs.length : h === "req" ? r.request_id : cs.some((c) => c.id)))) return false;
             if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
             return words.every((w) => hay(r).includes(w));
         });
@@ -273,7 +326,7 @@ const NB = (() => {
         });
         msel("#nbRegion", "Країна / регіон", regVals, st.region);
         msel("#nbCity", "Місто", [...cities].sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, k.slice(2), n]), st.city);
-        msel("#nbHas", "Усі запити", [["with", "З перевізниками", cn((c) => c.length)], ["without", "Без перевізників", cn((c) => !c.length)], ["fura", "Перевізник є у FURA", cn((c) => c.some((x) => x.id))]], st.has);
+        msel("#nbHas", "Усі запити", [["with", "З перевізниками", cn((c) => c.length)], ["without", "Без перевізників", cn((c) => !c.length)], ["fura", "Перевізник є у FURA", cn((c) => c.some((x) => x.id))], ["req", "📋 З «Запитів» FURA", ROWS.filter((r) => r.request_id).length]], st.has);
     }
     function renderChips() {
         const n = (k) => ROWS.filter((r) => (k === "—" ? !r.status : r.status === k)).length;
@@ -305,6 +358,7 @@ const NB = (() => {
                 <div class="nb-top">
                     <span class="nb-status st-${stCls(r.status)}">${esc(r.status || "без статусу")}</span>
                     <span class="nb-dir">${esc(r.direction || "")}</span>
+                    ${r.request_id ? `<a class="nb-req" href="requests.html?open=${encodeURIComponent(r.request_id)}" title="Відкрити запит у «Запитах»">📋 Запит${REQS.get(r.request_id)?.status ? " · " + esc(REQS.get(r.request_id).status) : ""}</a>` : ""}
                     <span class="nb-date">${new Date(r.updated_at || r.created_at).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</span>
                     <button type="button" class="nb-rbtn" data-redit title="Змінити"><i class="bx bx-edit-alt"></i></button>
                     <button type="button" class="nb-rbtn nb-rdel" data-rdel title="Видалити запит"><i class="bx bx-trash"></i></button>
