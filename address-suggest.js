@@ -50,7 +50,7 @@
     const style = document.createElement("style");
     style.textContent = `
         .addr-suggest {
-            position: fixed; z-index: 5000; max-height: 300px; overflow-y: auto;
+            position: fixed; z-index: 100010; max-height: 300px; overflow-y: auto;
             background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
             box-shadow: 0 10px 28px rgba(15,23,42,.16); padding: 4px; display: none;
         }
@@ -104,6 +104,7 @@
         let reqNo = 0;
 
         const countryCode = () => {
+            if (opts.countryFn) return opts.countryFn() || "";
             if (opts.fixedCountry) return opts.fixedCountry;
             const v = (opts.countrySelect?.value || "").toUpperCase();
             return COUNTRY_CODES[v] || "";
@@ -211,7 +212,7 @@
         }
 
         async function load() {
-            const text = opts.list ? input.value.split(",").pop().trim() : input.value.trim();
+            const text = opts.seg ? input.value.split(opts.seg).pop().trim() : opts.list ? input.value.split(",").pop().trim() : input.value.trim();
             if (text.length < 2) return close();
             const my = ++reqNo;
             show(`<div class="addr-note">Шукаю…</div>`);

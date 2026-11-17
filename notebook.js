@@ -719,8 +719,36 @@ const NB = (() => {
         render();
         if (st.focus && !quiet) document.querySelector(`.nb-row[data-id="${CSS.escape(st.focus)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     }
+    /* ---------- підказки адрес: місто/село → індекс, район, область / воєводство, країна ---------- */
+    function setupAddrSuggest() {
+        const ta = $("#nbForm").addresses;
+        if (!window.furaAddressSuggest || !ta) return;
+        const SEG = /\s+[-–—]\s+|\n/;
+        // яка частина зараз вводиться: перша — країна завантаження, далі — розвантаження
+        const segIndex = () => ta.value.split(SEG).length - 1;
+        window.furaAddressSuggest(ta, {
+            seg: SEG,
+            countryFn: () => {
+                const parts = String($("#nbForm").direction.value || "").split(/\s*[-–—]\s*/).map((x) => CC[norm(x)] || "");
+                return segIndex() === 0 ? parts[0] : parts[parts.length - 1];
+            },
+            apply: (r, x) => {
+                const cn = CNAME[String(r.country_code || "").toLowerCase()] || r.country || "";
+                const place = [x.street ? `${x.street}, ${x.town}` : x.town, r.postcode, x.county, x.region, cn].filter(Boolean).join(", ");
+                const v = ta.value;
+                const m = [...v.matchAll(/\s+[-–—]\s+|\n/g)].pop();
+                const head = m ? v.slice(0, m.index + m[0].length) : "";
+                ta.value = head + place;
+                // напрямок порожній — підставимо країну
+                const dir = $("#nbForm").direction;
+                if (!dir.value.trim() && cn) dir.value = cn + " - ";
+                ta.focus();
+            },
+        });
+    }
     function init() {
         restoreState();
+        setupAddrSuggest();
         updTrashBtn();
         $("#nbTrashBtn").addEventListener("click", showTrash);
         $("#nbTrash").addEventListener("click", (e) => {
