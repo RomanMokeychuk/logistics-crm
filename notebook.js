@@ -284,10 +284,12 @@ const NB = (() => {
             if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
             return words.every((w) => hay(r).includes(w));
         });
-        const t = (r) => new Date(r.updated_at || r.created_at).getTime();
-        if (st.sort === "old") list.sort((a, b) => t(a) - t(b));
-        else if (st.sort === "many") list.sort((a, b) => (b.carriers || []).length - (a.carriers || []).length || t(b) - t(a));
-        else list.sort((a, b) => t(b) - t(a));
+        // порядок за датою створення — зміни перевізника чи ціни не переносять запит на інше місце
+        const t = (r) => new Date(r.created_at || r.updated_at).getTime() || 0;
+        const tie = (a, b) => String(a.id).localeCompare(String(b.id));
+        if (st.sort === "old") list.sort((a, b) => t(a) - t(b) || tie(a, b));
+        else if (st.sort === "many") list.sort((a, b) => (b.carriers || []).length - (a.carriers || []).length || t(b) - t(a) || tie(a, b));
+        else list.sort((a, b) => t(b) - t(a) || tie(a, b));
         return list;
     }
     // випадаючий список з галочками — можна обрати кілька
@@ -377,10 +379,15 @@ const NB = (() => {
         renderChips();
         fillSelects();
         const list = filtered();
+        // не стрибати: запам'ятовуємо прокрутку списку і кожного ряду перевізників
+        const sc = $(".nb-scroll"), top = sc ? sc.scrollTop : 0;
+        const lefts = new Map([...document.querySelectorAll(".nb-row")].map((r) => [r.dataset.id, r.querySelector(".nb-carriers")?.scrollLeft || 0]));
         $("#nbCount").textContent = list.length === ROWS.length ? `${ROWS.length} запитів` : `знайдено ${list.length} з ${ROWS.length}`;
         $("#nbList").innerHTML = list.slice(0, st.shown).map(rowHtml).join("") ||
             `<div class="nb-empty">${ROWS.length ? "Нічого не знайдено" : "Тут поки порожньо. Натисніть «Новий запит» або імпортуйте свою Google-таблицю (Файл → Завантажити → CSV)."}</div>`;
         $("#nbMore").classList.toggle("hidden", list.length <= st.shown);
+        document.querySelectorAll(".nb-row").forEach((r) => { const l = lefts.get(r.dataset.id); if (l) r.querySelector(".nb-carriers").scrollLeft = l; });
+        if (sc) sc.scrollTop = top;
         saveState();
     }
 
@@ -444,8 +451,11 @@ const NB = (() => {
         if (error) { alert("Не вдалося зберегти: " + error.message); return; }
         const saved = data?.[0];
         if (saved) {
-            ROWS = ROWS.filter((x) => x.id !== saved.id);
-            ROWS.unshift(saved);
+            const old = ROWS.find((x) => x.id === saved.id);
+            if (old) {
+                saved._sortAt = old._sortAt || new Date(old.updated_at || old.created_at).getTime();
+                ROWS = ROWS.map((x) => (x.id === saved.id ? saved : x));
+            } else ROWS.unshift(saved);
         }
         close();
         render();
@@ -521,6 +531,7 @@ const NB = (() => {
         const { data, error } = await sbClient.from("my_requests").update({ carriers: list }).eq("id", r.id).select("*");
         if (error) { alert("Не вдалося зберегти: " + error.message); return; }
         const saved = { ...(data?.[0]?.id === r.id ? data[0] : r), carriers: list };
+        saved._sortAt = r._sortAt || new Date(r.updated_at || r.created_at).getTime();
         ROWS = ROWS.map((x) => (x.id === r.id ? saved : x));
         POP = null;
         $("#nbPop").classList.add("hidden");
