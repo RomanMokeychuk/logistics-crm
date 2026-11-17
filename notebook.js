@@ -491,15 +491,37 @@ const NB = (() => {
                 (by.get(k) || by.set(k, []).get(k)).push(x);
             });
             QS.list = [...by.values()];
-            // хто з них уже є у FURA
-            const codes = [...by.keys()];
-            const variants = [...new Set(codes.flatMap((c) => [c, c.padStart(8, "0")]))];
-            for (let i = 0; i < variants.length; i += 300) {
-                const { data } = await sbClient.from("carriers").select("edrpou").in("edrpou", variants.slice(i, i + 300));
-                (data || []).forEach((c) => FURA_CODES.add(qKey(c.edrpou)));
-            }
+            await qEnrich(r, [...by.keys()]);
         }
         if (st.sugFor === r.id) render();
+    }
+    /* Дані з усієї FURA для кожного перевізника з черги:
+     * картка (область, телефон, Ларді), угоди, чи возив цей вантаж (митні дані), чи вже є в моїх запитах */
+    async function qEnrich(r, codes) {
+        QS.fura = new Map(); QS.deals = new Map(); QS.goods = new Map(); QS.mine = new Map();
+        const variants = [...new Set(codes.flatMap((c) => [c, c.padStart(8, "0")]))];
+        const ids = [];
+        for (let i = 0; i < variants.length; i += 300) {
+            const { data } = await sbClient.from("carriers").select("id, edrpou, name, region_ukr, city, phone_1, contact_person_1, profile_url, trailer_type").in("edrpou", variants.slice(i, i + 300));
+            (data || []).forEach((c) => { QS.fura.set(qKey(c.edrpou), c); FURA_CODES.add(qKey(c.edrpou)); ids.push(c.id); });
+        }
+        for (let i = 0; i < ids.length; i += 300) {
+            const { data } = await sbClient.from("deals").select("carrier_id, load_date").in("carrier_id", ids.slice(i, i + 300)).limit(5000);
+            (data || []).forEach((d) => { const o = QS.deals.get(String(d.carrier_id)) || { n: 0, last: "" }; o.n++; if ((d.load_date || "") > o.last) o.last = d.load_date || ""; QS.deals.set(String(d.carrier_id), o); });
+        }
+        // чи возив подібний вантаж (митна база carrier_goods)
+        const words = String(r.cargo || "").toLowerCase().split(/[^a-zа-яіїєґ']+/i).filter((w) => w.length >= 4 && !/^(коробк|палет|мішк|вага|тонн|рулон|кг)/.test(w)).slice(0, 3);
+        QS.goodsWords = words;
+        if (words.length) {
+            const stems = words.map((w) => w.slice(0, Math.max(4, w.length - 2)));
+            for (let i = 0; i < variants.length; i += 200) {
+                const { data } = await sbClient.from("carrier_goods").select("edrpou, goods, last_month, records")
+                    .in("edrpou", variants.slice(i, i + 200)).or(stems.map((w) => `goods.ilike.%${w.replace(/[,()*%]/g, "")}%`).join(",")).limit(2000);
+                (data || []).forEach((g) => { const k = qKey(g.edrpou); const o = QS.goods.get(k); if (!o || g.records > o.records) QS.goods.set(k, g); });
+            }
+        }
+        // уже в моїх запитах Блокнота
+        ROWS.forEach((x) => (x.carriers || []).forEach((c) => { const k = qKey(c.edrpou); if (k) QS.mine.set(k, (QS.mine.get(k) || 0) + 1); }));
     }
     function cpsBlock() {
         // пункти пропуску — по країнах, з галочками
@@ -534,23 +556,50 @@ const NB = (() => {
                 if (!o.passed && passed) return false;
                 if (!o.waiting && !passed) return false;
                 if (passed && now - t > 3 * 86400000) return false; // проїхали давніше 3 днів — вже не актуально
+                if (o.within && t && t - now > o.within * 3600 * 1000) return false; // в'їзд ще не скоро
                 if (want && x.trailer_body && !want.test(norm(x.trailer_body))) return false;
                 return true;
             });
             if (!ok.length) return null;
             const code = qKey(ok[0].edrpou);
-            const inFura = [...LINKS.values()].some((l) => qKey(l.edrpou) === code) || FURA_CODES.has(code);
+            const fc = QS.fura?.get(code);
+            const inFura = !!fc || FURA_CODES.has(code);
+            const deals = fc ? QS.deals?.get(String(fc.id)) : null;
+            const goods = QS.goods?.get(code);
+            const mine = QS.mine?.get(code) || 0;
             if (o.fura && !inFura) return null;
-            const score = (inFura ? 1000 : 0) + ok.filter(isEmptyQ).length * 50 + ok.length;
-            return { trucks: ok, code, inFura, score, added: added.has(code) };
-        }).filter(Boolean).sort((a, b) => b.score - a.score);
+            if (o.deals && !deals) return null;
+            if (o.goods && !goods) return null;
+            if (o.fresh && mine) return null;
+            if (o.minN && ok.length < o.minN) return null;
+            if (o.region && (fc?.region_ukr || "") !== o.region) return null;
+            if (o.q) {
+                const hayq = norm([ok[0].carrier, ok[0].edrpou, fc?.name, ...ok.map((t) => t.tractor)].join(" "));
+                if (!norm(o.q).split(" ").every((w) => hayq.includes(w) || hayq.replace(/\s/g, "").includes(w))) return null;
+            }
+            const first = Math.min(...ok.map((t) => entryT(t.entry_at) || Infinity));
+            const score = (inFura ? 1000 : 0) + (deals ? 500 + deals.n * 10 : 0) + (goods ? 400 : 0) + ok.filter(isEmptyQ).length * 50 + ok.length;
+            return { trucks: ok, code, inFura, fc, deals, goods, mine, first, score, added: added.has(code) };
+        }).filter(Boolean).sort((a, b) =>
+            o.sort === "many" ? b.trucks.length - a.trucks.length
+            : o.sort === "soon" ? a.first - b.first
+            : o.sort === "goods" ? (!!b.goods - !!a.goods) || b.score - a.score
+            : b.score - a.score);
         const total = items.length, trucksN = items.reduce((n, it) => n + it.trucks.length, 0);
         items.length = Math.min(items.length, QS.shown || 60);
         const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
             <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
             ${cpsBlock()}
-            <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}${tg("fura", "лише є у FURA")}</div>
+            <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}</div>
+            <div class="nb-qopts">${tg("fura", "є у FURA")}${tg("deals", "були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}» (митні дані)`) : ""}${tg("fresh", "ще не в моїх запитах")}</div>
+            <div class="nb-qopts nb-qsel">
+                <input class="nb-qq" data-qin="q" placeholder="Пошук: перевізник, ЄДРПОУ, номер…" value="${esc(o.q || "")}" />
+                <select data-qin="region"><option value="">Область перевізника: усі</option>${[...new Set([...(QS.fura?.values() || [])].map((c) => c.region_ukr).filter(Boolean))].sort().map((x) => `<option ${o.region === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
+                <select data-qin="minN"><option value="0">Машин: будь-скільки</option>${[2, 3, 5, 10].map((n) => `<option value="${n}" ${o.minN === n ? "selected" : ""}>від ${n} машин</option>`).join("")}</select>
+                <select data-qin="within"><option value="0">В'їзд: будь-коли</option>${[[12, "до 12 год"], [24, "до 24 год"], [48, "до 2 днів"], [72, "до 3 днів"]].map(([n, l]) => `<option value="${n}" ${o.within === n ? "selected" : ""}>В'їзд: ${l}</option>`).join("")}</select>
+                <select data-qin="sort">${[["", "Порядок: рекомендовані"], ["many", "Більше машин"], ["soon", "Раніший в'їзд"], ["goods", "Возили цей вантаж"]].map(([v, l]) => `<option value="${v}" ${(o.sort || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+            </div>
             <div class="nb-qlist">${items.map((it) => {
                 const x = it.trucks[0];
                 const lines = it.trucks.slice(0, 3).map((t) => {
@@ -558,7 +607,15 @@ const NB = (() => {
                     return `<div class="nb-qtr"><b>${esc(t.tractor || "")}</b> ${isEmptyQ(t) ? '<span class="nb-qe">порожня</span>' : '<span class="nb-ql">з вантажем</span>'} · ${esc(String(t.checkpoint || "").split("(")[0].replace(/\.\s*Товари.*$/, "").trim())} · ${passed ? `пройшла ~${esc(fmtE(t.entry_at))}` : `в'їзд ${esc(fmtE(t.entry_at))}`}${t.trailer_body ? ` · ${esc(t.trailer_body)}` : ""}</div>`;
                 }).join("");
                 return `<div class="nb-qitem">
-                    <div class="nb-qn">${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}<b>${esc(x.carrier || "—")}</b> <span class="nb-muted">${esc(x.edrpou)} · машин: ${it.trucks.length}</span></div>
+                    <div class="nb-qn">${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}">${esc(x.carrier || it.fc.name)}</a>` : `<b>${esc(x.carrier || "—")}</b>`} <span class="nb-muted">${esc(x.edrpou)} · машин: ${it.trucks.length}</span></div>
+                    <div class="nb-qbad">
+                        ${it.fc?.region_ukr ? `<span class="nb-qb">📍 ${esc(it.fc.region_ukr)}${it.fc.city ? ", " + esc(String(it.fc.city).split(",")[0]) : ""}</span>` : ""}
+                        ${it.deals ? `<span class="nb-qb nb-qb-g" title="Угод з нами, остання ${esc(String(it.deals.last).slice(0, 10))}">🤝 угод: ${it.deals.n}</span>` : ""}
+                        ${it.goods ? `<span class="nb-qb nb-qb-y" title="${esc(it.goods.goods)}">📦 возив: ${esc(String(it.goods.goods).slice(0, 40))}${String(it.goods.goods).length > 40 ? "…" : ""}</span>` : ""}
+                        ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
+                        ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
+                    </div>
+                    ${it.fc?.phone_1 ? `<div class="nb-cph">📞 ${esc(it.fc.contact_person_1 || "")} <button type="button" class="nb-code" data-copy="${esc(String(it.fc.phone_1).split(",")[0].trim())}">${esc(String(it.fc.phone_1).split(",")[0].trim())} <i class="bx bx-copy"></i></button></div>` : ""}
                     ${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
@@ -1122,10 +1179,30 @@ const NB = (() => {
                 render();
                 return;
             }
+            const qi = e.target.dataset?.qin;
+            if (qi && qi !== "q") {
+                QS.opt[qi] = ["minN", "within"].includes(qi) ? Number(e.target.value) || 0 : e.target.value;
+                QS.shown = 60;
+                render();
+                return;
+            }
             const k = e.target.dataset?.qopt;
             if (!k) return;
             QS.opt[k] = e.target.checked;
+            QS.shown = 60;
             render();
+        });
+        let qT = 0;
+        $("#nbList").addEventListener("input", (e) => {
+            if (e.target.dataset?.qin !== "q") return;
+            clearTimeout(qT);
+            const v = e.target.value;
+            qT = setTimeout(() => {
+                QS.opt.q = v; QS.shown = 60;
+                render();
+                const inp = document.querySelector(".nb-qq");
+                if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+            }, 300);
         });
         $("#nbForm").addEventListener("submit", save);
         $("#nbDelete").addEventListener("click", remove);
