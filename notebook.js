@@ -127,6 +127,8 @@ const NB = (() => {
                     <span class="nb-status st-${stCls(r.status)}">${esc(r.status || "без статусу")}</span>
                     <span class="nb-dir">${esc(r.direction || "")}</span>
                     <span class="nb-date">${new Date(r.updated_at || r.created_at).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</span>
+                    <button type="button" class="nb-rbtn" data-redit title="Змінити"><i class="bx bx-edit-alt"></i></button>
+                    <button type="button" class="nb-rbtn nb-rdel" data-rdel title="Видалити запит"><i class="bx bx-trash"></i></button>
                 </div>
                 <div class="nb-addr">${esc(r.addresses || "—")}</div>
                 ${r.cargo ? `<div class="nb-cargo"><i class="bx bx-package"></i> ${esc(r.cargo)}</div>` : ""}
@@ -369,6 +371,17 @@ const NB = (() => {
             const cp = e.target.closest("[data-copy]");
             if (cp) {
                 try { await navigator.clipboard.writeText(cp.dataset.copy); cp.classList.add("copied"); setTimeout(() => cp.classList.remove("copied"), 900); } catch (_) { /* без буфера */ }
+                return;
+            }
+            const rid = e.target.closest(".nb-row")?.dataset.id;
+            if (e.target.closest("[data-redit]")) { open(ROWS.find((r) => r.id === rid)); return; }
+            if (e.target.closest("[data-rdel]")) {
+                const r = ROWS.find((x) => x.id === rid);
+                if (!r || !confirm(`Видалити запит «${r.addresses || r.cargo || ""}»?`)) return;
+                const { error } = await sbClient.from("my_requests").delete().eq("id", rid);
+                if (error) { alert(error.message); return; }
+                ROWS = ROWS.filter((x) => x.id !== rid);
+                render();
                 return;
             }
             const ch = e.target.closest(".nb-carrier");

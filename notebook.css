@@ -119,3 +119,11 @@ a.nb-cname:hover { color: #a8781f; text-decoration: underline; }
     .nb-sel { flex: 1 1 45%; max-width: none; }
     .nb-pop { left: 12px !important; right: 12px; width: auto !important; }
 }
+
+/* кнопки «змінити / видалити» в рядку запиту — з'являються при наведенні */
+.nb-rbtn { width: 26px; height: 26px; border: 1px solid #e5e7eb; border-radius: 7px; background: #fff; color: #6b7280; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 15px; opacity: 0; transition: opacity .12s; }
+.nb-row:hover .nb-rbtn { opacity: 1; }
+.nb-rbtn:hover { color: #a8781f; border-color: #d9a944; }
+.nb-rdel:hover { color: #b42318; border-color: #fecdca; background: #fef3f2; }
+@media (hover: none) { .nb-rbtn { opacity: 1; } }
