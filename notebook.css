@@ -180,3 +180,15 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-req { padding: 2px 8px; border-radius: 10px; background: #eef2ff; color: #3730a3; font-size: 11px; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .nb-req:hover { background: #e0e7ff; }
 .nb-top { flex-wrap: wrap; }
+/* контакти перевізника в запиті */
+.nb-cph { font-size: 12px; color: #374151; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.nb-cph .nb-code { color: #111827; font-weight: 600; }
+.nb-pop-cts { margin-top: 10px; }
+.nb-pop-cth { display: flex; align-items: center; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+.nb-pop-cth span { display: flex; gap: 10px; }
+.nb-pop-cth .nb-link { font-size: 12px; }
+.nb-ct { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 4px; align-items: center; margin-bottom: 2px; }
+.nb-ct .nb-pin { border-color: #f1ead9; background: #fffdf7; }
+.nb-ct .nb-code { font-size: 15px; padding: 0 4px; }
+.nb-ctdel { font-size: 20px; padding: 0 4px; }
+.nb-pop { max-height: calc(100vh - 24px); overflow-y: auto; }

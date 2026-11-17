@@ -267,7 +267,7 @@ const NB = (() => {
     /* ---------- список ---------- */
     function hay(r) {
         if (!r._hay) r._hay = norm([r.direction, r.addresses, r.cargo, r.truck, r.comment, r.status,
-            ...(r.carriers || []).map((c) => [c.name, c.edrpou, c.price, c.note].join(" "))].join(" "));
+            ...(r.carriers || []).map((c) => [c.name, c.edrpou, c.price, c.note, ...(c.contacts || []).map((k) => `${k.name} ${k.phone} ${String(k.phone || "").replace(/\D/g, "")}`)].join(" "))].join(" "));
         return r._hay;
     }
     function filtered() {
@@ -343,6 +343,8 @@ const NB = (() => {
             ${nameEl}
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
             ${c.price ? `<div class="nb-price">${esc(cleanPrice(c.price))}</div>` : ""}
+            ${(c.contacts || []).slice(0, 2).map((k) => `<div class="nb-cph">📞 ${esc(k.name || "")}${k.name && k.phone ? " · " : ""}${k.phone ? `<button type="button" class="nb-code" data-copy="${esc(k.phone)}" title="Копіювати номер">${esc(k.phone)} <i class="bx bx-copy"></i></button>` : ""}</div>`).join("")}
+            ${(c.contacts || []).length > 2 ? `<div class="nb-cph nb-muted">ще ${(c.contacts.length - 2)} контакт(и)</div>` : ""}
             ${c.note ? `<div class="nb-note">${esc(c.note)}</div>` : ""}
             ${(() => {
                 const qu = queueOf(c), l = lardiOf(c);
@@ -396,6 +398,7 @@ const NB = (() => {
         const d = document.createElement("div");
         d.className = "nb-cedit";
         d.dataset.id = c.id || "";
+        d._contacts = c.contacts || [];
         d.innerHTML = `
             <div class="nb-cpick"><input class="nb-cin" placeholder="Перевізник: назва або ЄДРПОУ (з FURA або вручну)" value="${esc(c.name || "")}" /><div class="nb-sugg hidden"></div></div>
             <input class="nb-ccode" placeholder="ЄДРПОУ" value="${esc(c.edrpou || "")}" />
@@ -433,6 +436,7 @@ const NB = (() => {
             edrpou: $(".nb-ccode", d).value.replace(/\D/g, ""),
             price: $(".nb-cprice", d).value.trim(),
             note: $(".nb-cnote", d).value.trim(),
+            contacts: d._contacts || [],
         })).filter((c) => c.name || c.edrpou || c.price || c.note);
         // час для кожного перевізника: новий або змінений — зараз, без змін — як був
         const prev = new Map((editing?.carriers || []).map((c) => [keyC(c), c]));
@@ -473,6 +477,16 @@ const NB = (() => {
 
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
+    const ctRow = (k = {}) => `<div class="nb-ct">
+        <input class="nb-pin" data-ct="name" value="${esc(k.name || "")}" placeholder="Ім'я (кому дзвонив)" />
+        <input class="nb-pin" data-ct="phone" value="${esc(k.phone || "")}" placeholder="+380…" inputmode="tel" />
+        <button type="button" class="nb-code" data-ctcopy title="Копіювати номер"><i class="bx bx-copy"></i></button>
+        <button type="button" class="nb-x nb-ctdel" data-ctdel title="Прибрати">&times;</button>
+    </div>`;
+    const readCts = () => [...document.querySelectorAll("#nbCts .nb-ct")].map((el) => ({
+        name: el.querySelector('[data-ct="name"]').value.trim(),
+        phone: el.querySelector('[data-ct="phone"]').value.trim(),
+    })).filter((k) => k.name || k.phone);
     function showCarrier(r, i, anchor) {
         const c = (r.carriers || [])[i];
         if (!c) return;
@@ -491,6 +505,12 @@ const NB = (() => {
                 const qu = queueOf(c);
                 return qu.length ? `<div class="nb-pop-q"><b>🚦 Зараз у черзі на кордоні (${qu.length}):</b>${qu.slice(0, 6).map((x) => `<div>${esc(x.tractor || "")} · ${esc(x.checkpoint || "")}${x.entry_at ? ` · в'їзд ${esc(String(x.entry_at).slice(0, 16))}` : ""}</div>`).join("")}<a href="echerha.html?q=${encodeURIComponent(c.edrpou || c.name || "")}">Відкрити в Черзі →</a></div>` : "";
             })()}
+            <div class="nb-pop-cts">
+                <div class="nb-pop-cth"><b>Контакти</b>
+                    <span>${c.id ? '<button type="button" class="nb-link" data-ctfura>з картки FURA</button>' : ""}<button type="button" class="nb-link" data-ctadd><i class="bx bx-plus"></i> контакт</button></span>
+                </div>
+                <div id="nbCts">${(c.contacts || []).map(ctRow).join("")}</div>
+            </div>
             <textarea class="nb-pin nb-pop-note" data-f="note" rows="4" placeholder="Нотатка: коли може, контакт, умови…">${esc(c.note || "")}</textarea>
             <div class="nb-pop-foot">
                 <button type="button" class="nb-btn nb-btn-danger" data-pdel title="Прибрати перевізника з цього запиту"><i class="bx bx-trash"></i></button>
@@ -521,7 +541,9 @@ const NB = (() => {
             const v = {};
             document.querySelectorAll("#nbPop [data-f]").forEach((el) => (v[el.dataset.f] = el.value.trim()));
             v.edrpou = v.edrpou.replace(/\D/g, "");
-            if (["name", "edrpou", "price", "note"].every((k) => (v[k] || "") === (old[k] || ""))) { POP = null; $("#nbPop").classList.add("hidden"); return; }
+            v.contacts = readCts();
+            const sameCts = JSON.stringify(v.contacts) === JSON.stringify(old.contacts || []);
+            if (sameCts && ["name", "edrpou", "price", "note"].every((k) => (v[k] || "") === (old[k] || ""))) { POP = null; $("#nbPop").classList.add("hidden"); return; }
             list[i] = { ...old, ...v, id: v.edrpou !== (old.edrpou || "") ? null : old.id, added: old.added || r.created_at, at: new Date().toISOString() };
             if (!list[i].id && v.edrpou) {
                 const { data } = await sbClient.from("carriers").select("id").eq("edrpou", v.edrpou).limit(1);
@@ -673,6 +695,30 @@ const NB = (() => {
             if (e.target.closest("[data-pclose]")) { POP = null; return hidePop(); }
             if (e.target.closest("[data-psave]")) return savePop(false);
             if (e.target.closest("[data-pdel]")) return savePop(true);
+            if (e.target.closest("[data-ctadd]")) {
+                $("#nbCts").insertAdjacentHTML("beforeend", ctRow());
+                [...document.querySelectorAll('#nbCts [data-ct="name"]')].pop().focus();
+                return;
+            }
+            if (e.target.closest("[data-ctdel]")) { e.target.closest(".nb-ct").remove(); return; }
+            const cc = e.target.closest("[data-ctcopy]");
+            if (cc) {
+                const ph = cc.closest(".nb-ct").querySelector('[data-ct="phone"]').value.trim();
+                if (ph) { try { await navigator.clipboard.writeText(ph); cc.classList.add("copied"); setTimeout(() => cc.classList.remove("copied"), 900); } catch (_) { /* без буфера */ } }
+                return;
+            }
+            if (e.target.closest("[data-ctfura]") && POP) {
+                const c = POP.r.carriers[POP.i];
+                const { data } = await sbClient.from("carriers").select("contact_person_1, phone_1, contact_person_2, phone_2, extra_contacts").eq("id", c.id).maybeSingle();
+                if (!data) return;
+                const have = new Set(readCts().map((k) => String(k.phone).replace(/\D/g, "")));
+                const add = [[data.contact_person_1, data.phone_1], [data.contact_person_2, data.phone_2], ...(Array.isArray(data.extra_contacts) ? data.extra_contacts.map((x) => [x.name, x.phone]) : [])]
+                    .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter(Boolean).map((one) => ({ name: n || "", phone: one.trim() })).concat(!ph && n ? [{ name: n, phone: "" }] : []))
+                    .filter((k) => !have.has(String(k.phone).replace(/\D/g, "")) || !k.phone);
+                if (!add.length) { e.target.closest("[data-ctfura]").textContent = "уже все є"; return; }
+                $("#nbCts").insertAdjacentHTML("beforeend", add.map(ctRow).join(""));
+                return;
+            }
             const cp = e.target.closest("[data-copy]");
             if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); cp.classList.add("copied"); } catch (_) { /* без буфера */ } }
             if (e.target.closest("[data-carrier-card], [data-carrier-code]")) hidePop();
