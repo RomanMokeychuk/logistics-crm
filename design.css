@@ -679,7 +679,7 @@ html::before {
 }
 
 /* Меню зліва: графітове скло + золотий візерунок + золота лінія по краю */
-.sidebar.fura-sidebar, .eq-card {
+.sidebar.fura-sidebar {
     background:
         radial-gradient(420px 320px at 0% 0%, rgba(240, 205, 120, .22), transparent 70%),
         radial-gradient(360px 300px at 100% 100%, rgba(160, 172, 172, .25), transparent 70%),
