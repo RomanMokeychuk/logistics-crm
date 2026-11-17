@@ -682,6 +682,7 @@ const NB = (() => {
         // не стрибати: запам'ятовуємо прокрутку списку і кожного ряду перевізників
         const sc = $(".nb-scroll"), top = sc ? sc.scrollTop : 0;
         const lefts = new Map([...document.querySelectorAll(".nb-row")].map((r) => [r.dataset.id, r.querySelector(".nb-carriers")?.scrollLeft || 0]));
+        const qTop = document.querySelector(".nb-qlist")?.scrollTop || 0;
         const hiddenN = ROWS.length - list.length;
         $("#nbCount").innerHTML = !hiddenN ? `${ROWS.length} запитів`
             : `знайдено ${list.length} з ${ROWS.length} · <button type="button" class="nb-link nb-hidden-btn" title="Решту ховають фільтри">ще ${hiddenN} приховано фільтрами — показати всі</button>`;
@@ -695,6 +696,8 @@ const NB = (() => {
         if (fr) $("#nbFocus").innerHTML = `<span>🎯 Зосереджено на: <b>${esc(fr.addresses || fr.cargo || "запит")}</b>${fr.cargo ? ` · ${esc(fr.cargo)}` : ""} · перевізників: ${(fr.carriers || []).length}</span><button type="button" class="nb-link" data-unfocus>Показати всі ✕</button>`;
         document.querySelectorAll(".nb-row").forEach((r) => { const l = lefts.get(r.dataset.id); if (l) r.querySelector(".nb-carriers").scrollLeft = l; });
         if (sc) sc.scrollTop = top;
+        const ql = document.querySelector(".nb-qlist");
+        if (ql && qTop) ql.scrollTop = qTop;
         saveState();
     }
 
