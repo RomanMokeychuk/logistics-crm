@@ -200,3 +200,16 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-cedit-cts .nb-ct .nb-pin { border-color: #e5e7eb; background: #fff; padding: 7px 10px; font-size: 14px; }
 .nb-cedit-cts .nb-link { align-self: flex-start; font-size: 13px; }
 .nb-dfoot { display: flex; align-items: center; } .nb-dfoot > span { flex: 1; }
+/* зосередження на одному запиті */
+.nb-focus { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px;
+    padding: 9px 14px; border-radius: 12px; background: #2f3537; color: #f3f4f6; font-size: 13px; box-shadow: 0 6px 18px rgba(0, 0, 0, .15); }
+.nb-focus b { color: #f7dc8c; }
+.nb-focus .nb-link { color: #f7dc8c; white-space: nowrap; }
+.nb-main { cursor: pointer; }
+.nb-list.has-focus .nb-row:not(.focus) { opacity: .38; filter: saturate(.6); transition: opacity .15s; }
+.nb-list.has-focus .nb-row:not(.focus):hover { opacity: .8; }
+.nb-row.focus { border: 2px solid #d9a944; box-shadow: 0 0 0 4px rgba(217, 169, 68, .18), 0 12px 30px rgba(168, 120, 31, .18); }
+.nb-row.focus .nb-main { background: linear-gradient(180deg, #fffaf0, #fff); }
+.nb-row.focus .nb-carriers { flex-wrap: wrap; overflow-x: visible; }
+.nb-row.focus .nb-carrier { flex: 0 0 230px; }
+.nb-row.focus .nb-carrier .nb-note { -webkit-line-clamp: unset; display: block; }

@@ -43,7 +43,7 @@ const NB = (() => {
 
     let ROWS = [];
     let me = null;
-    const st = { q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), region: new Set(), city: new Set(), side: "any", period: "", sort: "upd", shown: PAGE };
+    const st = { focus: "", q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), region: new Set(), city: new Set(), side: "any", period: "", sort: "upd", shown: PAGE };
     const dt = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
     const keyC = (c) => [c.id || "", c.name || "", c.edrpou || ""].join("|");
     let editing = null;
@@ -54,7 +54,7 @@ const NB = (() => {
     const SETS = ["status", "dir", "truck", "has", "region", "city"];
     function saveState() {
         try {
-            const o = { q: st.q, period: st.period, sort: st.sort, side: st.side, shown: st.shown, scroll: $(".nb-scroll")?.scrollTop || 0 };
+            const o = { focus: st.focus, q: st.q, period: st.period, sort: st.sort, side: st.side, shown: st.shown, scroll: $(".nb-scroll")?.scrollTop || 0 };
             SETS.forEach((k) => (o[k] = [...st[k]]));
             localStorage.setItem(STATE_KEY, JSON.stringify(o));
         } catch (_) { /* без пам'яті */ }
@@ -64,7 +64,7 @@ const NB = (() => {
         let o = null;
         try { o = JSON.parse(localStorage.getItem(STATE_KEY) || "null"); } catch (_) { o = null; }
         if (!o) return;
-        st.q = o.q || ""; st.period = o.period || ""; st.sort = o.sort || "upd"; st.side = o.side || "any";
+        st.focus = o.focus || ""; st.q = o.q || ""; st.period = o.period || ""; st.sort = o.sort || "upd"; st.side = o.side || "any";
         st.shown = Math.max(PAGE, Number(o.shown) || PAGE);
         SETS.forEach((k) => (st[k] = new Set(Array.isArray(o[k]) ? o[k] : [])));
         $("#nbQ").value = st.q; $("#nbPeriod").value = st.period; $("#nbSort").value = st.sort; $("#nbSide").value = st.side;
@@ -357,8 +357,8 @@ const NB = (() => {
     }
     function rowHtml(r) {
         const cs = r.carriers || [];
-        return `<div class="nb-row" data-id="${esc(r.id)}">
-            <div class="nb-main" data-edit title="Двічі клацніть, щоб змінити">
+        return `<div class="nb-row${st.focus === r.id ? " focus" : ""}" data-id="${esc(r.id)}">
+            <div class="nb-main" data-edit title="Клік — зосередитись на цьому запиті · двічі — змінити">
                 <div class="nb-top">
                     <span class="nb-status st-${stCls(r.status)}">${esc(r.status || "без статусу")}</span>
                     <span class="nb-dir">${esc(r.direction || "")}</span>
@@ -388,6 +388,11 @@ const NB = (() => {
         $("#nbList").innerHTML = list.slice(0, st.shown).map(rowHtml).join("") ||
             `<div class="nb-empty">${ROWS.length ? "Нічого не знайдено" : "Тут поки порожньо. Натисніть «Новий запит» або імпортуйте свою Google-таблицю (Файл → Завантажити → CSV)."}</div>`;
         $("#nbMore").classList.toggle("hidden", list.length <= st.shown);
+        const fr = st.focus && ROWS.find((x) => x.id === st.focus);
+        if (st.focus && !fr && ROWS.length) st.focus = "";
+        $("#nbList").classList.toggle("has-focus", !!fr);
+        $("#nbFocus").classList.toggle("hidden", !fr);
+        if (fr) $("#nbFocus").innerHTML = `<span>🎯 Зосереджено на: <b>${esc(fr.addresses || fr.cargo || "запит")}</b>${fr.cargo ? ` · ${esc(fr.cargo)}` : ""} · перевізників: ${(fr.carriers || []).length}</span><button type="button" class="nb-link" data-unfocus>Показати всі ✕</button>`;
         document.querySelectorAll(".nb-row").forEach((r) => { const l = lefts.get(r.dataset.id); if (l) r.querySelector(".nb-carriers").scrollLeft = l; });
         if (sc) sc.scrollTop = top;
         saveState();
@@ -646,8 +651,15 @@ const NB = (() => {
     }
 
     /* ---------- події ---------- */
+    // зосередитись на одному запиті: він виділений, решта приглушені
+    function setFocus(id, quiet) {
+        st.focus = id || "";
+        render();
+        if (st.focus && !quiet) document.querySelector(`.nb-row[data-id="${CSS.escape(st.focus)}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
     function init() {
         restoreState();
+        $("#nbFocus").addEventListener("click", (e) => { if (e.target.closest("[data-unfocus]")) setFocus(""); });
         let sT = 0;
         $(".nb-scroll").addEventListener("scroll", () => { clearTimeout(sT); sT = setTimeout(saveState, 200); }, { passive: true });
         addEventListener("pagehide", () => { saveState(); cacheRows(); });
@@ -689,7 +701,7 @@ const NB = (() => {
         [["#nbPeriod", "period"], ["#nbSort", "sort"], ["#nbSide", "side"]].forEach(([sel, k]) =>
             $(sel).addEventListener("change", (e) => { st[k] = e.target.value; st.shown = PAGE; render(); }));
         $("#nbReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", period: "", sort: "upd", shown: PAGE });
+            Object.assign(st, { focus: "", q: "", period: "", sort: "upd", shown: PAGE });
             [st.status, st.dir, st.truck, st.has, st.region, st.city].forEach((x) => x.clear());
             st.side = "any";
             $("#nbSide").value = "any";
@@ -742,7 +754,7 @@ const NB = (() => {
         $("#nbAdd").addEventListener("click", () => open(null));
         $("#nbList").addEventListener("dblclick", (e) => {
             const m = e.target.closest("[data-edit]");
-            if (m) open(ROWS.find((r) => r.id === m.closest(".nb-row").dataset.id));
+            if (m) { setFocus(m.closest(".nb-row").dataset.id, true); open(ROWS.find((r) => r.id === m.closest(".nb-row").dataset.id)); }
         });
         $("#nbList").addEventListener("click", async (e) => {
             const cp = e.target.closest("[data-copy]");
@@ -761,6 +773,8 @@ const NB = (() => {
                 render();
                 return;
             }
+            const main = e.target.closest(".nb-main");
+            if (main && !e.target.closest("a, button, input")) { setFocus(st.focus === rid ? "" : rid); return; }
             const ch = e.target.closest(".nb-carrier");
             if (ch && e.target.closest("a.nb-lardi")) return;
             if (ch) {
@@ -813,6 +827,7 @@ const NB = (() => {
             if (e.key !== "Escape") return;
             if (!$("#nbPop").classList.contains("hidden")) { POP = null; hidePop(); }
             else if (!$("#nbModal").classList.contains("hidden")) close();
+            else if (st.focus) setFocus("");
         });
         $("#nbImport").addEventListener("change", (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importCsv(f); });
         document.body.style.visibility = "visible";
