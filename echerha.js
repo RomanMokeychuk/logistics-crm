@@ -661,13 +661,15 @@ const EQ = (() => {
         const n = {};
         list.forEach((r) => (n[r.checkpoint] = (n[r.checkpoint] || 0) + 1));
         const wait = waitByCp();
+        // фільтрів по машинах нема — показуємо кількість, як у єЧерзі
+        const rowFilt = !!(st.q || st.ua || st.oblast.length || st.fresh.length || st.bodies.size || st.notInFura || st.isNew || st.starred);
         const cps = CPS.filter((c) => (!st.cps || st.cps.has(c.name)) && pass(st.country, c.country) && pass(st.qtype, c.qtype));
         $("#eqTable").innerHTML =
-            `<thead><tr><th>Пункт</th><th>Країна</th><th>Черга</th><th>Машин (за фільтром)</th><th>Усього в черзі</th><th title="Скільки чекатиме машина, яка стає в чергу зараз: орієнтовний в'їзд останньої машини в черзі мінус поточний час — як «Час очікування» в єЧерзі">Час очікування</th><th>Пройдено</th></tr></thead><tbody>` +
+            `<thead><tr><th>Пункт</th><th>Країна</th><th>Черга</th><th title="Скільки машин з цього пункту проходять ваші фільтри FURA (напр. «лише українські»). Без фільтрів — як у єЧерзі">Машин (за фільтром)</th><th title="«Авто в черзі» зі сторінки єЧерги echerha.gov.ua/workload/truck/1">Усього в черзі</th><th title="«Час очікування» зі сторінки єЧерги echerha.gov.ua/workload/truck/1">Час очікування</th><th>Пройдено</th></tr></thead><tbody>` +
             (cps.map((c) => `<tr class="eq-cprow" data-cp="${esc(c.name)}">
                 <td><b>${c.selected ? "★ " : ""}${esc(cpShort(c.name))}</b><div class="eq-muted eq-sm">${esc(cpNote(c.name))}</div></td>
                 <td>${esc(c.country || "—")}</td><td>${esc(c.qtype || "—")}</td>
-                <td><b>${n[c.name] || 0}</b></td><td>${c.in_queue}</td>
+                <td><b>${rowFilt ? n[c.name] || 0 : c.in_queue}</b></td><td>${c.in_queue}</td>
                 <td class="eq-wait ${waitCls(wait[c.name])}" title="${WAIT_OFF[c.name] ? "Як показує єЧерга (на момент оновлення)" : WAIT_EST[c.name] ? `Оцінка: ${WAIT_EST[c.name]} машин ще без часу в'їзду — додано час за поточним темпом проїзду` : "За часом в'їзду останньої машини"}">${WAIT_EST[c.name] ? "≈ " : ""}${waitText(wait[c.name])}</td>
                 <td class="eq-nw eq-muted">${dShort(c.last_scraped)}</td>
             </tr>`).join("") || `<tr><td colspan="7" class="eq-empty">Немає пунктів</td></tr>`) + "</tbody>";
