@@ -94,6 +94,11 @@ const NB = (() => {
             if (!data || data.length < 1000) break;
         }
         const sc = $(".nb-scroll"), keep = sc.scrollTop;
+        if (ROWS.length) {
+            const ids = new Set(all.map((r) => r.id));
+            const gone = ROWS.filter((r) => r.id && !ids.has(r.id) && !trashGet().some((x) => x.id === r.id));
+            if (gone.length) trashPut(gone);
+        }
         ROWS = all;
         cacheRows();
         render();
@@ -477,13 +482,63 @@ const NB = (() => {
         geoQueue();
         loadLinks().then(render).catch(() => {});
     }
-    async function remove() {
-        if (!editing || !confirm("Видалити цей запит з блокнота?")) return;
-        const { error } = await sbClient.from("my_requests").delete().eq("id", editing.id);
-        if (error) { alert(error.message); return; }
-        ROWS = ROWS.filter((x) => x.id !== editing.id);
-        close();
+    /* ---------- кошик: видалене можна повернути ---------- */
+    const TRASH_KEY = "fura_nb_trash";
+    const clean = ({ _hay, _places, _sortAt, ...r }) => r;
+    const trashGet = () => { try { return JSON.parse(localStorage.getItem(TRASH_KEY) || "[]"); } catch (_) { return []; } };
+    const trashSet = (a) => { try { localStorage.setItem(TRASH_KEY, JSON.stringify(a.slice(0, 200))); } catch (_) { /* повна пам'ять */ } };
+    function trashPut(rows) {
+        const ids = new Set(rows.map((r) => r.id));
+        trashSet([...rows.map((r) => ({ ...clean(r), _deleted_at: new Date().toISOString() })), ...trashGet().filter((x) => !ids.has(x.id))]);
+        updTrashBtn();
+    }
+    function updTrashBtn() { const n = trashGet().length; $("#nbTrashBtn").innerHTML = `<i class="bx bx-trash"></i> Кошик${n ? ` (${n})` : ""}`; }
+    async function deleteRow(r) {
+        trashPut([r]);
+        const { error } = await sbClient.from("my_requests").delete().eq("id", r.id);
+        if (error) { alert(error.message); return false; }
+        ROWS = ROWS.filter((x) => x.id !== r.id);
+        cacheRows();
         render();
+        toast(`Запит видалено`, "Повернути", () => restoreRows([r.id]));
+        return true;
+    }
+    async function restoreRows(ids) {
+        const t = trashGet();
+        const back = t.filter((x) => ids.includes(x.id)).map(({ _deleted_at, ...r }) => r);
+        if (!back.length) return;
+        const { data, error } = await sbClient.from("my_requests").upsert(back).select("*");
+        if (error) { alert("Не вдалося повернути: " + error.message); return; }
+        trashSet(t.filter((x) => !ids.includes(x.id)));
+        ROWS = [...(data || back).filter((r) => !ROWS.some((x) => x.id === r.id)), ...ROWS];
+        cacheRows();
+        render();
+        updTrashBtn();
+        if (!$("#nbTrash").classList.contains("hidden")) showTrash();
+    }
+    function showTrash() {
+        const t = trashGet();
+        $("#nbTrashList").innerHTML = t.length ? t.map((r) => `<div class="nb-trow">
+                <div><b>${esc(r.addresses || r.cargo || "запит")}</b><div class="nb-muted">${esc(r.direction || "")}${r.cargo ? " · " + esc(r.cargo) : ""} · перевізників: ${(r.carriers || []).length} · видалено ${esc(dt(r._deleted_at))}</div></div>
+                <button type="button" class="nb-btn" data-restore="${esc(r.id)}">Повернути</button>
+            </div>`).join("") : '<div class="nb-empty">Кошик порожній</div>';
+        $("#nbTrash").classList.remove("hidden");
+    }
+    let toastT = 0;
+    function toast(text, btn, fn) {
+        let el = $("#nbToast");
+        if (!el) { el = document.createElement("div"); el.id = "nbToast"; el.className = "nb-toast"; document.body.appendChild(el); }
+        el.innerHTML = `<span>${esc(text)}</span>${btn ? `<button type="button">${esc(btn)}</button>` : ""}`;
+        el.classList.add("show");
+        if (btn) el.querySelector("button").onclick = () => { el.classList.remove("show"); fn(); };
+        clearTimeout(toastT);
+        toastT = setTimeout(() => el.classList.remove("show"), 12000);
+    }
+    async function remove() {
+        if (!editing || !confirm("Видалити цей запит з блокнота?\n(Його можна буде повернути з «Кошика».)")) return;
+        const r = editing;
+        close();
+        await deleteRow(r);
     }
 
     /* ---------- перегляд перевізника в запиті ---------- */
@@ -632,7 +687,14 @@ const NB = (() => {
             return o;
         }).filter((o) => o.addresses || o.cargo || o.carriers.length);
         if (!out.length) { alert("У файлі немає запитів."); return; }
-        if (!confirm(`Імпортувати ${out.length} запитів у ваш блокнот?`)) return;
+        // такі, що вже є в Блокноті (той самий напрямок, адреси, вантаж), — пропускаємо
+        const sig = (o) => [o.direction, o.addresses, o.cargo].map(norm).join("|");
+        const have = new Set(ROWS.map(sig));
+        const fresh = out.filter((o) => !have.has(sig(o)));
+        if (!fresh.length) { alert(`Усі ${out.length} запитів уже є в Блокноті — нічого нового.`); return; }
+        if (!confirm(`Нових запитів: ${fresh.length} (ще ${out.length - fresh.length} уже є — їх пропущу). Імпортувати?`)) return;
+        out.length = 0;
+        out.push(...fresh);
         // перевізників з ЄДРПОУ — прив'язуємо до карток FURA
         const codes = [...new Set(out.flatMap((o) => o.carriers.map((c) => c.edrpou)).filter(Boolean))];
         const byCode = new Map();
@@ -659,6 +721,14 @@ const NB = (() => {
     }
     function init() {
         restoreState();
+        updTrashBtn();
+        $("#nbTrashBtn").addEventListener("click", showTrash);
+        $("#nbTrash").addEventListener("click", (e) => {
+            if (e.target.id === "nbTrash" || e.target.closest("[data-close]")) $("#nbTrash").classList.add("hidden");
+            const b = e.target.closest("[data-restore]");
+            if (b) { b.disabled = true; restoreRows([b.dataset.restore]); }
+            if (e.target.closest("[data-trash-clear]") && confirm("Очистити кошик назавжди?")) { trashSet([]); updTrashBtn(); showTrash(); }
+        });
         $("#nbFocus").addEventListener("click", (e) => { if (e.target.closest("[data-unfocus]")) setFocus(""); });
         let sT = 0;
         $(".nb-scroll").addEventListener("scroll", () => { clearTimeout(sT); sT = setTimeout(saveState, 200); }, { passive: true });
@@ -766,11 +836,8 @@ const NB = (() => {
             if (e.target.closest("[data-redit]")) { open(ROWS.find((r) => r.id === rid)); return; }
             if (e.target.closest("[data-rdel]")) {
                 const r = ROWS.find((x) => x.id === rid);
-                if (!r || !confirm(`Видалити запит «${r.addresses || r.cargo || ""}»?`)) return;
-                const { error } = await sbClient.from("my_requests").delete().eq("id", rid);
-                if (error) { alert(error.message); return; }
-                ROWS = ROWS.filter((x) => x.id !== rid);
-                render();
+                if (!r || !confirm(`Видалити запит «${r.addresses || r.cargo || ""}»?\n(Його можна буде повернути з «Кошика».)`)) return;
+                await deleteRow(r);
                 return;
             }
             const main = e.target.closest(".nb-main");

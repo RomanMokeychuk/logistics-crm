@@ -213,3 +213,12 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-row.focus .nb-carriers { flex-wrap: wrap; overflow-x: visible; }
 .nb-row.focus .nb-carrier { flex: 0 0 230px; }
 .nb-row.focus .nb-carrier .nb-note { -webkit-line-clamp: unset; display: block; }
+/* кошик і «Повернути» */
+.nb-trow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid #f1ead9; font-size: 14px; }
+.nb-trow .nb-muted { font-size: 12px; margin-top: 2px; }
+.nb-trow .nb-btn { height: 34px; flex: 0 0 auto; }
+#nbTrashList { max-height: 60vh; overflow-y: auto; }
+.nb-toast { position: fixed; left: 50%; bottom: 28px; z-index: 100002; transform: translate(-50%, 30px); opacity: 0; pointer-events: none; transition: .2s;
+    display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 12px; background: #2f3537; color: #fff; font-size: 14px; box-shadow: 0 12px 30px rgba(0, 0, 0, .25); }
+.nb-toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.nb-toast button { border: 0; border-radius: 8px; padding: 7px 14px; background: linear-gradient(135deg, #f7dc8c, #d9a944); color: #2b1d06; font: inherit; font-weight: 800; cursor: pointer; }
