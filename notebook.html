@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Блокнот запитів</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=3" sizes="any" />
+        <link rel="icon" href="logo.svg?v=3" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3" />
+        <link rel="preconnect" href="https://prbfscwmemshwigiftha.supabase.co" crossorigin />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+        <link rel="preconnect" href="https://unpkg.com" crossorigin />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+        <link rel="stylesheet" href="style.css?v=202611170752" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611170752" />
+        <link rel="stylesheet" href="notebook.css?v=202611170752" />
+        <link rel="stylesheet" href="design.css?v=202611170752" />
+    </head>
+    <body>
+        <aside class="sidebar"></aside>
+        <script>/* FURA: меню з пам'яті вкладки — одразу, без «блимання» (shell.js потім оновить його) */try{var a=document.querySelector("aside.sidebar"),h=sessionStorage.getItem("fura_sb");if(a&&h&&innerWidth>900){a.innerHTML=h;a.classList.add("fura-sidebar");var p=(location.pathname.split("/").pop()||"index.html").toLowerCase();a.querySelectorAll(".fura-nav-item.active").forEach(function(x){x.classList.remove("active")});var l=a.querySelector('.fura-nav-item[href="'+p+'"]');if(l)l.classList.add("active");var n=a.querySelector(".fura-nav");if(n)n.scrollTop=+sessionStorage.getItem("fura_nav_scroll")||0}}catch(e){}</script>
+
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content nb-page">
+            <header class="top-bar nb-head">
+                <div class="nb-title">
+                    <span class="nb-logo">Блокнот</span>
+                    <span class="nb-sub">мої запити й перевізники · бачите лише ви</span>
+                </div>
+                <div class="nb-actions">
+                    <label class="nb-btn nb-btn-ghost" title="Google Таблиця → Файл → Завантажити → CSV"><i class="bx bx-import"></i> Імпорт CSV<input type="file" id="nbImport" accept=".csv,text/csv" hidden /></label>
+                    <button type="button" class="nb-btn" id="nbAdd"><i class="bx bx-plus"></i> Новий запит</button>
+                </div>
+            </header>
+            <div class="nb-toolbar">
+                <div class="nb-search"><i class="bx bx-search"></i><input id="nbQ" type="search" placeholder="Напрямок, адреса, вантаж, перевізник, ЄДРПОУ…" autocomplete="off" /></div>
+                <div class="nb-chips" id="nbStatus"></div>
+                <span class="nb-count" id="nbCount"></span>
+            </div>
+            <div class="nb-list" id="nbList"><div class="nb-empty">Завантаження…</div></div>
+            <button type="button" class="nb-more hidden" id="nbMore">Показати ще</button>
+        </main>
+
+        <div class="nb-modal hidden" id="nbModal" role="dialog" aria-modal="true">
+            <form class="nb-dialog" id="nbForm" autocomplete="off">
+                <div class="nb-dhead"><b id="nbFormTitle">Запит</b><button type="button" class="nb-x" data-close>&times;</button></div>
+                <div class="nb-grid">
+                    <label>Напрямок<input name="direction" list="nbDirList" placeholder="Польща - Україна" /></label>
+                    <label>Статус<select name="status"></select></label>
+                    <label class="nb-wide">Адреси<textarea name="addresses" rows="2" placeholder="Гданськ - Київ"></textarea></label>
+                    <label class="nb-wide">Вантаж<textarea name="cargo" rows="2" placeholder="Сталь в рулонах, 23 т"></textarea></label>
+                    <label>Авто<input name="truck" list="nbTruckList" placeholder="ТЕНТ" /></label>
+                    <label>Коментарі<input name="comment" placeholder="дата, ставка клієнта…" /></label>
+                </div>
+                <div class="nb-csec"><b>Перевізники</b><button type="button" class="nb-link" id="nbAddCarrier"><i class="bx bx-plus"></i> перевізник</button></div>
+                <div id="nbCarriers"></div>
+                <div class="nb-dfoot">
+                    <button type="button" class="nb-btn nb-btn-danger" id="nbDelete">Видалити</button>
+                    <span></span>
+                    <button type="button" class="nb-btn nb-btn-ghost" data-close>Скасувати</button>
+                    <button type="submit" class="nb-btn">Зберегти</button>
+                </div>
+            </form>
+        </div>
+        <datalist id="nbDirList"><option>Польща - Україна</option><option>Україна - Польща</option><option>Європа - Україна</option><option>Україна - Європа</option><option>Україна - Україна</option></datalist>
+        <datalist id="nbTruckList"><option>ТЕНТ</option><option>РЕФ</option><option>ІЗОТЕРМ</option><option>ПЛАТФОРМА</option><option>КОНТЕЙНЕРОВОЗ</option><option>МЕГА</option></datalist>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="notebook.js?v=202611170752"></script>
+        <script src="shell.js?v=202611170752"></script>
+        <script src="notify.js?v=202611170752"></script>
+        <script src="lock.js?v=202611170752"></script>
+    </body>
+</html>
