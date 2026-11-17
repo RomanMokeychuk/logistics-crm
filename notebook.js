@@ -355,7 +355,7 @@ const NB = (() => {
     const cleanPrice = (p) => String(p || "").replace(/^\d{1,3}\s+(?=\d{3,5}\b)/, "");
     function carrierHtml(c, i) {
         const name = esc(c.name || "Перевізник");
-        const nameEl = `<span class="nb-cname">${c.id ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${name}</span>`;
+        const nameEl = `<div class="nb-cnrow"><span class="nb-cname">${c.id ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${name}</span>${cpBtn(c.name, "Копіювати назву")}</div>`;
         return `<div class="nb-carrier" data-ci="${i}" title="Натисніть, щоб відкрити">
             ${nameEl}
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
@@ -502,7 +502,7 @@ const NB = (() => {
         const variants = [...new Set(codes.flatMap((c) => [c, c.padStart(8, "0")]))];
         const ids = [];
         for (let i = 0; i < variants.length; i += 300) {
-            const { data } = await sbClient.from("carriers").select("id, edrpou, name, region_ukr, city, phone_1, contact_person_1, profile_url, trailer_type").in("edrpou", variants.slice(i, i + 300));
+            const { data } = await sbClient.from("carriers").select("id, edrpou, name, region_ukr, city, phone_1, contact_person_1, phone_2, contact_person_2, profile_url, trailer_type").in("edrpou", variants.slice(i, i + 300));
             (data || []).forEach((c) => { QS.fura.set(qKey(c.edrpou), c); FURA_CODES.add(qKey(c.edrpou)); ids.push(c.id); });
         }
         for (let i = 0; i < ids.length; i += 300) {
@@ -604,19 +604,30 @@ const NB = (() => {
                 const x = it.trucks[0];
                 const lines = it.trucks.slice(0, 3).map((t) => {
                     const tt = entryT(t.entry_at), passed = tt && now - tt > 3 * 3600 * 1000;
-                    return `<div class="nb-qtr"><b>${esc(t.tractor || "")}</b> ${isEmptyQ(t) ? '<span class="nb-qe">порожня</span>' : '<span class="nb-ql">з вантажем</span>'} · ${esc(String(t.checkpoint || "").split("(")[0].replace(/\.\s*Товари.*$/, "").trim())} · ${passed ? `пройшла ~${esc(fmtE(t.entry_at))}` : `в'їзд ${esc(fmtE(t.entry_at))}`}${t.trailer_body ? ` · ${esc(t.trailer_body)}` : ""}</div>`;
+                    return `<div class="nb-qtr"><b>${esc(t.tractor || "")}</b>${cpBtn(t.tractor, "Копіювати номер авто")} ${isEmptyQ(t) ? '<span class="nb-qe">порожня</span>' : '<span class="nb-ql">з вантажем</span>'} · ${esc(String(t.checkpoint || "").split("(")[0].replace(/\.\s*Товари.*$/, "").trim())} · ${passed ? `пройшла ~${esc(fmtE(t.entry_at))}` : `в'їзд ${esc(fmtE(t.entry_at))}`}${t.trailer_body ? ` · ${esc(t.trailer_body)}` : ""}</div>`;
                 }).join("");
+                const name = x.carrier || it.fc?.name || "—";
+                const phones = it.fc ? [[it.fc.contact_person_1, it.fc.phone_1], [it.fc.contact_person_2, it.fc.phone_2]]
+                    .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 6).map((v) => [n, v.trim()])) : [];
                 return `<div class="nb-qitem">
-                    <div class="nb-qn">${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}">${esc(x.carrier || it.fc.name)}</a>` : `<b>${esc(x.carrier || "—")}</b>`} <span class="nb-muted">${esc(x.edrpou)} · машин: ${it.trucks.length}</span></div>
-                    <div class="nb-qbad">
+                    <div class="nb-qrow nb-qtitle">
+                        ${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i>' : ""}
+                        ${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}" title="Відкрити картку">${esc(name)}</a>` : `<span class="nb-qname">${esc(name)}</span>`}
+                        ${cpBtn(name, "Копіювати назву")}
+                    </div>
+                    <div class="nb-qrow nb-qmeta">
+                        <span>ЄДРПОУ <b>${esc(x.edrpou)}</b></span>${cpBtn(x.edrpou, "Копіювати ЄДРПОУ")}
+                        <span class="nb-qcount">🚛 ${it.trucks.length}</span>
+                    </div>
+                    ${it.fc?.region_ukr || it.deals || it.goods || it.mine || it.fc?.profile_url ? `<div class="nb-qbad">
                         ${it.fc?.region_ukr ? `<span class="nb-qb">📍 ${esc(it.fc.region_ukr)}${it.fc.city ? ", " + esc(String(it.fc.city).split(",")[0]) : ""}</span>` : ""}
                         ${it.deals ? `<span class="nb-qb nb-qb-g" title="Угод з нами, остання ${esc(String(it.deals.last).slice(0, 10))}">🤝 угод: ${it.deals.n}</span>` : ""}
                         ${it.goods ? `<span class="nb-qb nb-qb-y" title="${esc(it.goods.goods)}">📦 возив: ${esc(String(it.goods.goods).slice(0, 40))}${String(it.goods.goods).length > 40 ? "…" : ""}</span>` : ""}
                         ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
                         ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
-                    </div>
-                    ${it.fc?.phone_1 ? `<div class="nb-cph">📞 ${esc(it.fc.contact_person_1 || "")} <button type="button" class="nb-code" data-copy="${esc(String(it.fc.phone_1).split(",")[0].trim())}">${esc(String(it.fc.phone_1).split(",")[0].trim())} <i class="bx bx-copy"></i></button></div>` : ""}
-                    ${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}
+                    </div>` : ""}
+                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}</div>`).join("")}</div>` : ""}
+                    <div class="nb-qtrucks">${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}</div>
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
             }).join("") || '<div class="nb-muted">Нікого не знайшов — оберіть інші пункти чи зніміть частину галочок.</div>'}</div>
@@ -624,6 +635,7 @@ const NB = (() => {
         </div>`;
     }
     let FURA_CODES = new Set();
+    const cpBtn = (text, title) => (text ? `<button type="button" class="nb-cp" data-copy="${esc(String(text).trim())}" title="${esc(title || "Копіювати")}"><i class="bx bx-copy"></i></button>` : "");
     async function addFromQueue(r, code) {
         const grp = (QS.list || []).find((g) => qKey(g[0].edrpou) === code);
         if (!grp) return;
@@ -834,7 +846,7 @@ const NB = (() => {
         POP = { r, i };
         const pop = $("#nbPop");
         pop.innerHTML = `
-            <div class="nb-pop-head"><input class="nb-pin nb-pin-name" data-f="name" value="${esc(c.name || "")}" placeholder="Назва перевізника" /><button type="button" class="nb-x" data-pclose>&times;</button></div>
+            <div class="nb-pop-head"><input class="nb-pin nb-pin-name" data-f="name" value="${esc(c.name || "")}" placeholder="Назва перевізника" />${cpBtn(c.name, "Копіювати назву")}<button type="button" class="nb-x" data-pclose>&times;</button></div>
             <div class="nb-pop-req">${esc(r.addresses || "")}${r.cargo ? ` · ${esc(r.cargo)}` : ""}</div>
             <div class="nb-pop-grid">
                 <span>ЄДРПОУ</span><span class="nb-pop-code"><input class="nb-pin" data-f="edrpou" value="${esc(c.edrpou || "")}" placeholder="—" />${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати"><i class="bx bx-copy"></i></button>` : ""}</span>

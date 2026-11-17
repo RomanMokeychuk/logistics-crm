@@ -262,3 +262,30 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-qb-b { background: #e0e7ff; color: #3730a3; }
 .nb-qname { font-weight: 700; color: #111827; text-decoration: none; }
 .nb-qname:hover { color: #a8781f; text-decoration: underline; }
+
+/* картки перевізників з черги — рівні відступи, кнопки «копіювати» */
+.nb-qlist { gap: 12px; align-items: stretch; }
+.nb-qitem { padding: 12px 14px; gap: 8px; font-size: 12.5px; line-height: 1.4; }
+.nb-qrow { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nb-qtitle { align-items: flex-start; }
+.nb-qtitle .nb-infura { margin-top: 2px; flex: 0 0 auto; }
+.nb-qtitle .nb-qname { font-size: 14px; font-weight: 800; color: #111827; line-height: 1.3; flex: 1 1 auto; min-width: 0; }
+.nb-qmeta { color: #4b5563; font-size: 12.5px; }
+.nb-qmeta b { color: #111827; font-weight: 700; letter-spacing: .2px; }
+.nb-qcount { margin-left: auto; padding: 1px 8px; border-radius: 6px; background: #f3f4f6; font-weight: 700; color: #374151; }
+.nb-qbad { gap: 6px; margin: 0; }
+.nb-qphones { display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 8px; background: #fbf8f1; }
+.nb-qph { font-size: 12.5px; }
+.nb-qphn { color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 55%; }
+.nb-qph b { color: #111827; white-space: nowrap; }
+.nb-qtrucks { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px dashed #f1ead9; }
+.nb-qtr { line-height: 1.45; }
+.nb-qitem .nb-qadd { margin-top: auto; align-self: flex-start; }
+.nb-cp { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; margin: 0 2px;
+    border: 1px solid #eadfc4; border-radius: 6px; background: #fff; color: #a8781f; font-size: 13px; cursor: pointer; vertical-align: middle; }
+.nb-cp:hover { background: #fdf6e3; border-color: #d9a944; }
+.nb-cp.copied { background: #dcfce7; border-color: #86efac; color: #166534; }
+.nb-qtr .nb-cp { width: 20px; height: 20px; font-size: 11px; }
+.nb-cnrow { display: flex; align-items: flex-start; gap: 4px; }
+.nb-cnrow .nb-cname { flex: 1; }
+.nb-pop-head .nb-cp { margin-top: 4px; }
