@@ -18,11 +18,11 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611170805" />
+        <link rel="stylesheet" href="style.css?v=202611170810" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611170805" />
-        <link rel="stylesheet" href="notebook.css?v=202611170805" />
-        <link rel="stylesheet" href="design.css?v=202611170805" />
+        <link rel="stylesheet" href="theme.css?v=202611170810" />
+        <link rel="stylesheet" href="notebook.css?v=202611170810" />
+        <link rel="stylesheet" href="design.css?v=202611170810" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -46,11 +46,9 @@
             <div class="nb-scroll">
             <div class="nb-toolbar">
                 <div class="nb-search"><i class="bx bx-search"></i><input id="nbQ" type="search" placeholder="Напрямок, адреса, вантаж, перевізник, ЄДРПОУ…" autocomplete="off" /></div>
-                <select id="nbDir" class="nb-sel" title="Напрямок"></select>
-                <select id="nbTruck" class="nb-sel" title="Тип авто"></select>
-                <select id="nbHas" class="nb-sel" title="Перевізники">
-                    <option value="">Усі запити</option><option value="with">З перевізниками</option><option value="without">Без перевізників</option><option value="fura">Перевізник є у FURA</option>
-                </select>
+                <div class="nb-ms" id="nbDir" title="Напрямок — можна кілька"></div>
+                <div class="nb-ms" id="nbTruck" title="Тип авто — можна кілька"></div>
+                <div class="nb-ms" id="nbHas" title="Перевізники — можна кілька"></div>
                 <select id="nbPeriod" class="nb-sel" title="Коли змінювали">
                     <option value="">За весь час</option><option value="1">Сьогодні</option><option value="7">Останні 7 днів</option><option value="30">Останні 30 днів</option><option value="90">Останні 3 місяці</option>
                 </select>
@@ -94,9 +92,9 @@
         <datalist id="nbTruckList"><option>ТЕНТ</option><option>РЕФ</option><option>ІЗОТЕРМ</option><option>ПЛАТФОРМА</option><option>КОНТЕЙНЕРОВОЗ</option><option>МЕГА</option></datalist>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="notebook.js?v=202611170805"></script>
-        <script src="shell.js?v=202611170805"></script>
-        <script src="notify.js?v=202611170805"></script>
-        <script src="lock.js?v=202611170805"></script>
+        <script src="notebook.js?v=202611170810"></script>
+        <script src="shell.js?v=202611170810"></script>
+        <script src="notify.js?v=202611170810"></script>
+        <script src="lock.js?v=202611170810"></script>
     </body>
 </html>

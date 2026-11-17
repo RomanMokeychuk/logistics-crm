@@ -43,7 +43,7 @@ const NB = (() => {
 
     let ROWS = [];
     let me = null;
-    const st = { q: "", status: "", dir: "", truck: "", has: "", period: "", sort: "upd", shown: PAGE };
+    const st = { q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), period: "", sort: "upd", shown: PAGE };
     const dt = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
     const keyC = (c) => [c.id || "", c.name || "", c.edrpou || ""].join("|");
     let editing = null;
@@ -78,12 +78,10 @@ const NB = (() => {
         const since = st.period ? Date.now() - Number(st.period) * 86400000 : 0;
         const list = ROWS.filter((r) => {
             const cs = r.carriers || [];
-            if (st.status && (st.status === "—" ? r.status : r.status !== st.status)) return false;
-            if (st.dir && (r.direction || "") !== st.dir) return false;
-            if (st.truck && norm(r.truck) !== st.truck) return false;
-            if (st.has === "with" && !cs.length) return false;
-            if (st.has === "without" && cs.length) return false;
-            if (st.has === "fura" && !cs.some((c) => c.id)) return false;
+            if (st.status.size && !st.status.has(r.status || "—")) return false;
+            if (st.dir.size && !st.dir.has((r.direction || "").trim())) return false;
+            if (st.truck.size && !st.truck.has(norm(r.truck))) return false;
+            if (st.has.size && ![...st.has].some((h) => (h === "with" ? cs.length : h === "without" ? !cs.length : cs.some((c) => c.id)))) return false;
             if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
             return words.every((w) => hay(r).includes(w));
         });
@@ -93,28 +91,42 @@ const NB = (() => {
         else list.sort((a, b) => t(b) - t(a));
         return list;
     }
+    // випадаючий список з галочками — можна обрати кілька
+    function msel(id, label, vals, set) {
+        const el = $(id);
+        const wasOpen = el.classList.contains("open");
+        const scroll = el.querySelector(".nb-ms-panel")?.scrollTop || 0;
+        const picked = vals.filter(([v]) => set.has(v));
+        const txt = !picked.length ? label : picked.length === 1 ? picked[0][1] : `${label}: ${picked.length}`;
+        el.innerHTML = `<button type="button" class="nb-ms-btn ${picked.length ? "on" : ""}">${esc(txt)} <i class="bx bx-chevron-down"></i></button>
+            <div class="nb-ms-panel">
+                ${vals.map(([v, l, n]) => `<label><input type="checkbox" value="${esc(v)}" ${set.has(v) ? "checked" : ""}/> <span>${esc(l)}</span>${n != null ? `<em>${n}</em>` : ""}</label>`).join("") || '<div class="nb-muted">немає</div>'}
+                ${picked.length ? '<button type="button" class="nb-ms-clear">Очистити</button>' : ""}
+            </div>`;
+        el.classList.toggle("open", wasOpen);
+        el.querySelector(".nb-ms-panel").scrollTop = scroll;
+        el._set = set;
+    }
     function fillSelects() {
-        const opt = (sel, first, vals) => {
-            const cur = $(sel).value;
-            $(sel).innerHTML = `<option value="">${first}</option>` + vals.map(([v, l, n]) => `<option value="${esc(v)}">${esc(l)} (${n})</option>`).join("");
-            $(sel).value = vals.some(([v]) => v === cur) ? cur : "";
-        };
         const count = (f) => { const m = new Map(); ROWS.forEach((r) => { const k = f(r); if (k) m.set(k, (m.get(k) || 0) + 1); }); return [...m].sort((a, b) => b[1] - a[1]); };
-        opt("#nbDir", "Усі напрямки", count((r) => (r.direction || "").trim()).map(([k, n]) => [k, k, n]));
-        opt("#nbTruck", "Усі авто", count((r) => norm(r.truck)).map(([k, n]) => [k, k.toUpperCase(), n]));
+        msel("#nbDir", "Усі напрямки", count((r) => (r.direction || "").trim()).map(([k, n]) => [k, k, n]), st.dir);
+        msel("#nbTruck", "Усі авто", count((r) => norm(r.truck)).map(([k, n]) => [k, k.toUpperCase(), n]), st.truck);
+        const cn = (f) => ROWS.filter((r) => f(r.carriers || [])).length;
+        msel("#nbHas", "Усі запити", [["with", "З перевізниками", cn((c) => c.length)], ["without", "Без перевізників", cn((c) => !c.length)], ["fura", "Перевізник є у FURA", cn((c) => c.some((x) => x.id))]], st.has);
     }
     function renderChips() {
         const n = (k) => ROWS.filter((r) => (k === "—" ? !r.status : r.status === k)).length;
         const chips = [{ k: "", label: `Усі ${ROWS.length}` }, ...STATUSES.map((s) => ({ k: s.k, label: `${s.k} ${n(s.k)}`, cls: s.cls })), { k: "—", label: `Без статусу ${n("—")}` }];
-        $("#nbStatus").innerHTML = chips.map((c) => `<button type="button" class="nb-chip ${c.cls ? "st-" + c.cls : ""} ${st.status === c.k ? "active" : ""}" data-st="${esc(c.k)}">${esc(c.label)}</button>`).join("");
+        $("#nbStatus").innerHTML = chips.map((c) => `<button type="button" class="nb-chip ${c.cls ? "st-" + c.cls : ""} ${(c.k ? st.status.has(c.k) : !st.status.size) ? "active" : ""}" data-st="${esc(c.k)}">${esc(c.label)}</button>`).join("");
     }
+    const cleanPrice = (p) => String(p || "").replace(/^\d{1,3}\s+(?=\d{3,5}\b)/, "");
     function carrierHtml(c, i) {
         const name = esc(c.name || "Перевізник");
         const nameEl = `<span class="nb-cname">${c.id ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${name}</span>`;
         return `<div class="nb-carrier" data-ci="${i}" title="Натисніть, щоб відкрити">
             ${nameEl}
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
-            ${c.price ? `<div class="nb-price">${esc(c.price)}</div>` : ""}
+            ${c.price ? `<div class="nb-price">${esc(cleanPrice(c.price))}</div>` : ""}
             ${c.note ? `<div class="nb-note">${esc(c.note)}</div>` : ""}
             ${c.at ? `<div class="nb-cat">${esc(dt(c.at))}</div>` : ""}
         </div>`;
@@ -237,7 +249,7 @@ const NB = (() => {
             <div class="nb-pop-req">${esc(r.addresses || "")}${r.cargo ? ` · ${esc(r.cargo)}` : ""}</div>
             <div class="nb-pop-grid">
                 <span>ЄДРПОУ</span><span class="nb-pop-code"><input class="nb-pin" data-f="edrpou" value="${esc(c.edrpou || "")}" placeholder="—" />${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати"><i class="bx bx-copy"></i></button>` : ""}</span>
-                <span>Ціна</span><input class="nb-pin nb-price" data-f="price" value="${esc(c.price || "")}" placeholder="напр. 2200 €" />
+                <span>Ціна</span><input class="nb-pin nb-price" data-f="price" value="${esc(cleanPrice(c.price))}" placeholder="напр. 2200 €" />
                 <span>Додано</span><b>${esc(dt(c.added || r.created_at || r.updated_at))}</b>
                 ${c.at ? `<span>Змінено</span><b>${esc(dt(c.at))}</b>` : ""}
             </div>
@@ -329,7 +341,7 @@ const NB = (() => {
         let note = t.split("\n").slice(1).join(" ")
             .replace(/(Код фірми|ЄДРПОУ|Країна|Область|Місто)\s*:/gi, " ").replace(/Юридична особа|Підприємець/gi, " ")
             .replace(code, " ").replace(price, " ").replace(/\s+/g, " ").trim();
-        return { id: null, name: name.length > 120 ? name.slice(0, 120) : name, edrpou: code, price: price.replace(/\s+/g, " ").trim(), note: note.slice(0, 300) };
+        return { id: null, name: name.length > 120 ? name.slice(0, 120) : name, edrpou: code, price: cleanPrice(price.replace(/\s+/g, " ").trim()), note: note.slice(0, 300) };
     }
     async function importCsv(file) {
         const rows = parseCsv(await file.text());
@@ -371,16 +383,37 @@ const NB = (() => {
         $("#nbStatus").addEventListener("click", (e) => {
             const b = e.target.closest("[data-st]");
             if (!b) return;
-            st.status = st.status === b.dataset.st ? "" : b.dataset.st;
+            const k = b.dataset.st;
+            if (!k) st.status.clear();
+            else if (st.status.has(k)) st.status.delete(k);
+            else st.status.add(k);
             st.shown = PAGE;
             render();
         });
         $("#nbMore").addEventListener("click", () => { st.shown += PAGE; render(); });
-        [["#nbDir", "dir"], ["#nbTruck", "truck"], ["#nbHas", "has"], ["#nbPeriod", "period"], ["#nbSort", "sort"]].forEach(([sel, k]) =>
+        document.querySelectorAll(".nb-ms").forEach((el) => {
+            el.addEventListener("click", (e) => {
+                if (e.target.closest(".nb-ms-btn")) {
+                    document.querySelectorAll(".nb-ms.open").forEach((o) => o !== el && o.classList.remove("open"));
+                    el.classList.toggle("open");
+                } else if (e.target.closest(".nb-ms-clear")) {
+                    el._set.clear(); st.shown = PAGE; render();
+                }
+            });
+            el.addEventListener("change", (e) => {
+                const v = e.target.value;
+                if (e.target.checked) el._set.add(v); else el._set.delete(v);
+                st.shown = PAGE;
+                render();
+            });
+        });
+        document.addEventListener("mousedown", (e) => { if (!e.target.closest(".nb-ms")) document.querySelectorAll(".nb-ms.open").forEach((o) => o.classList.remove("open")); });
+        [["#nbPeriod", "period"], ["#nbSort", "sort"]].forEach(([sel, k]) =>
             $(sel).addEventListener("change", (e) => { st[k] = e.target.value; st.shown = PAGE; render(); }));
         $("#nbReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", status: "", dir: "", truck: "", has: "", period: "", sort: "upd", shown: PAGE });
-            ["#nbQ", "#nbDir", "#nbTruck", "#nbHas", "#nbPeriod"].forEach((s) => ($(s).value = ""));
+            Object.assign(st, { q: "", period: "", sort: "upd", shown: PAGE });
+            [st.status, st.dir, st.truck, st.has].forEach((x) => x.clear());
+            ["#nbQ", "#nbPeriod"].forEach((s) => ($(s).value = ""));
             $("#nbSort").value = "upd";
             render();
         });

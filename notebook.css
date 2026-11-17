@@ -139,3 +139,27 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-pop-foot { align-items: center; }
 .nb-pop-sp { flex: 1; }
 .nb-pop-foot .nb-btn-danger { width: 34px; padding: 0; justify-content: center; }
+
+/* фільтри з галочками (можна кілька) */
+.nb-ms { position: relative; }
+.nb-ms-btn { height: 40px; padding: 0 12px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; font: inherit; font-size: 13px; color: #374151;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }
+.nb-ms-btn.on { border-color: #d9a944; background: #fdf6e3; color: #8a5f12; font-weight: 700; }
+.nb-ms-panel { display: none; position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; min-width: 240px; max-height: 340px; overflow-y: auto;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 14px 30px rgba(0, 0, 0, .14); padding: 6px; }
+.nb-ms.open .nb-ms-panel { display: block; }
+.nb-ms-panel label { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+.nb-ms-panel label:hover { background: #fdf6e3; }
+.nb-ms-panel input { width: 16px; height: 16px; accent-color: #c9973a; margin: 0; }
+.nb-ms-panel label span { flex: 1; }
+.nb-ms-panel em { font-style: normal; font-size: 12px; color: #9ca3af; }
+.nb-ms-clear { width: 100%; margin-top: 4px; padding: 7px; border: 0; border-top: 1px solid #f1f1f1; background: none; color: #b42318; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+@media (max-width: 900px) { .nb-ms { flex: 1 1 45%; } .nb-ms-btn { width: 100%; max-width: none; } }
+/* обраний статус — свій колір + рамка */
+.nb-chip.st-ok.active { background: #dcfce7; color: #166534; }
+.nb-chip.st-calc.active { background: #fef3c7; color: #92400e; }
+.nb-chip.st-wait.active { background: #e0f2fe; color: #075985; }
+.nb-chip.st-done.active { background: #e5e7eb; color: #374151; }
+.nb-chip.st-no.active { background: #fee2e2; color: #991b1b; }
+.nb-chip[class*="st-"].active { box-shadow: inset 0 0 0 2px currentColor; }
+.nb-chip[class*="st-"].active::before { content: "✓ "; }
