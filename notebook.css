@@ -239,3 +239,12 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-ql { padding: 0 6px; border-radius: 6px; background: #e0f2fe; color: #075985; font-weight: 700; }
 .nb-qadd { align-self: flex-start; height: 30px; margin-top: 4px; font-size: 13px; }
 .nb-hidden-btn { font-size: 13px; color: #b45309; text-decoration: underline; }
+.nb-qcps { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; margin-bottom: 8px; font-size: 13px; }
+.nb-qc { border: 1px solid #f1ead9; border-radius: 10px; background: #fff; padding: 4px 10px; }
+.nb-qc[open] { flex-basis: 100%; }
+.nb-qc summary { cursor: pointer; display: flex; align-items: center; gap: 8px; list-style: none; }
+.nb-qc summary::-webkit-details-marker { display: none; }
+.nb-qc .nb-link { font-size: 12px; }
+.nb-qcl { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 0 4px; }
+.nb-qcl em { font-style: normal; color: #9ca3af; font-size: 11px; }
+.nb-qs .nb-more { margin-top: 10px; }

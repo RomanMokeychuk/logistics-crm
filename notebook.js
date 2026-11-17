@@ -452,8 +452,29 @@ const NB = (() => {
             return render();
         }
         QS.via = via;
+        QS.shown = 60;
         try {
-            const rows = await loadQueue(via);
+            // усі пункти пропуску — щоб ви могли обрати свої
+            const { data: cps } = await sbClient.from("echerha_checkpoints").select("name, country, in_queue, qtype").order("in_queue", { ascending: false });
+            QS.allCps = (cps || []).filter((c) => c.name && c.name !== "—");
+            QS.cps = new Set(QS.allCps.filter((c) => via.includes(c.country)).map((c) => c.name));
+            await qReload(r);
+        } catch (e) { QS.err = "Не вдалося завантажити Чергу: " + e.message; QS.list = []; }
+        if (st.sugFor === r.id) render();
+    }
+    async function qReload(r) {
+        QS.list = null;
+        render();
+        {
+            const countries = [...new Set(QS.allCps.filter((c) => QS.cps.has(c.name)).map((c) => c.country))];
+            const seen = new Set();
+            const rows = (await loadQueue(countries)).filter((x) => {
+                if (!QS.cps.has(x.checkpoint)) return false;
+                const k = `${x.tractor}|${x.checkpoint}`;
+                if (seen.has(k)) return false;
+                seen.add(k);
+                return true;
+            });
             // групуємо по перевізнику
             const by = new Map();
             rows.filter((x) => x.ua !== false && x.edrpou).forEach((x) => {
@@ -468,7 +489,7 @@ const NB = (() => {
                 const { data } = await sbClient.from("carriers").select("edrpou").in("edrpou", variants.slice(i, i + 300));
                 (data || []).forEach((c) => FURA_CODES.add(qKey(c.edrpou)));
             }
-        } catch (e) { QS.err = "Не вдалося завантажити Чергу: " + e.message; QS.list = []; }
+        }
         if (st.sugFor === r.id) render();
     }
     function queueSuggestHtml(r) {
@@ -494,10 +515,23 @@ const NB = (() => {
             if (o.fura && !inFura) return null;
             const score = (inFura ? 1000 : 0) + ok.filter(isEmptyQ).length * 50 + ok.length;
             return { trucks: ok, code, inFura, score, added: added.has(code) };
-        }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 60);
+        }).filter(Boolean).sort((a, b) => b.score - a.score);
+        const total = items.length, trucksN = items.reduce((n, it) => n + it.trucks.length, 0);
+        items.length = Math.min(items.length, QS.shown || 60);
+        // пункти пропуску — по країнах, з галочками
+        const byC = new Map();
+        (QS.allCps || []).forEach((c) => (byC.get(c.country) || byC.set(c.country, []).get(c.country)).push(c));
+        const short = (n) => String(n).replace(/\s*\((для )?/, " (").replace(/вантажівок/g, "ваг.").replace(/\.\s*Товари 1-24 групи УКТЗЕД/, " · 1-24 УКТЗЕД");
+        const cpsHtml = [...byC].map(([country, list]) => {
+            const on = list.filter((c) => QS.cps.has(c.name)).length;
+            return `<details class="nb-qc"${on ? " open" : ""}><summary><b>${esc(country || "Інше")}</b> <span class="nb-muted">${on}/${list.length}</span>
+                    <button type="button" class="nb-link" data-qcall="${esc(country)}">${on === list.length ? "зняти всі" : "усі"}</button></summary>
+                <div class="nb-qcl">${list.map((c) => `<label class="nb-qopt"><input type="checkbox" data-qcp="${esc(c.name)}" ${QS.cps.has(c.name) ? "checked" : ""}/> ${esc(short(c.name))} <em>${c.in_queue || 0}</em></label>`).join("")}</div></details>`;
+        }).join("");
         const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
-            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">через кордон: ${esc(QS.via.join(", "))} · знайдено перевізників: ${items.length}</span></div>
+            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
+            <div class="nb-qcps"><span class="nb-muted">Пункти пропуску:</span>${cpsHtml}</div>
             <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}${tg("fura", "лише є у FURA")}</div>
             <div class="nb-qlist">${items.map((it) => {
                 const x = it.trucks[0];
@@ -510,7 +544,8 @@ const NB = (() => {
                     ${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
-            }).join("") || '<div class="nb-muted">Нікого не знайшов — спробуйте зняти частину галочок.</div>'}</div>
+            }).join("") || '<div class="nb-muted">Нікого не знайшов — оберіть інші пункти чи зніміть частину галочок.</div>'}</div>
+            ${total > items.length ? `<button type="button" class="nb-more" data-qmore>Показати ще (${total - items.length})</button>` : ""}
         </div>`;
     }
     let FURA_CODES = new Set();
@@ -1043,6 +1078,16 @@ const NB = (() => {
                 if (r) showCarrier(r, Number(ch.dataset.ci), ch);
                 return;
             }
+            const qall = e.target.closest("[data-qcall]");
+            if (qall) {
+                e.preventDefault();
+                const list = QS.allCps.filter((c) => c.country === qall.dataset.qcall);
+                const allOn = list.every((c) => QS.cps.has(c.name));
+                list.forEach((c) => (allOn ? QS.cps.delete(c.name) : QS.cps.add(c.name)));
+                qReload(QS.r);
+                return;
+            }
+            if (e.target.closest("[data-qmore]")) { QS.shown = (QS.shown || 60) + 60; render(); return; }
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
             const qa = e.target.closest("[data-qadd]");
             if (qa) { qa.disabled = true; qa.textContent = "Додаю…"; addFromQueue(ROWS.find((r) => r.id === rid), qa.dataset.qadd); return; }
@@ -1050,6 +1095,12 @@ const NB = (() => {
             if (add) open(ROWS.find((r) => r.id === add.closest(".nb-row").dataset.id), true);
         });
         $("#nbList").addEventListener("change", (e) => {
+            const cp = e.target.dataset?.qcp;
+            if (cp) {
+                if (e.target.checked) QS.cps.add(cp); else QS.cps.delete(cp);
+                qReload(QS.r);
+                return;
+            }
             const k = e.target.dataset?.qopt;
             if (!k) return;
             QS.opt[k] = e.target.checked;
