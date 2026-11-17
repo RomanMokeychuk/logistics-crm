@@ -275,10 +275,18 @@ const NB = (() => {
             ...(r.carriers || []).map((c) => [c.name, c.edrpou, c.price, c.note, ...(c.contacts || []).map((k) => `${k.name} ${k.phone} ${String(k.phone || "").replace(/\D/g, "")}`)].join(" "))].join(" "));
         return r._hay;
     }
+    // щойно створені / змінені запити показуємо, навіть якщо фільтри їх приховали б,
+    // доки ви не зміните фільтри
+    const KEEP = new Set();
+    let keepSig = "";
+    const filtSig = () => JSON.stringify([st.q, st.period, st.side, ...["status", "dir", "truck", "has", "region", "city"].map((k) => [...st[k]].sort())]);
     function filtered() {
         const words = norm(st.q).split(" ").filter(Boolean);
         const since = st.period ? Date.now() - Number(st.period) * 86400000 : 0;
-        const list = ROWS.filter((r) => {
+        if (KEEP.size && filtSig() !== keepSig) KEEP.clear();
+        const list = ROWS.filter((r) => KEEP.has(r.id) || match(r));
+        return sortList(list);
+        function match(r) {
             const cs = r.carriers || [];
             if (st.status.size && !st.status.has(r.status || "—")) return false;
             if (st.dir.size && !st.dir.has((r.direction || "").trim())) return false;
@@ -288,7 +296,9 @@ const NB = (() => {
             if (st.has.size && ![...st.has].some((h) => (h === "with" ? cs.length : h === "without" ? !cs.length : h === "req" ? r.request_id : cs.some((c) => c.id)))) return false;
             if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
             return words.every((w) => hay(r).includes(w));
-        });
+        }
+    }
+    function sortList(list) {
         // порядок за датою створення — зміни перевізника чи ціни не переносять запит на інше місце
         const t = (r) => new Date(r.created_at || r.updated_at).getTime() || 0;
         const tie = (a, b) => String(a.id).localeCompare(String(b.id));
@@ -476,9 +486,18 @@ const NB = (() => {
                 saved._sortAt = old._sortAt || new Date(old.updated_at || old.created_at).getTime();
                 ROWS = ROWS.map((x) => (x.id === saved.id ? saved : x));
             } else ROWS.unshift(saved);
+            KEEP.add(saved.id);
+            keepSig = filtSig();
+            if (!old) st.focus = saved.id;
         }
+        const isNew = !editing && saved;
         close();
         render();
+        if (isNew) {
+            document.querySelector(`.nb-row[data-id="${CSS.escape(saved.id)}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+            const anyFilter = st.q || st.period || ["status", "dir", "truck", "has", "region", "city"].some((k) => st[k].size);
+            toast(anyFilter ? "Запит додано (показую його попри фільтри)" : "Запит додано", anyFilter ? "Скинути фільтри" : "", () => $("#nbReset").click());
+        }
         geoQueue();
         loadLinks().then(render).catch(() => {});
     }
