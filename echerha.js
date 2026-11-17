@@ -226,18 +226,27 @@ const EQ = (() => {
             renderAll();
             return;
         }
+        const header = () => {
+            const old = Date.now() - new Date(sync.synced_at).getTime() > 3 * 3600 * 1000;
+            $("#eqSync").innerHTML =
+                `<i class="bx bx-refresh"></i> Оновлено <b>${esc(new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</b>` +
+                ` <span class="${old ? "eq-warn" : "eq-muted"}">(${ago(sync.synced_at)}${old ? " — Mac з Чергою, мабуть, вимкнений" : ""})</span>`;
+        };
+        // Нічого нового з Черги — не качаємо й не перемальовуємо (тільки «хв тому»)
+        if (load.syncId === sync.sync_id && load.at === sync.synced_at) { header(); return; }
+        const sameRows = load.syncId === sync.sync_id;
+        const furaStale = !load.furaAt || Date.now() - load.furaAt > 30 * 60 * 1000;
         const [rows, cps] = await Promise.all([
-            fetchAll("echerha_queue", "*", (q) => q.eq("sync_id", sync.sync_id).order("entry_at", { ascending: true })),
+            sameRows ? Promise.resolve(ROWS) : fetchAll("echerha_queue", "*", (q) => q.eq("sync_id", sync.sync_id).order("entry_at", { ascending: true })),
             fetchAll("echerha_checkpoints", "*"),
-            loadFura().catch((e) => console.warn("FURA carriers:", e)),
+            furaStale ? loadFura().then(() => (load.furaAt = Date.now())).catch((e) => console.warn("FURA carriers:", e)) : null,
             loadWatch(),
         ]);
+        load.syncId = sync.sync_id;
+        load.at = sync.synced_at;
         ROWS = rows;
         CPS = cps.sort((a, b) => b.in_queue - a.in_queue || String(a.name).localeCompare(b.name, "uk"));
-        const old = Date.now() - new Date(sync.synced_at).getTime() > 3 * 3600 * 1000;
-        $("#eqSync").innerHTML =
-            `<i class="bx bx-refresh"></i> Оновлено <b>${esc(new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</b>` +
-            ` <span class="${old ? "eq-warn" : "eq-muted"}">(${ago(sync.synced_at)}${old ? " — Mac з Чергою, мабуть, вимкнений" : ""})</span>`;
+        header();
         fillSelects();
         renderAll();
     }
@@ -880,5 +889,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     EQ.live();
     // дані з Черги приходять раз на ~30 хв — підтягуємо раз на 5 хв
-    setInterval(() => EQ.load().catch(() => {}), 5 * 60 * 1000);
+    // раз на 5 хв перевіряємо, чи є нове (вкладка у фоні — не чіпаємо)
+    setInterval(() => { if (!document.hidden) EQ.load().catch(() => {}); }, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) EQ.load().catch(() => {}); });
 });

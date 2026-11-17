@@ -679,7 +679,7 @@ html::before {
 }
 
 /* Меню зліва: графітове скло + золотий візерунок + золота лінія по краю */
-.sidebar.fura-sidebar {
+.sidebar.fura-sidebar, .eq-card {
     background:
         radial-gradient(420px 320px at 0% 0%, rgba(240, 205, 120, .22), transparent 70%),
         radial-gradient(360px 300px at 100% 100%, rgba(160, 172, 172, .25), transparent 70%),
@@ -942,3 +942,17 @@ body.sidebar-collapsed aside.sidebar:not(.fura-sidebar) { width: 0; min-width: 0
 .lead-lock-ic { color: #b39a6a; font-size: 17px; }
 .lead-locked-note { display: flex; align-items: center; gap: 8px; margin: 10px 0 12px; padding: 10px 14px; border-radius: 12px; background: #fbf5e8; border: 1px solid #efdcb0; color: #6b5420; font-size: 13px; }
 .lead-locked-note i { font-size: 18px; color: #b8862e; }
+
+/* Без розмиття «скла» на великих блоках — плавна прокрутка на слабких комп'ютерах (Safari / Iris Pro).
+   Розмиття лишається тільки у випадаючих списків і спливаючих вікон. */
+.table-card, .trip-detail, .card-section, .card-header-block,
+.home-hero, .quick-card, .home-section, .kpi, .eq-kpi, .rep-card, .rop-kpi, .rop-task,
+.lead-tabs, .trip-chips, .gd-card, .gd-lead, .gd-faq, .trip-card,
+.search-input, .btn-secondary, .lead-select, .fura-topbar, .topbar, .page-header, .filters-panel, .filter-bar,
+.cm-panel, .pa-reg, #requestCardBody .card-section, .eq-views, .eq-search input, .eq-filters-toggle, .fh-fab,
+.carrier-card-topbar, #carrierCardBody .card-header-block, #carrierCardBody .card-section, #carrierCardBody .cm-coll,
+.sidebar.fura-sidebar, .eq-card {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+}
+body, html { background-attachment: scroll !important; }
