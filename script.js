@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Формує рядок "Ім'я: телефон [іконка Viber]".
 // Іконка веде на viber://chat?number=... — це ВІДКРИВАЄ ЧАТ у Viber
 // (можна побачити ім'я/фото профілю), а не одразу дзвонить.
-function renderContactLine(person, phone) {
+function renderContactLine(person, phone, withCopy) {
     if (!person && !phone) return "";
     // У полі може бути кілька номерів через кому — кожен зі своєю іконкою Viber
     const phones = String(phone || "")
@@ -263,7 +263,10 @@ function renderContactLine(person, phone) {
             const viber = digits.length >= 9
                 ? ` <a href="viber://chat?number=%2B${digits}" target="_blank" class="viber-link" title="Відкрити чат у Viber"><i class='bx bxs-message-rounded-dots'></i></a>`
                 : "";
-            return `<span class="phone-line">${escapeHtml(p)}${viber}</span>`;
+            const copy = withCopy && digits.length >= 6
+                ? ` <button type="button" class="qe-copy qe-copy-phone" data-copy="${escapeHtml(p)}" title="Копіювати номер"><i class='bx bx-copy'></i></button>`
+                : "";
+            return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}</span>`;
         })
         .join("");
     return `${person ? `<strong>${escapeHtml(person)}:</strong> ` : ""}${phones}`;
@@ -483,7 +486,7 @@ function contactsListHtml(item) {
     if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
     extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
     return rows
-        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p)}</div>`)
+        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true)}</div>`)
         .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
 }
 

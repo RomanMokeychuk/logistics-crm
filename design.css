@@ -956,3 +956,7 @@ body.sidebar-collapsed aside.sidebar:not(.fura-sidebar) { width: 0; min-width: 0
     backdrop-filter: none !important;
 }
 body, html { background-attachment: scroll !important; }
+
+/* Кнопка «Копіювати» біля номера телефону в картці перевізника */
+#carrierCardBody .phone-line { display: inline-flex; align-items: center; gap: 4px; }
+#carrierCardBody .qe-copy.qe-copy-phone { margin-left: 4px; width: 22px; height: 22px; font-size: 13px; vertical-align: middle; }
