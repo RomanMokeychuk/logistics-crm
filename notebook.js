@@ -49,7 +49,37 @@ const NB = (() => {
     let editing = null;
 
     /* ---------- завантаження ---------- */
+    /* ---------- запам'ятовуємо, де ви були: фільтри, пошук, прокрутка ---------- */
+    const STATE_KEY = "fura_nb_state";
+    const SETS = ["status", "dir", "truck", "has", "region", "city"];
+    function saveState() {
+        try {
+            const o = { q: st.q, period: st.period, sort: st.sort, side: st.side, shown: st.shown, scroll: $(".nb-scroll")?.scrollTop || 0 };
+            SETS.forEach((k) => (o[k] = [...st[k]]));
+            localStorage.setItem(STATE_KEY, JSON.stringify(o));
+        } catch (_) { /* без пам'яті */ }
+    }
+    let savedScroll = 0;
+    function restoreState() {
+        let o = null;
+        try { o = JSON.parse(localStorage.getItem(STATE_KEY) || "null"); } catch (_) { o = null; }
+        if (!o) return;
+        st.q = o.q || ""; st.period = o.period || ""; st.sort = o.sort || "upd"; st.side = o.side || "any";
+        st.shown = Math.max(PAGE, Number(o.shown) || PAGE);
+        SETS.forEach((k) => (st[k] = new Set(Array.isArray(o[k]) ? o[k] : [])));
+        $("#nbQ").value = st.q; $("#nbPeriod").value = st.period; $("#nbSort").value = st.sort; $("#nbSide").value = st.side;
+        savedScroll = Number(o.scroll) || 0;
+    }
+    // список із попереднього відкриття — щоб показати одразу, поки йде свіже завантаження
+    const ROWS_KEY = "fura_nb_rows";
+    function cacheRows() { try { sessionStorage.setItem(ROWS_KEY, JSON.stringify(ROWS.map(({ _hay, _places, ...r }) => r))); } catch (_) { /* завеликий */ } }
+    function scrollBack() { if (savedScroll) $(".nb-scroll").scrollTop = savedScroll; }
+
     async function load() {
+        try {
+            const cached = JSON.parse(sessionStorage.getItem(ROWS_KEY) || "null");
+            if (Array.isArray(cached) && cached.length && !ROWS.length) { ROWS = cached; render(); scrollBack(); }
+        } catch (_) { /* без кешу */ }
         const { data: s } = await sbClient.auth.getSession();
         me = s?.session?.user || null;
         if (!me) { location.href = "login.html"; return; }
@@ -63,9 +93,13 @@ const NB = (() => {
             all.push(...(data || []));
             if (!data || data.length < 1000) break;
         }
+        const sc = $(".nb-scroll"), keep = sc.scrollTop;
         ROWS = all;
+        cacheRows();
         render();
-        loadLinks().then(render).catch(() => {});
+        sc.scrollTop = savedScroll || keep;
+        savedScroll = 0;
+        loadLinks().then(() => { const k = sc.scrollTop; render(); sc.scrollTop = k; }).catch(() => {});
         geoQueue();
     }
 
@@ -293,6 +327,7 @@ const NB = (() => {
         $("#nbList").innerHTML = list.slice(0, st.shown).map(rowHtml).join("") ||
             `<div class="nb-empty">${ROWS.length ? "Нічого не знайдено" : "Тут поки порожньо. Натисніть «Новий запит» або імпортуйте свою Google-таблицю (Файл → Завантажити → CSV)."}</div>`;
         $("#nbMore").classList.toggle("hidden", list.length <= st.shown);
+        saveState();
     }
 
     /* ---------- форма ---------- */
@@ -519,6 +554,10 @@ const NB = (() => {
 
     /* ---------- події ---------- */
     function init() {
+        restoreState();
+        let sT = 0;
+        $(".nb-scroll").addEventListener("scroll", () => { clearTimeout(sT); sT = setTimeout(saveState, 200); }, { passive: true });
+        addEventListener("pagehide", () => { saveState(); cacheRows(); });
         let t = 0;
         $("#nbQ").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value; st.shown = PAGE; render(); }, 150); });
         $("#nbStatus").addEventListener("click", (e) => {
