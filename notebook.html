@@ -18,11 +18,11 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611170810" />
+        <link rel="stylesheet" href="style.css?v=202611170822" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611170810" />
-        <link rel="stylesheet" href="notebook.css?v=202611170810" />
-        <link rel="stylesheet" href="design.css?v=202611170810" />
+        <link rel="stylesheet" href="theme.css?v=202611170822" />
+        <link rel="stylesheet" href="notebook.css?v=202611170822" />
+        <link rel="stylesheet" href="design.css?v=202611170822" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -47,6 +47,9 @@
             <div class="nb-toolbar">
                 <div class="nb-search"><i class="bx bx-search"></i><input id="nbQ" type="search" placeholder="Напрямок, адреса, вантаж, перевізник, ЄДРПОУ…" autocomplete="off" /></div>
                 <div class="nb-ms" id="nbDir" title="Напрямок — можна кілька"></div>
+                <div class="nb-ms" id="nbRegion" title="Країна, воєводство / область — можна кілька"></div>
+                <div class="nb-ms" id="nbCity" title="Місто — можна кілька"></div>
+                <select id="nbSide" class="nb-sel" title="Де шукати місце"><option value="any">Завант. або розвант.</option><option value="from">Лише завантаження</option><option value="to">Лише розвантаження</option></select>
                 <div class="nb-ms" id="nbTruck" title="Тип авто — можна кілька"></div>
                 <div class="nb-ms" id="nbHas" title="Перевізники — можна кілька"></div>
                 <select id="nbPeriod" class="nb-sel" title="Коли змінювали">
@@ -92,9 +95,9 @@
         <datalist id="nbTruckList"><option>ТЕНТ</option><option>РЕФ</option><option>ІЗОТЕРМ</option><option>ПЛАТФОРМА</option><option>КОНТЕЙНЕРОВОЗ</option><option>МЕГА</option></datalist>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="notebook.js?v=202611170810"></script>
-        <script src="shell.js?v=202611170810"></script>
-        <script src="notify.js?v=202611170810"></script>
-        <script src="lock.js?v=202611170810"></script>
+        <script src="notebook.js?v=202611170822"></script>
+        <script src="shell.js?v=202611170822"></script>
+        <script src="notify.js?v=202611170822"></script>
+        <script src="lock.js?v=202611170822"></script>
     </body>
 </html>

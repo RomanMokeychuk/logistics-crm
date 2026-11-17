@@ -43,7 +43,7 @@ const NB = (() => {
 
     let ROWS = [];
     let me = null;
-    const st = { q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), period: "", sort: "upd", shown: PAGE };
+    const st = { q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), region: new Set(), city: new Set(), side: "any", period: "", sort: "upd", shown: PAGE };
     const dt = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
     const keyC = (c) => [c.id || "", c.name || "", c.edrpou || ""].join("|");
     let editing = null;
@@ -65,7 +65,117 @@ const NB = (() => {
         }
         ROWS = all;
         render();
+        loadLinks().then(render).catch(() => {});
+        geoQueue();
     }
+
+    /* ---------- перевізники: Ларді (профіль з картки FURA) і чи стоять зараз у Черзі ---------- */
+    let LINKS = new Map(); // id картки FURA → { lardi }
+    let DEALS = new Map(); // id → { n, last }
+    let QUEUE = new Map(); // ЄДРПОУ → [{ checkpoint, entry_at, tractor }]
+    const qKey = (c) => String(c || "").replace(/\D/g, "").replace(/^0+/, "");
+    async function loadLinks() {
+        const cs = ROWS.flatMap((r) => r.carriers || []);
+        const ids = [...new Set(cs.map((c) => c.id).filter(Boolean))];
+        const map = new Map();
+        for (let i = 0; i < ids.length; i += 300) {
+            const { data } = await sbClient.from("carriers").select("id, edrpou, profile_url").in("id", ids.slice(i, i + 300));
+            (data || []).forEach((c) => map.set(String(c.id), { lardi: c.profile_url || "", edrpou: c.edrpou || "" }));
+        }
+        // скільки угод уже було з цим перевізником у FURA
+        const deals = new Map();
+        for (let i = 0; i < ids.length; i += 300) {
+            const { data } = await sbClient.from("deals").select("carrier_id, load_date").in("carrier_id", ids.slice(i, i + 300)).limit(5000);
+            (data || []).forEach((d) => { const k = String(d.carrier_id); const o = deals.get(k) || { n: 0, last: "" }; o.n++; if ((d.load_date || "") > o.last) o.last = d.load_date || ""; deals.set(k, o); });
+        }
+        DEALS = deals;
+        LINKS = map;
+        // хто з цих перевізників зараз у черзі на кордоні (останній знімок «Черги»)
+        const codes = [...new Set([...cs.map((c) => c.edrpou), ...[...map.values()].map((x) => x.edrpou)].map(qKey).filter(Boolean))];
+        const { data: sync } = await sbClient.from("echerha_sync").select("sync_id").eq("id", 1).maybeSingle();
+        const q = new Map();
+        if (sync?.sync_id && codes.length) {
+            const variants = [...new Set(codes.flatMap((c) => [c, c.padStart(8, "0")]))];
+            for (let i = 0; i < variants.length; i += 300) {
+                const { data } = await sbClient.from("echerha_queue").select("edrpou, checkpoint, entry_at, tractor").eq("sync_id", sync.sync_id).in("edrpou", variants.slice(i, i + 300));
+                (data || []).forEach((x) => { const k = qKey(x.edrpou); (q.get(k) || q.set(k, []).get(k)).push(x); });
+            }
+        }
+        QUEUE = q;
+    }
+    const lardiOf = (c) => (c.id && LINKS.get(String(c.id))?.lardi) || "";
+    const queueOf = (c) => QUEUE.get(qKey(c.edrpou || (c.id && LINKS.get(String(c.id))?.edrpou))) || [];
+
+    /* ---------- місця: країна / регіон (воєводство, область) / місто ---------- */
+    const CC = {
+        "україна": "ua", "польща": "pl", "польша": "pl", "німеччина": "de", "литва": "lt", "латвія": "lv", "естонія": "ee", "чехія": "cz",
+        "словаччина": "sk", "угорщина": "hu", "румунія": "ro", "молдова": "md", "болгарія": "bg", "австрія": "at", "італія": "it",
+        "іспанія": "es", "франція": "fr", "бельгія": "be", "нідерланди": "nl", "голландія": "nl", "данія": "dk", "фінляндія": "fi",
+        "швеція": "se", "норвегія": "no", "швейцарія": "ch", "словенія": "si", "хорватія": "hr", "сербія": "rs", "греція": "gr",
+        "португалія": "pt", "туреччина": "tr", "грузія": "ge", "казахстан": "kz", "велика британія": "gb", "великобританія": "gb",
+        "люксембург": "lu", "ірландія": "ie", "європа": "",
+    };
+    const CNAME = { ua: "Україна", pl: "Польща", de: "Німеччина", lt: "Литва", lv: "Латвія", ee: "Естонія", cz: "Чехія", sk: "Словаччина", hu: "Угорщина",
+        ro: "Румунія", md: "Молдова", bg: "Болгарія", at: "Австрія", it: "Італія", es: "Іспанія", fr: "Франція", be: "Бельгія", nl: "Нідерланди",
+        dk: "Данія", fi: "Фінляндія", se: "Швеція", no: "Норвегія", ch: "Швейцарія", si: "Словенія", hr: "Хорватія", rs: "Сербія", gr: "Греція",
+        pt: "Португалія", tr: "Туреччина", ge: "Грузія", kz: "Казахстан", gb: "Велика Британія", lu: "Люксембург", ie: "Ірландія" };
+    const GEO_KEY = "fura_nb_geo";
+    let GEO = {};
+    try { GEO = JSON.parse(localStorage.getItem(GEO_KEY) || "{}"); } catch (_) { GEO = {}; }
+    const saveGeo = () => { try { localStorage.setItem(GEO_KEY, JSON.stringify(GEO)); } catch (_) { /* повна пам'ять */ } };
+    const shortReg = (s) => String(s || "").replace(/\s*(воєводство|województwo|область|oblast|region|kraj|județul|megye)\s*/gi, " ").replace(/\s+/g, " ").trim();
+    // «Гданськ - Кожичі, Львівська область» → [{side:'from', text:'Гданськ', cc:'pl'}, {side:'to', ...}]
+    function placesOf(r) {
+        if (r._places) return r._places;
+        const ccs = String(r.direction || "").split(/\s*[-–—]\s*/).map((x) => CC[norm(x)] ?? "");
+        const txt = String(r.addresses || "").replace(/={3,}/g, "\n");
+        const parts = txt.split(/\s+[-–—]\s+|\n+/).map((x) => x.trim()).filter((x) => x.length > 1);
+        if (!parts.length) return (r._places = []);
+        const pick = parts.length === 1 ? [[parts[0], "from"]] : [[parts[0], "from"], [parts[parts.length - 1], "to"]];
+        return (r._places = pick.map(([text, side]) => {
+            let cc = side === "from" ? ccs[0] || "" : ccs[ccs.length - 1] || "";
+            const named = Object.keys(CC).find((n) => CC[n] && norm(text).includes(n));
+            if (named) cc = CC[named];
+            const clean = text.replace(/\b\d{2}-?\d{3}\b/g, " ").replace(/\b(ТО|ТЛ|МП)\b/g, " ").replace(/,?\s*(вул|ул|str|ul)\.?\s.*$/i, "").replace(/\s+/g, " ").replace(/^[,\s]+|[,\s]+$/g, "");
+            return { side, text: clean, cc };
+        }));
+    }
+    const geoKey = (p) => `${p.cc}|${norm(p.text)}`;
+    // Без сервера: «…, Львівська область» → регіон і місто з тексту
+    function geoLocal(p) {
+        const m = p.text.match(/([A-Za-zА-Яа-яІіЇїЄєҐґ'’-]+)\s+(область|обл\.?|воєводство|województwo)/i);
+        const city = p.text.split(",")[0].replace(/^(с\.|м\.|смт|село|місто)\s*/i, "").trim();
+        return { cc: p.cc, state: m ? m[1] : "", city };
+    }
+    function geoOf(p) { return GEO[geoKey(p)] || geoLocal(p); }
+    let geoBusy = false;
+    async function geoQueue() {
+        if (geoBusy) return;
+        const todo = [...new Map(ROWS.flatMap(placesOf).filter((p) => p.text && !GEO[geoKey(p)]).map((p) => [geoKey(p), p])).values()];
+        if (!todo.length) return;
+        geoBusy = true;
+        let n = 0;
+        for (const p of todo) {
+            try {
+                const { data } = await sbClient.functions.invoke("fura-geo", { body: { action: "suggest", text: p.text.slice(0, 80), country: p.cc || undefined } });
+                const r = (data?.results || [])[0];
+                const loc = geoLocal(p);
+                GEO[geoKey(p)] = r ? { cc: (r.country_code || p.cc || "").toLowerCase(), state: shortReg(r.state) || loc.state, city: r.city || r.name || loc.city } : { ...loc, miss: 1 };
+            } catch (_) {
+                GEO[geoKey(p)] = { ...geoLocal(p), miss: 1 };
+            }
+            if (++n % 10 === 0) { saveGeo(); fillSelects(); }
+            await new Promise((ok) => setTimeout(ok, 250));
+        }
+        saveGeo();
+        geoBusy = false;
+        render();
+    }
+    const placeKeys = (r) => placesOf(r).filter((p) => st.side === "any" || p.side === st.side).map((p) => {
+        const g = geoOf(p);
+        const cn = CNAME[g.cc] || "Інше";
+        return { country: `c:${cn}`, region: g.state ? `r:${cn} · ${shortReg(g.state)}` : "", city: g.city ? `m:${g.city}, ${cn}` : "" };
+    });
 
     /* ---------- список ---------- */
     function hay(r) {
@@ -81,6 +191,8 @@ const NB = (() => {
             if (st.status.size && !st.status.has(r.status || "—")) return false;
             if (st.dir.size && !st.dir.has((r.direction || "").trim())) return false;
             if (st.truck.size && !st.truck.has(norm(r.truck))) return false;
+            if (st.region.size && !placeKeys(r).some((k) => st.region.has(k.country) || st.region.has(k.region))) return false;
+            if (st.city.size && !placeKeys(r).some((k) => st.city.has(k.city))) return false;
             if (st.has.size && ![...st.has].some((h) => (h === "with" ? cs.length : h === "without" ? !cs.length : cs.some((c) => c.id)))) return false;
             if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
             return words.every((w) => hay(r).includes(w));
@@ -98,9 +210,11 @@ const NB = (() => {
         const scroll = el.querySelector(".nb-ms-panel")?.scrollTop || 0;
         const picked = vals.filter(([v]) => set.has(v));
         const txt = !picked.length ? label : picked.length === 1 ? picked[0][1] : `${label}: ${picked.length}`;
+        const find = el.querySelector(".nb-ms-find")?.value || "";
         el.innerHTML = `<button type="button" class="nb-ms-btn ${picked.length ? "on" : ""}">${esc(txt)} <i class="bx bx-chevron-down"></i></button>
             <div class="nb-ms-panel">
-                ${vals.map(([v, l, n]) => `<label><input type="checkbox" value="${esc(v)}" ${set.has(v) ? "checked" : ""}/> <span>${esc(l)}</span>${n != null ? `<em>${n}</em>` : ""}</label>`).join("") || '<div class="nb-muted">немає</div>'}
+                ${vals.length > 10 ? `<input class="nb-ms-find" placeholder="Пошук…" value="${esc(find)}" />` : ""}
+                ${vals.map(([v, l, n, cls]) => `<label class="${cls || ""}" data-l="${esc(norm(l))}"${find && !norm(l).includes(norm(find)) ? " hidden" : ""}><input type="checkbox" value="${esc(v)}" ${set.has(v) ? "checked" : ""}/> <span>${esc(l)}</span>${n != null ? `<em>${n}</em>` : ""}</label>`).join("") || '<div class="nb-muted">немає</div>'}
                 ${picked.length ? '<button type="button" class="nb-ms-clear">Очистити</button>' : ""}
             </div>`;
         el.classList.toggle("open", wasOpen);
@@ -112,6 +226,19 @@ const NB = (() => {
         msel("#nbDir", "Усі напрямки", count((r) => (r.direction || "").trim()).map(([k, n]) => [k, k, n]), st.dir);
         msel("#nbTruck", "Усі авто", count((r) => norm(r.truck)).map(([k, n]) => [k, k.toUpperCase(), n]), st.truck);
         const cn = (f) => ROWS.filter((r) => f(r.carriers || [])).length;
+        // місця: країна → її регіони (воєводства / області); окремо міста
+        const reg = new Map(), cities = new Map();
+        ROWS.forEach((r) => {
+            const ks = placeKeys(r);
+            new Set(ks.flatMap((k) => [k.country, k.region]).filter(Boolean)).forEach((k) => reg.set(k, (reg.get(k) || 0) + 1));
+            new Set(ks.map((k) => k.city).filter(Boolean)).forEach((k) => cities.set(k, (cities.get(k) || 0) + 1));
+        });
+        const regVals = [...reg].filter(([k]) => k.startsWith("c:")).sort((a, b) => b[1] - a[1]).flatMap(([k, n]) => {
+            const cn = k.slice(2);
+            return [[k, cn, n, "nb-ms-grp"], ...[...reg].filter(([r]) => r.startsWith(`r:${cn} · `)).sort((a, b) => b[1] - a[1]).map(([r, m]) => [r, r.slice(cn.length + 5), m, "nb-ms-sub"])];
+        });
+        msel("#nbRegion", "Країна / регіон", regVals, st.region);
+        msel("#nbCity", "Місто", [...cities].sort((a, b) => b[1] - a[1]).map(([k, n]) => [k, k.slice(2), n]), st.city);
         msel("#nbHas", "Усі запити", [["with", "З перевізниками", cn((c) => c.length)], ["without", "Без перевізників", cn((c) => !c.length)], ["fura", "Перевізник є у FURA", cn((c) => c.some((x) => x.id))]], st.has);
     }
     function renderChips() {
@@ -128,6 +255,12 @@ const NB = (() => {
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
             ${c.price ? `<div class="nb-price">${esc(cleanPrice(c.price))}</div>` : ""}
             ${c.note ? `<div class="nb-note">${esc(c.note)}</div>` : ""}
+            ${(() => {
+                const qu = queueOf(c), l = lardiOf(c);
+                const d = c.id && DEALS.get(String(c.id));
+                if (!qu.length && !l && !d) return "";
+                return `<div class="nb-clinks">${d ? `<span class="nb-deals" title="Угод у FURA, остання ${esc(String(d.last).slice(0, 10))}">🤝 угод: ${d.n}</span>` : ""}${qu.length ? `<span class="nb-inq" title="${esc(qu.map((x) => `${x.tractor} — ${x.checkpoint}`).join("\n"))}">🚦 у черзі: ${qu.length}</span>` : ""}${l ? `<a href="${esc(l)}" target="_blank" rel="noopener" class="nb-lardi" title="Профіль на Ларді">Ларді ↗</a>` : ""}</div>`;
+            })()}
             ${c.at ? `<div class="nb-cat">${esc(dt(c.at))}</div>` : ""}
         </div>`;
     }
@@ -227,6 +360,8 @@ const NB = (() => {
         }
         close();
         render();
+        geoQueue();
+        loadLinks().then(render).catch(() => {});
     }
     async function remove() {
         if (!editing || !confirm("Видалити цей запит з блокнота?")) return;
@@ -253,10 +388,16 @@ const NB = (() => {
                 <span>Додано</span><b>${esc(dt(c.added || r.created_at || r.updated_at))}</b>
                 ${c.at ? `<span>Змінено</span><b>${esc(dt(c.at))}</b>` : ""}
             </div>
+            ${(() => {
+                const qu = queueOf(c);
+                return qu.length ? `<div class="nb-pop-q"><b>🚦 Зараз у черзі на кордоні (${qu.length}):</b>${qu.slice(0, 6).map((x) => `<div>${esc(x.tractor || "")} · ${esc(x.checkpoint || "")}${x.entry_at ? ` · в'їзд ${esc(String(x.entry_at).slice(0, 16))}` : ""}</div>`).join("")}<a href="echerha.html?q=${encodeURIComponent(c.edrpou || c.name || "")}">Відкрити в Черзі →</a></div>` : "";
+            })()}
             <textarea class="nb-pin nb-pop-note" data-f="note" rows="4" placeholder="Нотатка: коли може, контакт, умови…">${esc(c.note || "")}</textarea>
             <div class="nb-pop-foot">
                 <button type="button" class="nb-btn nb-btn-danger" data-pdel title="Прибрати перевізника з цього запиту"><i class="bx bx-trash"></i></button>
                 ${c.id ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-card="${esc(c.id)}">Картка у FURA</a>` : c.edrpou ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-code="${esc(c.edrpou)}">Знайти у FURA</a>` : ""}
+                ${lardiOf(c) ? `<a href="${esc(lardiOf(c))}" target="_blank" rel="noopener" class="nb-btn nb-btn-ghost">Ларді ↗</a>` : ""}
+                ${c.id && DEALS.get(String(c.id)) ? `<a href="deals.html?q=${encodeURIComponent(c.name || "")}" class="nb-btn nb-btn-ghost" title="Угоди з цим перевізником">Угоди: ${DEALS.get(String(c.id)).n}</a>` : ""}
                 <span class="nb-pop-sp"></span>
                 <button type="button" class="nb-btn" data-psave>Зберегти</button>
             </div>`;
@@ -408,11 +549,18 @@ const NB = (() => {
             });
         });
         document.addEventListener("mousedown", (e) => { if (!e.target.closest(".nb-ms")) document.querySelectorAll(".nb-ms.open").forEach((o) => o.classList.remove("open")); });
-        [["#nbPeriod", "period"], ["#nbSort", "sort"]].forEach(([sel, k]) =>
+        document.querySelectorAll(".nb-ms").forEach((el) => el.addEventListener("input", (e) => {
+            if (!e.target.classList.contains("nb-ms-find")) return;
+            const q = norm(e.target.value);
+            el.querySelectorAll("label[data-l]").forEach((l) => (l.hidden = q && !l.dataset.l.includes(q)));
+        }));
+        [["#nbPeriod", "period"], ["#nbSort", "sort"], ["#nbSide", "side"]].forEach(([sel, k]) =>
             $(sel).addEventListener("change", (e) => { st[k] = e.target.value; st.shown = PAGE; render(); }));
         $("#nbReset").addEventListener("click", () => {
             Object.assign(st, { q: "", period: "", sort: "upd", shown: PAGE });
-            [st.status, st.dir, st.truck, st.has].forEach((x) => x.clear());
+            [st.status, st.dir, st.truck, st.has, st.region, st.city].forEach((x) => x.clear());
+            st.side = "any";
+            $("#nbSide").value = "any";
             ["#nbQ", "#nbPeriod"].forEach((s) => ($(s).value = ""));
             $("#nbSort").value = "upd";
             render();
@@ -458,6 +606,7 @@ const NB = (() => {
                 return;
             }
             const ch = e.target.closest(".nb-carrier");
+            if (ch && e.target.closest("a.nb-lardi")) return;
             if (ch) {
                 const r = ROWS.find((x) => x.id === ch.closest(".nb-row").dataset.id);
                 if (r) showCarrier(r, Number(ch.dataset.ci), ch);
