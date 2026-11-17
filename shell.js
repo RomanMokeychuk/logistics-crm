@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611171152";
+            css.href = "mobile.css?v=202611171201";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -321,16 +321,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611171152");
+        await addScript("helper.js?v=202611171201");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611171152";
+        css.href = "mobile.css?v=202611171201";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611171152");
+        addScript("mobile-ux.js?v=202611171201");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -479,7 +479,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611171152");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611171201");
         const label = buildSidebar();
         keepSidebarScroll();
         buildTopbar(label);
@@ -490,15 +490,44 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611171152");
+            addScript("global-search.js?v=202611171201");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611171152");
+            addScript("furik.js?v=202611171201");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611171152");
+            addScript("presence.js?v=202611171201");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
         }
     }
+
+    /* ---------- Вікна закриваються лише хрестиком ---------- *
+     * Клік / дотик по затемненому фону довкола вікна більше нічого не закриває,
+     * а жест «назад» на трекпаді не дає випадково піти зі сторінки з відкритим вікном. */
+    function isBackdrop(el) {
+        if (!el || el === document.body || el === document.documentElement || el.nodeType !== 1) return false;
+        if (!el.children.length) return false;
+        const cs = getComputedStyle(el);
+        if (cs.position !== "fixed") return false;
+        const r = el.getBoundingClientRect();
+        return r.width >= innerWidth * 0.9 && r.height >= innerHeight * 0.9;
+    }
+    ["mousedown", "click", "pointerdown", "touchstart"].forEach((type) =>
+        document.addEventListener(type, (e) => {
+            if (isBackdrop(e.target)) { e.stopImmediatePropagation(); if (type === "click") e.preventDefault(); }
+        }, { capture: true, passive: false }));
+    function modalOpen() {
+        return [...document.querySelectorAll('[class*="overlay"], [class*="modal"], [role="dialog"], .fura-cpop')].some((el) => {
+            if (!isBackdrop(el)) return false;
+            const cs = getComputedStyle(el);
+            return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05;
+        });
+    }
+    // жест «назад» / перезавантаження з відкритим вікном — спершу питаємо
+    addEventListener("beforeunload", (e) => { if (modalOpen()) { e.preventDefault(); e.returnValue = ""; } });
+    try {
+        document.documentElement.style.overscrollBehaviorX = "none";
+        document.addEventListener("DOMContentLoaded", () => (document.body.style.overscrollBehaviorX = "none"));
+    } catch (_) { /* старий браузер */ }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
     else init();

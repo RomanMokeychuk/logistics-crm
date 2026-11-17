@@ -46,7 +46,7 @@
         wrap.className = "fura-cpop";
         wrap.innerHTML = `<div class="fura-cpop-dim"></div><div class="fura-cpop-spin">Відкриваю картку…</div>`;
         spinner = wrap.querySelector(".fura-cpop-spin");
-        wrap.querySelector(".fura-cpop-dim").addEventListener("click", close);
+        // клік по фону не закриває — лише хрестик у картці
         document.body.appendChild(wrap);
 
         window.addEventListener("message", (e) => {
