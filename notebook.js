@@ -277,13 +277,15 @@ const NB = (() => {
     }
     // щойно створені / змінені запити показуємо, навіть якщо фільтри їх приховали б,
     // доки ви не зміните фільтри
-    const KEEP = new Set();
-    let keepSig = "";
+    // пам'ятаємо і після перезавантаження сторінки (у межах вкладки)
+    let KEEP = new Set(), keepSig = "";
+    try { const k = JSON.parse(sessionStorage.getItem("fura_nb_keep") || "null"); if (k) { KEEP = new Set(k.ids); keepSig = k.sig; } } catch (_) { /* без пам'яті */ }
+    const saveKeep = () => { try { sessionStorage.setItem("fura_nb_keep", JSON.stringify({ ids: [...KEEP], sig: keepSig })); } catch (_) { /* без пам'яті */ } };
     const filtSig = () => JSON.stringify([st.q, st.period, st.side, ...["status", "dir", "truck", "has", "region", "city"].map((k) => [...st[k]].sort())]);
     function filtered() {
         const words = norm(st.q).split(" ").filter(Boolean);
         const since = st.period ? Date.now() - Number(st.period) * 86400000 : 0;
-        if (KEEP.size && filtSig() !== keepSig) KEEP.clear();
+        if (KEEP.size && filtSig() !== keepSig) { KEEP.clear(); saveKeep(); }
         const list = ROWS.filter((r) => KEEP.has(r.id) || match(r));
         return sortList(list);
         function match(r) {
@@ -540,7 +542,9 @@ const NB = (() => {
         // не стрибати: запам'ятовуємо прокрутку списку і кожного ряду перевізників
         const sc = $(".nb-scroll"), top = sc ? sc.scrollTop : 0;
         const lefts = new Map([...document.querySelectorAll(".nb-row")].map((r) => [r.dataset.id, r.querySelector(".nb-carriers")?.scrollLeft || 0]));
-        $("#nbCount").textContent = list.length === ROWS.length ? `${ROWS.length} запитів` : `знайдено ${list.length} з ${ROWS.length}`;
+        const hiddenN = ROWS.length - list.length;
+        $("#nbCount").innerHTML = !hiddenN ? `${ROWS.length} запитів`
+            : `знайдено ${list.length} з ${ROWS.length} · <button type="button" class="nb-link nb-hidden-btn" title="Решту ховають фільтри">ще ${hiddenN} приховано фільтрами — показати всі</button>`;
         $("#nbList").innerHTML = list.slice(0, st.shown).map(rowHtml).join("") ||
             `<div class="nb-empty">${ROWS.length ? "Нічого не знайдено" : "Тут поки порожньо. Натисніть «Новий запит» або імпортуйте свою Google-таблицю (Файл → Завантажити → CSV)."}</div>`;
         $("#nbMore").classList.toggle("hidden", list.length <= st.shown);
@@ -629,6 +633,7 @@ const NB = (() => {
             } else ROWS.unshift(saved);
             KEEP.add(saved.id);
             keepSig = filtSig();
+            saveKeep();
             if (!old) st.focus = saved.id;
         }
         const isNew = !editing && saved;
@@ -917,6 +922,7 @@ const NB = (() => {
             if (b) { b.disabled = true; restoreRows([b.dataset.restore]); }
             if (e.target.closest("[data-trash-clear]") && confirm("Очистити кошик назавжди?")) { trashSet([]); updTrashBtn(); showTrash(); }
         });
+        $("#nbCount").addEventListener("click", (e) => { if (e.target.closest(".nb-hidden-btn")) $("#nbReset").click(); });
         $("#nbFocus").addEventListener("click", (e) => { if (e.target.closest("[data-unfocus]")) setFocus(""); });
         let sT = 0;
         $(".nb-scroll").addEventListener("scroll", () => { clearTimeout(sT); sT = setTimeout(saveState, 200); }, { passive: true });
