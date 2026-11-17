@@ -54,7 +54,7 @@ const NB = (() => {
     const SETS = ["status", "dir", "truck", "has", "region", "city"];
     function saveState() {
         try {
-            const o = { focus: st.focus, q: st.q, period: st.period, sort: st.sort, side: st.side, shown: st.shown, scroll: $(".nb-scroll")?.scrollTop || 0 };
+            const o = { sugFor: st.sugFor, qready: QS.stage === "ready", qopt: QS.opt, focus: st.focus, q: st.q, period: st.period, sort: st.sort, side: st.side, shown: st.shown, scroll: $(".nb-scroll")?.scrollTop || 0 };
             SETS.forEach((k) => (o[k] = [...st[k]]));
             localStorage.setItem(STATE_KEY, JSON.stringify(o));
         } catch (_) { /* без пам'яті */ }
@@ -64,7 +64,10 @@ const NB = (() => {
         let o = null;
         try { o = JSON.parse(localStorage.getItem(STATE_KEY) || "null"); } catch (_) { o = null; }
         if (!o) return;
-        st.focus = o.focus || ""; st.q = o.q || ""; st.period = o.period || ""; st.sort = o.sort || "upd"; st.side = o.side || "any";
+        st.focus = o.focus || "";
+        st.sugFor = o.sugFor || "";
+        QS.wasReady = !!o.qready;
+        if (o.qopt && typeof o.qopt === "object") Object.assign(QS.opt, o.qopt); st.q = o.q || ""; st.period = o.period || ""; st.sort = o.sort || "upd"; st.side = o.side || "any";
         st.shown = Math.max(PAGE, Number(o.shown) || PAGE);
         SETS.forEach((k) => (st[k] = new Set(Array.isArray(o[k]) ? o[k] : [])));
         $("#nbQ").value = st.q; $("#nbPeriod").value = st.period; $("#nbSort").value = st.sort; $("#nbSide").value = st.side;
@@ -107,6 +110,12 @@ const NB = (() => {
         loadLinks().then(() => { const k = sc.scrollTop; render(); sc.scrollTop = k; }).catch(() => {});
         syncRequests().catch((e) => console.warn("Запити → Блокнот:", e));
         geoQueue();
+        // підбір з черги був відкритий до оновлення сторінки — відкриваємо знову
+        if (st.sugFor && !QS.started) {
+            const r = ROWS.find((x) => x.id === st.sugFor);
+            QS.started = true;
+            if (r) openQueueSuggest(r, true); else st.sugFor = "";
+        }
     }
 
     /* ---------- «Запити» FURA, де я логіст → у Блокнот ---------- */
@@ -414,23 +423,31 @@ const NB = (() => {
         if (/конт/.test(t)) return /конт/;
         return null;
     };
-    async function loadQueue(countries) {
-        const { data: sync } = await sbClient.from("echerha_sync").select("sync_id, synced_at").eq("id", 1).maybeSingle();
+    // машини з обраних пунктів: паралельно сторінками, з кешем на поточний знімок Черги
+    async function loadQueueCps(names) {
+        const { data: sync } = await sbClient.from("echerha_sync").select("sync_id").eq("id", 1).maybeSingle();
         if (!sync?.sync_id) return [];
         const out = [];
-        for (const c of countries) {
-            const hit = QCACHE.get(c);
-            if (hit && hit.sync === sync.sync_id) { out.push(...hit.rows); continue; }
-            const rows = [];
-            for (let from = 0; from < 20000; from += 1000) {
-                const { data, error } = await sbClient.from("echerha_queue")
-                    .select("checkpoint, country, qtype, entry_at, reg_at, tractor, trailer, carrier, edrpou, trailer_body, note, ua")
-                    .eq("sync_id", sync.sync_id).eq("country", c).range(from, from + 999);
-                if (error || !data) break;
-                rows.push(...data);
-                if (data.length < 1000) break;
-            }
-            QCACHE.set(c, { sync: sync.sync_id, rows });
+        const need = [];
+        for (const n of names) {
+            let hit = QCACHE.get(n);
+            if (!hit) { try { hit = JSON.parse(sessionStorage.getItem("fura_nb_q_" + n) || "null"); } catch (_) { hit = null; } }
+            if (hit && hit.sync === sync.sync_id) { QCACHE.set(n, hit); out.push(...hit.rows); } else need.push(n);
+        }
+        if (need.length) {
+            const cols = "checkpoint, country, qtype, entry_at, tractor, carrier, edrpou, trailer_body, ua";
+            const base = () => sbClient.from("echerha_queue").select(cols).eq("sync_id", sync.sync_id).in("checkpoint", need);
+            const { count } = await sbClient.from("echerha_queue").select("id", { count: "exact", head: true }).eq("sync_id", sync.sync_id).in("checkpoint", need);
+            const pages = Math.min(30, Math.ceil((count || 1000) / 1000));
+            const res = await Promise.all(Array.from({ length: pages }, (_, i) => base().order("id").range(i * 1000, i * 1000 + 999)));
+            const rows = res.flatMap((x) => x.data || []);
+            const byCp = new Map(need.map((n) => [n, []]));
+            rows.forEach((x) => byCp.get(x.checkpoint)?.push(x));
+            byCp.forEach((list, n) => {
+                const hit = { sync: sync.sync_id, rows: list };
+                QCACHE.set(n, hit);
+                try { sessionStorage.setItem("fura_nb_q_" + n, JSON.stringify(hit)); } catch (_) { /* завеликий */ }
+            });
             out.push(...rows);
         }
         return out;
@@ -438,8 +455,8 @@ const NB = (() => {
     const entryT = (v) => { const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : 0; };
     const fmtE = (v) => { const m = String(v || "").match(/^\d{4}-(\d{2})-(\d{2})[ T](\d{1,2}:\d{2})/); return m ? `${m[2]}.${m[1]} ${m[3]}` : String(v || ""); };
     const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
-    async function openQueueSuggest(r) {
-        st.sugFor = st.sugFor === r.id ? "" : r.id;
+    async function openQueueSuggest(r, auto) {
+        st.sugFor = auto ? r.id : st.sugFor === r.id ? "" : r.id;
         QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick";
         if (!st.sugFor) return render();
         st.focus = r.id;
@@ -465,6 +482,8 @@ const NB = (() => {
             QS.cc = cc;
             QS.stage = "pick";
             QS.dirty = false;
+            // після оновлення сторінки — одразу показуємо машини з тих самих пунктів
+            if (auto && QS.cps.size && QS.wasReady) { await qReload(r); return; }
         } catch (e) { QS.err = "Не вдалося завантажити Чергу: " + e.message; QS.list = []; }
         if (st.sugFor === r.id) render();
     }
@@ -475,9 +494,8 @@ const NB = (() => {
         QS.list = null;
         render();
         {
-            const countries = [...new Set(QS.allCps.filter((c) => QS.cps.has(c.name)).map((c) => c.country))];
             const seen = new Set();
-            const rows = (await loadQueue(countries)).filter((x) => {
+            const rows = (await loadQueueCps([...QS.cps])).filter((x) => {
                 if (!QS.cps.has(x.checkpoint)) return false;
                 const k = `${x.tractor}|${x.checkpoint}`;
                 if (seen.has(k)) return false;
