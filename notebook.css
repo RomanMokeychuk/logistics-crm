@@ -127,3 +127,15 @@ a.nb-cname:hover { color: #a8781f; text-decoration: underline; }
 .nb-rbtn:hover { color: #a8781f; border-color: #d9a944; }
 .nb-rdel:hover { color: #b42318; border-color: #fecdca; background: #fef3f2; }
 @media (hover: none) { .nb-rbtn { opacity: 1; } }
+
+/* віконце перевізника — одразу можна редагувати */
+.nb-pin { width: 100%; box-sizing: border-box; padding: 5px 8px; border: 1px solid transparent; border-radius: 7px; background: transparent; font: inherit; font-size: 13px; color: #111827; }
+.nb-pin:hover { border-color: #eadfc4; background: #fffdf7; }
+.nb-pin:focus { outline: none; border-color: #d9a944; background: #fff; box-shadow: 0 0 0 3px rgba(217, 169, 68, .18); }
+.nb-pin-name { font-weight: 700; font-size: 15px; }
+.nb-pop-grid { align-items: center; }
+.nb-pop-code { display: flex; align-items: center; gap: 4px; }
+textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf8f1; min-height: 80px; }
+.nb-pop-foot { align-items: center; }
+.nb-pop-sp { flex: 1; }
+.nb-pop-foot .nb-btn-danger { width: 34px; padding: 0; justify-content: center; }

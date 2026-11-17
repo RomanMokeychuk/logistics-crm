@@ -226,31 +226,63 @@ const NB = (() => {
     }
 
     /* ---------- перегляд перевізника в запиті ---------- */
+    let POP = null; // {r, i} — який перевізник відкритий у віконці
     function showCarrier(r, i, anchor) {
         const c = (r.carriers || [])[i];
         if (!c) return;
+        POP = { r, i };
         const pop = $("#nbPop");
         pop.innerHTML = `
-            <div class="nb-pop-head"><b>${esc(c.name || "Перевізник")}</b><button type="button" class="nb-x" data-pclose>&times;</button></div>
+            <div class="nb-pop-head"><input class="nb-pin nb-pin-name" data-f="name" value="${esc(c.name || "")}" placeholder="Назва перевізника" /><button type="button" class="nb-x" data-pclose>&times;</button></div>
             <div class="nb-pop-req">${esc(r.addresses || "")}${r.cargo ? ` · ${esc(r.cargo)}` : ""}</div>
             <div class="nb-pop-grid">
-                ${c.edrpou ? `<span>ЄДРПОУ</span><b><button type="button" class="nb-code" data-copy="${esc(c.edrpou)}">${esc(c.edrpou)} <i class="bx bx-copy"></i></button></b>` : ""}
-                ${c.price ? `<span>Ціна</span><b class="nb-price">${esc(c.price)}</b>` : ""}
+                <span>ЄДРПОУ</span><span class="nb-pop-code"><input class="nb-pin" data-f="edrpou" value="${esc(c.edrpou || "")}" placeholder="—" />${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати"><i class="bx bx-copy"></i></button>` : ""}</span>
+                <span>Ціна</span><input class="nb-pin nb-price" data-f="price" value="${esc(c.price || "")}" placeholder="напр. 2200 €" />
                 <span>Додано</span><b>${esc(dt(c.added || r.created_at || r.updated_at))}</b>
                 ${c.at ? `<span>Змінено</span><b>${esc(dt(c.at))}</b>` : ""}
             </div>
-            <div class="nb-pop-note">${c.note ? esc(c.note) : '<span class="nb-muted">Нотатки немає</span>'}</div>
+            <textarea class="nb-pin nb-pop-note" data-f="note" rows="4" placeholder="Нотатка: коли може, контакт, умови…">${esc(c.note || "")}</textarea>
             <div class="nb-pop-foot">
+                <button type="button" class="nb-btn nb-btn-danger" data-pdel title="Прибрати перевізника з цього запиту"><i class="bx bx-trash"></i></button>
                 ${c.id ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-card="${esc(c.id)}">Картка у FURA</a>` : c.edrpou ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-code="${esc(c.edrpou)}">Знайти у FURA</a>` : ""}
-                <button type="button" class="nb-btn" data-pedit="${esc(r.id)}">Змінити</button>
+                <span class="nb-pop-sp"></span>
+                <button type="button" class="nb-btn" data-psave>Зберегти</button>
             </div>`;
         pop.classList.remove("hidden");
         const b = anchor.getBoundingClientRect();
-        const w = Math.min(380, innerWidth - 24);
+        const w = Math.min(400, innerWidth - 24);
         pop.style.width = w + "px";
         pop.style.left = Math.max(12, Math.min(b.left, innerWidth - w - 12)) + "px";
         const h = pop.offsetHeight;
-        pop.style.top = (b.bottom + h + 8 < innerHeight ? b.bottom + 6 : Math.max(12, b.top - h - 6)) + "px";
+        pop.style.top = (b.bottom + h + 8 < innerHeight ? b.bottom + 6 : Math.max(12, Math.min(b.top - h - 6, innerHeight - h - 12))) + "px";
+    }
+    // зберегти зміни перевізника з віконця (або прибрати його)
+    async function savePop(remove) {
+        if (!POP) return;
+        const { r, i } = POP;
+        const old = r.carriers[i];
+        const list = [...(r.carriers || [])];
+        if (remove) {
+            if (!confirm(`Прибрати «${old.name || "перевізника"}» з цього запиту?`)) return;
+            list.splice(i, 1);
+        } else {
+            const v = {};
+            document.querySelectorAll("#nbPop [data-f]").forEach((el) => (v[el.dataset.f] = el.value.trim()));
+            v.edrpou = v.edrpou.replace(/\D/g, "");
+            if (["name", "edrpou", "price", "note"].every((k) => (v[k] || "") === (old[k] || ""))) { POP = null; $("#nbPop").classList.add("hidden"); return; }
+            list[i] = { ...old, ...v, id: v.edrpou !== (old.edrpou || "") ? null : old.id, added: old.added || r.created_at, at: new Date().toISOString() };
+            if (!list[i].id && v.edrpou) {
+                const { data } = await sbClient.from("carriers").select("id").eq("edrpou", v.edrpou).limit(1);
+                list[i].id = data?.[0]?.id || null;
+            }
+        }
+        const { data, error } = await sbClient.from("my_requests").update({ carriers: list }).eq("id", r.id).select("*");
+        if (error) { alert("Не вдалося зберегти: " + error.message); return; }
+        const saved = { ...(data?.[0]?.id === r.id ? data[0] : r), carriers: list };
+        ROWS = ROWS.map((x) => (x.id === r.id ? saved : x));
+        POP = null;
+        $("#nbPop").classList.add("hidden");
+        render();
     }
     const hidePop = () => $("#nbPop").classList.add("hidden");
 
@@ -353,15 +385,23 @@ const NB = (() => {
             render();
         });
         $("#nbPop").addEventListener("click", async (e) => {
-            if (e.target.closest("[data-pclose]")) return hidePop();
-            const ed = e.target.closest("[data-pedit]");
-            if (ed) { hidePop(); open(ROWS.find((r) => r.id === ed.dataset.pedit)); return; }
+            if (e.target.closest("[data-pclose]")) { POP = null; return hidePop(); }
+            if (e.target.closest("[data-psave]")) return savePop(false);
+            if (e.target.closest("[data-pdel]")) return savePop(true);
             const cp = e.target.closest("[data-copy]");
             if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); cp.classList.add("copied"); } catch (_) { /* без буфера */ } }
             if (e.target.closest("[data-carrier-card], [data-carrier-code]")) hidePop();
         });
-        document.addEventListener("mousedown", (e) => { if (!e.target.closest("#nbPop, .nb-carrier")) hidePop(); });
-        document.querySelector(".nb-scroll").addEventListener("scroll", hidePop, { passive: true });
+        // клік поза віконцем — зберігаємо, якщо щось змінили
+        document.addEventListener("mousedown", (e) => {
+            if ($("#nbPop").classList.contains("hidden") || e.target.closest("#nbPop")) return;
+            if (e.target.closest(".nb-carrier")) { savePop(false); return; }
+            savePop(false);
+        });
+        $("#nbPop").addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && (e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey)) { e.preventDefault(); savePop(false); }
+        });
+
         $("#nbAdd").addEventListener("click", () => open(null));
         $("#nbList").addEventListener("dblclick", (e) => {
             const m = e.target.closest("[data-edit]");
@@ -420,7 +460,7 @@ const NB = (() => {
         });
         document.addEventListener("keydown", (e) => {
             if (e.key !== "Escape") return;
-            if (!$("#nbPop").classList.contains("hidden")) hidePop();
+            if (!$("#nbPop").classList.contains("hidden")) { POP = null; hidePop(); }
             else if (!$("#nbModal").classList.contains("hidden")) close();
         });
         $("#nbImport").addEventListener("change", (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importCsv(f); });
