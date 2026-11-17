@@ -43,7 +43,9 @@ const NB = (() => {
 
     let ROWS = [];
     let me = null;
-    const st = { q: "", status: "", shown: PAGE };
+    const st = { q: "", status: "", dir: "", truck: "", has: "", period: "", sort: "upd", shown: PAGE };
+    const dt = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+    const keyC = (c) => [c.id || "", c.name || "", c.edrpou || ""].join("|");
     let editing = null;
 
     /* ---------- завантаження ---------- */
@@ -73,22 +75,48 @@ const NB = (() => {
     }
     function filtered() {
         const words = norm(st.q).split(" ").filter(Boolean);
-        return ROWS.filter((r) => (!st.status || (st.status === "—" ? !r.status : r.status === st.status)) && words.every((w) => hay(r).includes(w)));
+        const since = st.period ? Date.now() - Number(st.period) * 86400000 : 0;
+        const list = ROWS.filter((r) => {
+            const cs = r.carriers || [];
+            if (st.status && (st.status === "—" ? r.status : r.status !== st.status)) return false;
+            if (st.dir && (r.direction || "") !== st.dir) return false;
+            if (st.truck && norm(r.truck) !== st.truck) return false;
+            if (st.has === "with" && !cs.length) return false;
+            if (st.has === "without" && cs.length) return false;
+            if (st.has === "fura" && !cs.some((c) => c.id)) return false;
+            if (since && new Date(r.updated_at || r.created_at).getTime() < since) return false;
+            return words.every((w) => hay(r).includes(w));
+        });
+        const t = (r) => new Date(r.updated_at || r.created_at).getTime();
+        if (st.sort === "old") list.sort((a, b) => t(a) - t(b));
+        else if (st.sort === "many") list.sort((a, b) => (b.carriers || []).length - (a.carriers || []).length || t(b) - t(a));
+        else list.sort((a, b) => t(b) - t(a));
+        return list;
+    }
+    function fillSelects() {
+        const opt = (sel, first, vals) => {
+            const cur = $(sel).value;
+            $(sel).innerHTML = `<option value="">${first}</option>` + vals.map(([v, l, n]) => `<option value="${esc(v)}">${esc(l)} (${n})</option>`).join("");
+            $(sel).value = vals.some(([v]) => v === cur) ? cur : "";
+        };
+        const count = (f) => { const m = new Map(); ROWS.forEach((r) => { const k = f(r); if (k) m.set(k, (m.get(k) || 0) + 1); }); return [...m].sort((a, b) => b[1] - a[1]); };
+        opt("#nbDir", "Усі напрямки", count((r) => (r.direction || "").trim()).map(([k, n]) => [k, k, n]));
+        opt("#nbTruck", "Усі авто", count((r) => norm(r.truck)).map(([k, n]) => [k, k.toUpperCase(), n]));
     }
     function renderChips() {
         const n = (k) => ROWS.filter((r) => (k === "—" ? !r.status : r.status === k)).length;
         const chips = [{ k: "", label: `Усі ${ROWS.length}` }, ...STATUSES.map((s) => ({ k: s.k, label: `${s.k} ${n(s.k)}`, cls: s.cls })), { k: "—", label: `Без статусу ${n("—")}` }];
         $("#nbStatus").innerHTML = chips.map((c) => `<button type="button" class="nb-chip ${c.cls ? "st-" + c.cls : ""} ${st.status === c.k ? "active" : ""}" data-st="${esc(c.k)}">${esc(c.label)}</button>`).join("");
     }
-    function carrierHtml(c) {
+    function carrierHtml(c, i) {
         const name = esc(c.name || "Перевізник");
-        const nameEl = c.id ? `<a href="#" class="nb-cname" data-carrier-card="${esc(c.id)}">${name}</a>`
-            : c.edrpou ? `<a href="#" class="nb-cname" data-carrier-code="${esc(c.edrpou)}">${name}</a>` : `<span class="nb-cname">${name}</span>`;
-        return `<div class="nb-carrier">
+        const nameEl = `<span class="nb-cname">${c.id ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${name}</span>`;
+        return `<div class="nb-carrier" data-ci="${i}" title="Натисніть, щоб відкрити">
             ${nameEl}
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
             ${c.price ? `<div class="nb-price">${esc(c.price)}</div>` : ""}
             ${c.note ? `<div class="nb-note">${esc(c.note)}</div>` : ""}
+            ${c.at ? `<div class="nb-cat">${esc(dt(c.at))}</div>` : ""}
         </div>`;
     }
     function rowHtml(r) {
@@ -105,13 +133,14 @@ const NB = (() => {
                 <div class="nb-meta">${r.truck ? `<span class="nb-tag">${esc(r.truck)}</span>` : ""}${r.comment ? `<span>${esc(r.comment)}</span>` : ""}</div>
             </div>
             <div class="nb-carriers">
-                ${cs.map(carrierHtml).join("")}
+                ${cs.map((c, i) => carrierHtml(c, i)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
             </div>
         </div>`;
     }
     function render() {
         renderChips();
+        fillSelects();
         const list = filtered();
         $("#nbCount").textContent = list.length === ROWS.length ? `${ROWS.length} запитів` : `знайдено ${list.length} з ${ROWS.length}`;
         $("#nbList").innerHTML = list.slice(0, st.shown).map(rowHtml).join("") ||
@@ -162,6 +191,15 @@ const NB = (() => {
             price: $(".nb-cprice", d).value.trim(),
             note: $(".nb-cnote", d).value.trim(),
         })).filter((c) => c.name || c.edrpou || c.price || c.note);
+        // час для кожного перевізника: новий або змінений — зараз, без змін — як був
+        const prev = new Map((editing?.carriers || []).map((c) => [keyC(c), c]));
+        const now = new Date().toISOString();
+        row.carriers.forEach((c) => {
+            const p = prev.get(keyC(c)) || (editing?.carriers || []).find((x) => (x.edrpou && x.edrpou === c.edrpou) || (x.name && x.name === c.name));
+            const same = p && p.price === c.price && p.note === c.note && p.name === c.name && p.edrpou === c.edrpou;
+            c.added = p?.added || p?.at || (p ? editing.created_at : now);
+            c.at = same ? (p.at || null) : now;
+        });
         const btn = f.querySelector("[type=submit]");
         btn.disabled = true;
         const q = editing ? sbClient.from("my_requests").update(row).eq("id", editing.id) : sbClient.from("my_requests").insert(row);
@@ -184,6 +222,35 @@ const NB = (() => {
         close();
         render();
     }
+
+    /* ---------- перегляд перевізника в запиті ---------- */
+    function showCarrier(r, i, anchor) {
+        const c = (r.carriers || [])[i];
+        if (!c) return;
+        const pop = $("#nbPop");
+        pop.innerHTML = `
+            <div class="nb-pop-head"><b>${esc(c.name || "Перевізник")}</b><button type="button" class="nb-x" data-pclose>&times;</button></div>
+            <div class="nb-pop-req">${esc(r.addresses || "")}${r.cargo ? ` · ${esc(r.cargo)}` : ""}</div>
+            <div class="nb-pop-grid">
+                ${c.edrpou ? `<span>ЄДРПОУ</span><b><button type="button" class="nb-code" data-copy="${esc(c.edrpou)}">${esc(c.edrpou)} <i class="bx bx-copy"></i></button></b>` : ""}
+                ${c.price ? `<span>Ціна</span><b class="nb-price">${esc(c.price)}</b>` : ""}
+                <span>Додано</span><b>${esc(dt(c.added || r.created_at || r.updated_at))}</b>
+                ${c.at ? `<span>Змінено</span><b>${esc(dt(c.at))}</b>` : ""}
+            </div>
+            <div class="nb-pop-note">${c.note ? esc(c.note) : '<span class="nb-muted">Нотатки немає</span>'}</div>
+            <div class="nb-pop-foot">
+                ${c.id ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-card="${esc(c.id)}">Картка у FURA</a>` : c.edrpou ? `<a href="#" class="nb-btn nb-btn-ghost" data-carrier-code="${esc(c.edrpou)}">Знайти у FURA</a>` : ""}
+                <button type="button" class="nb-btn" data-pedit="${esc(r.id)}">Змінити</button>
+            </div>`;
+        pop.classList.remove("hidden");
+        const b = anchor.getBoundingClientRect();
+        const w = Math.min(380, innerWidth - 24);
+        pop.style.width = w + "px";
+        pop.style.left = Math.max(12, Math.min(b.left, innerWidth - w - 12)) + "px";
+        const h = pop.offsetHeight;
+        pop.style.top = (b.bottom + h + 8 < innerHeight ? b.bottom + 6 : Math.max(12, b.top - h - 6)) + "px";
+    }
+    const hidePop = () => $("#nbPop").classList.add("hidden");
 
     /* ---------- підказки перевізників з FURA ---------- */
     let sugT = 0;
@@ -275,6 +342,24 @@ const NB = (() => {
             render();
         });
         $("#nbMore").addEventListener("click", () => { st.shown += PAGE; render(); });
+        [["#nbDir", "dir"], ["#nbTruck", "truck"], ["#nbHas", "has"], ["#nbPeriod", "period"], ["#nbSort", "sort"]].forEach(([sel, k]) =>
+            $(sel).addEventListener("change", (e) => { st[k] = e.target.value; st.shown = PAGE; render(); }));
+        $("#nbReset").addEventListener("click", () => {
+            Object.assign(st, { q: "", status: "", dir: "", truck: "", has: "", period: "", sort: "upd", shown: PAGE });
+            ["#nbQ", "#nbDir", "#nbTruck", "#nbHas", "#nbPeriod"].forEach((s) => ($(s).value = ""));
+            $("#nbSort").value = "upd";
+            render();
+        });
+        $("#nbPop").addEventListener("click", async (e) => {
+            if (e.target.closest("[data-pclose]")) return hidePop();
+            const ed = e.target.closest("[data-pedit]");
+            if (ed) { hidePop(); open(ROWS.find((r) => r.id === ed.dataset.pedit)); return; }
+            const cp = e.target.closest("[data-copy]");
+            if (cp) { try { await navigator.clipboard.writeText(cp.dataset.copy); cp.classList.add("copied"); } catch (_) { /* без буфера */ } }
+            if (e.target.closest("[data-carrier-card], [data-carrier-code]")) hidePop();
+        });
+        document.addEventListener("mousedown", (e) => { if (!e.target.closest("#nbPop, .nb-carrier")) hidePop(); });
+        document.querySelector(".nb-scroll").addEventListener("scroll", hidePop, { passive: true });
         $("#nbAdd").addEventListener("click", () => open(null));
         $("#nbList").addEventListener("dblclick", (e) => {
             const m = e.target.closest("[data-edit]");
@@ -284,6 +369,12 @@ const NB = (() => {
             const cp = e.target.closest("[data-copy]");
             if (cp) {
                 try { await navigator.clipboard.writeText(cp.dataset.copy); cp.classList.add("copied"); setTimeout(() => cp.classList.remove("copied"), 900); } catch (_) { /* без буфера */ }
+                return;
+            }
+            const ch = e.target.closest(".nb-carrier");
+            if (ch) {
+                const r = ROWS.find((x) => x.id === ch.closest(".nb-row").dataset.id);
+                if (r) showCarrier(r, Number(ch.dataset.ci), ch);
                 return;
             }
             const add = e.target.closest("[data-addc]");
@@ -314,7 +405,11 @@ const NB = (() => {
         $("#nbModal").addEventListener("focusout", (e) => {
             if (e.target.classList.contains("nb-cin")) setTimeout(() => e.target.parentElement.querySelector(".nb-sugg")?.classList.add("hidden"), 200);
         });
-        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#nbModal").classList.contains("hidden")) close(); });
+        document.addEventListener("keydown", (e) => {
+            if (e.key !== "Escape") return;
+            if (!$("#nbPop").classList.contains("hidden")) hidePop();
+            else if (!$("#nbModal").classList.contains("hidden")) close();
+        });
         $("#nbImport").addEventListener("change", (e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) importCsv(f); });
         document.body.style.visibility = "visible";
         load();

@@ -94,3 +94,28 @@ a.nb-cname:hover { color: #a8781f; text-decoration: underline; }
     .nb-dialog { border-radius: 0; min-height: 100%; }
     .nb-count { margin-left: 0; width: 100%; }
 }
+
+/* прокрутка, фільтри, перегляд перевізника */
+.nb-page { display: flex; flex-direction: column; }
+.nb-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 110px; margin: 0 -6px; padding-left: 6px; padding-right: 6px; }
+.nb-sel { height: 40px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; font: inherit; font-size: 13px; color: #374151; max-width: 200px; cursor: pointer; }
+.nb-sel:focus { outline: none; border-color: #d9a944; }
+.nb-toolbar2 { margin-top: -4px; }
+.nb-carrier { cursor: pointer; transition: border-color .12s, box-shadow .12s, transform .12s; }
+.nb-carrier:hover { border-color: #d9a944; box-shadow: 0 4px 12px rgba(201, 151, 58, .18); transform: translateY(-1px); }
+.nb-carrier .nb-note { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.nb-infura { color: #16a34a; font-size: 14px; vertical-align: -2px; }
+.nb-cat { margin-top: auto; font-size: 11px; color: #9ca3af; }
+.nb-pop { position: fixed; z-index: 100001; background: #fff; border: 1px solid #eadfc4; border-radius: 14px; padding: 14px 16px; box-shadow: 0 18px 40px rgba(0, 0, 0, .18); }
+.nb-pop-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; font-size: 15px; }
+.nb-pop-req { font-size: 12px; color: #6b7280; margin: 2px 0 10px; }
+.nb-pop-grid { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.nb-pop-grid > span { color: #6b7280; }
+.nb-pop-note { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: #fbf8f1; font-size: 13px; line-height: 1.45; white-space: pre-wrap; max-height: 220px; overflow-y: auto; }
+.nb-muted { color: #9ca3af; }
+.nb-pop-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.nb-pop-foot .nb-btn { height: 34px; text-decoration: none; }
+@media (max-width: 900px) {
+    .nb-sel { flex: 1 1 45%; max-width: none; }
+    .nb-pop { left: 12px !important; right: 12px; width: auto !important; }
+}
