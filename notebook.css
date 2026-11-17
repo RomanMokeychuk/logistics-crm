@@ -248,3 +248,6 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-qcl { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 0 4px; }
 .nb-qcl em { font-style: normal; color: #9ca3af; font-size: 11px; }
 .nb-qs .nb-more { margin-top: 10px; }
+.nb-qgo { display: flex; align-items: center; gap: 12px; margin: 4px 0 10px; }
+.nb-qgo .nb-btn:disabled { opacity: .5; cursor: default; }
+.nb-qdirty { color: #b45309; font-size: 13px; font-weight: 600; }

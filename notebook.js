@@ -440,7 +440,7 @@ const NB = (() => {
     const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
     async function openQueueSuggest(r) {
         st.sugFor = st.sugFor === r.id ? "" : r.id;
-        QS.r = r; QS.list = null; QS.err = "";
+        QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick";
         if (!st.sugFor) return render();
         st.focus = r.id;
         render();
@@ -457,12 +457,21 @@ const NB = (() => {
             // усі пункти пропуску — щоб ви могли обрати свої
             const { data: cps } = await sbClient.from("echerha_checkpoints").select("name, country, in_queue, qtype").order("in_queue", { ascending: false });
             QS.allCps = (cps || []).filter((c) => c.name && c.name !== "—");
-            QS.cps = new Set(QS.allCps.filter((c) => via.includes(c.country)).map((c) => c.name));
-            await qReload(r);
+            // останній ваш вибір пунктів (для цієї країни завантаження); спершу — нічого не вантажимо
+            let saved = null;
+            try { saved = JSON.parse(localStorage.getItem("fura_nb_qcps_" + cc) || "null"); } catch (_) { saved = null; }
+            const names = new Set(QS.allCps.map((c) => c.name));
+            QS.cps = new Set((saved || []).filter((n) => names.has(n)));
+            QS.cc = cc;
+            QS.stage = "pick";
+            QS.dirty = false;
         } catch (e) { QS.err = "Не вдалося завантажити Чергу: " + e.message; QS.list = []; }
         if (st.sugFor === r.id) render();
     }
     async function qReload(r) {
+        QS.stage = "ready";
+        QS.dirty = false;
+        try { localStorage.setItem("fura_nb_qcps_" + QS.cc, JSON.stringify([...QS.cps])); } catch (_) { /* без пам'яті */ }
         QS.list = null;
         render();
         {
@@ -492,9 +501,28 @@ const NB = (() => {
         }
         if (st.sugFor === r.id) render();
     }
+    function cpsBlock() {
+        // пункти пропуску — по країнах, з галочками
+        const byC = new Map();
+        (QS.allCps || []).forEach((c) => (byC.get(c.country) || byC.set(c.country, []).get(c.country)).push(c));
+        const short = (n) => String(n).replace(/\s*\((для )?/, " (").replace(/вантажівок/g, "ваг.").replace(/\.\s*Товари 1-24 групи УКТЗЕД/, " · 1-24 УКТЗЕД");
+        const cpsHtml = [...byC].map(([country, list]) => {
+            const on = list.filter((c) => QS.cps.has(c.name)).length;
+            return `<details class="nb-qc"${on || (QS.via || []).includes(country) ? " open" : ""}><summary><b>${esc(country || "Інше")}</b> <span class="nb-muted">${on}/${list.length}</span>
+                    <button type="button" class="nb-link" data-qcall="${esc(country)}">${on === list.length ? "зняти всі" : "усі"}</button></summary>
+                <div class="nb-qcl">${list.map((c) => `<label class="nb-qopt"><input type="checkbox" data-qcp="${esc(c.name)}" ${QS.cps.has(c.name) ? "checked" : ""}/> ${esc(short(c.name))} <em>${c.in_queue || 0}</em></label>`).join("")}</div></details>`;
+        }).join("");
+        const n = QS.cps.size;
+        return `<div class="nb-qcps"><span class="nb-muted">1. Оберіть пункти пропуску:</span>${cpsHtml}</div>
+            <div class="nb-qgo"><button type="button" class="nb-btn" data-qgo ${n ? "" : "disabled"}>${QS.list && !QS.dirty ? "🔄 Оновити" : "2. Показати машини"}${n ? ` (пунктів: ${n})` : ""}</button>
+            ${QS.dirty && QS.list ? '<span class="nb-qdirty">пункти змінено — натисніть, щоб оновити список</span>' : ""}${!n ? '<span class="nb-muted">поставте галочки біля потрібних пунктів</span>' : ""}</div>`;
+    }
     function queueSuggestHtml(r) {
-        if (!QS.list) return `<div class="nb-qs"><div class="nb-muted">🚦 Шукаю машини в Черзі…</div></div>`;
         if (QS.err) return `<div class="nb-qs"><div class="nb-muted">🚦 ${esc(QS.err)}</div></div>`;
+        const head = `<div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b></div>`;
+        if (!QS.allCps) return `<div class="nb-qs">${head}<div class="nb-muted">Завантажую пункти пропуску…</div></div>`;
+        if (QS.stage === "pick") return `<div class="nb-qs">${head}${cpsBlock()}</div>`;
+        if (!QS.list) return `<div class="nb-qs">${head}${cpsBlock()}<div class="nb-muted">🚦 Шукаю машини в Черзі…</div></div>`;
         const o = QS.opt, now = Date.now(), want = o.body ? bodyWant(r.truck) : null;
         const added = new Set((r.carriers || []).map((c) => qKey(c.edrpou)));
         const items = QS.list.map((trucks) => {
@@ -518,20 +546,10 @@ const NB = (() => {
         }).filter(Boolean).sort((a, b) => b.score - a.score);
         const total = items.length, trucksN = items.reduce((n, it) => n + it.trucks.length, 0);
         items.length = Math.min(items.length, QS.shown || 60);
-        // пункти пропуску — по країнах, з галочками
-        const byC = new Map();
-        (QS.allCps || []).forEach((c) => (byC.get(c.country) || byC.set(c.country, []).get(c.country)).push(c));
-        const short = (n) => String(n).replace(/\s*\((для )?/, " (").replace(/вантажівок/g, "ваг.").replace(/\.\s*Товари 1-24 групи УКТЗЕД/, " · 1-24 УКТЗЕД");
-        const cpsHtml = [...byC].map(([country, list]) => {
-            const on = list.filter((c) => QS.cps.has(c.name)).length;
-            return `<details class="nb-qc"${on ? " open" : ""}><summary><b>${esc(country || "Інше")}</b> <span class="nb-muted">${on}/${list.length}</span>
-                    <button type="button" class="nb-link" data-qcall="${esc(country)}">${on === list.length ? "зняти всі" : "усі"}</button></summary>
-                <div class="nb-qcl">${list.map((c) => `<label class="nb-qopt"><input type="checkbox" data-qcp="${esc(c.name)}" ${QS.cps.has(c.name) ? "checked" : ""}/> ${esc(short(c.name))} <em>${c.in_queue || 0}</em></label>`).join("")}</div></details>`;
-        }).join("");
         const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
             <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
-            <div class="nb-qcps"><span class="nb-muted">Пункти пропуску:</span>${cpsHtml}</div>
+            ${cpsBlock()}
             <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}${tg("fura", "лише є у FURA")}</div>
             <div class="nb-qlist">${items.map((it) => {
                 const x = it.trucks[0];
@@ -1084,9 +1102,11 @@ const NB = (() => {
                 const list = QS.allCps.filter((c) => c.country === qall.dataset.qcall);
                 const allOn = list.every((c) => QS.cps.has(c.name));
                 list.forEach((c) => (allOn ? QS.cps.delete(c.name) : QS.cps.add(c.name)));
-                qReload(QS.r);
+                QS.dirty = true;
+                render();
                 return;
             }
+            if (e.target.closest("[data-qgo]")) { QS.shown = 60; qReload(QS.r); return; }
             if (e.target.closest("[data-qmore]")) { QS.shown = (QS.shown || 60) + 60; render(); return; }
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
             const qa = e.target.closest("[data-qadd]");
@@ -1098,7 +1118,8 @@ const NB = (() => {
             const cp = e.target.dataset?.qcp;
             if (cp) {
                 if (e.target.checked) QS.cps.add(cp); else QS.cps.delete(cp);
-                qReload(QS.r);
+                QS.dirty = true;
+                render();
                 return;
             }
             const k = e.target.dataset?.qopt;
