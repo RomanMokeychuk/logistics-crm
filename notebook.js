@@ -43,7 +43,7 @@ const NB = (() => {
 
     let ROWS = [];
     let me = null;
-    const st = { focus: "", q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), region: new Set(), city: new Set(), side: "any", period: "", sort: "upd", shown: PAGE };
+    const st = { sugFor: "", focus: "", q: "", status: new Set(), dir: new Set(), truck: new Set(), has: new Set(), region: new Set(), city: new Set(), side: "any", period: "", sort: "upd", shown: PAGE };
     const dt = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
     const keyC = (c) => [c.id || "", c.name || "", c.edrpou || ""].join("|");
     let editing = null;
@@ -389,8 +389,149 @@ const NB = (() => {
             <div class="nb-carriers">
                 ${cs.map((c, i) => carrierHtml(c, i)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
+                <button type="button" class="nb-addc nb-qbtn${st.sugFor === r.id ? " on" : ""}" data-qsug title="Машини, що зараз у черзі на виїзд або щойно пройшли кордон у бік завантаження">🚦<span>з черги</span></button>
             </div>
+            ${st.sugFor === r.id ? queueSuggestHtml(r) : ""}
         </div>`;
+    }
+
+    /* ---------- Підбір машин з «Черги»: хто зараз їде або щойно виїхав у бік завантаження ---------- */
+    // через які кордони їдуть у країну завантаження
+    const VIA = { pl: ["Польща"], de: ["Польща"], nl: ["Польща"], be: ["Польща"], fr: ["Польща"], dk: ["Польща"], lt: ["Польща"], lv: ["Польща"], ee: ["Польща"],
+        cz: ["Польща", "Словаччина"], sk: ["Словаччина", "Угорщина"], hu: ["Угорщина", "Словаччина"], at: ["Угорщина", "Словаччина"], it: ["Угорщина", "Словаччина"],
+        ch: ["Угорщина", "Словаччина"], si: ["Угорщина"], hr: ["Угорщина"], rs: ["Угорщина", "Румунія"], ro: ["Румунія"], bg: ["Румунія", "Молдова"], gr: ["Румунія"],
+        md: ["Молдова"], tr: ["Румунія"], es: ["Польща"], pt: ["Польща"], lu: ["Польща"], se: ["Польща"], no: ["Польща"], fi: ["Польща"], gb: ["Польща"], ie: ["Польща"] };
+    const QCACHE = new Map(); // країна кордону → { at, rows }
+    const QS = { opt: { empty: true, loaded: true, passed: true, waiting: true, body: true, fura: false } };
+    const loadCc = (r) => (placesOf(r).find((p) => p.side === "from") ? geoOf(placesOf(r).find((p) => p.side === "from")).cc : "") || (CC[norm(String(r.direction || "").split(/\s*[-–—]\s*/)[0])] || "");
+    const bodyWant = (truck) => {
+        const t = norm(truck);
+        if (/реф|ref|холод|ізотерм/.test(t)) return /реф|холод|ізотерм|ref/;
+        if (/тент|штор|шторк/.test(t)) return /тент|штор|curtain/;
+        if (/платф|відкр/.test(t)) return /платф|відкр|бортов/;
+        if (/конт/.test(t)) return /конт/;
+        return null;
+    };
+    async function loadQueue(countries) {
+        const { data: sync } = await sbClient.from("echerha_sync").select("sync_id, synced_at").eq("id", 1).maybeSingle();
+        if (!sync?.sync_id) return [];
+        const out = [];
+        for (const c of countries) {
+            const hit = QCACHE.get(c);
+            if (hit && hit.sync === sync.sync_id) { out.push(...hit.rows); continue; }
+            const rows = [];
+            for (let from = 0; from < 20000; from += 1000) {
+                const { data, error } = await sbClient.from("echerha_queue")
+                    .select("checkpoint, country, qtype, entry_at, reg_at, tractor, trailer, carrier, edrpou, trailer_body, note, ua")
+                    .eq("sync_id", sync.sync_id).eq("country", c).range(from, from + 999);
+                if (error || !data) break;
+                rows.push(...data);
+                if (data.length < 1000) break;
+            }
+            QCACHE.set(c, { sync: sync.sync_id, rows });
+            out.push(...rows);
+        }
+        return out;
+    }
+    const entryT = (v) => { const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]).getTime() : 0; };
+    const fmtE = (v) => { const m = String(v || "").match(/^\d{4}-(\d{2})-(\d{2})[ T](\d{1,2}:\d{2})/); return m ? `${m[2]}.${m[1]} ${m[3]}` : String(v || ""); };
+    const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
+    async function openQueueSuggest(r) {
+        st.sugFor = st.sugFor === r.id ? "" : r.id;
+        QS.r = r; QS.list = null; QS.err = "";
+        if (!st.sugFor) return render();
+        st.focus = r.id;
+        render();
+        const cc = loadCc(r);
+        const via = VIA[cc];
+        if (!cc || cc === "ua" || !via) {
+            QS.err = cc === "ua" ? "Завантаження в Україні — черга на виїзд тут не допоможе." : "Не зрозумів країну завантаження. Вкажіть «Напрямок», напр. «Польща - Україна».";
+            QS.list = [];
+            return render();
+        }
+        QS.via = via;
+        try {
+            const rows = await loadQueue(via);
+            // групуємо по перевізнику
+            const by = new Map();
+            rows.filter((x) => x.ua !== false && x.edrpou).forEach((x) => {
+                const k = String(x.edrpou).replace(/^0+/, "");
+                (by.get(k) || by.set(k, []).get(k)).push(x);
+            });
+            QS.list = [...by.values()];
+            // хто з них уже є у FURA
+            const codes = [...by.keys()];
+            const variants = [...new Set(codes.flatMap((c) => [c, c.padStart(8, "0")]))];
+            for (let i = 0; i < variants.length; i += 300) {
+                const { data } = await sbClient.from("carriers").select("edrpou").in("edrpou", variants.slice(i, i + 300));
+                (data || []).forEach((c) => FURA_CODES.add(qKey(c.edrpou)));
+            }
+        } catch (e) { QS.err = "Не вдалося завантажити Чергу: " + e.message; QS.list = []; }
+        if (st.sugFor === r.id) render();
+    }
+    function queueSuggestHtml(r) {
+        if (!QS.list) return `<div class="nb-qs"><div class="nb-muted">🚦 Шукаю машини в Черзі…</div></div>`;
+        if (QS.err) return `<div class="nb-qs"><div class="nb-muted">🚦 ${esc(QS.err)}</div></div>`;
+        const o = QS.opt, now = Date.now(), want = o.body ? bodyWant(r.truck) : null;
+        const added = new Set((r.carriers || []).map((c) => qKey(c.edrpou)));
+        const items = QS.list.map((trucks) => {
+            const ok = trucks.filter((x) => {
+                const empty = isEmptyQ(x);
+                if (!o.empty && empty) return false;
+                if (!o.loaded && !empty) return false;
+                const t = entryT(x.entry_at), passed = t && now - t > 3 * 3600 * 1000;
+                if (!o.passed && passed) return false;
+                if (!o.waiting && !passed) return false;
+                if (passed && now - t > 3 * 86400000) return false; // проїхали давніше 3 днів — вже не актуально
+                if (want && x.trailer_body && !want.test(norm(x.trailer_body))) return false;
+                return true;
+            });
+            if (!ok.length) return null;
+            const code = qKey(ok[0].edrpou);
+            const inFura = [...LINKS.values()].some((l) => qKey(l.edrpou) === code) || FURA_CODES.has(code);
+            if (o.fura && !inFura) return null;
+            const score = (inFura ? 1000 : 0) + ok.filter(isEmptyQ).length * 50 + ok.length;
+            return { trucks: ok, code, inFura, score, added: added.has(code) };
+        }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 60);
+        const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
+        return `<div class="nb-qs">
+            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">через кордон: ${esc(QS.via.join(", "))} · знайдено перевізників: ${items.length}</span></div>
+            <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}${tg("fura", "лише є у FURA")}</div>
+            <div class="nb-qlist">${items.map((it) => {
+                const x = it.trucks[0];
+                const lines = it.trucks.slice(0, 3).map((t) => {
+                    const tt = entryT(t.entry_at), passed = tt && now - tt > 3 * 3600 * 1000;
+                    return `<div class="nb-qtr"><b>${esc(t.tractor || "")}</b> ${isEmptyQ(t) ? '<span class="nb-qe">порожня</span>' : '<span class="nb-ql">з вантажем</span>'} · ${esc(String(t.checkpoint || "").split("(")[0].replace(/\.\s*Товари.*$/, "").trim())} · ${passed ? `пройшла ~${esc(fmtE(t.entry_at))}` : `в'їзд ${esc(fmtE(t.entry_at))}`}${t.trailer_body ? ` · ${esc(t.trailer_body)}` : ""}</div>`;
+                }).join("");
+                return `<div class="nb-qitem">
+                    <div class="nb-qn">${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}<b>${esc(x.carrier || "—")}</b> <span class="nb-muted">${esc(x.edrpou)} · машин: ${it.trucks.length}</span></div>
+                    ${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}
+                    <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
+                </div>`;
+            }).join("") || '<div class="nb-muted">Нікого не знайшов — спробуйте зняти частину галочок.</div>'}</div>
+        </div>`;
+    }
+    let FURA_CODES = new Set();
+    async function addFromQueue(r, code) {
+        const grp = (QS.list || []).find((g) => qKey(g[0].edrpou) === code);
+        if (!grp) return;
+        const x = grp[0];
+        let id = null, contacts = [];
+        const { data } = await sbClient.from("carriers").select("id, contact_person_1, phone_1, contact_person_2, phone_2").or(`edrpou.eq.${x.edrpou},edrpou.eq.${code}`).limit(1);
+        if (data?.[0]) {
+            id = data[0].id;
+            contacts = [[data[0].contact_person_1, data[0].phone_1], [data[0].contact_person_2, data[0].phone_2]].filter(([n, p]) => n || p).map(([n, p]) => ({ name: n || "", phone: p || "" }));
+        }
+        const now = new Date().toISOString();
+        const note = "з Черги: " + grp.slice(0, 3).map((t) => `${t.tractor} ${isEmptyQ(t) ? "(порожня)" : ""} ${String(t.checkpoint || "").split(" (")[0]} ${fmtE(t.entry_at)}`.replace(/\s+/g, " ").trim()).join("; ");
+        const list = [...(r.carriers || []), { id, name: x.carrier || x.edrpou, edrpou: String(x.edrpou), price: "", note, contacts, added: now, at: now }];
+        const { data: upd, error } = await sbClient.from("my_requests").update({ carriers: list }).eq("id", r.id).select("*");
+        if (error) { alert(error.message); return; }
+        const saved = { ...(upd?.[0]?.id === r.id ? upd[0] : r), carriers: list };
+        ROWS = ROWS.map((y) => (y.id === r.id ? saved : y));
+        QS.r = saved;
+        render();
+        loadLinks().then(render).catch(() => {});
     }
     function render() {
         renderChips();
@@ -896,8 +1037,17 @@ const NB = (() => {
                 if (r) showCarrier(r, Number(ch.dataset.ci), ch);
                 return;
             }
+            if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
+            const qa = e.target.closest("[data-qadd]");
+            if (qa) { qa.disabled = true; qa.textContent = "Додаю…"; addFromQueue(ROWS.find((r) => r.id === rid), qa.dataset.qadd); return; }
             const add = e.target.closest("[data-addc]");
             if (add) open(ROWS.find((r) => r.id === add.closest(".nb-row").dataset.id), true);
+        });
+        $("#nbList").addEventListener("change", (e) => {
+            const k = e.target.dataset?.qopt;
+            if (!k) return;
+            QS.opt[k] = e.target.checked;
+            render();
         });
         $("#nbForm").addEventListener("submit", save);
         $("#nbDelete").addEventListener("click", remove);

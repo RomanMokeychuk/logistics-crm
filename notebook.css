@@ -222,3 +222,19 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
     display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px; border-radius: 12px; background: #2f3537; color: #fff; font-size: 14px; box-shadow: 0 12px 30px rgba(0, 0, 0, .25); }
 .nb-toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
 .nb-toast button { border: 0; border-radius: 8px; padding: 7px 14px; background: linear-gradient(135deg, #f7dc8c, #d9a944); color: #2b1d06; font: inherit; font-weight: 800; cursor: pointer; }
+/* підбір машин з Черги */
+.nb-qbtn { color: #92400e; border-color: #f5c96b; }
+.nb-qbtn.on { background: #fef3c7; }
+.nb-qbtn span { font-size: 12px; }
+.nb-qs { grid-column: 1 / -1; border-top: 1px dashed #eadfc4; padding: 12px 14px; background: #fffcf3; }
+.nb-qhead { font-size: 14px; margin-bottom: 6px; }
+.nb-qopts { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; font-size: 13px; }
+.nb-qopt { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+.nb-qopt input { accent-color: #c9973a; }
+.nb-qlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; max-height: 520px; overflow-y: auto; }
+.nb-qitem { background: #fff; border: 1px solid #f1ead9; border-radius: 10px; padding: 8px 10px; font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+.nb-qn { font-size: 13px; }
+.nb-qtr { color: #374151; }
+.nb-qe { padding: 0 6px; border-radius: 6px; background: #dcfce7; color: #166534; font-weight: 700; }
+.nb-ql { padding: 0 6px; border-radius: 6px; background: #e0f2fe; color: #075985; font-weight: 700; }
+.nb-qadd { align-self: flex-start; height: 30px; margin-top: 4px; font-size: 13px; }
