@@ -192,3 +192,11 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-ct .nb-code { font-size: 15px; padding: 0 4px; }
 .nb-ctdel { font-size: 20px; padding: 0 4px; }
 .nb-pop { max-height: calc(100vh - 24px); overflow-y: auto; }
+/* телефони — окремий рядок під кожним перевізником у формі */
+.nb-cedit { padding: 8px; border: 1px solid #f1ead9; border-radius: 10px; background: #fffdf7; margin-bottom: 8px; }
+.nb-cedit-cts { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 1px dashed #eadfc4; }
+.nb-cedit-cts .nb-cts-list { display: flex; flex-direction: column; gap: 4px; }
+.nb-cedit-cts .nb-ct { grid-template-columns: 1fr 1fr auto auto; }
+.nb-cedit-cts .nb-ct .nb-pin { border-color: #e5e7eb; background: #fff; padding: 7px 10px; font-size: 14px; }
+.nb-cedit-cts .nb-link { align-self: flex-start; font-size: 13px; }
+.nb-dfoot { display: flex; align-items: center; } .nb-dfoot > span { flex: 1; }

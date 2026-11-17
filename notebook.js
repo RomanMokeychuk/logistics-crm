@@ -398,13 +398,16 @@ const NB = (() => {
         const d = document.createElement("div");
         d.className = "nb-cedit";
         d.dataset.id = c.id || "";
-        d._contacts = c.contacts || [];
         d.innerHTML = `
             <div class="nb-cpick"><input class="nb-cin" placeholder="Перевізник: назва або ЄДРПОУ (з FURA або вручну)" value="${esc(c.name || "")}" /><div class="nb-sugg hidden"></div></div>
             <input class="nb-ccode" placeholder="ЄДРПОУ" value="${esc(c.edrpou || "")}" />
             <input class="nb-cprice" placeholder="Ціна (2200 €)" value="${esc(c.price || "")}" />
-            <input class="nb-cnote" placeholder="Нотатка: коли може, контакт…" value="${esc(c.note || "")}" />
-            <button type="button" class="nb-x nb-cdel" title="Прибрати">&times;</button>`;
+            <input class="nb-cnote" placeholder="Нотатка: коли може, умови…" value="${esc(c.note || "")}" />
+            <button type="button" class="nb-x nb-cdel" title="Прибрати перевізника">&times;</button>
+            <div class="nb-cedit-cts">
+                <div class="nb-cts-list">${(c.contacts?.length ? c.contacts : [{}]).map(ctRow).join("")}</div>
+                <button type="button" class="nb-link" data-addct><i class="bx bx-plus"></i> ще телефон</button>
+            </div>`;
         $("#nbCarriers").appendChild(d);
         return d;
     }
@@ -436,7 +439,10 @@ const NB = (() => {
             edrpou: $(".nb-ccode", d).value.replace(/\D/g, ""),
             price: $(".nb-cprice", d).value.trim(),
             note: $(".nb-cnote", d).value.trim(),
-            contacts: d._contacts || [],
+            contacts: [...d.querySelectorAll(".nb-ct")].map((el) => ({
+                name: el.querySelector('[data-ct="name"]').value.trim(),
+                phone: el.querySelector('[data-ct="phone"]').value.trim(),
+            })).filter((k) => k.name || k.phone),
         })).filter((c) => c.name || c.edrpou || c.price || c.note);
         // час для кожного перевізника: новий або змінений — зараз, без змін — як був
         const prev = new Map((editing?.carriers || []).map((c) => [keyC(c), c]));
@@ -768,8 +774,21 @@ const NB = (() => {
         $("#nbForm").addEventListener("submit", save);
         $("#nbDelete").addEventListener("click", remove);
         $("#nbAddCarrier").addEventListener("click", () => $(".nb-cin", carrierEditor()).focus());
-        $("#nbModal").addEventListener("click", (e) => {
+        $("#nbModal").addEventListener("click", async (e) => {
             if (e.target.id === "nbModal" || e.target.closest("[data-close]")) close();
+            const ac = e.target.closest("[data-addct]");
+            if (ac) {
+                ac.previousElementSibling.insertAdjacentHTML("beforeend", ctRow());
+                [...ac.previousElementSibling.querySelectorAll('[data-ct="name"]')].pop().focus();
+                return;
+            }
+            if (e.target.closest("[data-ctdel]")) { e.target.closest(".nb-ct").remove(); return; }
+            const cc = e.target.closest("[data-ctcopy]");
+            if (cc) {
+                const ph = cc.closest(".nb-ct").querySelector('[data-ct="phone"]').value.trim();
+                if (ph) { try { await navigator.clipboard.writeText(ph); } catch (_) { /* без буфера */ } }
+                return;
+            }
             const del = e.target.closest(".nb-cdel");
             if (del) del.closest(".nb-cedit").remove();
             const s = e.target.closest(".nb-sugg button");
