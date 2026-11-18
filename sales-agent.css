@@ -701,3 +701,20 @@ body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, bo
 .sa-pp-act button:hover { border-color: #d9a944; color: #a8781f; }
 .sa-pp-act button.ok { background: #dcfce7; border-color: #86efac; color: #15803d; }
 @media (hover: none) { .sa-pp-act { opacity: 1; } }
+
+/* ширина колонок пошти — тягнути за межу */
+@media (min-width: 761px) {
+    .sa-mail-grid { position: relative; grid-template-columns: var(--ml-c1, 210px) var(--ml-c2, 380px) minmax(320px, 1fr) !important; }
+    .sa-split { position: absolute; top: 0; bottom: 0; width: 12px; cursor: col-resize; z-index: 3; border-radius: 6px; }
+    .sa-split.s1 { left: calc(var(--ml-c1, 210px) + 1px); }
+    .sa-split.s2 { left: calc(var(--ml-c1, 210px) + 14px + var(--ml-c2, 380px) + 1px); }
+    .sa-split::after { content: ""; position: absolute; left: 5px; top: 40%; height: 48px; width: 3px; border-radius: 3px; background: #e5dcc8; opacity: 0; transition: opacity .15s; }
+    .sa-split:hover::after, .sa-split.on::after { opacity: 1; background: #d9a944; }
+    body.sa-resizing, body.sa-resizing * { cursor: col-resize !important; user-select: none !important; }
+    body.sa-resizing iframe { pointer-events: none; }
+    body.sa-mail-connect .sa-split { display: none; }
+    body.sa-mail-connect .sa-mail-grid { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 760px) { .sa-split { display: none; } }
+.sa-mr-attdl.ok { background: #dcfce7; color: #15803d; }
+.sa-cmp-paste[hidden] { display: none !important; }

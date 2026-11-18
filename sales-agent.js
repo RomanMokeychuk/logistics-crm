@@ -911,7 +911,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("saSig").addEventListener("input", () => { sigShow(true); sigCloudSave(); });
     $("saSigOn").addEventListener("change", () => { sigShow(true); sigCloudSave(); });
     const showFiles = () => {
-        $("saCmpFileList").innerHTML = files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
+        $("saCmpFileList").innerHTML = (typeof loadingFiles !== "undefined" && loadingFiles > 0 ? `<span class="sa-cmp-file">⏳ завантажую файли з листа (${loadingFiles})…</span> ` : "") + files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
     };
     // Чернетка: одразу в браузері + за кілька секунд — у папку «Чернетки» на пошті (видно і в Outlook)
     let draft = { uid: 0, folder: "" }, dirty = false, dT = 0, saving = Promise.resolve();
@@ -1001,6 +1001,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
     });
     sugBox.addEventListener("mousedown", (e) => { const b = e.target.closest("[data-sug]"); if (b) { e.preventDefault(); sugPick(Number(b.dataset.sug)); } });
+    // Файли з інших листів: «Скопіювати файл» у листі → «Вставити скопійовані» тут; при пересиланні — самі
+    $("saCmpFileList").insertAdjacentHTML("beforebegin", '<button type="button" class="btn btn-secondary sa-cmp-paste" id="saCmpPaste" hidden><i class="bx bx-paste"></i> <span></span></button>');
+    const clipList = () => { try { return JSON.parse(localStorage.getItem("fura_mail_fileclip") || "[]"); } catch (_) { return []; } };
+    const pasteShow = () => { const n = clipList().length, b = $("saCmpPaste"); b.hidden = !n; b.querySelector("span").textContent = `Вставити скопійовані (${n})`; };
+    window.addEventListener("fura-fileclip", pasteShow);
+    window.addEventListener("storage", (e) => { if (e.key === "fura_mail_fileclip") pasteShow(); });
+    let loadingFiles = 0;
+    async function addRemote(items) {
+        if (typeof window.furaMailFile !== "function") return toast("Відкрийте сторінку «Пошта», щоб вкладати файли з листів", true);
+        loadingFiles += items.length; showFiles();
+        for (const it of items) {
+            try { const f = await window.furaMailFile(it); if (!files.some((x) => x.name === f.name && x.size === f.size)) files.push(f); }
+            catch (er) { toast(`Файл «${it.name}» не вдалося взяти: ${er.message}`, true); }
+            loadingFiles--; showFiles();
+        }
+    }
+    $("saCmpPaste").addEventListener("click", async () => {
+        const items = clipList();
+        try { localStorage.removeItem("fura_mail_fileclip"); } catch (_) { /* */ }
+        pasteShow();
+        await addRemote(items);
+    });
     let inReplyTo = "";
     // Попередній лист (відповідь / пересилання) — не в тексті, а окремо під підписом, як в Outlook
     let qText = "";
@@ -1137,8 +1159,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
         files = [...addFiles];
         showFiles();
+        if (Array.isArray(pre.remote) && pre.remote.length) addRemote(pre.remote); // пересилання — з файлами
         $("saCmpFrom").textContent = status?.mail_box || status?.from ? `від ${status.mail_box || status.from}` : "";
         sigFill();
+        pasteShow();
         box.classList.remove("hidden");
         setMode(false, false);
         document.body.classList.add("sa-cmp-open");
@@ -1200,6 +1224,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     form.addEventListener("submit", (e) => {
         e.preventDefault();
         const btn = form.querySelector("[type=submit]");
+        if (loadingFiles > 0) return toast("Зачекайте — ще завантажуються файли з листа", true);
         ["to", "cc", "bcc"].forEach((k) => form[k].dispatchEvent(new Event("blur")));
         withBusy(btn, async () => {
             const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
@@ -1249,6 +1274,34 @@ document.addEventListener("DOMContentLoaded", async () => {
         let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
         return `<span class="sa-av" style="background:${AV[h % AV.length]}">${escapeHtml(ini)}</span>`;
     }
+    /* ---------- Ширина колонок (папки · список · лист): тягніть за межу між ними; подвійний клік — як було ---------- */
+    (() => {
+        const grid = document.querySelector(".sa-mail-grid"); if (!grid) return;
+        const KEY = "fura_mail_cols", DEF = { c1: 210, c2: 380 };
+        let cols = { ...DEF }; try { cols = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (_) { /* */ }
+        const apply = () => { grid.style.setProperty("--ml-c1", cols.c1 + "px"); grid.style.setProperty("--ml-c2", cols.c2 + "px"); };
+        apply();
+        grid.insertAdjacentHTML("beforeend", '<div class="sa-split s1" data-split="c1" title="Тягніть, щоб змінити ширину. Подвійний клік — як було"></div><div class="sa-split s2" data-split="c2" title="Тягніть, щоб змінити ширину. Подвійний клік — як було"></div>');
+        grid.addEventListener("pointerdown", (e) => {
+            const h = e.target.closest("[data-split]"); if (!h || e.button !== 0) return;
+            e.preventDefault();
+            const k = h.dataset.split, x0 = e.clientX, v0 = cols[k], W = grid.getBoundingClientRect().width;
+            h.setPointerCapture?.(e.pointerId); document.body.classList.add("sa-resizing"); h.classList.add("on");
+            const mv = (ev) => {
+                const other = k === "c1" ? cols.c2 : cols.c1;
+                cols[k] = Math.round(Math.max(k === "c1" ? 140 : 260, Math.min(v0 + ev.clientX - x0, W - other - 28 - 340)));
+                apply();
+            };
+            const up = () => {
+                h.removeEventListener("pointermove", mv); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up);
+                document.body.classList.remove("sa-resizing"); h.classList.remove("on");
+                try { localStorage.setItem(KEY, JSON.stringify(cols)); } catch (_) { /* */ }
+            };
+            h.addEventListener("pointermove", mv); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+        });
+        grid.addEventListener("dblclick", (e) => { const h = e.target.closest("[data-split]"); if (!h) return; cols[h.dataset.split] = DEF[h.dataset.split]; apply(); try { localStorage.setItem(KEY, JSON.stringify(cols)); } catch (_) { /* */ } });
+    })();
+
     /* ---------- Телефон: список і лист — по черзі на весь екран, «← Назад» повертає до списку ---------- */
     const mob = () => matchMedia("(max-width: 760px)").matches;
     $("mlRead").insertAdjacentHTML("beforebegin", '<button type="button" class="sa-mr-back" id="mlBack"><i class="bx bx-chevron-left"></i> <span>Назад</span></button>');
@@ -1416,7 +1469,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ${m.cc ? `<div class="sa-mr-line"><span class="sa-mr-lbl">Копія:</span> ${people(m.cc)}</div>` : ""}
                 <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
             </div>
-            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
+            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
         const fr = $("mlRead").querySelector(".sa-mr-body");
@@ -1475,7 +1528,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             const others = kind === "replyall" ? [m.to, m.cc].join(",").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)?.filter((x) => !mine.includes(x.toLowerCase())) || [] : [];
             return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: "", quote: quote(m).trim(), in_reply_to: m.message_id });
         }
-        if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: "", quote: quote(m).trim().replace("Вихідне повідомлення", "Переслане повідомлення") });
+        if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: "", quote: quote(m).trim().replace("Вихідне повідомлення", "Переслане повідомлення"),
+            remote: (m.attachments || []).map((a) => ({ fp: m.fp, uid: m.uid, part: a.part, name: a.name, type: a.type, size: a.size })) });
         if (kind === "book") return openBook(guessContact(m));
         if (kind === "unread") {
             await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, flag: "unseen" }));
@@ -1592,11 +1646,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");
         if (a) await withBusy(a, () => preview(Number(a.dataset.att)));
+        const acp = e.target.closest("[data-attcp]");
+        if (acp) { clipAdd(ML.open, Number(acp.dataset.attcp)); acp.classList.add("ok"); setTimeout(() => acp.classList.remove("ok"), 1200); return; }
         const dl = e.target.closest("[data-attdl]");
         if (dl) await withBusy(dl, async () => download(await fileOf(ML.open, Number(dl.dataset.attdl))));
     });
     let qT = 0;
-    $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { ML.q = e.target.value.trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
+    $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => {
+        // «Alla Alla <agmtorg1@gmail.com>» — шукаємо за e-mail
+        const v = e.target.value.trim();
+        ML.q = (v.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [])[0] || v.replace(/["'<>«»]/g, " ").replace(/\s+/g, " ").trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
     $("mlRefresh").addEventListener("click", () => { loadFolders().catch(() => {}); loadList().catch((er) => toast(er.message, true)); });
     $("mlCompose").addEventListener("click", () => window.furaCompose?.());
     // файли, кинуті на пошту, — одразу в новий лист
@@ -1630,8 +1689,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (/^text\//.test(t) || /\.(txt|csv|log|xml|json)$/.test(n)) return "txt";
         return "";
     };
-    async function fileOf(m, i) {
-        const att = (m.attachments || [])[i] || {};
+    async function fileOf(m, i) { return partFile(m.fp, m.uid, (m.attachments || [])[i] || {}); }
+    async function partFile(fp, uid, att) {
+        const m = { fp, uid };
         const key = `${m.fp}|${m.uid}|${att.part}`;
         if (!FILES.has(key)) {
             // файл приходить одразу байтами (навіть 15–20 МБ), без перетворень
@@ -1658,6 +1718,19 @@ document.addEventListener("DOMContentLoaded", async () => {
             FILES.set(key, { name: f.name || att.name, type, kind: k, url: URL.createObjectURL(new Blob([bin], { type })), size: bin.length });
         }
         return FILES.get(key);
+    }
+    // для вікна нового листа: вкладення з будь-якого листа → File
+    window.furaMailFile = async (it) => { const f = await partFile(it.fp, it.uid, it); const b = await (await fetch(f.url)).blob(); return new File([b], f.name, { type: f.type }); };
+    /* «Скопіювати файл» — щоб вкласти його в інший лист */
+    const CLIP = "fura_mail_fileclip";
+    const clipGet = () => { try { return JSON.parse(localStorage.getItem(CLIP) || "[]"); } catch (_) { return []; } };
+    function clipAdd(m, i) {
+        const a = (m.attachments || [])[i]; if (!a) return;
+        const list = clipGet().filter((x) => !(x.fp === m.fp && x.uid === m.uid && x.part === a.part));
+        list.push({ fp: m.fp, uid: m.uid, part: a.part, name: a.name, type: a.type, size: a.size });
+        try { localStorage.setItem(CLIP, JSON.stringify(list.slice(-10))); } catch (_) { /* */ }
+        window.dispatchEvent(new Event("fura-fileclip"));
+        toast(`Файл «${a.name}» скопійовано. У новому листі натисніть «Вставити скопійовані»`);
     }
     const download = (f) => { const l = document.createElement("a"); l.href = f.url; l.download = f.name; document.body.appendChild(l); l.click(); l.remove(); };
     const pv = document.createElement("div");
