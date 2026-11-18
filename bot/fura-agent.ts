@@ -655,11 +655,6 @@ async function internalInbound(body: Any) {
         .order("sent_at", { ascending: false })
         .limit(1);
     const requestId = lastOut?.[0]?.request_id;
-    // розсилка з Блокнота (новіша за запит агента) — відповідь одразу логісту, що писав
-    if (!requestId && await forwardToSender(c, text)) {
-        await tg("sendMessage", { chat_id: chatId, text: `Дякуємо! Передали вашу відповідь логісту «${COMPANY}».` });
-        return { handled: true };
-    }
     if (!requestId) {
         await tg("sendMessage", { chat_id: chatId, text: `Дякуємо! Передали ваше повідомлення логісту «${COMPANY}».` });
         return { handled: true };
@@ -750,101 +745,6 @@ async function notifyLogists(r: Any, c: Any, x: Any) {
 }
 
 /* ================================================================== */
-/* Спільне посилання: перевізник ділиться номером — бот сам знаходить   */
-/* його картку в FURA. І пряма розсилка з Блокнота через бота.          */
-/* ================================================================== */
-
-const last9 = (p: unknown) => String(p ?? "").replace(/\D/g, "").slice(-9);
-
-// t.me/<бот>?start=join — однакове для всіх перевізників
-async function actionJoinLink() {
-    const user = await botUsername();
-    if (!user) return { status: 500, data: { error: "Не вдалося дізнатися нік бота. Додайте секрет BOT_USERNAME." } };
-    return { status: 200, data: { link: `https://t.me/${user}?start=join` } };
-}
-
-// Перевізник натиснув «Поділитися номером»
-async function internalLinkPhone(body: Any) {
-    const chatId = Number(body.chat_id);
-    const d9 = last9(body.phone);
-    if (!chatId || d9.length < 9) return { handled: false };
-    // шукаємо картку з таким номером (phone_1 / phone_2 можуть містити кілька номерів, пробіли, дужки)
-    const { data: hits } = await db.rpc("carriers_by_phone", { d9 });
-    if (!hits?.length) {
-        await db.from("carrier_tg_pending").upsert({ chat_id: chatId, phone: String(body.phone || ""), name: String(body.name || "").slice(0, 120), username: String(body.username || "").slice(0, 60) });
-        await tg("sendMessage", {
-            chat_id: chatId,
-            text: `Дякуємо! Ваш номер отримали — логіст «${COMPANY}» підключить вас найближчим часом.\n\nПісля цього запити на перевезення приходитимуть сюди. Відповідайте звичайним повідомленням: ставка, коли можете подати авто.`,
-            reply_markup: { remove_keyboard: true },
-        });
-        return { handled: true, matched: 0 };
-    }
-    const c = hits[0];
-    await db.from("carriers").update({ tg_chat_id: null }).eq("tg_chat_id", chatId).neq("id", c.id);
-    await db.from("carriers").update({ tg_chat_id: chatId, tg_linked_at: new Date().toISOString() }).eq("id", c.id);
-    await db.from("carrier_tg_pending").delete().eq("chat_id", chatId);
-    await tg("sendMessage", {
-        chat_id: chatId,
-        text: `Вітаємо! Чат підключено до «${COMPANY}» як «${carrierName(c)}».\n\nСюди надходитимуть запити на перевезення — відповідайте звичайним повідомленням: ставка, дата подачі, питання. Рішення завжди приймає логіст.`,
-        reply_markup: { remove_keyboard: true },
-    });
-    return { handled: true, matched: 1 };
-}
-
-// Розсилка через бота: кожному перевізнику — свій текст. Відповіді прийдуть логісту в Telegram (і в AI-агента, якщо є запит).
-async function actionDirectSend(body: Any, me: Any) {
-    const items: Any[] = (Array.isArray(body.items) ? body.items : []).slice(0, 60);
-    if (!items.length) return { status: 400, data: { error: "Нікому надсилати" } };
-    const ids = items.map((x) => String(x.carrier_id || "")).filter(Boolean);
-    const { data: carriers } = await db.from("carriers").select("id, name, tg_chat_id").in("id", ids);
-    const byId = new Map((carriers || []).map((c: Any) => [String(c.id), c]));
-    const reqId = body.request_id ? String(body.request_id) : "";
-    const r = reqId ? await getRequest(reqId) : null;
-    const results: Any[] = [];
-    for (const it of items) {
-        const c: Any = byId.get(String(it.carrier_id));
-        const text = String(it.text || "").trim().slice(0, 4000);
-        if (!c?.tg_chat_id || !text) { results.push({ carrier_id: it.carrier_id, ok: false, error: "не в боті" }); continue; }
-        const res = await tg("sendMessage", { chat_id: Number(c.tg_chat_id), text, disable_web_page_preview: true });
-        if (!res?.ok) {
-            const blocked = /blocked|deactivated|chat not found/i.test(String(res?.description || ""));
-            if (blocked) await db.from("carriers").update({ tg_chat_id: null }).eq("id", c.id); // заблокував бота — більше не вважаємо підключеним
-            results.push({ carrier_id: c.id, ok: false, error: blocked ? "заблокував бота" : String(res?.description || "Telegram не прийняв") });
-            continue;
-        }
-        const msgId = res.result?.message_id ?? null;
-        if (r) {
-            // є запит у FURA — пишемо в історію агента, щоб відповідь розібрав AI-агент
-            await db.from("agent_messages").insert({ request_id: r.id, carrier_id: String(c.id), carrier_name: carrierName(c), direction: "out", status: "sent", text, channel: "telegram", created_by: me.id, approved_by: me.id, sent_at: new Date().toISOString(), tg_message_id: msgId });
-        } else {
-            await db.from("bot_outbox").insert({ carrier_id: String(c.id), staff_id: me.id, my_request_id: body.my_request_id || null, text, tg_message_id: msgId });
-        }
-        results.push({ carrier_id: c.id, ok: true });
-        await new Promise((ok) => setTimeout(ok, 60)); // не більше ~15 повідомлень на секунду
-    }
-    return { status: 200, data: { sent: results.filter((x) => x.ok).length, results } };
-}
-
-// Відповідь перевізника на розсилку з Блокнота — пересилаємо тому логісту, хто писав
-async function forwardToSender(c: Any, text: string): Promise<boolean> {
-    const since = new Date(Date.now() - CONVERSATION_DAYS * 864e5).toISOString();
-    const { data: ob } = await db.from("bot_outbox").select("staff_id, text, sent_at").eq("carrier_id", String(c.id)).gte("sent_at", since).order("sent_at", { ascending: false }).limit(1);
-    const o = ob?.[0];
-    if (!o?.staff_id) return false;
-    const { data: s } = await db.from("staff").select("telegram_chat_id, active").eq("id", o.staff_id).maybeSingle();
-    if (!s?.active || !s.telegram_chat_id) return false;
-    const was = String(o.text || "").split("\n").filter((l: string) => l.trim()).slice(1, 3).join(" · ");
-    await tg("sendMessage", {
-        chat_id: Number(s.telegram_chat_id),
-        text: `💬 <b>${esc(carrierName(c))}</b> відповів на ваш запит${was ? ` (${esc(was.slice(0, 120))})` : ""}:\n\n${esc(text.slice(0, 3000))}`,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-        reply_markup: { inline_keyboard: [[{ text: "Картка перевізника", url: `${APP_URL}/index.html?open=${c.id}` }]] },
-    });
-    return true;
-}
-
-/* ================================================================== */
 /* Вхід                                                                */
 /* ================================================================== */
 
@@ -864,7 +764,6 @@ Deno.serve(async (req) => {
         if (WEBHOOK_SECRET && req.headers.get("x-webhook-secret") === WEBHOOK_SECRET) {
             if (body.action === "link") return json(200, await internalLink(body));
             if (body.action === "inbound") return json(200, await internalInbound(body));
-            if (body.action === "link_phone") return json(200, await internalLinkPhone(body));
             return json(400, { error: "unknown action" });
         }
 
@@ -881,8 +780,6 @@ Deno.serve(async (req) => {
             case "mark_sent": out = await actionMarkSent(body, me); break;
             case "manual_reply": out = await actionManualReply(body, me); break;
             case "reject": out = await actionReject(body, me); break;
-            case "join_link": out = await actionJoinLink(); break;
-            case "direct_send": out = await actionDirectSend(body, me); break;
             default: out = { status: 400, data: { error: "unknown action" } };
         }
         return json(out.status, out.data);

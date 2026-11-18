@@ -400,7 +400,6 @@ const NB = (() => {
             <div class="nb-carriers">
                 ${cs.map((c, i) => carrierHtml(c, i)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
-                <button type="button" class="nb-addc nb-qbtn" data-msend title="Розіслати текст запиту перевізникам цього запиту у Viber / Telegram">📨<span>розіслати</span></button>
                 <button type="button" class="nb-addc nb-qbtn${st.sugFor === r.id ? " on" : ""}" data-qsug title="Машини, що зараз у черзі на виїзд або щойно пройшли кордон у бік завантаження">🚦<span>з черги</span></button>
             </div>
             ${st.sugFor === r.id ? queueSuggestHtml(r) : ""}
@@ -458,7 +457,7 @@ const NB = (() => {
     const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
     async function openQueueSuggest(r, auto) {
         st.sugFor = auto ? r.id : st.sugFor === r.id ? "" : r.id;
-        QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick"; QS.pick = new Set();
+        QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick";
         if (!st.sugFor) return render();
         st.focus = r.id;
         render();
@@ -608,8 +607,7 @@ const NB = (() => {
         items.length = Math.min(items.length, QS.shown || 60);
         const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
-            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span>
-                <button type="button" class="nb-btn nb-qsendq" data-qsendq ${QS.pick?.size ? "" : "disabled"}>📨 Розіслати обраним${QS.pick?.size ? ` (${QS.pick.size})` : ""}</button></div>
+            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
             ${cpsBlock()}
             <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}</div>
             <div class="nb-qopts">${tg("fura", "є у FURA")}${tg("deals", "були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}» (митні дані)`) : ""}${tg("fresh", "ще не в моїх запитах")}</div>
@@ -629,13 +627,11 @@ const NB = (() => {
                 const name = x.carrier || it.fc?.name || "—";
                 const phones = it.fc ? [[it.fc.contact_person_1, it.fc.phone_1], [it.fc.contact_person_2, it.fc.phone_2]]
                     .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 6).map((v) => [n, v.trim()])) : [];
-                (QS.phonesBy ||= {})[it.code] = phones.map(([n, ph]) => ({ carrier: name, carrier_id: it.fc?.id || "", person: n || "", phone: ph }));
                 return `<div class="nb-qitem">
                     <div class="nb-qrow nb-qtitle">
                         ${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i>' : ""}
                         ${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}" title="Відкрити картку">${esc(name)}</a>` : `<span class="nb-qname">${esc(name)}</span>`}
                         ${cpBtn(name, "Копіювати назву")}
-                        ${phones.length ? `<label class="nb-qpick" title="Обрати для розсилки"><input type="checkbox" data-qpick="${esc(it.code)}" ${QS.pick?.has(it.code) ? "checked" : ""}/> розіслати</label>` : ""}
                     </div>
                     <div class="nb-qrow nb-qmeta">
                         <span>ЄДРПОУ <b>${esc(x.edrpou)}</b></span>${cpBtn(x.edrpou, "Копіювати ЄДРПОУ")}
@@ -648,7 +644,7 @@ const NB = (() => {
                         ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
                         ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
                     </div>` : ""}
-                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}${msgBtns(ph, { carrier: name, carrier_id: it.fc?.id || "", person: n }, r)}</div>`).join("")}</div>` : ""}
+                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}</div>`).join("")}</div>` : ""}
                     <div class="nb-qtrucks">${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}</div>
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
@@ -855,31 +851,10 @@ const NB = (() => {
 
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
-    // текст для перевізника: лише маршрут, вантаж, авто (ні клієнта, ні ставки клієнта з коментаря)
-    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "", comment: r?.comment || "", request_id: r?.request_id || "", my_request_id: r?.id || "" });
-    const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, ...msgCtx(r) }) : "");
-    // Спільне посилання на Telegram-бота для всіх перевізників
-    document.getElementById("nbJoin")?.addEventListener("click", async (e) => {
-        const b = e.currentTarget;
-        const link = await window.furaJoinLink?.();
-        if (!link) return alert("Не вдалося отримати посилання на бота. Перевірте, що оновлена функція fura-agent.");
-        const text = `Доброго дня! Це компанія «Грандар». Щоб отримувати наші запити на перевезення одразу в Telegram, натисніть посилання і «Поділитися номером»:\n${link}`;
-        try { await navigator.clipboard.writeText(text); } catch (_) { prompt("Скопіюйте:", text); return; }
-        b.innerHTML = '<i class="bx bx-check"></i> Скопійовано — вставте у Viber / статус / розсилку';
-        setTimeout(() => (b.innerHTML = '<i class="bx bxl-telegram"></i> Посилання на бота'), 3500);
-    });
-    window.furaMsgContext = (b) => {
-        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", carrier_id: c.id || "", ...msgCtx(POP.r) }; }
-        const f = document.getElementById("nbForm");
-        if (f && b.closest("#nbModal")) return { carrier: b.closest(".nb-cedit")?.querySelector(".nb-cin")?.value || "", route: f.addresses.value || f.direction.value, cargo: f.cargo.value, truck: f.truck.value, comment: f.comment.value };
-        return {};
-    };
     const ctRow = (k = {}) => `<div class="nb-ct">
         <input class="nb-pin" data-ct="name" value="${esc(k.name || "")}" placeholder="Ім'я (кому дзвонив)" />
         <input class="nb-pin" data-ct="phone" value="${esc(k.phone || "")}" placeholder="+380…" inputmode="tel" />
         <button type="button" class="nb-code" data-ctcopy title="Копіювати номер"><i class="bx bx-copy"></i></button>
-        <button type="button" class="fmsg-b fmsg-tg" data-fmsg="tg" data-fmsg-from=".nb-ct" title="Написати в Telegram (текст підготую)">TG</button>
-        <button type="button" class="fmsg-b fmsg-vb" data-fmsg="viber" data-fmsg-from=".nb-ct" title="Написати у Viber (текст підготую)">Vb</button>
         <button type="button" class="nb-x nb-ctdel" data-ctdel title="Прибрати">&times;</button>
     </div>`;
     const readCts = () => [...document.querySelectorAll("#nbCts .nb-ct")].map((el) => ({
@@ -1224,35 +1199,12 @@ const NB = (() => {
             if (e.target.closest("[data-qgo]")) { QS.shown = 60; qReload(QS.r); return; }
             if (e.target.closest("[data-qmore]")) { QS.shown = (QS.shown || 60) + 60; render(); return; }
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
-            if (e.target.closest("[data-msend]")) {
-                const r = ROWS.find((x) => x.id === rid);
-                const list = (r?.carriers || []).flatMap((c) => (c.contacts || []).filter((k) => k.phone).map((k) => ({ carrier: c.name, carrier_id: c.id || "", person: k.name, phone: k.phone })));
-                if (!list.length) { alert("У перевізників цього запиту ще немає номерів телефонів. Додайте номери або оберіть перевізників у «🚦 з черги»."); return; }
-                window.furaMsgBatch?.(list, msgCtx(r));
-                return;
-            }
-            const qp = e.target.closest("[data-qsendq]");
-            if (qp) {
-                const list = [...(QS.pick || [])].flatMap((code) => QS.phonesBy?.[code] || []);
-                if (!list.length) { alert("Оберіть галочками перевізників з номерами телефонів."); return; }
-                window.furaMsgBatch?.(list, msgCtx(QS.r));
-                return;
-            }
             const qa = e.target.closest("[data-qadd]");
             if (qa) { qa.disabled = true; qa.textContent = "Додаю…"; addFromQueue(ROWS.find((r) => r.id === rid), qa.dataset.qadd); return; }
             const add = e.target.closest("[data-addc]");
             if (add) open(ROWS.find((r) => r.id === add.closest(".nb-row").dataset.id), true);
         });
         $("#nbList").addEventListener("change", (e) => {
-            const pk = e.target.dataset?.qpick;
-            if (pk) {
-                (QS.pick ||= new Set());
-                if (e.target.checked) QS.pick.add(pk); else QS.pick.delete(pk);
-                // оновити лише кнопку «Розіслати обраним», без перемальовування списку
-                const b = document.querySelector("[data-qsendq]");
-                if (b) { b.disabled = !QS.pick.size; b.textContent = `📨 Розіслати обраним${QS.pick.size ? ` (${QS.pick.size})` : ""}`; }
-                return;
-            }
             const cp = e.target.dataset?.qcp;
             if (cp) {
                 if (e.target.checked) QS.cps.add(cp); else QS.cps.delete(cp);

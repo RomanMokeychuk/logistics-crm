@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Формує рядок "Ім'я: телефон [іконка Viber]".
 // Іконка веде на viber://chat?number=... — це ВІДКРИВАЄ ЧАТ у Viber
 // (можна побачити ім'я/фото профілю), а не одразу дзвонить.
-function renderContactLine(person, phone, withCopy, carrier) {
+function renderContactLine(person, phone, withCopy) {
     if (!person && !phone) return "";
     // У полі може бути кілька номерів через кому — кожен зі своєю іконкою Viber
     const phones = String(phone || "")
@@ -266,8 +266,7 @@ function renderContactLine(person, phone, withCopy, carrier) {
             const copy = withCopy && digits.length >= 6
                 ? ` <button type="button" class="qe-copy qe-copy-phone" data-copy="${escapeHtml(p)}" title="Копіювати номер"><i class='bx bx-copy'></i></button>`
                 : "";
-            const msg = withCopy && window.furaMsgBtns ? window.furaMsgBtns(p, { person: person || "", carrier: carrier?.name || "", carrier_id: carrier?.id || "" }) : "";
-            return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}${msg}</span>`;
+            return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}</span>`;
         })
         .join("");
     return `${person ? `<strong>${escapeHtml(person)}:</strong> ` : ""}${phones}`;
@@ -487,7 +486,7 @@ function contactsListHtml(item) {
     if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
     extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
     return rows
-        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true, item)}</div>`)
+        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true)}</div>`)
         .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
 }
 
@@ -1093,7 +1092,7 @@ function renderCarriers() {
         row.addEventListener("click", (e) => {
             if (
                 e.target.closest(
-                    "a, button, .star-rating, input, select, textarea, .cr-pick",
+                    "a, button, .star-rating, input, select, textarea",
                 )
             )
                 return;
@@ -1143,7 +1142,7 @@ function renderCarriers() {
         const profileLinkHtml = renderProfileLink(item.profile_url);
 
         row.innerHTML = `
-        <td style="text-align: center; color: #94a3b8; font-size: 13px; white-space: nowrap;"><label class="cr-pick" title="Обрати для розсилки"><input type="checkbox" data-crpick="${escapeHtml(String(item.id))}" ${window.CR_PICK?.has(String(item.id)) ? "checked" : ""}/><span>${rowNumber}</span></label></td>
+        <td style="text-align: center; color: #94a3b8; font-size: 13px; white-space: nowrap;">${rowNumber}</td>
         <td>${avatarHtml}</td>
         <td>${destBadges}</td>
         <td>
@@ -2318,49 +2317,4 @@ function carrierPopupReady(id) {
             save();
         }
     }, true);
-})();
-
-
-/* ===== Розсилка обраним перевізникам (галочки біля номера рядка) ===== */
-(function () {
-    const KEY = "fura_cr_pick";
-    try { window.CR_PICK = new Set(JSON.parse(sessionStorage.getItem(KEY) || "[]")); } catch (_) { window.CR_PICK = new Set(); }
-    const css = document.createElement("style");
-    css.textContent = `.cr-pick{display:inline-flex;align-items:center;gap:6px;cursor:pointer}.cr-pick input{width:16px;height:16px;accent-color:#c9971f;margin:0;cursor:pointer}
-.cr-pickbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:12px;background:#1f2937;color:#fff;border-radius:14px;padding:10px 12px 10px 18px;box-shadow:0 12px 40px rgba(0,0,0,.3);font-size:14px}
-.cr-pickbar[hidden]{display:none}.cr-pick-send{border:0;border-radius:10px;background:#7360f2;color:#fff;font:600 14px inherit;font-family:inherit;padding:9px 14px;cursor:pointer}
-.cr-pick-clear{border:0;background:none;color:#cbd5e1;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}`;
-    document.head.appendChild(css);
-    const bar = document.createElement("div");
-    bar.className = "cr-pickbar"; bar.hidden = true;
-    bar.innerHTML = `<b class="cr-pickn"></b><button type="button" class="cr-pick-send">📨 Розіслати обраним</button><button type="button" class="cr-pick-clear">зняти всі</button>`;
-    document.addEventListener("DOMContentLoaded", () => document.body.appendChild(bar));
-    if (document.readyState !== "loading") document.body.appendChild(bar);
-    const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify([...CR_PICK])); } catch (_) { /* */ } };
-    const show = () => { bar.hidden = !CR_PICK.size; bar.querySelector(".cr-pickn").textContent = `Обрано перевізників: ${CR_PICK.size}`; };
-    show();
-    document.addEventListener("change", (e) => {
-        const id = e.target?.dataset?.crpick; if (id == null) return;
-        if (e.target.checked) CR_PICK.add(id); else CR_PICK.delete(id);
-        save(); show();
-    });
-    bar.addEventListener("click", (e) => {
-        if (e.target.closest(".cr-pick-clear")) {
-            CR_PICK.clear(); save(); show();
-            document.querySelectorAll("[data-crpick]").forEach((c) => (c.checked = false));
-            return;
-        }
-        if (!e.target.closest(".cr-pick-send")) return;
-        const all = typeof allCarriersCache !== "undefined" ? allCarriersCache : [];
-        const list = [];
-        for (const id of CR_PICK) {
-            const c = all.find((x) => String(x.id) === id); if (!c) continue;
-            [[c.contact_person_1, c.phone_1], [c.contact_person_2, c.phone_2]].forEach(([n, p]) => {
-                String(p || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 9)
-                    .forEach((v) => list.push({ carrier: c.name || c.company || "", carrier_id: c.id, person: n || "", phone: v.trim() }));
-            });
-        }
-        if (!list.length) return alert("В обраних перевізників немає номерів телефонів.");
-        window.furaMsgBatch?.(list, {});
-    });
 })();
