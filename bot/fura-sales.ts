@@ -1121,7 +1121,8 @@ async function actionSend(body: Any, me: Any) {
 // Довільний лист з FURA: кому завгодно, з копією / прихованою копією і вкладеннями — від імені пошти компанії
 async function actionCompose(body: Any, me: Any) {
     if (!USE_SMTP) return fail(400, "Пошта компанії не підключена (SMTP_HOST, SMTP_USER, SMTP_PASS у секретах).");
-    const list = (v: Any) => [...new Set(String(Array.isArray(v) ? v.join(",") : v || "").split(/[,;\s]+/).map((x) => normEmail(x)).filter(Boolean))];
+    // беремо лише самі адреси — навіть якщо вставили з Outlook: 'Toporkov Olexandr' <oot@grandarltd.com>; 'forwarding@…'
+    const list = (v: Any) => [...new Set((String(Array.isArray(v) ? v.join(",") : v || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || []).map((x) => normEmail(x)))];
     const to = list(body.to), cc = list(body.cc), bcc = list(body.bcc);
     const bad = [...to, ...cc, ...bcc].filter((x) => !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(x));
     if (!to.length) return fail(400, "Вкажіть, кому надіслати");

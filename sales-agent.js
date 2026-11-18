@@ -897,6 +897,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (rm) { files.splice(Number(rm.dataset.rm), 1); showFiles(); }
     });
     form.addEventListener("input", saveDraft);
+    // вставили адреси з Outlook ('Ім'я' <a@b.ua>; 'c@d.ua') — лишаємо тільки e-mail через кому
+    ["to", "cc", "bcc"].forEach((k) => form[k].addEventListener("blur", () => {
+        const found = form[k].value.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || [];
+        if (found.length) form[k].value = [...new Set(found.map((x) => x.toLowerCase()))].join(", ");
+        saveDraft();
+    }));
     $("saCmpFile").addEventListener("change", (e) => {
         files.push(...e.target.files);
         e.target.value = "";
@@ -908,6 +914,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     form.addEventListener("submit", (e) => {
         e.preventDefault();
         const btn = form.querySelector("[type=submit]");
+        ["to", "cc", "bcc"].forEach((k) => form[k].dispatchEvent(new Event("blur")));
         withBusy(btn, async () => {
             const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
             const r = await api({ action: "compose", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments });
