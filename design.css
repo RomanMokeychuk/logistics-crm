@@ -1006,3 +1006,22 @@ body, html { background-attachment: scroll !important; }
 .fura-reset-filters.on:hover { background: #fee4e2; }
 .fura-reset-filters:not(.on) { cursor: default; opacity: .75; }
 .an-filters .fura-reset-filters, .cm-filters .fura-reset-filters { align-self: flex-end; }
+
+/* ===== Шапка сторінки в один рядок: назва — пошук і фільтри — кнопка ===== */
+.top-bar.fura-onebar { flex-wrap: nowrap; gap: 16px; margin-bottom: 12px !important; }
+.top-bar.fura-onebar h1 { margin: 0 !important; flex: none; font-size: 26px; line-height: 1.1; }
+.top-bar.fura-onebar > .filters-bar { flex: 1 1 auto; min-width: 0; margin: 0 !important; display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; }
+.top-bar.fura-onebar > .filters-bar .search-input { flex: 1 1 auto; min-width: 140px; height: 40px; margin: 0; box-sizing: border-box; }
+.top-bar.fura-onebar > .filters-bar .lead-select { flex: 0 1 auto; height: 40px; max-width: 190px; padding: 0 10px; }
+.top-bar.fura-onebar > .btn { flex: none; white-space: nowrap; }
+@media (max-width: 900px) {
+    .top-bar.fura-onebar { flex-wrap: wrap; gap: 10px; }
+    .top-bar.fura-onebar > .filters-bar { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+}
+.top-bar.fura-onebar > .filters-bar .search-input { min-width: 200px; }
+.top-bar.fura-onebar > .filters-bar .lead-select { max-width: 165px; }
+@media (min-width: 901px) and (max-width: 1500px) {
+    .fura-onebar .fura-reset-filters span { display: none; }
+    .fura-onebar .fura-reset-filters { width: 40px; padding: 0; justify-content: center; }
+    .fura-onebar .fura-reset-filters::after { content: "✕"; font-size: 12px; margin-left: -2px; }
+}

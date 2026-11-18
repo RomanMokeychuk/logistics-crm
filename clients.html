@@ -22,14 +22,14 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611182153" />
-        <link rel="stylesheet" href="requests.css?v=202611182153" />
-        <link rel="stylesheet" href="deals.css?v=202611182153" />
-        <link rel="stylesheet" href="leads.css?v=202611182153" />
-        <link rel="stylesheet" href="clients.css?v=202611182153" />
+        <link rel="stylesheet" href="style.css?v=202611182154" />
+        <link rel="stylesheet" href="requests.css?v=202611182154" />
+        <link rel="stylesheet" href="deals.css?v=202611182154" />
+        <link rel="stylesheet" href="leads.css?v=202611182154" />
+        <link rel="stylesheet" href="clients.css?v=202611182154" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611182153" />
-        <link rel="stylesheet" href="design.css?v=202611182153" />
+        <link rel="stylesheet" href="theme.css?v=202611182154" />
+        <link rel="stylesheet" href="design.css?v=202611182154" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -41,21 +41,21 @@
 
         <main class="main-content">
             <div id="clientsListView" class="deals-list-view">
-            <header class="top-bar">
+            <header class="top-bar fura-onebar">
                 <h1>Клієнти</h1>
+                <div class="filters-bar lead-filters">
+                    <input type="text" id="clientsSearch" class="search-input" placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, пошта, адреса, вантаж..." />
+                    <select id="clientsTradeFilter" class="lead-select">
+                        <option value="">Імпорт / експорт</option>
+                        <option value="Експорт">Експорт</option>
+                        <option value="Імпорт">Імпорт</option>
+                        <option value="По Україні">По Україні</option>
+                    </select>
+                    <select id="clientsSalesFilter" class="lead-select"></select>
+                </div>
                 <button class="btn btn-primary" id="newClientBtn"><i class="bx bx-plus"></i> Новий клієнт</button>
             </header>
 
-            <div class="filters-bar lead-filters">
-                <input type="text" id="clientsSearch" class="search-input" placeholder="🔍 Пошук: назва, ЄДРПОУ, контакт, телефон, пошта, адреса, вантаж..." />
-                <select id="clientsTradeFilter" class="lead-select">
-                    <option value="">Імпорт / експорт</option>
-                    <option value="Експорт">Експорт</option>
-                    <option value="Імпорт">Імпорт</option>
-                    <option value="По Україні">По Україні</option>
-                </select>
-                <select id="clientsSalesFilter" class="lead-select"></select>
-            </div>
 
             <section class="table-card" id="tableScrollArea">
                 <table class="requests-table clients-table">
@@ -79,12 +79,12 @@
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="address-suggest.js?v=202611182153"></script>
-        <script src="clients.js?v=202611182153"></script>
-        <script src="portal-admin.js?v=202611182153"></script>
-        <script src="comms-card.js?v=202611182153"></script>
-        <script src="shell.js?v=202611182153"></script>
-        <script src="notify.js?v=202611182153"></script>
-        <script src="lock.js?v=202611182153"></script>
+        <script src="address-suggest.js?v=202611182154"></script>
+        <script src="clients.js?v=202611182154"></script>
+        <script src="portal-admin.js?v=202611182154"></script>
+        <script src="comms-card.js?v=202611182154"></script>
+        <script src="shell.js?v=202611182154"></script>
+        <script src="notify.js?v=202611182154"></script>
+        <script src="lock.js?v=202611182154"></script>
     </body>
 </html>
