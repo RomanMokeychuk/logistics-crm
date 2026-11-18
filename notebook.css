@@ -293,3 +293,9 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-ct, .nb-cedit-cts .nb-ct { grid-template-columns: 1fr 1fr auto auto auto auto; }
 .nb-ct .fmsg-b { height: 26px; min-width: 28px; }
 @media (max-width: 600px) { .nb-ct, .nb-cedit-cts .nb-ct { grid-template-columns: 1fr 1fr auto auto auto auto; } }
+/* розсилка: вибір перевізників у «з черги» */
+.nb-qpick { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #6b4f12; background: #fdf6e7; border: 1px solid #f0dfb5; border-radius: 8px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.nb-qpick input { accent-color: #c9971f; margin: 0; }
+.nb-qhead { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.nb-qsendq { margin-left: auto; padding: 6px 12px !important; font-size: 13px !important; }
+.nb-qsendq:disabled { opacity: .45; cursor: default; }

@@ -400,6 +400,7 @@ const NB = (() => {
             <div class="nb-carriers">
                 ${cs.map((c, i) => carrierHtml(c, i)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
+                <button type="button" class="nb-addc nb-qbtn" data-msend title="Розіслати текст запиту перевізникам цього запиту у Viber / Telegram">📨<span>розіслати</span></button>
                 <button type="button" class="nb-addc nb-qbtn${st.sugFor === r.id ? " on" : ""}" data-qsug title="Машини, що зараз у черзі на виїзд або щойно пройшли кордон у бік завантаження">🚦<span>з черги</span></button>
             </div>
             ${st.sugFor === r.id ? queueSuggestHtml(r) : ""}
@@ -457,7 +458,7 @@ const NB = (() => {
     const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
     async function openQueueSuggest(r, auto) {
         st.sugFor = auto ? r.id : st.sugFor === r.id ? "" : r.id;
-        QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick";
+        QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick"; QS.pick = new Set();
         if (!st.sugFor) return render();
         st.focus = r.id;
         render();
@@ -607,7 +608,8 @@ const NB = (() => {
         items.length = Math.min(items.length, QS.shown || 60);
         const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
-            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
+            <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span>
+                <button type="button" class="nb-btn nb-qsendq" data-qsendq ${QS.pick?.size ? "" : "disabled"}>📨 Розіслати обраним${QS.pick?.size ? ` (${QS.pick.size})` : ""}</button></div>
             ${cpsBlock()}
             <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}</div>
             <div class="nb-qopts">${tg("fura", "є у FURA")}${tg("deals", "були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}» (митні дані)`) : ""}${tg("fresh", "ще не в моїх запитах")}</div>
@@ -627,11 +629,13 @@ const NB = (() => {
                 const name = x.carrier || it.fc?.name || "—";
                 const phones = it.fc ? [[it.fc.contact_person_1, it.fc.phone_1], [it.fc.contact_person_2, it.fc.phone_2]]
                     .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 6).map((v) => [n, v.trim()])) : [];
+                (QS.phonesBy ||= {})[it.code] = phones.map(([n, ph]) => ({ carrier: name, person: n || "", phone: ph }));
                 return `<div class="nb-qitem">
                     <div class="nb-qrow nb-qtitle">
                         ${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i>' : ""}
                         ${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}" title="Відкрити картку">${esc(name)}</a>` : `<span class="nb-qname">${esc(name)}</span>`}
                         ${cpBtn(name, "Копіювати назву")}
+                        ${phones.length ? `<label class="nb-qpick" title="Обрати для розсилки"><input type="checkbox" data-qpick="${esc(it.code)}" ${QS.pick?.has(it.code) ? "checked" : ""}/> розіслати</label>` : ""}
                     </div>
                     <div class="nb-qrow nb-qmeta">
                         <span>ЄДРПОУ <b>${esc(x.edrpou)}</b></span>${cpBtn(x.edrpou, "Копіювати ЄДРПОУ")}
@@ -852,6 +856,7 @@ const NB = (() => {
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
     // текст для перевізника: лише маршрут, вантаж, авто (ні клієнта, ні ставки клієнта з коментаря)
+    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "" });
     const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "" }) : "");
     window.furaMsgContext = (b) => {
         if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", route: POP.r.addresses || POP.r.direction || "", cargo: POP.r.cargo || "", truck: POP.r.truck || "" }; }
@@ -1209,12 +1214,35 @@ const NB = (() => {
             if (e.target.closest("[data-qgo]")) { QS.shown = 60; qReload(QS.r); return; }
             if (e.target.closest("[data-qmore]")) { QS.shown = (QS.shown || 60) + 60; render(); return; }
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
+            if (e.target.closest("[data-msend]")) {
+                const r = ROWS.find((x) => x.id === rid);
+                const list = (r?.carriers || []).flatMap((c) => (c.contacts || []).filter((k) => k.phone).map((k) => ({ carrier: c.name, person: k.name, phone: k.phone })));
+                if (!list.length) { alert("У перевізників цього запиту ще немає номерів телефонів. Додайте номери або оберіть перевізників у «🚦 з черги»."); return; }
+                window.furaMsgBatch?.(list, msgCtx(r));
+                return;
+            }
+            const qp = e.target.closest("[data-qsendq]");
+            if (qp) {
+                const list = [...(QS.pick || [])].flatMap((code) => QS.phonesBy?.[code] || []);
+                if (!list.length) { alert("Оберіть галочками перевізників з номерами телефонів."); return; }
+                window.furaMsgBatch?.(list, msgCtx(QS.r));
+                return;
+            }
             const qa = e.target.closest("[data-qadd]");
             if (qa) { qa.disabled = true; qa.textContent = "Додаю…"; addFromQueue(ROWS.find((r) => r.id === rid), qa.dataset.qadd); return; }
             const add = e.target.closest("[data-addc]");
             if (add) open(ROWS.find((r) => r.id === add.closest(".nb-row").dataset.id), true);
         });
         $("#nbList").addEventListener("change", (e) => {
+            const pk = e.target.dataset?.qpick;
+            if (pk) {
+                (QS.pick ||= new Set());
+                if (e.target.checked) QS.pick.add(pk); else QS.pick.delete(pk);
+                // оновити лише кнопку «Розіслати обраним», без перемальовування списку
+                const b = document.querySelector("[data-qsendq]");
+                if (b) { b.disabled = !QS.pick.size; b.textContent = `📨 Розіслати обраним${QS.pick.size ? ` (${QS.pick.size})` : ""}`; }
+                return;
+            }
             const cp = e.target.dataset?.qcp;
             if (cp) {
                 if (e.target.checked) QS.cps.add(cp); else QS.cps.delete(cp);
