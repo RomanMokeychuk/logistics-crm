@@ -51,6 +51,8 @@
         if (!last) { ls.set(KEY, top); return; } // перший запуск — лише запам'ятовуємо
         const fresh = list.filter((x) => Number(x.uid) > last && !x.seen).sort((a, b) => a.uid - b.uid);
         if (top > last) ls.set(KEY, top);
+        // на цьому пристрої вже приходять push-сповіщення — не дублюємо (лише оновимо пошту)
+        if (fresh.length && pushOn()) { window.dispatchEvent(new CustomEvent("fura-mail-new", { detail: fresh })); return; }
         if (!fresh.length || typeof window.furaToast !== "function") return;
         const show = fresh.slice(-3);
         show.forEach((m) => window.furaToast({
@@ -74,6 +76,66 @@
         ls.set(LOCK, { ...l, id: me, ts: Date.now(), next: Date.now() + EVERY });
         try { await check(); } catch (_) { /* мережа — наступного разу */ }
     }
+    /* ---------- Push: сповіщення приходять, навіть коли FURA закрита (телефон і комп'ютер) ---------- */
+    const PUSH = "fura_push_endpoint";
+    const pushOn = () => { try { return !!localStorage.getItem(PUSH) && Notification.permission === "granted"; } catch (_) { return false; } };
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+    const canPush = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+    const keyBytes = (s) => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+    async function call(body) {
+        const { data, error } = await client().functions.invoke("fura-sales", { body });
+        if (error) { let m = ""; try { m = (await error.context?.json())?.error || ""; } catch (_) { /* */ } throw new Error(m || "Сервер не відповів"); }
+        return data;
+    }
+    async function enablePush(test) {
+        if (!canPush) {
+            if (isIOS && !standalone) {
+                alert("Щоб сповіщення приходили на iPhone, навіть коли FURA закрита:\n\n1) Відкрийте FURA в Safari.\n2) Натисніть «Поділитися» (квадрат зі стрілкою) → «На екран Додому».\n3) Відкрийте FURA з іконки на екрані.\n4) Натисніть 🔔 угорі і дозвольте сповіщення.");
+            }
+            return false;
+        }
+        if (Notification.permission === "default") await Notification.requestPermission().catch(() => {});
+        if (Notification.permission !== "granted") return false;
+        const reg = await navigator.serviceWorker.register("sw.js");
+        await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        const { key } = await call({ action: "push_key" });
+        if (sub) {
+            // ключ сервера змінився — перепідписуємось
+            const cur = sub.options?.applicationServerKey ? new Uint8Array(sub.options.applicationServerKey) : null;
+            const want = keyBytes(key);
+            if (cur && (cur.length !== want.length || cur.some((b, i) => b !== want[i]))) { await sub.unsubscribe().catch(() => {}); sub = null; }
+        }
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(key) });
+        const j = sub.toJSON();
+        let saved = ""; try { saved = localStorage.getItem(PUSH) || ""; } catch (_) { /* */ }
+        if (test || saved !== j.endpoint) {
+            const device = (isIOS ? "iPhone/iPad" : /Android/.test(navigator.userAgent) ? "Android" : /Mac/.test(navigator.platform) ? "Mac" : /Win/.test(navigator.platform) ? "Windows" : "інше") + " · " + (standalone ? "застосунок" : "браузер");
+            await call({ action: "push_subscribe", sub: j, device, test: !!test });
+            try { localStorage.setItem(PUSH, j.endpoint); } catch (_) { /* */ }
+        }
+        return true;
+    }
+    window.furaPushEnable = (test) => enablePush(test).catch((e) => { console.warn("push", e); return false; });
+    // Сповіщення вже дозволені — тихо підписуємо цей пристрій (раз на вкладку)
+    setTimeout(() => {
+        if (!canPush || Notification.permission !== "granted") return;
+        try { if (sessionStorage.getItem("fura_push_checked")) return; sessionStorage.setItem("fura_push_checked", "1"); } catch (_) { /* */ }
+        window.furaPushEnable(false);
+    }, 5000);
+    // Натиснули 🔔 угорі — вмикаємо і push (з тестовим сповіщенням)
+    document.addEventListener("click", (e) => {
+        if (!e.target.closest?.(".fura-bell")) return;
+        if (isIOS && !standalone && !canPush) return setTimeout(() => window.furaPushEnable(true), 300);
+        // чекаємо, поки людина натисне «Дозволити» (до 30 с)
+        let n = 0;
+        const wait = setInterval(() => {
+            if (!("Notification" in window) || ++n > 60 || Notification.permission === "denied") return clearInterval(wait);
+            if (Notification.permission === "granted") { clearInterval(wait); window.furaPushEnable(true); }
+        }, 500);
+    }, true);
+
     setInterval(tick, 15000);
     setTimeout(tick, 4000);
 })();
