@@ -1025,3 +1025,20 @@ body, html { background-attachment: scroll !important; }
     .fura-onebar .fura-reset-filters { width: 40px; padding: 0; justify-content: center; }
     .fura-onebar .fura-reset-filters::after { content: "✕"; font-size: 12px; margin-left: -2px; }
 }
+
+/* Перевізники й Ліди: інструменти в шапці */
+.top-bar.fura-onebar > .carriers-tools { justify-content: flex-end; }
+.top-bar.fura-onebar > .fura-cols-bar { margin: 0 !important; padding: 0 !important; flex: none; pointer-events: auto; }
+.top-bar.fura-onebar .fura-cols-btn { height: 40px; white-space: nowrap; }
+.top-bar.fura-onebar .cm-open { height: 40px; white-space: nowrap; flex: none; }
+.top-bar.fura-onebar > .filters-bar .lead-toggle { flex: none; white-space: nowrap; font-size: 13px; }
+.top-bar.fura-onebar h1 { white-space: nowrap; }
+/* Ліди: фільтрів багато — якщо не вміщаються, переносяться всередині шапки */
+.top-bar.fura-onebar > .lead-filters { flex-wrap: wrap; row-gap: 6px; }
+.top-bar.fura-onebar > .lead-filters .search-input { flex: 1 1 220px; }
+.top-bar.fura-onebar > .lead-filters .lead-select { max-width: 150px; }
+@media (min-width: 901px) and (max-width: 1500px) {
+    .top-bar.fura-onebar .fura-cols-btn { font-size: 0; width: 40px; padding: 0; justify-content: center; }
+    .top-bar.fura-onebar .fura-cols-btn i { font-size: 18px; }
+    .top-bar.fura-onebar .fura-cols-btn .fura-cols-count { font-size: 11px; }
+}

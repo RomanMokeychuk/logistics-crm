@@ -378,7 +378,7 @@ function shortGoods(g) {
                 <button type="submit" class="btn btn-primary">Знайти</button>
             </form>
             <div class="cm-results" id="cmResults"></div>`;
-        bar.insertAdjacentElement("afterend", panel);
+        (bar.closest(".top-bar") || bar).insertAdjacentElement("afterend", panel);
 
         btn.addEventListener("click", () => {
             panel.hidden = !panel.hidden;
