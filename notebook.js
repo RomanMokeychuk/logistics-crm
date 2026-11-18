@@ -655,13 +655,13 @@ const NB = (() => {
                     <div class="nb-qrow nb-qmeta">
                         <span>ЄДРПОУ <b>${esc(x.edrpou)}</b></span>${cpBtn(x.edrpou, "Копіювати ЄДРПОУ")}
                         <span class="nb-qcount">🚛 ${it.trucks.length}</span>
+                        ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
                     </div>
-                    ${it.fc?.region_ukr || it.deals || it.goods || it.mine || it.fc?.profile_url ? `<div class="nb-qbad">
+                    ${it.fc?.region_ukr || it.deals || it.goods || it.mine ? `<div class="nb-qbad">
                         ${it.fc?.region_ukr ? `<span class="nb-qb">📍 ${esc(it.fc.region_ukr)}${it.fc.city ? ", " + esc(String(it.fc.city).split(",")[0]) : ""}</span>` : ""}
                         ${it.deals ? `<span class="nb-qb nb-qb-g" title="Угод з нами, остання ${esc(String(it.deals.last).slice(0, 10))}">🤝 угод: ${it.deals.n}</span>` : ""}
                         ${it.goods ? `<span class="nb-qb nb-qb-y" title="${esc(it.goods.goods)}">📦 возив: ${esc(String(it.goods.goods).slice(0, 40))}${String(it.goods.goods).length > 40 ? "…" : ""}</span>` : ""}
                         ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
-                        ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
                     </div>` : ""}
                     ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}</div>`).join("")}</div>` : ""}
                     <div class="nb-qtrucks">${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}</div>
