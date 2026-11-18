@@ -112,7 +112,7 @@
             <button type="button" class="fmsg-go fmsg-go-tg" data-fx="tg">Telegram</button>
             <button type="button" class="fmsg-go fmsg-go-vb" data-fx="viber">Viber</button>
             <button type="button" class="fmsg-go fmsg-go-cp" data-fx="copy">Скопіювати</button>
-            <button type="button" class="fmsg-link" data-fx="vbfwd" title="Viber відкриє «Поділитися» з усім текстом — оберіть у списку цього перевізника">Viber: весь текст через «Поділитися»</button>
+            <button type="button" class="fmsg-go fmsg-go-vbf" data-fx="vbfwd" title="Viber відкриє «Поділитися» з усім текстом — оберіть цього перевізника і «Надіслати»">Viber · весь текст</button>
             <button type="button" class="fmsg-link" data-fx="tpl">Шаблон…</button>
         </div>
         <div class="fmsg-tpl" hidden>
@@ -137,7 +137,7 @@
 .fmsg-note{font-size:12px;color:#6b7280}
 .fmsg-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .fmsg-go{border:0;border-radius:10px;height:40px;padding:0 16px;font:600 14px inherit;font-family:inherit;color:#fff;cursor:pointer}
-.fmsg-go-tg{background:#2aa3df}.fmsg-go-vb{background:#7360f2}.fmsg-go-cp{background:#f3f4f6;color:#111827}
+.fmsg-go-tg{background:#2aa3df}.fmsg-go-vbf{background:#5a48d6}.fmsg-go-vb{background:#7360f2}.fmsg-go-cp{background:#f3f4f6;color:#111827}
 .fmsg-go.main{box-shadow:0 0 0 3px rgba(217,169,68,.45)}
 .fmsg-link{border:0;background:none;color:#a8781f;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;margin-left:auto}
 .fmsg-tpl{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #e5e7eb;padding-top:10px}.fmsg-tpl[hidden]{display:none}
@@ -148,7 +148,7 @@
 .fmsg-botb{font-style:normal;font-size:11px;color:#1d7fb0;background:#e6f4fb;border-radius:6px;padding:1px 6px}
 .fmsg-err{font-style:normal;font-size:11px;color:#b42318}
 .fmsg-join{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#4b5563;cursor:pointer}.fmsg-join input{margin-top:2px;accent-color:#c9971f}
-.fmsg-app{display:flex;gap:16px;font-size:14px}.fmsg-app label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.fmsg-app{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:14px}.fmsg-app label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .fmsg-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;border:1px solid #f0ece2;border-radius:10px;padding:6px}
 .fmsg-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer}.fmsg-it:hover{background:#fdf9f0}
 .fmsg-it.done{opacity:.6}.fmsg-itn{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:0 6px;align-items:baseline;font-size:14px}.fmsg-itn small{color:#6b7280}
@@ -240,7 +240,7 @@
         if (k === "tg" || k === "viber") return go(k);
         if (k === "vbfwd") {
             // спроба: «Поділитися» у Viber приймає довгий текст; контакт обираєте у вікні Viber
-            const text = ta().value.trim();
+            const text = ta().value.trim() + (!shortOn() && box.querySelector(".fmsg-joinon1").checked && !box.querySelector(".fmsg-sjoin").hidden && JOIN ? JOIN_LINE(JOIN) : "");
             await copy(text);
             const a = document.createElement("a"); a.href = `viber://forward?text=${encodeURIComponent(text)}`; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
             const note = box.querySelector(".fmsg-note"); note.classList.add("fmsg-hint");
@@ -283,7 +283,7 @@
     bx.className = "fmsg fmsg-batch"; bx.hidden = true;
     bx.innerHTML = `<div class="fmsg-card" role="dialog">
         <div class="fmsg-head"><b>Розіслати перевізникам</b><span class="fmsg-who"></span><button type="button" class="fmsg-x" data-bx="close" title="Закрити">&times;</button></div>
-        <div class="fmsg-app"><label><input type="radio" name="fmsgApp" value="viber" checked> <span class="fmsg-b fmsg-vb">Vb</span> Viber</label><label><input type="radio" name="fmsgApp" value="tg"> <span class="fmsg-b fmsg-tg">TG</span> Telegram</label></div>
+        <div class="fmsg-app"><label><input type="radio" name="fmsgApp" value="viber" checked> <span class="fmsg-b fmsg-vb">Vb</span> Viber</label><label><input type="radio" name="fmsgApp" value="vbf"> <span class="fmsg-b fmsg-vb">Vb</span> Viber · весь текст («Поділитися»)</label><label><input type="radio" name="fmsgApp" value="tg"> <span class="fmsg-b fmsg-tg">TG</span> Telegram</label></div>
         <textarea class="fmsg-text fmsg-btext" rows="7"></textarea>
         <div class="fmsg-note">Ім'я кожного підставиться саме ([ІМʼЯ]). Ціну й назву клієнта не пишемо.</div>
         <div class="fmsg-list"></div>
@@ -312,8 +312,11 @@
             ${x.done ? `<span class="fmsg-ok">✓ ${x.viaBot ? "надіслано ботом" : "відкрито"}</span>` : x.bot && B.useBot ? '<span class="fmsg-ok" style="color:#2aa3df">чекає бота</span>' : `<button type="button" class="fmsg-one" data-bone="${i}" title="Відкрити саме цей чат">відкрити</button>`}</label>`).join("") || '<div class="fmsg-note">Немає перевізників з номером телефону.</div>';
         const nb = bx.querySelector(".fmsg-next");
         nb.className = `fmsg-go ${app() === "tg" ? "fmsg-go-tg" : "fmsg-go-vb"} fmsg-next`;
+        bx.querySelector(".fmsg-how").innerHTML = app() === "vbf"
+            ? "Viber відкриє «Поділитися» з усім текстом: у пошуку введіть номер чи ім'я перевізника (його номер — у списку вище), оберіть і «Надіслати». Працює для тих, хто є у ваших контактах Viber або з ким ви вже переписувались."
+            : "Натисніть кнопку — відкриється чат перевізника. Текст скопійовано: клацніть у поле, Cmd+V, «Надіслати» (текст до 100 символів Viber вставить сам). Поверніться сюди — наступний.";
         nb.disabled = !left.length;
-        nb.textContent = left.length ? `▶ Відкрити ${app() === "tg" ? "Telegram" : "Viber"}: ${left[0].carrier || "+" + left[0].phone} (залишилось ${left.length})` : "✓ Усім обраним відкрито";
+        nb.textContent = left.length ? `▶ Відкрити ${app() === "tg" ? "Telegram" : app() === "vbf" ? "Viber «Поділитися»" : "Viber"}: ${left[0].carrier || "+" + left[0].phone} (залишилось ${left.length})` : "✓ Усім обраним відкрито";
     }
     async function sendBots() {
         const bots = B.list.filter((x) => x.on && !x.done && x.bot);
@@ -334,7 +337,7 @@
     async function openOne(x) {
         const text = x.bot ? personal(x) : withJoin(personal(x));
         await copy(text);
-        const url = app() === "tg" ? `https://t.me/+${x.phone}?text=${encodeURIComponent(text)}` : vbUrl(x.phone, text);
+        const url = app() === "tg" ? `https://t.me/+${x.phone}?text=${encodeURIComponent(text)}` : app() === "vbf" ? `viber://forward?text=${encodeURIComponent(text)}` : vbUrl(x.phone, text);
         const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
         x.done = true;
         brender();
