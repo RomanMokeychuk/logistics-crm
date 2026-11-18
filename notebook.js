@@ -644,7 +644,7 @@ const NB = (() => {
                         ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
                         ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
                     </div>` : ""}
-                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}</div>`).join("")}</div>` : ""}
+                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}${msgBtns(ph, { carrier: name, person: n }, r)}</div>`).join("")}</div>` : ""}
                     <div class="nb-qtrucks">${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}</div>
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
@@ -851,10 +851,20 @@ const NB = (() => {
 
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
+    // текст для перевізника: лише маршрут, вантаж, авто (ні клієнта, ні ставки клієнта з коментаря)
+    const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "" }) : "");
+    window.furaMsgContext = (b) => {
+        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", route: POP.r.addresses || POP.r.direction || "", cargo: POP.r.cargo || "", truck: POP.r.truck || "" }; }
+        const f = document.getElementById("nbForm");
+        if (f && b.closest("#nbModal")) return { carrier: b.closest(".nb-cedit")?.querySelector(".nb-cin")?.value || "", route: f.addresses.value || f.direction.value, cargo: f.cargo.value, truck: f.truck.value };
+        return {};
+    };
     const ctRow = (k = {}) => `<div class="nb-ct">
         <input class="nb-pin" data-ct="name" value="${esc(k.name || "")}" placeholder="Ім'я (кому дзвонив)" />
         <input class="nb-pin" data-ct="phone" value="${esc(k.phone || "")}" placeholder="+380…" inputmode="tel" />
         <button type="button" class="nb-code" data-ctcopy title="Копіювати номер"><i class="bx bx-copy"></i></button>
+        <button type="button" class="fmsg-b fmsg-tg" data-fmsg="tg" data-fmsg-from=".nb-ct" title="Написати в Telegram (текст підготую)">TG</button>
+        <button type="button" class="fmsg-b fmsg-vb" data-fmsg="viber" data-fmsg-from=".nb-ct" title="Написати у Viber (текст підготую)">Vb</button>
         <button type="button" class="nb-x nb-ctdel" data-ctdel title="Прибрати">&times;</button>
     </div>`;
     const readCts = () => [...document.querySelectorAll("#nbCts .nb-ct")].map((el) => ({

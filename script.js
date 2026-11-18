@@ -266,7 +266,8 @@ function renderContactLine(person, phone, withCopy) {
             const copy = withCopy && digits.length >= 6
                 ? ` <button type="button" class="qe-copy qe-copy-phone" data-copy="${escapeHtml(p)}" title="Копіювати номер"><i class='bx bx-copy'></i></button>`
                 : "";
-            return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}</span>`;
+            const msg = withCopy && window.furaMsgBtns ? window.furaMsgBtns(p, { person: person || "" }) : "";
+            return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}${msg}</span>`;
         })
         .join("");
     return `${person ? `<strong>${escapeHtml(person)}:</strong> ` : ""}${phones}`;
