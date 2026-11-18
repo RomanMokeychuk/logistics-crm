@@ -456,8 +456,14 @@ function draftHtml(m) {
         </div>
         <input type="text" class="sa-subject" value="${escapeHtml(m.subject)}" maxlength="150" />
         <textarea rows="9">${escapeHtml(m.body)}</textarea>
+        <div class="sa-sent-ask hidden">
+            <span>Лист відкрито в Outlook. <b>Надіслали?</b></span>
+            <button type="button" class="btn btn-primary" data-act="mark_sent"><i class="bx bx-check"></i> Так, надіслав</button>
+            <button type="button" class="btn btn-secondary" data-act="not_sent">Ще ні</button>
+        </div>
         <div class="ag-item-actions">
-            <button type="button" class="btn btn-primary" data-act="send"><i class="bx bx-send"></i> Надіслати</button>
+            <button type="button" class="btn btn-primary" data-act="outlook" title="Відкриє готовий лист у вашій пошті — перечитайте і натисніть «Надіслати» там"><i class="bx bx-envelope-open"></i> Відкрити в Outlook</button>
+            ${status?.mail && !status?.cold_via_outlook_only ? `<button type="button" class="btn btn-secondary" data-act="send" title="Відправити через сервіс розсилки (лише для своїх клієнтів, які погодились отримувати листи)"><i class="bx bx-send"></i> Через сервіс</button>` : ""}
             <button type="button" class="btn btn-secondary" data-act="save"><i class="bx bx-save"></i> Зберегти</button>
             <button type="button" class="btn btn-secondary" data-act="reject"><i class="bx bx-x"></i> Не надсилати</button>
         </div>
@@ -476,8 +482,21 @@ $("approveList").addEventListener("click", (e) => {
     const id = item.dataset.id;
     const subject = item.querySelector(".sa-subject").value;
     const body = item.querySelector("textarea").value;
+    if (btn.dataset.act === "outlook") {
+        openInOutlook(item.querySelector(".sa-to b").textContent.trim(), subject, body);
+        api({ action: "save", id, subject, body }).catch(() => {});
+        item.querySelector(".sa-sent-ask").classList.remove("hidden");
+        return;
+    }
+    if (btn.dataset.act === "not_sent") {
+        item.querySelector(".sa-sent-ask").classList.add("hidden");
+        return;
+    }
     withBusy(btn, async () => {
-        if (btn.dataset.act === "send") {
+        if (btn.dataset.act === "mark_sent") {
+            await api({ action: "mark_sent", id, subject, body });
+            toast("Позначено надісланим. Клієнт — у «Ліди» на етапі «Контакт», нагадування заплановано.");
+        } else if (btn.dataset.act === "send") {
             await api({ action: "send", id, subject, body });
             toast("Лист надіслано. Клієнт — у «Ліди» на етапі «Контакт».");
         } else if (btn.dataset.act === "save") {
@@ -493,6 +512,24 @@ $("approveList").addEventListener("click", (e) => {
         loadStatus();
     });
 });
+
+/* Відкрити готовий лист у поштовій програмі (Outlook / Пошта) — надсилає сама людина зі своєї адреси.
+ * У кінці — рядок про відписку, якщо агент його не додав. */
+function openInOutlook(to, subject, body) {
+    let text = String(body || "").replace(/\r?\n/g, "\r\n");
+    if (!/не хочете|не бажаєте|відпис|не пишіть/i.test(text)) {
+        text += "\r\n\r\nЯкщо вам це не цікаво — просто дайте знати, і я більше не писатиму.";
+    }
+    const url = `mailto:${encodeURIComponent(to).replace(/%40/g, "@")}?subject=${encodeURIComponent(subject || "")}&body=${encodeURIComponent(text)}`;
+    // дуже довгий лист деякі програми обрізають — тоді копіюємо текст у буфер
+    if (url.length > 7500 && navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(() => {});
+        toast("Лист довгий — текст скопійовано: у новому листі натисніть Cmd+V");
+        location.href = `mailto:${to}?subject=${encodeURIComponent(subject || "")}`;
+        return;
+    }
+    location.href = url;
+}
 
 /* ---------------- Відповіді й надіслані ---------------- */
 

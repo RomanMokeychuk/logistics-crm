@@ -796,13 +796,15 @@ async function upsertLead(p: Any, contact: Any, me: Any, note: string, status?: 
     return String(data.id);
 }
 
-async function deliver(m: Any, me: Any | null): Promise<{ ok: boolean; error?: string }> {
+// manual = true: лист Sales надіслав сам зі своєї пошти (Outlook) — тут лише фіксуємо факт,
+// ведемо ліда і плануємо нагадування. Холодні листи йдуть саме так, а не через Resend.
+async function deliver(m: Any, me: Any | null, manual = false): Promise<{ ok: boolean; error?: string }> {
     const { data: supp } = await db.from("sales_suppression").select("email").eq("email", String(m.to_email).toLowerCase()).maybeSingle();
     if (supp) {
         await db.from("sales_messages").update({ status: "cancelled", error: "У стоп-листі" }).eq("id", m.id);
         return { ok: false, error: "Клієнт у стоп-листі — лист не надіслано." };
     }
-    const r = await sendEmail(m.to_email, m.subject, m.body);
+    const r: Any = manual ? { id: "outlook" } : await sendEmail(m.to_email, m.subject, m.body);
     if (r.error) {
         await db.from("sales_messages").update({ status: "failed", error: r.error }).eq("id", m.id);
         return { ok: false, error: r.error };
@@ -811,7 +813,7 @@ async function deliver(m: Any, me: Any | null): Promise<{ ok: boolean; error?: s
 
     const { data: p } = await db.from("sales_prospects").select("*").eq("id", m.prospect_id).single();
     const contact = m.contact_id ? (await db.from("sales_contacts").select("*").eq("id", m.contact_id).maybeSingle()).data : null;
-    await upsertLead(p, contact, me, `AI-лист №${m.step} надіслано на ${m.to_email}: «${m.subject}»`, m.step === 1 ? "Контакт" : undefined);
+    await upsertLead(p, contact, me, `${manual ? "Лист з Outlook" : "AI-лист"} №${m.step} надіслано на ${m.to_email}: «${m.subject}»`, m.step === 1 ? "Контакт" : undefined);
     if (p.stage !== "replied") await db.from("sales_prospects").update({ stage: "contacted", owner_id: p.owner_id || me?.id || null, updated_at: nowIso() }).eq("id", p.id);
 
     // Наступне нагадування
@@ -1049,6 +1051,20 @@ async function actionSend(body: Any, me: Any) {
     return r.ok ? ok() : fail(502, r.error || "Не вдалося надіслати");
 }
 
+// Sales відкрив лист у своєму Outlook і надіслав — позначаємо надісланим
+async function actionMarkSent(body: Any, me: Any) {
+    const { data: m } = await db.from("sales_messages").select("*").eq("id", body.id).maybeSingle();
+    if (!m) return fail(404, "Лист не знайдено");
+    if (m.status !== "draft") return fail(400, "Цей лист уже оброблено");
+    if (body.subject || body.body) {
+        m.subject = clip(body.subject || m.subject, 150);
+        m.body = clip(body.body || m.body, 8000);
+        await db.from("sales_messages").update({ subject: m.subject, body: m.body }).eq("id", m.id);
+    }
+    const r = await deliver(m, me, true);
+    return r.ok ? ok() : fail(400, r.error || "Не вдалося позначити");
+}
+
 async function actionReject(body: Any, me: Any) {
     const { error } = await db.from("sales_messages").update({ status: "rejected", approved_by: me.id }).eq("id", body.id).in("status", ["draft", "scheduled"]);
     return error ? fail(500, error.message) : ok();
@@ -1206,6 +1222,7 @@ Deno.serve(async (req) => {
             case "draft": out = await actionDraft(body, me); break;
             case "save": out = await actionSave(body); break;
             case "send": out = await actionSend(body, me); break;
+            case "mark_sent": out = await actionMarkSent(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             case "set_stage": out = await actionSetStage(body); break;
             case "add_contact": out = await actionAddContact(body); break;

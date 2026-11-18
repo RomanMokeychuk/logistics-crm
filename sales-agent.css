@@ -337,3 +337,7 @@
 .sa-add .ag-check-inline {
     white-space: nowrap;
 }
+
+/* «Відкрити в Outlook» → «Надіслали?» */
+.sa-sent-ask { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0 4px; padding: 10px 12px; border-radius: 10px; background: #fef3c7; border: 1px solid #fde68a; font-size: 14px; }
+.sa-sent-ask.hidden { display: none; }
