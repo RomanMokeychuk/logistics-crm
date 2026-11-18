@@ -1218,13 +1218,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* ---------- Телефон: список і лист — по черзі на весь екран, «← Назад» повертає до списку ---------- */
     const mob = () => matchMedia("(max-width: 760px)").matches;
     $("mlRead").insertAdjacentHTML("beforebegin", '<button type="button" class="sa-mr-back" id="mlBack"><i class="bx bx-chevron-left"></i> <span>Назад</span></button>');
+    let readPushed = false; // крок «лист» додано в історію (лише на телефоні)
     function readMode(on) {
         const was = document.body.classList.contains("ml-reading");
         document.body.classList.toggle("ml-reading", !!on);
         const back = $("mlBack");
         if (back) back.querySelector("span").textContent = ML.book ? "Адреси" : ((KIND[kindOf(ML.folder)] || [])[0] || "Назад");
         if (on && !was && mob()) {
-            try { history.pushState({ mlRead: 1 }, ""); } catch (_) { /* */ }
+            try { history.pushState({ mlRead: 1 }, ""); readPushed = true; } catch (_) { /* */ }
             window.scrollTo(0, 0); document.querySelector(".main-content")?.scrollTo?.(0, 0);
         }
     }
@@ -1233,9 +1234,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!ML.book) { ML.open = null; renderList(); }
         else { BOOK.sel = null; renderBookList(); }
     }
-    $("mlBack").addEventListener("click", () => { if (history.state?.mlRead) history.back(); else closeRead(); });
+    $("mlBack").addEventListener("click", () => { if (readPushed && history.state?.mlRead) history.back(); else { readPushed = false; closeRead(); } });
     // «назад» — рівно на крок: з листа до списку (а якщо ще на кроці листа — лишаємось у листі)
-    addEventListener("popstate", () => { if (document.body.classList.contains("ml-reading") && !history.state?.mlRead) closeRead(); });
+    addEventListener("popstate", () => {
+        if (!readPushed || history.state?.mlRead) return; // закриття вікна перегляду тощо — лист лишається відкритим
+        readPushed = false;
+        if (document.body.classList.contains("ml-reading")) closeRead();
+    });
     const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
     const pathOf = (kind) => { const f = ML.folders.find((x) => x.kind === kind); return f ? (f.paths || [f.path])[0] : undefined; };
     const when = (d) => {
@@ -1432,7 +1437,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ML.list = ML.list.filter((x) => !(x.uid === m.uid && x.fp === m.fp));
         ML.open = null;
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
-        if (document.body.classList.contains("ml-reading")) { if (history.state?.mlRead) history.back(); else readMode(false); }
+        if (document.body.classList.contains("ml-reading")) { if (readPushed && history.state?.mlRead) history.back(); else readMode(false); }
         renderList(); loadFolders().catch(() => {});
     }
     // Підключити свою пошту: e-mail + пароль від неї (сервер для @grandarltd.com підставиться сам)
@@ -1566,9 +1571,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         const att = (m.attachments || [])[i] || {};
         const key = `${m.fp}|${m.uid}|${att.part}`;
         if (!FILES.has(key)) {
-            const r = await api({ action: "mail_read", folder: m.fp, uid: m.uid, part: att.part, name: att.name, peek: true });
-            const f = r.file;
-            const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
+            // файл приходить одразу байтами (навіть 15–20 МБ), без перетворень
+            const { data: { session } } = await sbClient.auth.getSession();
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/fura-sales`, {
+                method: "POST",
+                headers: { "content-type": "application/json", apikey: SUPABASE_KEY, authorization: `Bearer ${session?.access_token || SUPABASE_KEY}` },
+                body: JSON.stringify({ action: "mail_read", folder: m.fp, uid: m.uid, part: att.part, name: att.name, peek: true, raw: true }),
+            });
+            let f, bin;
+            if (!res.ok) { let msg = ""; try { msg = (await res.json()).error; } catch (_) { /* */ } throw new Error(msg || `Не вдалося відкрити файл (${res.status})`); }
+            if ((res.headers.get("content-type") || "").includes("application/json")) {
+                f = (await res.json()).file; // стара версія сервера — base64
+                bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
+            } else {
+                bin = new Uint8Array(await res.arrayBuffer());
+                f = { name: decodeURIComponent(res.headers.get("x-file-name") || "") || att.name, type: res.headers.get("x-file-type") || att.type };
+            }
             let type = f.type || att.type || "application/octet-stream";
             const k = typeOf(f.name, type);
             if (k === "pdf") type = "application/pdf";
