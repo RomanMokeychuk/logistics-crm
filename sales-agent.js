@@ -1375,7 +1375,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <div>Кому: ${escapeHtml(m.to)}${m.cc ? ` · Копія: ${escapeHtml(m.cc)}` : ""}</div>
                 <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
             </div>
-            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<button type="button" class="sa-mr-att" data-att="${a.i}"><i class="bx bx-paperclip"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
+            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
         const fr = $("mlRead").querySelector(".sa-mr-body");
@@ -1522,17 +1522,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const b = e.target.closest("[data-mr]");
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");
-        if (a) {
-            await withBusy(a, async () => {
-                const att = (ML.open.attachments || [])[Number(a.dataset.att)] || {};
-                const r = await api({ action: "mail_read", folder: ML.open.fp, uid: ML.open.uid, part: att.part, name: att.name, peek: true });
-                const f = r.file;
-                const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
-                const url = URL.createObjectURL(new Blob([bin], { type: f.type || "application/octet-stream" }));
-                const link = document.createElement("a"); link.href = url; link.download = f.name; link.click();
-                setTimeout(() => URL.revokeObjectURL(url), 5000);
-            });
-        }
+        if (a) await withBusy(a, () => preview(Number(a.dataset.att)));
+        const dl = e.target.closest("[data-attdl]");
+        if (dl) await withBusy(dl, async () => download(await fileOf(ML.open, Number(dl.dataset.attdl))));
     });
     let qT = 0;
     $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { ML.q = e.target.value.trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
@@ -1560,6 +1552,86 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("mlWho").innerHTML = "";
         start();
     });
+    /* ---------- Перегляд вкладень: фото, PDF, текст — у вікні; інше — завантажити ---------- */
+    const FILES = new Map(); // кеш завантажених вкладень
+    const typeOf = (name, type) => {
+        const n = String(name || "").toLowerCase(), t = String(type || "").toLowerCase();
+        if (/^image\//.test(t) || /\.(jpe?g|png|gif|webp|bmp|heic|svg)$/.test(n)) return "img";
+        if (t === "application/pdf" || /\.pdf$/.test(n)) return "pdf";
+        if (/^text\//.test(t) || /\.(txt|csv|log|xml|json)$/.test(n)) return "txt";
+        return "";
+    };
+    async function fileOf(m, i) {
+        const att = (m.attachments || [])[i] || {};
+        const key = `${m.fp}|${m.uid}|${att.part}`;
+        if (!FILES.has(key)) {
+            const r = await api({ action: "mail_read", folder: m.fp, uid: m.uid, part: att.part, name: att.name, peek: true });
+            const f = r.file;
+            const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
+            let type = f.type || att.type || "application/octet-stream";
+            const k = typeOf(f.name, type);
+            if (k === "pdf") type = "application/pdf";
+            if (k === "img" && !/^image\//.test(type)) type = "image/" + (String(f.name).split(".").pop().toLowerCase().replace("jpg", "jpeg"));
+            if (k === "txt") type = "text/plain;charset=utf-8";
+            FILES.set(key, { name: f.name || att.name, type, kind: k, url: URL.createObjectURL(new Blob([bin], { type })), size: bin.length });
+        }
+        return FILES.get(key);
+    }
+    const download = (f) => { const l = document.createElement("a"); l.href = f.url; l.download = f.name; document.body.appendChild(l); l.click(); l.remove(); };
+    const pv = document.createElement("div");
+    pv.className = "sa-pv"; pv.hidden = true;
+    pv.innerHTML = `<div class="sa-pv-bar"><b class="sa-pv-name"></b><span class="sa-pv-n"></span>
+        <button type="button" class="sa-pv-btn" data-pv="prev" title="Попереднє"><i class="bx bx-chevron-left"></i></button>
+        <button type="button" class="sa-pv-btn" data-pv="next" title="Наступне"><i class="bx bx-chevron-right"></i></button>
+        <button type="button" class="sa-pv-btn" data-pv="open" title="Відкрити в новій вкладці"><i class="bx bx-link-external"></i></button>
+        <button type="button" class="sa-pv-btn" data-pv="dl" title="Завантажити"><i class="bx bx-download"></i> <span>Завантажити</span></button>
+        <button type="button" class="sa-pv-btn sa-pv-x" data-pv="close" title="Закрити">&times;</button></div>
+        <div class="sa-pv-body"></div>`;
+    document.body.appendChild(pv);
+    let PV = { m: null, i: 0, f: null };
+    async function preview(i) {
+        const m = ML.open; if (!m?.uid) return;
+        const att = (m.attachments || [])[i] || {};
+        // незнайомий формат (Word, Excel, архів) — одразу завантажити
+        if (!typeOf(att.name, att.type)) return download(await fileOf(m, i));
+        PV = { m, i, f: null };
+        pv.hidden = false; document.body.classList.add("sa-pv-open");
+        pv.querySelector(".sa-pv-name").textContent = att.name || "файл";
+        pv.querySelector(".sa-pv-n").textContent = (m.attachments.length > 1 ? `${i + 1} з ${m.attachments.length}` : "");
+        const body = pv.querySelector(".sa-pv-body");
+        body.innerHTML = '<p class="sa-pv-load">Відкриваю…</p>';
+        try {
+            const f = await fileOf(m, i);
+            if (PV.m !== m || PV.i !== i) return;
+            PV.f = f;
+            if (f.kind === "img") body.innerHTML = `<img src="${f.url}" alt="">`;
+            else if (f.kind === "pdf") body.innerHTML = `<iframe src="${f.url}#view=FitH" title="PDF"></iframe>`;
+            else if (f.kind === "txt") body.innerHTML = `<pre>${escapeHtml(await (await fetch(f.url)).text())}</pre>`;
+            else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут — натисніть «Завантажити».</p>`;
+            const img = body.querySelector("img");
+            if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
+        } catch (er) { body.innerHTML = `<p class="sa-pv-load">${escapeHtml(er.message)}</p>`; }
+    }
+    pv.addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-pv]"); if (!b) return;
+        const k = b.dataset.pv, n = PV.m?.attachments?.length || 0;
+        if (k === "close") { pv.hidden = true; document.body.classList.remove("sa-pv-open"); pv.querySelector(".sa-pv-body").innerHTML = ""; return; }
+        if ((k === "prev" || k === "next") && n > 1) {
+            // переглядаємо по черзі лише те, що відкривається тут
+            let j = PV.i;
+            for (let t = 0; t < n; t++) { j = (j + (k === "next" ? 1 : -1) + n) % n; if (typeOf(PV.m.attachments[j].name, PV.m.attachments[j].type)) break; }
+            return preview(j);
+        }
+        if (!PV.f) return;
+        if (k === "dl") download(PV.f);
+        if (k === "open") window.open(PV.f.url, "_blank");
+    });
+    document.addEventListener("keydown", (e) => {
+        if (pv.hidden) return;
+        if (e.key === "ArrowRight") pv.querySelector('[data-pv="next"]').click();
+        if (e.key === "ArrowLeft") pv.querySelector('[data-pv="prev"]').click();
+    });
+
     /* ---------- Довідник «Адреси»: e-mail, чия адреса, компанія, телефон, підпис ---------- */
     const FREE = /^(gmail|ukr|i\.ua|meta|outlook|hotmail|yahoo|icloud|wp|onet|o2|interia|mail|yandex|bigmir|gmx|web)\./i;
     const BOOK = {
