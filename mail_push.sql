@@ -1,8 +1,6 @@
 -- FURA · Сповіщення про нові листи на телефон і комп'ютер (навіть коли FURA закрита).
--- 1) Supabase → SQL Editor → New query → вставити ВЕСЬ файл.
--- 2) У рядку з 'x-sales-secret' замініть <SALES_CRON_SECRET> на значення секрету SALES_CRON_SECRET
---    (Edge Functions → Secrets). Якщо такого секрету ще немає — створіть його (будь-який довгий набір літер і цифр).
--- 3) Run. Унизу має бути рядок fura-mail-push.
+-- Supabase → SQL Editor → New query → вставити ВЕСЬ файл → Run. Нічого міняти не треба.
+-- Унизу має бути рядок fura-mail-push.
 
 -- Пристрої, куди слати сповіщення (кожен браузер / телефон окремо)
 create table if not exists public.push_subs (
@@ -32,6 +30,13 @@ create table if not exists public.push_config (
     private_d text not null
 );
 
+-- Пароль для розкладу: створюється тут сам, розклад бере його з бази
+create table if not exists public.push_cron (id int primary key, token text not null);
+insert into public.push_cron (id, token) values (1, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
+    on conflict (id) do nothing;
+alter table public.push_cron enable row level security;
+revoke all on public.push_cron from anon, authenticated;
+
 -- Доступ лише в сервера (функція fura-sales): з сайту напряму ці таблиці не читаються
 alter table public.push_subs enable row level security;
 alter table public.mail_push_state enable row level security;
@@ -47,7 +52,7 @@ select cron.schedule(
     '* * * * *',
     $$ select net.http_post(
            url := 'https://prbfscwmemshwigiftha.supabase.co/functions/v1/fura-sales',
-           headers := jsonb_build_object('content-type', 'application/json', 'x-sales-secret', '<SALES_CRON_SECRET>'),
+           headers := jsonb_build_object('content-type', 'application/json', 'x-push-token', (select token from public.push_cron where id = 1)),
            body := '{"action":"mail_push"}'::jsonb,
            timeout_milliseconds := 55000
        ) $$
