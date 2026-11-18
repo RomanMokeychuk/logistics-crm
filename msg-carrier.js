@@ -27,6 +27,9 @@
         if (d.length === 9) d = "380" + d;                           // XX… без нуля
         return d;
     };
+    // Viber вставляє в поле лише перші 100 символів — довший текст не обрізаємо, а даємо вставити повністю (Cmd+V)
+    const VB_MAX = 100;
+    const vbUrl = (ph, text) => `viber://chat?number=%2B${ph}` + (text.length <= VB_MAX ? `&draft=${encodeURIComponent(text)}` : "");
     const tpl = () => { try { return localStorage.getItem(TPL_KEY) || DEF_TPL; } catch (_) { return DEF_TPL; } };
     const myName = () => {
         try { const s = JSON.parse(localStorage.getItem("fura_compose_sig") || "{}"); if (s.name) return s.name.split(/\s+/)[0]; } catch (_) { /* */ }
@@ -128,9 +131,11 @@
         const text = ta().value.trim();
         await copy(text);
         const ph = CTX.phone;
-        const url = app === "tg" ? `https://t.me/+${ph}?text=${encodeURIComponent(text)}` : `viber://chat?number=%2B${ph}&draft=${encodeURIComponent(text)}`;
+        const url = app === "tg" ? `https://t.me/+${ph}?text=${encodeURIComponent(text)}` : vbUrl(ph, text);
         const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
-        box.querySelector(".fmsg-note").textContent = `Текст скопійовано. У чаті ${app === "tg" ? "Telegram" : "Viber"} натисніть Cmd+V (на телефоні — «Вставити») і надішліть.`;
+        box.querySelector(".fmsg-note").textContent = app !== "tg" && text.length <= VB_MAX
+            ? "Текст уже в полі Viber — натисніть «Надіслати»."
+            : `Текст скопійовано. У чаті ${app === "tg" ? "Telegram" : "Viber"} клацніть у поле, натисніть Cmd+V (на телефоні — «Вставити») і надішліть.${app !== "tg" ? " Viber сам вставляє лише короткі тексти (до 100 символів)." : ""}`;
         say("Текст скопійовано — вставте в чат і надішліть");
     }
     box.addEventListener("click", async (e) => {
@@ -169,7 +174,7 @@
         <div class="fmsg-note">Ім'я кожного підставиться саме ([ІМʼЯ]). Ціну й назву клієнта не пишемо.</div>
         <div class="fmsg-list"></div>
         <div class="fmsg-acts"><button type="button" class="fmsg-go fmsg-go-vb fmsg-next" data-bx="next"></button><button type="button" class="fmsg-link" data-bx="all">обрати всіх / нікого</button></div>
-        <div class="fmsg-note fmsg-how">Натисніть кнопку — відкриється чат першого перевізника, текст уже буде в полі (або в буфері — тоді Cmd+V). Надішліть і поверніться сюди — наступний.</div>
+        <div class="fmsg-note fmsg-how">Натисніть кнопку — відкриється чат першого перевізника. Текст скопійовано: клацніть у поле, Cmd+V, «Надіслати» (короткий текст до 100 символів Viber вставить сам). Поверніться сюди — наступний.</div>
     </div>`;
     let B = { list: [], ctx: {}, i: 0 };
     const bmount = () => { if (!bx.isConnected) document.body.appendChild(bx); };
@@ -190,7 +195,7 @@
     async function openOne(x) {
         const text = personal(x);
         await copy(text);
-        const url = app() === "tg" ? `https://t.me/+${x.phone}?text=${encodeURIComponent(text)}` : `viber://chat?number=%2B${x.phone}&draft=${encodeURIComponent(text)}`;
+        const url = app() === "tg" ? `https://t.me/+${x.phone}?text=${encodeURIComponent(text)}` : vbUrl(x.phone, text);
         const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
         x.done = true;
         brender();
