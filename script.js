@@ -503,9 +503,23 @@ function cardRow(label, valueHtml, editKey, copyText) {
 }
 
 // Формує відображення країн та їхніх квадратиків/воєводств у картці перевізника
+// Однакові країни (напр. дві «ПОЛЬЩА») зливаємо в одну — регіони без повторів
+function mergeDestinations(str) {
+    const map = new Map();
+    String(str || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((pair) => {
+        const i = pair.indexOf("-");
+        const country = (i !== -1 ? pair.substring(0, i) : pair).trim().toUpperCase();
+        const regs = i !== -1 ? pair.substring(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : [];
+        const cur = map.get(country) || [];
+        regs.forEach((r) => { if (!cur.some((x) => x.toLowerCase() === r.toLowerCase())) cur.push(r); });
+        map.set(country, cur);
+    });
+    return [...map].map(([c, r]) => (r.length ? `${c} - ${r.join(", ")}` : c)).join(";");
+}
+
 function renderDestinationsHtml(str) {
     if (!str) return "—";
-    return str
+    return mergeDestinations(str)
         .split(";")
         .map((pair) => {
             const dashIndex = pair.indexOf("-");
@@ -1532,7 +1546,7 @@ if (addCarrierForm) {
             ...(allCarriersCache.some((c) => "director" in c) ? { director: getValue("director") } : {}),
             edrpou: getValue("edrpou"),
             region_ukr: getValue("region_ukr"),
-            destinations: getValue("destinations"),
+            destinations: mergeDestinations(getValue("destinations")),
             ukraine_directions: getValue("ukraine_directions"),
             quadrant: getValue("quadrant"), // Вернет null, если поля нет на странице
             city: getValue("city"),
@@ -1710,7 +1724,7 @@ async function editCarrier(id, inline = false) {
 
     // Заполнение динамических блоков (прицепы, страны с воеводствами, направления по Украине)
     parseAndFillTrailers(data.trailer_type);
-    parseAndFillDestinations(data.destinations);
+    parseAndFillDestinations(mergeDestinations(data.destinations));
     parseAndFillUkraineDirections(data.ukraine_directions);
 
     // Изменение заголовка и открытие модального окна
@@ -2319,4 +2333,35 @@ function carrierPopupReady(id) {
             save();
         }
     }, true);
+})();
+
+/* Картка перевізника: блоки щільно один під одним (без порожніх проміжків) —
+   кожен блок займає в сітці стільки рядків, скільки його висота. */
+(function () {
+    const UNIT = 4;
+    let t = 0;
+    function pack() {
+        const grid = document.querySelector("#carrierCardBody .card-grid");
+        if (!grid) return;
+        const two = getComputedStyle(grid).gridTemplateColumns.split(" ").length > 1;
+        grid.classList.toggle("cc-masonry", two);
+        if (!two) { [...grid.children].forEach((el) => (el.style.gridRowEnd = "")); return; }
+        const gap = 12;
+        [...grid.children].forEach((el) => {
+            el.style.gridRowEnd = "";
+            const h = el.getBoundingClientRect().height;
+            el.style.gridRowEnd = `span ${Math.max(1, Math.ceil((h + gap) / UNIT))}`;
+        });
+    }
+    const later = () => { clearTimeout(t); t = setTimeout(pack, 40); };
+    const ro = new ResizeObserver(later);
+    const watch = () => {
+        const grid = document.querySelector("#carrierCardBody .card-grid");
+        if (!grid) return;
+        [...grid.children].forEach((el) => { if (!el.dataset.ccRo) { el.dataset.ccRo = "1"; ro.observe(el); } });
+        later();
+    };
+    const body = document.getElementById("carrierCardBody");
+    if (body) new MutationObserver(watch).observe(body, { childList: true, subtree: true });
+    addEventListener("resize", later);
 })();

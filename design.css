@@ -1109,3 +1109,7 @@ body, html { background-attachment: scroll !important; }
 
 .card-lardi-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 3px 9px; border-radius: 8px; background: #eef6f4; color: #2f5d55; font-size: 12.5px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .card-lardi-badge:hover { background: #dcefeb; }
+
+/* Картка перевізника: щільна сітка (висоту рядків задає script.js) */
+#carrierCardBody .card-grid.cc-masonry { grid-auto-rows: 4px; row-gap: 0 !important; align-items: start; }
+#carrierCardBody .card-grid.cc-masonry > * { margin-bottom: 12px !important; }
