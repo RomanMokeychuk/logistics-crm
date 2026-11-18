@@ -1334,3 +1334,14 @@
 .ctx-go:hover { background: #a8781f; }
 .ctx-link { border: 0; background: none; color: #a8781f; text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; margin-left: auto; }
 @media (max-width: 600px) { .ctx-ov { align-items: flex-end; padding: 0; } .ctx-card { border-radius: 16px 16px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); } .ctx-go { flex: 1; justify-content: center; } }
+
+/* ===== Шапка «Запити»: заголовок, пошук і кнопка в один рядок ===== */
+.rq-topbar { flex-wrap: nowrap; gap: 20px; margin-bottom: 12px !important; }
+.rq-topbar h1 { margin: 0 !important; flex: none; font-size: 26px; line-height: 1.1; }
+.rq-head-search { flex: 1; min-width: 0; max-width: 720px; margin: 0 auto; }
+.rq-head-search .search-input { width: 100%; margin: 0; height: 44px; box-sizing: border-box; }
+.rq-topbar #openRequestModalBtn { flex: none; white-space: nowrap; }
+@media (max-width: 700px) {
+    .rq-topbar { flex-wrap: wrap; gap: 10px; }
+    .rq-head-search { order: 3; flex-basis: 100%; max-width: none; }
+}

@@ -22,16 +22,16 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611182111" />
-        <link rel="stylesheet" href="requests.css?v=202611182111" />
+        <link rel="stylesheet" href="style.css?v=202611182114" />
+        <link rel="stylesheet" href="requests.css?v=202611182114" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-            <link rel="stylesheet" href="furik-reply.css?v=202611182111" />
-            <link rel="stylesheet" href="bids.css?v=202611182111" />
-            <link rel="stylesheet" href="request-match.css?v=202611182111" />
-        <link rel="stylesheet" href="theme.css?v=202611182111" />
-        <link rel="stylesheet" href="design.css?v=202611182111" />
+            <link rel="stylesheet" href="furik-reply.css?v=202611182114" />
+            <link rel="stylesheet" href="bids.css?v=202611182114" />
+            <link rel="stylesheet" href="request-match.css?v=202611182114" />
+        <link rel="stylesheet" href="theme.css?v=202611182114" />
+        <link rel="stylesheet" href="design.css?v=202611182114" />
     </head>
     <body>
         <aside class="sidebar">
@@ -67,8 +67,15 @@
         </button>
 
         <main class="main-content">
-            <header class="top-bar">
+            <header class="top-bar rq-topbar">
                 <h1>Запити</h1>
+                <div class="rq-head-search">
+                    <input
+                        type="text"
+                        id="requestsSearch"
+                        class="search-input"
+                        placeholder="🔍 Пошук" />
+                </div>
                 <button class="btn btn-primary" id="openRequestModalBtn">
                     <i class="bx bx-plus"></i> Додати запит
                 </button>
@@ -80,13 +87,6 @@
                 </button>
             </header>
 
-            <div class="filters-bar">
-                <input
-                    type="text"
-                    id="requestsSearch"
-                    class="search-input"
-                    placeholder="🔍 Пошук" />
-            </div>
 
             <section class="table-card" id="tableScrollArea">
                 <table class="requests-table">
@@ -642,16 +642,16 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="carrier-search.js?v=202611182111"></script>
-        <script src="requests.js?v=202611182111"></script>
-        <script src="request-match.js?v=202611182111"></script>
-        <script src="bids.js?v=202611182111"></script>
-        <script src="portal-admin.js?v=202611182111"></script>
-        <script src="furik-reply.js?v=202611182111"></script>
-        <script src="address-suggest.js?v=202611182111"></script>
-        <script src="route-map.js?v=202611182111"></script>
-        <script src="shell.js?v=202611182111"></script>
-        <script src="notify.js?v=202611182111"></script>
-        <script src="lock.js?v=202611182111"></script>
+        <script src="carrier-search.js?v=202611182114"></script>
+        <script src="requests.js?v=202611182114"></script>
+        <script src="request-match.js?v=202611182114"></script>
+        <script src="bids.js?v=202611182114"></script>
+        <script src="portal-admin.js?v=202611182114"></script>
+        <script src="furik-reply.js?v=202611182114"></script>
+        <script src="address-suggest.js?v=202611182114"></script>
+        <script src="route-map.js?v=202611182114"></script>
+        <script src="shell.js?v=202611182114"></script>
+        <script src="notify.js?v=202611182114"></script>
+        <script src="lock.js?v=202611182114"></script>
     </body>
 </html>
