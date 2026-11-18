@@ -53,7 +53,6 @@
                 const res = await call({ action: "carrier_enrich", carrier_id: id, apply: true, fields });
                 box.hidden = true;
                 await refresh(id);
-                window.furaToast?.({ icon: "✅", title: "Картку оновлено з Lardi", text: `Полів: ${res.applied || 0}` });
             } catch (err) { e.target.disabled = false; e.target.textContent = "Зберегти обране"; alert(err.message); }
         });
     }
@@ -343,7 +342,6 @@
             if (error) { e.target.disabled = false; e.target.textContent = "Зберегти обране"; return alert("Не вдалося зберегти: " + error.message); }
             box.hidden = true;
             await refresh(id);
-            window.furaToast?.({ icon: "✅", title: "Дані з Lardi збережено", text: `Полів: ${Object.keys(upd).length}` });
         });
     }
     window.furaParseLardi = parseLardi; // для перевірки
