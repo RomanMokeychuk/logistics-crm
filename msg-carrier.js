@@ -105,6 +105,7 @@
         <label class="fmsg-pick" hidden><span>Вантаж:</span><select class="fmsg-req"><option value="">— без вантажу (спитати про вільні авто) —</option></select></label>
         <textarea class="fmsg-text" rows="9"></textarea>
         <div class="fmsg-note">Ціну клієнта і назву клієнта перевізнику не пишемо. Текст можна правити.</div>
+        <label class="fmsg-join fmsg-short"><input type="checkbox" class="fmsg-shorton"> Коротко, до 100 символів — тоді Viber сам вставить текст у поле (без Cmd+V)</label>
         <label class="fmsg-join fmsg-sjoin"><input type="checkbox" class="fmsg-joinon1" checked> Додати посилання на бота FURA (щоб наступні запити приходили йому автоматично)</label>
         <div class="fmsg-acts">
             <button type="button" class="fmsg-go fmsg-go-bot fmsg-sbot" data-fx="bot" hidden>🤖 Надіслати ботом</button>
@@ -141,7 +142,7 @@
 .fmsg-tpl{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #e5e7eb;padding-top:10px}.fmsg-tpl[hidden]{display:none}
 .fmsg-pick{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b7280}.fmsg-pick[hidden]{display:none}
 .fmsg-req{flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9px;padding:8px 10px;font:inherit;font-size:14px;color:#111827;background:#fff}
-.fmsg-go-bot{background:#0f8fd0}.fmsg-go[hidden],.fmsg-join[hidden]{display:none}.fmsg-go-bot:disabled{opacity:.6;cursor:default}
+.fmsg-go-bot{background:#0f8fd0}.fmsg-hint{background:#fff7e0;border:1px solid #f2d48a;color:#6b4f12;border-radius:10px;padding:10px 12px;font-size:14px}.fmsg-join.off{opacity:.45;pointer-events:none}.fmsg-go[hidden],.fmsg-join[hidden]{display:none}.fmsg-go-bot:disabled{opacity:.6;cursor:default}
 .fmsg-botrow{gap:10px}.fmsg-botrow[hidden]{display:none}
 .fmsg-botb{font-style:normal;font-size:11px;color:#1d7fb0;background:#e6f4fb;border-radius:6px;padding:1px 6px}
 .fmsg-err{font-style:normal;font-size:11px;color:#b42318}
@@ -180,6 +181,11 @@
             };
         }
         box.querySelector(".fmsg-tpl").hidden = true;
+        const note = box.querySelector(".fmsg-note"); note.classList.remove("fmsg-hint"); note.textContent = "Ціну клієнта і назву клієнта перевізнику не пишемо. Текст можна правити.";
+        let sh = false; try { sh = localStorage.getItem("fura_msg_short") === "1"; } catch (_) { /* */ }
+        box.querySelector(".fmsg-shorton").checked = sh;
+        if (sh) ta().value = shortText(CTX);
+        box.querySelector(".fmsg-sjoin").classList.toggle("off", sh);
         // уже в боті — надсилаємо ботом, посилання не потрібне
         const sb = box.querySelector(".fmsg-sbot"), sj = box.querySelector(".fmsg-sjoin");
         sb.hidden = true; sj.hidden = false;
@@ -196,16 +202,35 @@
         }
     }
     const say = (m) => (typeof window.furaToast === "function" ? window.furaToast({ icon: "📋", title: m, text: "" }) : (typeof window.toast === "function" ? window.toast(m) : null));
+    // Короткий текст (≤100 символів): Viber вставляє його в поле сам
+    const city = (side) => String(side || "").split(",")[0].replace(/\(.*?\)/g, "").trim();
+    function shortText(ctx) {
+        const route = String(ctx.route || "").split(/\s+[-–—]\s+|\n/).filter(Boolean).map(city).join(" – ");
+        const cargo = String(ctx.cargo || "").split("\n")[0].trim();
+        const parts = ["Доброго дня! Грандар.", route && route + ".", cargo && cargo + ".", ctx.truck && String(ctx.truck).replace(/\s*\n\s*/g, ", ").trim() + ".", "Цікаво?"].filter(Boolean);
+        let t = parts.join(" ");
+        if (t.length > VB_MAX) t = parts.filter((x) => x !== String(ctx.truck || "").replace(/\s*\n\s*/g, ", ").trim() + ".").join(" ");
+        if (t.length > VB_MAX && cargo) t = t.replace(cargo + ".", cargo.slice(0, Math.max(10, cargo.length - (t.length - VB_MAX) - 1)) + "…");
+        return t.slice(0, VB_MAX);
+    }
+    const shortOn = () => box.querySelector(".fmsg-shorton").checked;
+    box.addEventListener("change", (e) => {
+        if (!e.target.classList.contains("fmsg-shorton")) return;
+        try { localStorage.setItem("fura_msg_short", shortOn() ? "1" : ""); } catch (_) { /* */ }
+        ta().value = shortOn() ? shortText(CTX) : (CTX.route || CTX.cargo ? build(CTX) : build(CTX, FREE_TPL));
+        box.querySelector(".fmsg-sjoin").classList.toggle("off", shortOn());
+    });
     async function go(app) {
-        const text = ta().value.trim() + (box.querySelector(".fmsg-joinon1").checked && !box.querySelector(".fmsg-sjoin").hidden && JOIN ? JOIN_LINE(JOIN) : "");
+        const text = ta().value.trim() + (!shortOn() && box.querySelector(".fmsg-joinon1").checked && !box.querySelector(".fmsg-sjoin").hidden && JOIN ? JOIN_LINE(JOIN) : "");
         await copy(text);
         const ph = CTX.phone;
         const url = app === "tg" ? `https://t.me/+${ph}?text=${encodeURIComponent(text)}` : vbUrl(ph, text);
         const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
-        box.querySelector(".fmsg-note").textContent = app !== "tg" && text.length <= VB_MAX
-            ? "Текст уже в полі Viber — натисніть «Надіслати»."
-            : `Текст скопійовано. У чаті ${app === "tg" ? "Telegram" : "Viber"} клацніть у поле, натисніть Cmd+V (на телефоні — «Вставити») і надішліть.${app !== "tg" ? " Viber сам вставляє лише короткі тексти (до 100 символів)." : ""}`;
-        say("Текст скопійовано — вставте в чат і надішліть");
+        const note = box.querySelector(".fmsg-note");
+        note.classList.add("fmsg-hint");
+        note.innerHTML = app !== "tg" && text.length <= VB_MAX
+            ? "✅ Текст уже в полі Viber — натисніть там «Надіслати»."
+            : `👉 Перейдіть у ${app === "tg" ? "Telegram" : "Viber"} → клацніть у поле повідомлення → <b>Cmd+V</b> → «Надіслати». Текст уже скопійовано.`;
     }
     box.addEventListener("click", async (e) => {
         const b = e.target.closest("[data-fx]"); if (!b) return;
