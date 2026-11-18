@@ -57,7 +57,7 @@
         if (REQS) return REQS;
         try {
             const c = typeof sbClient !== "undefined" ? sbClient : null;
-            const { data } = await c.from("my_requests").select("id, addresses, direction, cargo, truck, comment, status, updated_at")
+            const { data } = await c.from("my_requests").select("id, request_id, addresses, direction, cargo, truck, comment, status, updated_at")
                 .order("updated_at", { ascending: false }).limit(40);
             REQS = (data || []).filter((r) => !/закрит|відмов|архів/i.test(r.status || ""));
         } catch (_) { REQS = []; }
@@ -143,7 +143,7 @@
 .fmsg-tpl{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #e5e7eb;padding-top:10px}.fmsg-tpl[hidden]{display:none}
 .fmsg-pick{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b7280}.fmsg-pick[hidden]{display:none}
 .fmsg-req{flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9px;padding:8px 10px;font:inherit;font-size:14px;color:#111827;background:#fff}
-.fmsg-go-bot{background:#0f8fd0}.fmsg-hint{background:#fff7e0;border:1px solid #f2d48a;color:#6b4f12;border-radius:10px;padding:10px 12px;font-size:14px}.fmsg-join.off{opacity:.45;pointer-events:none}.fmsg-go[hidden],.fmsg-join[hidden]{display:none}.fmsg-go-bot:disabled{opacity:.6;cursor:default}
+.fmsg-go-bot{background:#0f8fd0}.fmsg-allrow[hidden]{display:none}.fmsg-all{flex:1}.fmsg-hint{background:#fff7e0;border:1px solid #f2d48a;color:#6b4f12;border-radius:10px;padding:10px 12px;font-size:14px}.fmsg-join.off{opacity:.45;pointer-events:none}.fmsg-go[hidden],.fmsg-join[hidden]{display:none}.fmsg-go-bot:disabled{opacity:.6;cursor:default}
 .fmsg-botrow{gap:10px}.fmsg-botrow[hidden]{display:none}
 .fmsg-botb{font-style:normal;font-size:11px;color:#1d7fb0;background:#e6f4fb;border-radius:6px;padding:1px 6px}
 .fmsg-err{font-style:normal;font-size:11px;color:#b42318}
@@ -284,11 +284,13 @@
     bx.innerHTML = `<div class="fmsg-card" role="dialog">
         <div class="fmsg-head"><b>Розіслати перевізникам</b><span class="fmsg-who"></span><button type="button" class="fmsg-x" data-bx="close" title="Закрити">&times;</button></div>
         <div class="fmsg-app"><label><input type="radio" name="fmsgApp" value="vbf" checked> <span class="fmsg-b fmsg-vb">Vb</span> Viber</label><label><input type="radio" name="fmsgApp" value="viber"> <span class="fmsg-b fmsg-vb">Vb</span> Viber · чат за номером (Cmd+V)</label><label><input type="radio" name="fmsgApp" value="tg"> <span class="fmsg-b fmsg-tg">TG</span> Telegram</label></div>
+        <label class="fmsg-pick fmsg-bpick" hidden><span>Вантаж:</span><select class="fmsg-req fmsg-breq"><option value="">— без вантажу (спитати про вільні авто) —</option></select></label>
         <textarea class="fmsg-text fmsg-btext" rows="7"></textarea>
         <div class="fmsg-note">Ім'я кожного підставиться саме ([ІМʼЯ]). Ціну й назву клієнта не пишемо.</div>
         <div class="fmsg-list"></div>
         <div class="fmsg-acts fmsg-botrow" hidden><button type="button" class="fmsg-go fmsg-go-bot" data-bx="bot"></button><span class="fmsg-note">надсилає бот FURA одразу всім, хто підключений, — без вашої участі</span></div>
         <label class="fmsg-join"><input type="checkbox" class="fmsg-joinon" checked> Тим, хто не в боті, додати посилання на бота (щоб наступного разу все йшло автоматично)</label>
+        <div class="fmsg-acts fmsg-allrow"><button type="button" class="fmsg-go fmsg-go-vbf fmsg-all" data-bx="shareall"></button></div>
         <div class="fmsg-acts"><button type="button" class="fmsg-go fmsg-go-vb fmsg-next" data-bx="next"></button><button type="button" class="fmsg-link" data-bx="all">обрати всіх / нікого</button></div>
         <div class="fmsg-note fmsg-how">Натисніть кнопку — відкриється чат першого перевізника. Текст скопійовано: клацніть у поле, Cmd+V, «Надіслати» (короткий текст до 100 символів Viber вставить сам). Поверніться сюди — наступний.</div>
     </div>`;
@@ -312,6 +314,9 @@
             ${x.done ? `<span class="fmsg-ok">✓ ${x.viaBot ? "надіслано ботом" : "відкрито"}</span>` : x.bot && B.useBot ? '<span class="fmsg-ok" style="color:#2aa3df">чекає бота</span>' : `<button type="button" class="fmsg-one" data-bone="${i}" title="Відкрити саме цей чат">відкрити</button>`}</label>`).join("") || '<div class="fmsg-note">Немає перевізників з номером телефону.</div>';
         const nb = bx.querySelector(".fmsg-next");
         nb.className = `fmsg-go ${app() === "tg" ? "fmsg-go-tg" : "fmsg-go-vb"} fmsg-next`;
+        const sa = bx.querySelector(".fmsg-allrow"), all = B.list.filter((x) => x.on && !x.done && !(x.bot && B.useBot));
+        sa.hidden = app() !== "vbf" || all.length < 2;
+        bx.querySelector(".fmsg-all").textContent = `📤 Одним повідомленням усім обраним (${all.length}) — «Поділитися»`;
         bx.querySelector(".fmsg-how").innerHTML = app() === "vbf"
             ? "Viber відкриє «Поділитися» з усім текстом: у пошуку введіть номер чи ім'я перевізника (його номер — у списку вище), оберіть і «Надіслати». Працює для тих, хто є у ваших контактах Viber або з ким ви вже переписувались."
             : "Натисніть кнопку — відкриється чат перевізника. Текст скопійовано: клацніть у поле, Cmd+V, «Надіслати» (текст до 100 символів Viber вставить сам). Поверніться сюди — наступний.";
@@ -353,6 +358,18 @@
         if (k === "close") { bx.hidden = true; return; }
         if (k === "all") { const on = !B.list.every((x) => x.on || x.done); B.list.forEach((x) => { if (!x.done) x.on = on; }); return brender(); }
         if (k === "bot") return sendBots();
+        if (k === "shareall") {
+            // один раз «Поділитися»: у Viber позначаєте всіх обраних галочками і «Надіслати»
+            const rest = B.list.filter((x) => x.on && !x.done && !(x.bot && B.useBot));
+            if (!rest.length) return;
+            const text = withJoin(build({ ...B.ctx, person: "" }, bx.querySelector(".fmsg-btext").value.trim()));
+            copy(text);
+            const a = document.createElement("a"); a.href = `viber://forward?text=${encodeURIComponent(text)}`; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+            rest.forEach((x) => { x.done = true; });
+            brender();
+            bx.querySelector(".fmsg-how").innerHTML = `👉 У Viber у вікні «Поділитися» позначте всіх: <b>${rest.map((x) => esc(x.person || x.carrier || "+" + x.phone)).join(", ")}</b> (шукайте за іменем або номером) і натисніть «Надіслати». Viber дозволяє обрати кількох одразу.`;
+            return;
+        }
         if (k === "next") { const x = B.list.find((y) => y.on && !y.done && !(y.bot && B.useBot)); if (x) openOne(x); }
     });
     // list = [{ carrier, person, phone }], ctx = { route, cargo, truck, date }
@@ -373,6 +390,20 @@
         // текст уже з маршрутом/вантажем; лишається тільки [ІМʼЯ] — для кожного своє
         bx.querySelector(".fmsg-btext").value = build({ ...ctx, person: "\u0001" }).replace(/, \u0001/g, "{, [ІМʼЯ]}").replace(/\u0001/g, "[ІМʼЯ]");
         try { const a = localStorage.getItem("fura_msg_app2"); if (a) bx.querySelector(`[name="fmsgApp"][value="${a}"]`).checked = true; } catch (_) { /* */ }
+        // відкрили з реєстру перевізників (без вантажу) — можна обрати вантаж з Блокнота
+        const bp = bx.querySelector(".fmsg-bpick"), bs = bx.querySelector(".fmsg-breq");
+        const hasLoad = !!(ctx.route || ctx.cargo);
+        bp.hidden = hasLoad;
+        if (!hasLoad) {
+            bx.querySelector(".fmsg-btext").value = build({}, FREE_TPL);
+            bs.length = 1;
+            loadReqs().then((list) => { bs.length = 1; list.forEach((r) => bs.add(new Option(`${r.addresses || r.direction || "—"}${r.cargo ? " · " + String(r.cargo).split("\n")[0].slice(0, 40) : ""}${r.status ? " · " + r.status : ""}`, r.id))); });
+            bs.onchange = () => {
+                const r = (REQS || []).find((x) => x.id === bs.value);
+                B.ctx = r ? { route: r.addresses || r.direction || "", cargo: r.cargo || "", truck: r.truck || "", comment: r.comment || "", request_id: r.request_id || "", my_request_id: r.id } : {};
+                bx.querySelector(".fmsg-btext").value = r ? build({ ...B.ctx, person: "\u0001" }).replace(/, \u0001/g, "{, [ІМʼЯ]}").replace(/\u0001/g, "[ІМʼЯ]") : build({}, FREE_TPL);
+            };
+        }
         bx.hidden = false;
         brender();
     };
