@@ -156,7 +156,7 @@ async function loadStatus() {
         `<button type="button" class="btn btn-secondary sa-testmail" id="saTestMail"><i class="bx bx-envelope"></i> Перевірити пошту</button>`,
     ].join("");
     $("saTestMail").onclick = async (ev) => {
-        const to = prompt("Надіслати тестовий лист на адресу:", localStorage.getItem("fura_sales_test_to") || "mokeychukroma@gmail.com");
+        const to = prompt("Надіслати тестовий лист на адресу:", localStorage.getItem("fura_sales_test_to") || "");
         if (!to) return;
         try { localStorage.setItem("fura_sales_test_to", to); } catch (_) { /* без пам'яті */ }
         withBusy(ev.currentTarget, async () => {
@@ -501,7 +501,7 @@ $("approveList").addEventListener("click", (e) => {
         return;
     }
     if (btn.dataset.act === "test") {
-        const to = prompt("На яку адресу надіслати тест?", localStorage.getItem("fura_sales_test_to") || "mokeychukroma@gmail.com");
+        const to = prompt("На яку адресу надіслати тест?", localStorage.getItem("fura_sales_test_to") || "");
         if (!to) return;
         try { localStorage.setItem("fura_sales_test_to", to); } catch (_) { /* без пам'яті */ }
         withBusy(btn, async () => {
