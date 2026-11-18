@@ -559,3 +559,18 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
 .sa-cmp:not(.min):not(.big) .sa-cmp-head { cursor: grab; user-select: none; touch-action: none; }
 .sa-cmp .sa-cmp-head.dragging { cursor: grabbing; }
 .sa-cmp.moved:not(.min):not(.big) .sa-cmp-box { border-radius: 14px; }
+/* зміна розміру вікна листа: краї й кути */
+.sa-cmp-rs { position: absolute; z-index: 6; }
+.sa-cmp.min .sa-cmp-rs, .sa-cmp.big .sa-cmp-rs { display: none; }
+.sa-cmp-rs.rs-n, .sa-cmp-rs.rs-s { left: 10px; right: 10px; height: 8px; cursor: ns-resize; }
+.sa-cmp-rs.rs-n { top: -4px; } .sa-cmp-rs.rs-s { bottom: -4px; }
+.sa-cmp-rs.rs-e, .sa-cmp-rs.rs-w { top: 10px; bottom: 10px; width: 8px; cursor: ew-resize; }
+.sa-cmp-rs.rs-e { right: -4px; } .sa-cmp-rs.rs-w { left: -4px; }
+.sa-cmp-rs.rs-ne, .sa-cmp-rs.rs-nw, .sa-cmp-rs.rs-se, .sa-cmp-rs.rs-sw { width: 14px; height: 14px; }
+.sa-cmp-rs.rs-ne { top: -5px; right: -5px; cursor: nesw-resize; } .sa-cmp-rs.rs-sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+.sa-cmp-rs.rs-nw { top: -5px; left: -5px; cursor: nwse-resize; } .sa-cmp-rs.rs-se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+.sa-cmp-rs.rs-se::after { content: ""; position: absolute; right: 7px; bottom: 7px; width: 9px; height: 9px; border-right: 2px solid #c4c9d2; border-bottom: 2px solid #c4c9d2; border-radius: 0 0 3px 0; pointer-events: none; }
+.sa-cmp:not(.moved) .sa-cmp-rs.rs-s, .sa-cmp:not(.moved) .sa-cmp-rs.rs-se, .sa-cmp:not(.moved) .sa-cmp-rs.rs-sw { display: none; }
+.sa-cmp.sized .sa-cmp-box textarea { flex: 1 1 auto; min-height: 120px; }
+body.sa-cmp-resizing, body.sa-cmp-resizing * { user-select: none !important; }
+@media (max-width: 700px) { .sa-cmp-rs { display: none; } }

@@ -970,6 +970,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
     const unplace = () => { Object.assign(box.style, { left: "", top: "", right: "", bottom: "" }); box.classList.remove("moved"); };
     const restorePos = () => {
+        if (typeof restoreSize === "function") restoreSize();
         if (box.classList.contains("min") || box.classList.contains("big") || innerWidth < 700) return unplace();
         let p = null; try { p = JSON.parse(localStorage.getItem(POS) || "null"); } catch (_) { p = null; }
         if (p) placeAt(p.x, p.y); else unplace();
@@ -989,8 +990,53 @@ document.addEventListener("DOMContentLoaded", async () => {
         };
         head.addEventListener("pointermove", mv); head.addEventListener("pointerup", up); head.addEventListener("pointercancel", up);
     });
-    // подвійний клік по смужці — повернути в правий нижній кут
-    head.addEventListener("dblclick", (e) => { if (e.target.closest("button") || box.classList.contains("min")) return; try { localStorage.removeItem(POS); } catch (_) { /* */ } unplace(); });
+    // розмір: тягніть за краї або кути вікна; розмір запам'ятовується
+    const SIZE = "fura_compose_size";
+    const inner = box.querySelector(".sa-cmp-box");
+    ["n", "s", "e", "w", "ne", "nw", "se", "sw"].forEach((d) => box.insertAdjacentHTML("beforeend", `<span class="sa-cmp-rs rs-${d}" data-rs="${d}"></span>`));
+    const applySize = (w, h) => {
+        w = Math.max(380, Math.min(w, innerWidth - 8)); h = Math.max(260, Math.min(h, innerHeight - 8));
+        box.style.width = w + "px"; inner.style.height = h + "px"; inner.style.maxHeight = "none";
+        box.classList.add("sized");
+        return { w, h };
+    };
+    const unsize = () => { box.style.width = ""; inner.style.height = ""; inner.style.maxHeight = ""; box.classList.remove("sized"); };
+    const restoreSize = () => {
+        if (box.classList.contains("min") || box.classList.contains("big") || innerWidth < 700) return unsize();
+        let z = null; try { z = JSON.parse(localStorage.getItem(SIZE) || "null"); } catch (_) { z = null; }
+        if (z) applySize(z.w, z.h); else unsize();
+    };
+    box.addEventListener("pointerdown", (e) => {
+        const hd = e.target.closest("[data-rs]");
+        if (!hd || e.button !== 0 || box.classList.contains("min") || box.classList.contains("big")) return;
+        e.preventDefault();
+        const d = hd.dataset.rs, r = box.getBoundingClientRect(), ih = inner.getBoundingClientRect().height;
+        const sx = e.clientX, sy = e.clientY;
+        placeAt(r.left, r.top); // далі рахуємо від лівого верхнього кута
+        hd.setPointerCapture?.(e.pointerId);
+        document.body.classList.add("sa-cmp-resizing");
+        let pos = { x: r.left, y: r.top }, size = { w: r.width, h: ih };
+        const mv = (ev) => {
+            const dx = ev.clientX - sx, dy = ev.clientY - sy;
+            let w = r.width, h = ih, x = r.left, y = r.top;
+            if (d.includes("e")) w = r.width + dx;
+            if (d.includes("w")) { w = r.width - dx; x = r.left + dx; }
+            if (d.includes("s")) h = ih + dy;
+            if (d.includes("n")) { h = ih - dy; y = r.top + dy; }
+            size = applySize(w, h);
+            if (d.includes("w")) x = r.left + r.width - size.w;
+            if (d.includes("n")) y = r.top + ih - size.h;
+            pos = placeAt(x, y);
+        };
+        const up = () => {
+            document.body.classList.remove("sa-cmp-resizing");
+            hd.removeEventListener("pointermove", mv); hd.removeEventListener("pointerup", up); hd.removeEventListener("pointercancel", up);
+            try { localStorage.setItem(SIZE, JSON.stringify(size)); localStorage.setItem(POS, JSON.stringify(pos)); } catch (_) { /* */ }
+        };
+        hd.addEventListener("pointermove", mv); hd.addEventListener("pointerup", up); hd.addEventListener("pointercancel", up);
+    });
+    // подвійний клік по смужці — повернути в правий нижній кут і звичайний розмір
+    head.addEventListener("dblclick", (e) => { if (e.target.closest("button") || box.classList.contains("min")) return; try { localStorage.removeItem(POS); localStorage.removeItem(SIZE); } catch (_) { /* */ } unsize(); unplace(); });
     addEventListener("resize", () => { if (!box.classList.contains("hidden")) restorePos(); });
     const setMode = (min, big) => {
         box.classList.toggle("min", !!min); box.classList.toggle("big", !!big && !min);
