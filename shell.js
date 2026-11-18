@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611181132";
+            css.href = "mobile.css?v=202611181136";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -322,16 +322,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611181132");
+        await addScript("helper.js?v=202611181136");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611181132";
+        css.href = "mobile.css?v=202611181136";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611181132");
+        addScript("mobile-ux.js?v=202611181136");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -480,7 +480,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611181132");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611181136");
         const label = buildSidebar();
         keepSidebarScroll();
         buildTopbar(label);
@@ -491,15 +491,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611181132");
+            addScript("global-search.js?v=202611181136");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611181132");
+            addScript("furik.js?v=202611181136");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611181132");
+            addScript("presence.js?v=202611181136");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611181132");
+            addScript("mail-watch.js?v=202611181136");
         }
     }
 
@@ -519,12 +519,29 @@
             if (isBackdrop(e.target)) { e.stopImmediatePropagation(); if (type === "click") e.preventDefault(); }
         }, { capture: true, passive: false }));
     function modalOpen() {
-        return [...document.querySelectorAll('[class*="overlay"], [class*="modal"], [role="dialog"], .fura-cpop')].some((el) => {
+        return [...document.querySelectorAll('[class*="overlay"], [class*="modal"], [role="dialog"], .fura-cpop, .sa-pv')].some((el) => {
             if (!isBackdrop(el)) return false;
             const cs = getComputedStyle(el);
             return cs.display !== "none" && cs.visibility !== "hidden" && Number(cs.opacity) > 0.05;
         });
     }
+    // «Назад» (стрілка FURA, кнопка/жест телефона чи трекпада), поки відкрите вікно, — нічого не закриває і не йде зі сторінки:
+    // вікно закривається тільки хрестиком. Без вікна «назад» — рівно на один крок.
+    let guarded = false, skipPop = false;
+    function syncGuard() {
+        const open = modalOpen();
+        if (open && !guarded) { guarded = true; try { history.pushState({ ...(history.state || {}), furaGuard: 1 }, ""); } catch (_) { /* */ } }
+        else if (!open && guarded) { guarded = false; if (history.state?.furaGuard) { skipPop = true; history.back(); } }
+    }
+    setInterval(syncGuard, 400);
+    document.addEventListener("click", () => setTimeout(syncGuard, 60), true);
+    addEventListener("popstate", (e) => {
+        if (skipPop) { skipPop = false; e.stopImmediatePropagation(); return; }
+        if (guarded && modalOpen()) { // натиснули «назад» з відкритим вікном — лишаємось
+            e.stopImmediatePropagation();
+            try { history.pushState({ ...(history.state || {}), furaGuard: 1 }, ""); } catch (_) { /* */ }
+        }
+    });
     // жест «назад» / перезавантаження з відкритим вікном — спершу питаємо
     addEventListener("beforeunload", (e) => { if (modalOpen()) { e.preventDefault(); e.returnValue = ""; } });
     try {

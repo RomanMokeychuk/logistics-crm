@@ -1234,7 +1234,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         else { BOOK.sel = null; renderBookList(); }
     }
     $("mlBack").addEventListener("click", () => { if (history.state?.mlRead) history.back(); else closeRead(); });
-    addEventListener("popstate", () => { if (document.body.classList.contains("ml-reading")) closeRead(); });
+    // «назад» — рівно на крок: з листа до списку (а якщо ще на кроці листа — лишаємось у листі)
+    addEventListener("popstate", () => { if (document.body.classList.contains("ml-reading") && !history.state?.mlRead) closeRead(); });
     const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
     const pathOf = (kind) => { const f = ML.folders.find((x) => x.kind === kind); return f ? (f.paths || [f.path])[0] : undefined; };
     const when = (d) => {
