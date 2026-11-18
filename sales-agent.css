@@ -579,3 +579,10 @@ body.sa-cmp-resizing, body.sa-cmp-resizing * { user-select: none !important; }
 .sa-cmp-saved:empty { display: none; }
 .sa-cmp.min .sa-cmp-saved { display: none; }
 .sa-cmp-discard { padding-left: 12px !important; padding-right: 12px !important; color: #b42318 !important; }
+/* Пошта: менше відступів зверху — заголовок «Пошта» вже є в рядку навігації */
+body.sa-only-mail .main-content > .top-bar { display: none !important; }
+body.sa-only-mail .main-content.agents-page { gap: 10px; padding-top: 12px; }
+body.sa-only-mail .sa-mail { padding: 12px 14px; }
+body.sa-only-mail .sa-mail-bar { padding-bottom: 10px; margin-bottom: 10px; }
+body.sa-only-mail .sa-mail-grid { min-height: calc(100vh - 150px); }
+body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: calc(100vh - 150px); }

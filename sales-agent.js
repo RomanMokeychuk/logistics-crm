@@ -1457,6 +1457,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         try {
             await loadFolders();
             await loadList();
+            // посилання зі сповіщення: mail.html?uid=123 — одразу відкрити цей лист
+            const u = Number(new URLSearchParams(location.search).get("uid"));
+            if (u) {
+                history.replaceState(null, "", location.pathname);
+                const inbox = pathOf("\\Inbox") || "INBOX";
+                if (ML.folder !== inbox) { ML.folder = inbox; renderFolders(); await loadList(); }
+                openMail(u, inbox).catch(() => {});
+            }
         } catch (e) { ML.loaded = false; needAccess(e.message); }
     }
     document.querySelector('.sa-tab[data-tab="mail"]').addEventListener("click", start);
@@ -1643,6 +1651,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    // прийшов новий лист (mail-watch.js) — оновити папки і список Вхідних
+    window.addEventListener("fura-mail-new", () => {
+        if (!ML.loaded) return;
+        loadFolders().catch(() => {});
+        if (!ML.book && !ML.page && !ML.q && kindOf(ML.folder) === "\\Inbox") loadList().catch(() => {});
+    });
     // чернетку збережено / надіслано — оновити список, якщо дивимось «Чернетки»
     window.addEventListener("fura-draft-saved", () => { if (ML.loaded && !ML.book && kindOf(ML.folder) === "\\Drafts") loadList().catch(() => {}); });
     // нові листи — раз на 2 хвилини, коли пошта відкрита
