@@ -418,3 +418,13 @@ body.sa-cmp-open .fk, body.sa-cmp-open [class^="fk-"], body.sa-cmp-open .fh-fab,
 .sa-mr-junk { padding: 10px 12px; margin-bottom: 10px; border-radius: 10px; background: #fef2f2; color: #991b1b; font-size: 13px; }
 @media (max-width: 1200px) { .sa-mail-grid { grid-template-columns: 160px 1fr; } .sa-mail-read { grid-column: 1 / -1; } }
 @media (max-width: 760px) { .sa-mail-grid { grid-template-columns: 1fr; } .sa-mail-folders { flex-direction: row; overflow-x: auto; } }
+
+/* Окрема сторінка «Пошта» (mail.html) — тільки поштовий клієнт */
+body.sa-only-mail .sa-status, body.sa-only-mail .sa-funnel, body.sa-only-mail .sa-tabs, body.sa-only-mail .ag-sub,
+body.sa-only-mail .sa-panel:not([data-panel="mail"]), body.sa-only-mail #saComposeBtn { display: none !important; }
+body.sa-only-mail .sa-panel[data-panel="mail"] { display: block !important; }
+body.sa-only-mail .sa-mail-grid { min-height: calc(100vh - 230px); }
+body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: calc(100vh - 230px); }
+/* підпис: назва і коротко — без накладання */
+.sa-sig summary label { position: static !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
+.sa-sig summary #saSigShort { margin-left: 4px; }

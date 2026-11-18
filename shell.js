@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611180737";
+            css.href = "mobile.css?v=202611180739";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -75,6 +75,7 @@
                         { href: "lardi-trucks.html", icon: "bxs-truck", label: "Авто" },
                     ],
                 },
+                { href: "mail.html", icon: "bx-mail-send", label: "Пошта" },
                 { href: "sales-agent.html", icon: "bx-envelope", label: "AI-продажі" },
                 { href: "comms.html", icon: "bx-chat", label: "Переписка", only: ["head", "admin"] }, // поки канали не підключено — лише керівнику; потім прибрати only
             ],
@@ -321,16 +322,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611180737");
+        await addScript("helper.js?v=202611180739");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611180737";
+        css.href = "mobile.css?v=202611180739";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611180737");
+        addScript("mobile-ux.js?v=202611180739");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -479,7 +480,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611180737");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611180739");
         const label = buildSidebar();
         keepSidebarScroll();
         buildTopbar(label);
@@ -490,11 +491,11 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611180737");
+            addScript("global-search.js?v=202611180739");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611180737");
+            addScript("furik.js?v=202611180739");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611180737");
+            addScript("presence.js?v=202611180739");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
         }

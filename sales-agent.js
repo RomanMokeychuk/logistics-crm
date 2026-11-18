@@ -794,6 +794,7 @@ document.addEventListener("keydown", (e) => {
 function showTab(tab) {
     document.querySelectorAll(".sa-tab").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
     document.querySelectorAll(".sa-panel").forEach((p) => (p.hidden = p.dataset.panel !== tab));
+    if (document.body.classList.contains("sa-only-mail")) return;
     try {
         localStorage.setItem("fura-sales-tab", tab);
     } catch (_) {}
@@ -828,13 +829,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             .map(([v, s]) => `<option value="${v}">${s.label}</option>`)
             .join("");
 
+    const onlyMail = document.body.classList.contains("sa-only-mail");
     let tab = "approve";
     try {
         tab = localStorage.getItem("fura-sales-tab") || "approve";
     } catch (_) {}
+    if (onlyMail) tab = "mail";
     showTab(tab);
 
-    loadStatus();
+    await loadStatus();
+    if (onlyMail) { document.querySelector('.sa-tab[data-tab="mail"]').click(); return; }
     refreshAll();
 
     const params = new URLSearchParams(location.search);
