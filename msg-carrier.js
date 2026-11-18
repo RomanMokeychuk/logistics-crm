@@ -31,6 +31,23 @@
     // Viber вставляє в поле лише перші 100 символів — довший текст не обрізаємо, а даємо вставити повністю (Cmd+V)
     const VB_MAX = 100;
     const vbUrl = (ph, text) => `viber://chat?number=%2B${ph}` + (text.length <= VB_MAX ? `&draft=${encodeURIComponent(text)}` : "");
+    // Без вантажу (відкрили з картки перевізника) — питаємо про вільні авто
+    const FREE_TPL =
+        "Доброго дня, Компанія Грандар{, логіст [Я]}\n" +
+        "\n" +
+        "Чи є у вас зараз вільні авто? Підкажіть, будь ласка, де вони і куди шукаєте завантаження.";
+    let REQS = null; // мої запити з Блокнота
+    async function loadReqs() {
+        if (REQS) return REQS;
+        try {
+            const c = typeof sbClient !== "undefined" ? sbClient : null;
+            const { data } = await c.from("my_requests").select("id, addresses, direction, cargo, truck, comment, status, updated_at")
+                .order("updated_at", { ascending: false }).limit(40);
+            REQS = (data || []).filter((r) => !/закрит|відмов|архів/i.test(r.status || ""));
+        } catch (_) { REQS = []; }
+        return REQS;
+    }
+    try { if (/Цікаво\? Підкажіть, будь ласка, ставку/.test(localStorage.getItem(TPL_KEY) || "")) localStorage.removeItem(TPL_KEY); } catch (_) { /* старий шаблон — прибрати */ }
     const tpl = () => { try { return localStorage.getItem(TPL_KEY) || DEF_TPL; } catch (_) { return DEF_TPL; } };
     const myName = () => {
         try { const s = JSON.parse(localStorage.getItem("fura_compose_sig") || "{}"); if (s.name) return s.name.split(/\s+/)[0]; } catch (_) { /* */ }
@@ -69,6 +86,7 @@
     box.className = "fmsg"; box.hidden = true;
     box.innerHTML = `<div class="fmsg-card" role="dialog">
         <div class="fmsg-head"><b>Написати перевізнику</b><span class="fmsg-who"></span><button type="button" class="fmsg-x" data-fx="close" title="Закрити">&times;</button></div>
+        <label class="fmsg-pick" hidden><span>Вантаж:</span><select class="fmsg-req"><option value="">— без вантажу (спитати про вільні авто) —</option></select></label>
         <textarea class="fmsg-text" rows="9"></textarea>
         <div class="fmsg-note">Ціну клієнта і назву клієнта перевізнику не пишемо. Текст можна правити.</div>
         <div class="fmsg-acts">
@@ -103,6 +121,8 @@
 .fmsg-go.main{box-shadow:0 0 0 3px rgba(217,169,68,.45)}
 .fmsg-link{border:0;background:none;color:#a8781f;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;margin-left:auto}
 .fmsg-tpl{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #e5e7eb;padding-top:10px}.fmsg-tpl[hidden]{display:none}
+.fmsg-pick{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b7280}.fmsg-pick[hidden]{display:none}
+.fmsg-req{flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9px;padding:8px 10px;font:inherit;font-size:14px;color:#111827;background:#fff}
 .fmsg-app{display:flex;gap:16px;font-size:14px}.fmsg-app label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .fmsg-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;border:1px solid #f0ece2;border-radius:10px;padding:6px}
 .fmsg-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer}.fmsg-it:hover{background:#fdf9f0}
@@ -119,7 +139,23 @@
         mount();
         CTX = ctx;
         box.querySelector(".fmsg-who").textContent = [ctx.carrier, ctx.person, "+" + ctx.phone].filter(Boolean).join(" · ");
-        ta().value = build(ctx);
+        const pick = box.querySelector(".fmsg-pick"), sel = box.querySelector(".fmsg-req");
+        const hasLoad = !!(ctx.route || ctx.cargo);
+        pick.hidden = hasLoad;
+        ta().value = hasLoad ? build(ctx) : build(ctx, FREE_TPL);
+        if (!hasLoad) {
+            // з картки перевізника: можна обрати вантаж зі свого Блокнота
+            sel.length = 1;
+            loadReqs().then((list) => {
+                sel.length = 1;
+                list.forEach((r) => sel.add(new Option(`${r.addresses || r.direction || "—"}${r.cargo ? " · " + String(r.cargo).split("\n")[0].slice(0, 40) : ""}${r.status ? " · " + r.status : ""}`, r.id)));
+            });
+            sel.onchange = () => {
+                const r = (REQS || []).find((x) => x.id === sel.value);
+                CTX = { ...ctx, ...(r ? { route: r.addresses || r.direction || "", cargo: r.cargo || "", truck: r.truck || "", comment: r.comment || "" } : {}) };
+                ta().value = r ? build(CTX) : build(ctx, FREE_TPL);
+            };
+        }
         box.querySelector(".fmsg-tpl").hidden = true;
         box.hidden = false;
         box.querySelectorAll(".fmsg-go-tg, .fmsg-go-vb").forEach((b) => b.classList.toggle("main", b.dataset.fx === app));
