@@ -1257,7 +1257,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 /* ---------------- Пошта: Вхідні, Спам, Надіслані — прямо у FURA ---------------- */
 (() => {
-    const ML = { folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false, showHidden: false };
+    const ML = { seq: 0, folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false, showHidden: false };
     // приховані папки (у цьому браузері)
     const HID_KEY = "fura_mail_hidden";
     const hidGet = () => { try { return new Set(JSON.parse(localStorage.getItem(HID_KEY) || "[]")); } catch (_) { return new Set(); } };
@@ -1395,23 +1395,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (ML.book) return;
         $("mlList").innerHTML = '<p class="ag-empty">Завантажую листи…</p>';
         // об'єднаний «Спам»: беремо з кожної папки і зливаємо за датою
-        const paths = realPaths(ML.folder);
-        const res = await Promise.all(paths.map((fp) => api({ action: "mail_list", folder: fp, page: ML.page, q: ML.q, limit: 50 }).then((r) => (r.list || []).map((m) => ({ ...m, fp })))));
-        ML.list = res.flat().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 50 * paths.length);
+        // пошук — у всіх папках одразу (Вхідні, Надіслані, Чернетки, Архів, Спам…), без Кошика
+        const paths = ML.q ? ML.folders.filter((f) => f.kind !== "\\Trash").flatMap((f) => f.paths || [f.path]) : realPaths(ML.folder);
+        const my = ++ML.seq;
+        const res = await Promise.all(paths.map((fp) => api({ action: "mail_list", folder: fp, page: ML.page, q: ML.q, limit: 50 }).then((r) => (r.list || []).map((m) => ({ ...m, fp }))).catch(() => [])));
+        if (my !== ML.seq) return; // уже шукаємо інше
+        ML.list = res.flat().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, ML.q ? 100 : 50 * paths.length);
         renderList();
         prefetch();
     }
+    const folderName = (fp) => { const f = ML.folders.find((x) => x.path === fp || (x.paths || []).includes(fp)) || {}; return (KIND[f.kind] || [f.name || fp])[0]; };
     function renderList() {
         const isSent = kindOf(ML.folder) === "\\Sent";
         const fname = (ML.folders.find((f) => f.path === ML.folder) || {});
-        const head = `<div class="sa-ml-head"><b>${escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>`;
+        const head = `<div class="sa-ml-head"><b>${ML.q ? "Пошук у всіх папках" : escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>`;
         $("mlList").innerHTML = head + (ML.list.map((m) => {
-            const who = isSent ? m.to || "" : m.from || m.from_email;
+            const sent = ML.q ? folderName(m.fp) === "Надіслані" : isSent;
+            const who = sent ? m.to || "" : m.from || m.from_email;
             return `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid && ML.open?.fp === m.fp ? "active" : ""}" data-uid="${m.uid}" data-fp="${escapeHtml(m.fp)}">
-                ${avatar(isSent ? m.to : m.from || m.from_email)}
+                ${avatar(sent ? m.to : m.from || m.from_email)}
                 <div class="sa-mi-body">
-                    <div class="sa-mi-top"><span class="sa-mi-from">${isSent ? "Кому: " : ""}${escapeHtml(who)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
-                    <div class="sa-mi-subj">${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
+                    <div class="sa-mi-top"><span class="sa-mi-from">${sent ? "Кому: " : ""}${escapeHtml(who)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
+                    <div class="sa-mi-subj">${ML.q ? `<span class="sa-mi-fold">${escapeHtml(folderName(m.fp))}</span> ` : ""}${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
                 </div>
             </button>`;
         }).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : "У цій папці листів немає"}</span></div>`) +

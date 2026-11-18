@@ -735,3 +735,4 @@ body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, bo
     .ml-icons .sa-mf-eye, .ml-icons .sa-mf-more { display: none !important; }
     .ml-icons .sa-mf-row:hover .sa-mf b { visibility: visible; }
 }
+.sa-mi-fold { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #a8781f; background: #fdf6e7; border-radius: 5px; padding: 1px 5px; margin-right: 2px; vertical-align: 1px; }
