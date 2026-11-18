@@ -143,6 +143,7 @@ async function loadStatus() {
         return;
     }
     const s = status;
+    document.body.classList.toggle("sa-mail-on", !!s.mail);
     const item = (ok, label) => `<span class="sa-st"><span class="sa-dot ${ok ? "good" : "bad"}"></span>${escapeHtml(label)}</span>`;
     $("saStatus").innerHTML = [
         item(s.ai, "Claude"),
@@ -472,9 +473,9 @@ function draftHtml(m) {
             <button type="button" class="btn btn-secondary" data-act="not_sent">Ще ні</button>
         </div>
         <div class="ag-item-actions">
-            ${status?.mail ? `<button type="button" class="btn btn-primary" data-act="send" title="Лист піде клієнту одразу"><i class="bx bx-send"></i> Надіслати</button>
-            <button type="button" class="btn btn-secondary" data-act="test" title="Цей самий лист — на вашу адресу, клієнту нічого не піде"><i class="bx bx-test-tube"></i> Тест собі</button>` : ""}
-            <button type="button" class="btn ${status?.mail ? "btn-secondary" : "btn-primary"}" data-act="outlook" title="Відкриє готовий лист у вашій пошті — перечитайте і натисніть «Надіслати» там"><i class="bx bx-envelope-open"></i> Відкрити в Outlook</button>
+            <button type="button" class="btn btn-primary sa-mail-only" data-act="send" title="Лист піде клієнту одразу з вашої пошти"><i class="bx bx-send"></i> Надіслати</button>
+            <button type="button" class="btn btn-secondary sa-mail-only" data-act="test" title="Цей самий лист — на вашу адресу, клієнту нічого не піде"><i class="bx bx-test-tube"></i> Тест собі</button>
+            <button type="button" class="btn btn-secondary sa-outlook" data-act="outlook" title="Відкриє готовий лист у вашій пошті — перечитайте і натисніть «Надіслати» там"><i class="bx bx-envelope-open"></i> Відкрити в Outlook</button>
             <button type="button" class="btn btn-secondary" data-act="save"><i class="bx bx-save"></i> Зберегти</button>
             <button type="button" class="btn btn-secondary" data-act="reject"><i class="bx bx-x"></i> Не надсилати</button>
         </div>
