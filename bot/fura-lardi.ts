@@ -630,6 +630,198 @@ async function directions(body: Any) {
     return { status: 200, data: { ok: true } };
 }
 
+/* ================================================================== */
+/* Оновити картку перевізника з Lardi (офіційний API, ключ компанії)   */
+/*  1. refId — з посилання в картці або пошуком /users/search за ЄДРПОУ */
+/*  2. дані профілю — методи користувача, які дає ключ                  */
+/*  3. транспорт — заявки «авто» цього перевізника з lardi_trucks        */
+/*  Повертає список змін; записує лише після підтвердження (apply).     */
+/* ================================================================== */
+const LARDI_COUNTRY_UA: Record<string, string> = {
+    PL: "ПОЛЬЩА", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", EE: "ЕСТОНІЯ", CZ: "ЧЕХІЯ", SK: "СЛОВАЧЧИНА", HU: "УГОРЩИНА",
+    RO: "РУМУНІЯ", MD: "МОЛДОВА", BG: "БОЛГАРІЯ", TR: "ТУРЕЧЧИНА", AT: "АВСТРІЯ", IT: "ІТАЛІЯ", FR: "ФРАНЦІЯ", NL: "НІДЕРЛАНДИ",
+    BE: "БЕЛЬГІЯ", ES: "ІСПАНІЯ", PT: "ПОРТУГАЛІЯ", DK: "ДАНІЯ", SE: "ШВЕЦІЯ", FI: "ФІНЛЯНДІЯ", NO: "НОРВЕГІЯ", CH: "ШВЕЙЦАРІЯ",
+    GB: "ВЕЛИКА БРИТАНІЯ", GR: "ГРЕЦІЯ", SI: "СЛОВЕНІЯ", HR: "ХОРВАТІЯ", RS: "СЕРБІЯ", GE: "ГРУЗІЯ", AM: "ВІРМЕНІЯ", AZ: "АЗЕРБАЙДЖАН",
+    KZ: "КАЗАХСТАН", UZ: "УЗБЕКИСТАН", LU: "ЛЮКСЕМБУРГ", IE: "ІРЛАНДІЯ", MK: "ПІВНІЧНА МАКЕДОНІЯ", AL: "АЛБАНІЯ", BA: "БОСНІЯ І ГЕРЦЕГОВИНА",
+};
+const digitsOnly = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+const codeKey = (v: unknown) => digitsOnly(v).replace(/^0+/, "");
+
+async function lardiGet(path: string): Promise<Any | null> {
+    requestCount++;
+    const res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}language=uk`, { headers: { Authorization: KEY, Accept: "application/json" } });
+    const text = await res.text();
+    if (res.status === 429) throw new LardiError(429, "Lardi просить зачекати (забагато запитів). Спробуйте за хвилину.");
+    if (!res.ok) return null;
+    try { return JSON.parse(text); } catch { return null; }
+}
+
+// Усі пари «ключ → значення» з відповіді (вкладені об'єкти теж)
+function walk(o: Any, out: Array<[string, Any, string]> = [], path = ""): Array<[string, Any, string]> {
+    if (o && typeof o === "object") {
+        for (const [k, v] of Object.entries(o)) {
+            const p = path ? `${path}.${k}` : k;
+            if (v && typeof v === "object") walk(v, out, p);
+            else out.push([k, v, p]);
+        }
+    }
+    return out;
+}
+const pick = (pairs: Array<[string, Any, string]>, rx: RegExp, ok: (v: string) => boolean = (v) => !!v.trim()) => {
+    for (const [k, v, p] of pairs) if (rx.test(k) || rx.test(p)) { const s = String(v ?? "").trim(); if (s && ok(s)) return s; }
+    return "";
+};
+
+async function findRef(c: Any): Promise<{ ref: string; user: Any | null }> {
+    const m = String(c.profile_url || "").match(/user\/(\d+)/);
+    if (m) return { ref: m[1], user: null };
+    const code = codeKey(c.edrpou);
+    for (const q of [c.edrpou, c.name].filter(Boolean)) {
+        const r = await lardiGet(`/users/search?query=${encodeURIComponent(String(q))}&queryLimit=10`);
+        const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || r?.result || []);
+        if (!list.length) continue;
+        // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один
+        const byCode = code ? list.find((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code)) : null;
+        const u = byCode || (q === c.name && list.length === 1 ? list[0] : null);
+        const ref = u && (u.refId ?? u.id ?? u.userId);
+        if (ref) return { ref: String(ref), user: u };
+    }
+    return { ref: "", user: null };
+}
+
+async function carrierEnrich(body: Any) {
+    if (!KEY) return { status: 400, data: { error: "Не задано LARDI_API_KEY у Supabase Secrets" } };
+    const { data: c } = await db.from("carriers").select("*").eq("id", body.carrier_id).maybeSingle();
+    if (!c) return { status: 404, data: { error: "Перевізника не знайдено" } };
+
+    const { ref, user } = await findRef(c);
+    if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ і назвою). Вставте посилання на профіль у картку — і спробуйте ще раз." } };
+
+    // Методи профілю: беремо ті, що дає ключ (решта просто пропускаються)
+    const tried: Record<string, boolean> = {};
+    const parts: Any[] = user ? [user] : [];
+    for (const path of [`/users/${ref}`, `/users/${ref}/info`, `/users/${ref}/contacts`, `/users/info/${ref}`, `/users/contacts/${ref}`]) {
+        const j = await lardiGet(path);
+        tried[path] = !!j;
+        if (j) parts.push(j);
+        await sleep(300);
+    }
+    if (!user) {
+        const r = await lardiGet(`/users/search?query=${encodeURIComponent(ref)}&queryLimit=3`);
+        const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || []);
+        const u = list.find((x) => String(x.refId ?? x.id) === ref);
+        if (u) parts.push(u);
+    }
+    const pairs = parts.flatMap((p) => walk(p));
+
+    const isUrl = (v: string) => /^https?:\/\/|^\/\//.test(v) && /\.(png|jpe?g|webp|gif)|avatar|logo|photo|image|img/i.test(v);
+    const found = {
+        name: pick(pairs, /^(name|nameWithBrand|fullName|companyName)$/),
+        edrpou: pick(pairs, /edrpou|okpo/i, (v) => digitsOnly(v).length >= 8),
+        region: pick(pairs, /^(region|area|oblast)(Name)?$/i),
+        city: pick(pairs, /^(town|city)(Name)?$/i),
+        address: pick(pairs, /^(address|street)$/i),
+        director: pick(pairs, /director|chief|head(Name)?$|boss/i),
+        avatar: pick(pairs, /avatar|logo|photo|image/i, isUrl),
+    };
+    // контакти: ім'я + телефони
+    const phones: Array<{ name: string; phone: string }> = [];
+    const seen = new Set<string>();
+    for (const p of parts) {
+        const contacts: Any[] = [];
+        const visit = (o: Any) => {
+            if (!o || typeof o !== "object") return;
+            if (Array.isArray(o)) return o.forEach(visit);
+            const nm = String(o.face ?? o.name ?? o.contactName ?? "").trim();
+            for (const [k, v] of Object.entries(o)) {
+                if (/phone|tel|mobile/i.test(k) && (typeof v === "string" || typeof v === "number")) contacts.push({ name: nm, phone: String(v) });
+                else if (v && typeof v === "object") visit(v);
+            }
+        };
+        visit(p);
+        for (const x of contacts) {
+            const d = digitsOnly(x.phone);
+            if (d.length < 9) continue;
+            const key = d.slice(-9);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            phones.push({ name: x.name, phone: d.length === 12 ? "+" + d : x.phone.trim() });
+        }
+    }
+
+    // транспорт: заявки «авто» цього перевізника за 60 днів
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    const { data: trucks } = await db.from("lardi_trucks").select("from_country, to_country, from_region, to_region, mass_t, volume_m3, body_types, seen_last")
+        .eq("owner_ref", Number(ref)).gte("seen_last", since).limit(500);
+    const tl = trucks || [];
+    const bodies = new Set<string>(), countries = new Set<string>(), uaRegions = new Set<string>();
+    let mass = 0, vol = 0;
+    for (const t of tl) {
+        String(t.body_types || "").split(/[;,]\s*/).map((b: string) => b.trim().toUpperCase()).filter(Boolean).forEach((b: string) => bodies.add(b.replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ")));
+        for (const cc of [t.from_country, t.to_country]) if (cc && cc !== "UA" && LARDI_COUNTRY_UA[cc]) countries.add(LARDI_COUNTRY_UA[cc]);
+        for (const [cc, rg] of [[t.from_country, t.from_region], [t.to_country, t.to_region]]) if (cc === "UA" && rg) uaRegions.add(String(rg).replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase().slice(0, 3));
+        mass = Math.max(mass, Number(t.mass_t) || 0);
+        vol = Math.max(vol, Number(t.volume_m3) || 0);
+    }
+
+    // Пропозиції змін: порожнє — заповнюємо; списки — доповнюємо; заповнене не чіпаємо
+    const changes: Any[] = [];
+    const add = (field: string, label: string, val: string) => {
+        const old = String(c[field] ?? "").trim();
+        if (!val || !(field in c) || old === val) return;
+        if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts"].includes(field)) return;
+        changes.push({ field, label, old, new: val });
+    };
+    const profile = `https://lardi-trans.com/log/user/${ref}/`;
+    if (!c.profile_url || !/\/log\/user\//.test(c.profile_url)) changes.push({ field: "profile_url", label: "Lardi / профіль", old: c.profile_url || "", new: profile });
+    add("logo_url", "Фото", found.avatar.startsWith("//") ? "https:" + found.avatar : found.avatar);
+    add("director", "Директор", found.director);
+    add("region_ukr", "Область", found.region ? found.region.toUpperCase().replace(/\s*ОБЛАСТЬ$/, " ОБЛ.") : "");
+    add("city", "Місто / Адреса", [found.city, found.address].filter(Boolean).join(", "));
+    if (!c.edrpou && found.edrpou) add("edrpou", "ЄДРПОУ", digitsOnly(found.edrpou));
+    if (mass) add("tonnage", "Тоннаж, т", String(mass));
+    if (vol) add("volume", "Об'єм, м³", String(vol));
+    const mergeList = (field: string, label: string, items: Set<string>, keyOf = (x: string) => x.split("-")[0].trim().toUpperCase()) => {
+        const cur = String(c[field] || "").split(";").map((x: string) => x.trim()).filter(Boolean);
+        const have = new Set(cur.map(keyOf));
+        const extra = [...items].filter((x) => !have.has(keyOf(x)));
+        if (extra.length) changes.push({ field, label, old: cur.join(";"), new: [...cur, ...extra].join(";"), added: extra });
+    };
+    mergeList("trailer_type", "Тип причепу", bodies);
+    mergeList("destinations", "Напрямки закордон", countries);
+    mergeList("ukraine_directions", "Напрямки в Україні", uaRegions);
+    // телефони, яких ще немає в картці
+    const haveP = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x: Any) => x?.phone) : [])]
+        .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digitsOnly(v).slice(-9)).filter((v) => v.length === 9));
+    const newPh = phones.filter((p) => !haveP.has(digitsOnly(p.phone).slice(-9)));
+    if (newPh.length) changes.push({ field: "contacts", label: "Нові телефони", old: "", new: newPh.map((p) => `${p.name ? p.name + ": " : ""}${p.phone}`).join("; "), phones: newPh });
+
+    if (body.apply) {
+        const want = new Set<string>(Array.isArray(body.fields) ? body.fields : changes.map((x) => x.field));
+        const upd: Any = {};
+        for (const ch of changes) {
+            if (!want.has(ch.field)) continue;
+            if (ch.field !== "contacts") { upd[ch.field] = ch.new; continue; }
+            const list = [...ch.phones];
+            if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
+            if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
+            if (list.length && "extra_contacts" in c) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+        }
+        if (!Object.keys(upd).length) return { status: 200, data: { applied: 0 } };
+        const { error } = await db.from("carriers").update(upd).eq("id", c.id);
+        if (error) return { status: 500, data: { error: error.message } };
+        return { status: 200, data: { applied: Object.keys(upd).length, fields: Object.keys(upd) } };
+    }
+    return {
+        status: 200,
+        data: {
+            found: true, ref, profile, changes, trucks: tl.length,
+            // для налаштування: які методи Lardi відповіли і які поля прийшли
+            debug: { endpoints: tried, keys: [...new Set(pairs.map(([, , p]) => p.replace(/\.\d+\./g, ".*.")))].slice(0, 120) },
+        },
+    };
+}
+
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
     if (req.method !== "POST") return new Response("FURA Lardi monitor is running");
@@ -667,6 +859,10 @@ Deno.serve(async (req) => {
             case "directions": {
                 if (!isBoss(me)) return json(403, { error: "Напрямки змінює лише керівник" });
                 const out = await directions(body);
+                return json(out.status, out.data);
+            }
+            case "carrier_enrich": {
+                const out = await carrierEnrich(body);
                 return json(out.status, out.data);
             }
             case "status":
