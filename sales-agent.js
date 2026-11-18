@@ -904,13 +904,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         } catch (_) { /* без підказок */ }
     }
     let inReplyTo = "";
-    function open(pre = {}) {
+    function open(pre = {}, addFiles = []) {
+        if (pre instanceof Event) pre = {};
         inReplyTo = pre.in_reply_to || "";
         let d = {};
         try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
         const v = Object.keys(pre).length ? pre : d; // відповідь / пересилання — без старої чернетки
         ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
-        files = [];
+        files = [...addFiles];
         showFiles();
         $("saCmpFrom").textContent = status?.mail_box || status?.from ? `від ${status.mail_box || status.from}` : "";
         sigFill();
@@ -944,6 +945,17 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (total > 15 * 1024 * 1024) { toast("Разом файли більші за 15 МБ — лист може не піти", true); }
         showFiles();
     });
+    // перетягнути файли у вікно листа
+    const box2 = form;
+    ["dragenter", "dragover"].forEach((t) => box2.addEventListener(t, (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); box2.classList.add("drop"); } }));
+    ["dragleave", "drop"].forEach((t) => box2.addEventListener(t, (e) => { if (t === "dragleave" && box2.contains(e.relatedTarget)) return; box2.classList.remove("drop"); }));
+    box2.addEventListener("drop", (e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        files.push(...e.dataTransfer.files);
+        if (files.reduce((n, f) => n + f.size, 0) > 15 * 1024 * 1024) toast("Разом файли більші за 15 МБ — лист може не піти", true);
+        showFiles();
+    });
     const b64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = rej; r.readAsDataURL(f); });
     form.addEventListener("submit", (e) => {
         e.preventDefault();
@@ -967,7 +979,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 /* ---------------- Пошта: Вхідні, Спам, Надіслані — прямо у FURA ---------------- */
 (() => {
     const ML = { folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false };
-    const KIND = { "\\Inbox": ["Вхідні", "bx-inbox"], "\\Junk": ["Спам", "bx-error-circle"], "\\Sent": ["Надіслані", "bx-send"], "\\Drafts": ["Чернетки", "bx-edit"], "\\Archive": ["Архів", "bx-archive"], "\\Trash": ["Кошик", "bx-trash"] };
+    const KIND = { "\\Inbox": ["Вхідні", "bx-envelope"], "\\Junk": ["Спам", "bx-error-circle"], "\\Sent": ["Надіслані", "bx-send"], "\\Drafts": ["Чернетки", "bx-edit"], "\\Archive": ["Архів", "bx-archive"], "\\Trash": ["Кошик", "bx-trash"] };
+    // кружечок з ініціалами — як у звичайній пошті
+    const AV = ["#d9a944", "#5b8def", "#16a34a", "#e2725b", "#8b5cf6", "#0891b2", "#db2777", "#64748b"];
+    function avatar(name) {
+        const n = String(name || "?").replace(/<.*>/, "").replace(/["']/g, "").trim() || "?";
+        const parts = n.split(/[\s@._-]+/).filter(Boolean);
+        const ini = ((parts[0] || "?")[0] + ((parts[1] || "")[0] || "")).toUpperCase();
+        let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        return `<span class="sa-av" style="background:${AV[h % AV.length]}">${escapeHtml(ini)}</span>`;
+    }
     const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
     const pathOf = (kind) => (ML.folders.find((f) => f.kind === kind) || {}).path;
     const when = (d) => {
@@ -986,10 +1007,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         renderFolders();
     }
     function renderFolders() {
-        $("mlFolders").innerHTML = ML.folders.map((f) => {
+        // дві папки одного типу (напр. «Spam» і «Junk» на хостингу) — підписуємо справжньою назвою
+        const same = (k) => ML.folders.filter((x) => x.kind === k).length > 1;
+        const tone = { "\\Inbox": "in", "\\Junk": "junk", "\\Sent": "sent", "\\Drafts": "draft", "\\Archive": "arch", "\\Trash": "trash" };
+        $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки</div>` + ML.folders.map((f) => {
             const [label, icon] = KIND[f.kind] || [f.name || f.path, "bx-folder"];
-            return `<button type="button" class="sa-mf ${f.path === ML.folder ? "active" : ""} ${f.kind === "\\Junk" ? "junk" : ""}" data-folder="${escapeHtml(f.path)}">
-                <i class="bx ${icon}"></i><span>${escapeHtml(label)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.kind === "\\Junk" && f.total ? `<em>${f.total}</em>` : ""}</button>`;
+            const real = String(f.name || f.path).replace(/^INBOX[./]/i, "");
+            const text = f.kind && same(f.kind) ? `${label} · ${real}` : label;
+            return `<button type="button" class="sa-mf t-${tone[f.kind] || "other"} ${f.path === ML.folder ? "active" : ""}" data-folder="${escapeHtml(f.path)}" title="${escapeHtml(f.path)}">
+                <i class="bx ${icon}"></i><span>${escapeHtml(text)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.total ? `<em>${f.total}</em>` : ""}</button>`;
         }).join("");
         const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
         const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
@@ -1004,10 +1030,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     function renderList() {
         const isSent = kindOf(ML.folder) === "\\Sent";
-        $("mlList").innerHTML = (ML.list.map((m) => `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid ? "active" : ""}" data-uid="${m.uid}">
-                <div class="sa-mi-top"><span class="sa-mi-from">${escapeHtml(isSent ? "→ " + (m.to || "") : m.from || m.from_email)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
-                <div class="sa-mi-subj">${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
-            </button>`).join("") || '<p class="ag-empty">Листів немає</p>') +
+        const fname = (ML.folders.find((f) => f.path === ML.folder) || {});
+        const head = `<div class="sa-ml-head"><b>${escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>`;
+        $("mlList").innerHTML = head + (ML.list.map((m) => {
+            const who = isSent ? m.to || "" : m.from || m.from_email;
+            return `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid ? "active" : ""}" data-uid="${m.uid}">
+                ${avatar(isSent ? m.to : m.from || m.from_email)}
+                <div class="sa-mi-body">
+                    <div class="sa-mi-top"><span class="sa-mi-from">${isSent ? "Кому: " : ""}${escapeHtml(who)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
+                    <div class="sa-mi-subj">${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
+                </div>
+            </button>`;
+        }).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : "У цій папці листів немає"}</span></div>`) +
             `<div class="sa-mi-pages">${ML.page ? '<button type="button" class="btn btn-secondary" data-pg="-1">← Новіші</button>' : ""}${ML.list.length >= 50 ? '<button type="button" class="btn btn-secondary" data-pg="1">Старіші →</button>' : ""}</div>`;
     }
     async function openMail(uid) {
@@ -1031,9 +1065,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
             <h3 class="sa-mr-subj">${escapeHtml(m.subject)}</h3>
             <div class="sa-mr-meta">
-                <div><b>${escapeHtml(m.from)}</b></div>
+                ${avatar(m.from)}
+                <div class="sa-mr-who"><div><b>${escapeHtml(m.from)}</b></div>
                 <div>Кому: ${escapeHtml(m.to)}${m.cc ? ` · Копія: ${escapeHtml(m.cc)}` : ""}</div>
-                <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div>
+                <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
             </div>
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<button type="button" class="sa-mr-att" data-att="${a.i}"><i class="bx bx-paperclip"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
@@ -1152,6 +1187,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { ML.q = e.target.value.trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
     $("mlRefresh").addEventListener("click", () => { loadFolders().catch(() => {}); loadList().catch((er) => toast(er.message, true)); });
     $("mlCompose").addEventListener("click", () => window.furaCompose?.());
+    // файли, кинуті на пошту, — одразу в новий лист
+    const mp = document.querySelector('.sa-panel[data-panel="mail"]');
+    ["dragenter", "dragover"].forEach((t) => mp.addEventListener(t, (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); mp.classList.add("drop"); } }));
+    ["dragleave", "drop"].forEach((t) => mp.addEventListener(t, (e) => { if (t === "dragleave" && mp.contains(e.relatedTarget)) return; mp.classList.remove("drop"); }));
+    mp.addEventListener("drop", (e) => {
+        if (!e.dataTransfer?.files?.length) return;
+        e.preventDefault();
+        const fs = [...e.dataTransfer.files];
+        const m = ML.open;
+        // якщо відкритий лист — відповідь з цими файлами, інакше новий лист
+        if (m?.uid && m.from_email) window.furaCompose?.({ to: m.from_email, subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`, body: "", in_reply_to: m.message_id }, fs);
+        else window.furaCompose?.({ to: "" }, fs);
+    });
     $("mlWho").addEventListener("click", async (e) => {
         if (!e.target.closest("#mlOff") || !confirm("Відключити вашу пошту від FURA? Пароль буде видалено з FURA.")) return;
         await api({ action: "mail_disconnect" });

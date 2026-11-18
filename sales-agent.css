@@ -444,3 +444,43 @@ body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: c
 body.sa-mail-connect .sa-mail-grid { grid-template-columns: 1fr; }
 body.sa-mail-connect .sa-mail-folders, body.sa-mail-connect .sa-mail-read { display: none; }
 body.sa-mail-connect .sa-mail-list { border: 0; }
+
+/* ===== Пошта — новий вигляд ===== */
+.sa-mail { padding: 16px; background: #fff; }
+.sa-mail-bar { padding-bottom: 12px; border-bottom: 1px solid #f1ede3; margin-bottom: 14px; }
+.sa-mail-search input { background: #f8f7f4; border-color: transparent; }
+.sa-mail-search input:focus { background: #fff; border-color: #d9a944; outline: none; }
+.sa-mail-grid { grid-template-columns: 210px 380px 1fr; gap: 14px; }
+.sa-mf-title { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #9ca3af; padding: 4px 12px 8px; }
+.sa-mail-folders { background: #faf8f3; border-radius: 14px; padding: 10px 8px; align-self: start; }
+.sa-mf { padding: 10px 12px; font-weight: 600; }
+.sa-mf i { font-size: 18px; width: 22px; text-align: center; }
+.sa-mf.t-in i { color: #2563eb; } .sa-mf.t-junk i { color: #dc2626; } .sa-mf.t-sent i { color: #16a34a; }
+.sa-mf.t-draft i { color: #a8781f; } .sa-mf.t-arch i { color: #6b7280; } .sa-mf.t-trash i { color: #9ca3af; } .sa-mf.t-other i { color: #9ca3af; }
+.sa-mf.active { background: #fff; box-shadow: 0 2px 8px rgba(168, 120, 31, .12); color: #111827; }
+.sa-mf.t-junk b { background: #dc2626; color: #fff; }
+.sa-mail-list { border: 1px solid #f0ebe0; border-radius: 14px; }
+.sa-ml-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; background: #fff; border-bottom: 1px solid #f3f0e8; font-size: 15px; }
+.sa-ml-head span { font-size: 12px; color: #9ca3af; }
+.sa-ml-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 50px 20px; color: #9ca3af; font-size: 14px; }
+.sa-ml-empty i { font-size: 40px; color: #e5dcc5; }
+.sa-mi { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; }
+.sa-mi-body { flex: 1; min-width: 0; }
+.sa-av { flex: 0 0 36px; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+.sa-mi-subj { margin-top: 3px; }
+.sa-mi.active { background: #fdf6e3; box-shadow: inset 3px 0 0 #d9a944; }
+.sa-mail-read { border: 1px solid #f0ebe0; border-radius: 14px; padding: 18px 22px; }
+.sa-mr-actions { position: sticky; top: -18px; z-index: 1; background: #fff; padding: 6px 0 10px; margin-top: -6px; border-bottom: 1px solid #f3f0e8; }
+.sa-mr-actions .btn { height: 34px; padding: 0 12px; font-size: 13px; }
+.sa-mr-subj { font-size: 20px; margin: 14px 0 12px; line-height: 1.3; }
+.sa-mr-meta { display: flex; gap: 12px; align-items: flex-start; }
+.sa-mr-meta .sa-av { flex-basis: 42px; width: 42px; height: 42px; font-size: 15px; }
+.sa-mr-who { line-height: 1.5; }
+.sa-mr-att { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 10px; }
+.sa-mr-att i { color: #a8781f; font-size: 16px; }
+/* перетягування файлів */
+.sa-panel[data-panel="mail"], .sa-cmp-box { position: relative; }
+.sa-panel[data-panel="mail"].drop::after, .sa-cmp-box.drop::after {
+    content: "Відпустіть — файли додадуться до листа"; position: absolute; inset: 8px; z-index: 5; display: flex; align-items: center; justify-content: center;
+    border: 3px dashed #d9a944; border-radius: 16px; background: rgba(253, 246, 227, .92); color: #8a5f12; font-size: 18px; font-weight: 800; pointer-events: none; }
+.sa-drop-hint { font-size: 12px; }
