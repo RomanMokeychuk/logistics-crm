@@ -16,6 +16,8 @@
 //   SALES_CRON_SECRET                 — пароль для розкладу (cron) і посилань відписки
 // Необов'язково:
 //   SALES_REPLY_TO                    — куди клієнт відповідає (типово = SALES_FROM)
+//   SMTP_HOST, SMTP_USER, SMTP_PASS   — власна пошта компанії (IMAP/SMTP хостингу); тоді Resend не потрібен
+//   SMTP_PORT (465), SMTP_FROM ("Ім'я, Грандар <mrs@grandarltd.com>"), IMAP_HOST, IMAP_PORT (993)
 //   SALES_INBOUND_SECRET              — пароль для вебхука вхідних листів
 //   SALES_DAILY_LIMIT                 — скільки перших листів на день (типово 40)
 //   SALES_AUTO_FOLLOWUP               — "true": нагадування йдуть без схвалення (типово — через схвалення)
@@ -33,6 +35,9 @@
 // (перевірку робимо самі: співробітник — за входом на сайт; cron/вхідні — за секретом).
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import nodemailer from "npm:nodemailer@6.9.16";
+import MailComposer from "npm:nodemailer@6.9.16/lib/mail-composer/index.js";
+import { ImapFlow } from "npm:imapflow@1.0.164";
 
 // deno-lint-ignore no-explicit-any
 type Any = any;
@@ -44,7 +49,17 @@ const MODEL = env("SALES_MODEL", "claude-sonnet-5-5");
 const FAST_MODEL = env("SALES_FAST_MODEL", "claude-haiku-5-5");
 const RESEND_KEY = env("RESEND_API_KEY");
 const FROM = env("SALES_FROM");
-const REPLY_TO = env("SALES_REPLY_TO", FROM);
+// Власна поштова скринька компанії (хостинг, IMAP/SMTP) — листи йдуть від імені співробітника,
+// копія кладеться в «Надіслані». Порт 465 (SSL): Supabase не дозволяє 25 і 587.
+const SMTP_HOST = env("SMTP_HOST");
+const SMTP_PORT = Number(env("SMTP_PORT", "465")) || 465;
+const SMTP_USER = env("SMTP_USER");
+const SMTP_PASS = env("SMTP_PASS");
+const SMTP_FROM = env("SMTP_FROM", SMTP_USER);
+const IMAP_HOST = env("IMAP_HOST", SMTP_HOST);
+const IMAP_PORT = Number(env("IMAP_PORT", "993")) || 993;
+const USE_SMTP = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
+const REPLY_TO = env("SALES_REPLY_TO", USE_SMTP ? SMTP_FROM : FROM);
 const CRON_SECRET = env("SALES_CRON_SECRET");
 const INBOUND_SECRET = env("SALES_INBOUND_SECRET", CRON_SECRET);
 const DAILY_LIMIT = Number(env("SALES_DAILY_LIMIT", "40")) || 40;
@@ -700,7 +715,44 @@ async function unsubscribeUrl(email: string) {
     return `${FUNCTION_URL}?u=${encodeURIComponent(email)}&t=${await hmac(email)}`;
 }
 
+async function sendViaSmtp(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
+    const text = `${body}\n\n—\nЯкщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.`;
+    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">${esc(body).replace(/\n/g, "<br>")}</div>` +
+        `<p style="font-family:Arial,sans-serif;font-size:11px;color:#888;margin-top:24px">Якщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.</p>`;
+    const mail = {
+        from: SMTP_FROM, to, subject, text, html,
+        replyTo: REPLY_TO || undefined,
+        headers: { "List-Unsubscribe": `<mailto:${SMTP_USER}?subject=unsubscribe>` },
+    };
+    try {
+        // 1) збираємо лист один раз — його ж відправляємо і кладемо в «Надіслані»
+        const raw: Uint8Array = await new Promise((res, rej) => new MailComposer(mail).compile().build((e: Any, m: Any) => (e ? rej(e) : res(m))));
+        const tr = nodemailer.createTransport({
+            host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
+            auth: { user: SMTP_USER, pass: SMTP_PASS },
+            connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000,
+        });
+        const info = await tr.sendMail({ envelope: { from: SMTP_USER, to: [to] }, raw });
+        // 2) копія в «Надіслані», щоб лист було видно в Outlook (не страшно, якщо не вийде)
+        try {
+            const imap = new ImapFlow({ host: IMAP_HOST, port: IMAP_PORT, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS }, logger: false });
+            await imap.connect();
+            const boxes = await imap.list();
+            const sent = boxes.find((b: Any) => b.specialUse === "\\Sent") ||
+                boxes.find((b: Any) => /^(inbox[./])?(sent|sent items|sent messages|отправленные|надіслані|відправлені)$/i.test(b.path));
+            if (sent) await imap.append(sent.path, raw, ["\\Seen"]);
+            await imap.logout();
+        } catch (e) {
+            console.warn("IMAP «Надіслані»:", String(e).slice(0, 200));
+        }
+        return { id: String(info?.messageId || "smtp") };
+    } catch (e) {
+        return { error: "Пошта: " + String((e as Any)?.message || e).slice(0, 280) };
+    }
+}
+
 async function sendEmail(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
+    if (USE_SMTP) return sendViaSmtp(to, subject, body);
     if (!RESEND_KEY || !FROM) return { error: "Пошта не налаштована: додайте RESEND_API_KEY і SALES_FROM у секрети функції." };
     const unsub = await unsubscribeUrl(to);
     const text = `${body}\n\n—\nЯкщо тема неактуальна, відпишіться тут: ${unsub}`;
@@ -1238,7 +1290,7 @@ Deno.serve(async (req) => {
             case "set_primary": out = await actionSetPrimary(body); break;
             case "manual_reply": out = await actionManualReply(body, me); break;
             case "status": out = ok({
-                ai: !!AI_KEY, mail: !!(RESEND_KEY && FROM), from: FROM || null, daily_limit: DAILY_LIMIT, sent_today: await sentToday(),
+                ai: !!AI_KEY, mail: USE_SMTP || !!(RESEND_KEY && FROM), from: USE_SMTP ? SMTP_FROM : FROM || null, mail_via: USE_SMTP ? "smtp" : RESEND_KEY ? "resend" : null, daily_limit: DAILY_LIMIT, sent_today: await sentToday(),
                 auto_followup: AUTO_FOLLOWUP, paid_min_score: PAID_MIN_SCORE,
                 sources: {
                     opendatabot: !!env("OPENDATABOT_API_KEY"), youcontrol: !!(env("YOUCONTROL_API_KEY") && env("YOUCONTROL_URL")),
