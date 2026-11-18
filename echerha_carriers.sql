@@ -77,7 +77,9 @@ begin
      where not exists (
          select 1 from public.carriers c
           where ltrim(regexp_replace(coalesce(c.edrpou::text, ''), '\D', '', 'g'), '0') = e.code
-     );
+     )
+       -- видалених вручну не повертаємо
+       and not exists (select 1 from public.carriers_deleted d where d.edrpou = e.code);
     get diagnostics added = row_count;
 
     return jsonb_build_object('added', added, 'trailer_updated', updated);
