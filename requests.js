@@ -1799,16 +1799,6 @@ function openRequestCard(id) {
             </div>
         </div>
 
-        ${leadSectionHtml(r)}
-
-        ${answerSectionHtml(r)}
-
-        ${window.furikReply ? window.furikReply.sectionHtml(r) : ""}
-
-        ${window.furaBids ? window.furaBids.sectionHtml() : ""}
-
-        ${chatSectionHtml(r)}
-
         <div class="card-section rq-details">
             <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span>
                 <button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button>
@@ -1840,6 +1830,12 @@ function openRequestCard(id) {
             </div>
         </div>
 
+        <div id="routeMapBox" style="margin-top:16px"></div>
+
+        ${chatSectionHtml(r)}
+
+        ${answerSectionHtml(r)}
+
         <div class="card-section rq-people">
             <div class="card-section-title"><span><i class='bx bx-group'></i> Відповідальні</span></div>
             <div class="rq-people-grid">
@@ -1851,7 +1847,12 @@ function openRequestCard(id) {
             </div>
         </div>
 
-        <div id="routeMapBox" style="margin-top:16px"></div>
+        ${window.furikReply ? window.furikReply.sectionHtml(r) : ""}
+
+        ${window.furaBids ? window.furaBids.sectionHtml() : ""}
+
+        ${leadSectionHtml(r)}
+
     `;
 
     document
