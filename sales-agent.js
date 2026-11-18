@@ -1128,12 +1128,33 @@ document.addEventListener("DOMContentLoaded", async () => {
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<button type="button" class="sa-mr-att" data-att="${a.i}"><i class="bx bx-paperclip"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
-        const doc = m.html
-            ? `<base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;word-wrap:break-word}img{max-width:100%;height:auto}</style>${m.html}`
-            : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
         const fr = $("mlRead").querySelector(".sa-mr-body");
-        fr.srcdoc = doc;
+        const paint = () => {
+            // картинки листа (cid:…) підставляємо, коли вони завантажились
+            let html = m.html || "";
+            for (const [cid, url] of Object.entries(m._imgs || {})) {
+                const esc = cid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                html = html.replace(new RegExp("cid:" + esc, "gi"), url).replace(new RegExp("cid:" + esc.replace(/@/g, "%40"), "gi"), url);
+            }
+            fr.srcdoc = m.html
+                ? `<base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;word-wrap:break-word}img{max-width:100%;height:auto}</style>${html}`
+                : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
+        };
         fr.onload = () => { try { fr.style.height = Math.max(300, fr.contentDocument.body.scrollHeight + 30) + "px"; } catch (_) { fr.style.height = "600px"; } };
+        paint();
+        if (m.html && m.inline?.length && !m._imgs) {
+            const uid0 = m.uid, fp0 = fp;
+            api({ action: "mail_read", folder: fp, uid: m.uid, parts: m.inline.map((p) => p.part), peek: true }).then((r) => {
+                const imgs = {};
+                for (const f of r.files || []) {
+                    const p = m.inline.find((x) => x.part === f.part);
+                    if (p) imgs[p.cid] = `data:${f.type || p.type};base64,${f.data}`;
+                }
+                m._imgs = imgs;
+                const c = MCACHE.get(ck(fp0, uid0)); if (c) c._imgs = imgs;
+                if (ML.open?.uid === uid0 && ML.open?.fp === fp0 && Object.keys(imgs).length) paint();
+            }).catch(() => {});
+        }
     }
     const quote = (m) => `\n\n\n-------- Вихідне повідомлення --------\nВід: ${m.from}\nДата: ${m.date ? new Date(m.date).toLocaleString("uk-UA") : ""}\nТема: ${m.subject}\n\n${String(m.text || "").slice(0, 8000)}`;
     async function act(kind, btn) {
