@@ -899,10 +899,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             $("saCmpMails").innerHTML = (data || []).map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.person_name || "")}</option>`).join("");
         } catch (_) { /* без підказок */ }
     }
+    let inReplyTo = "";
     function open(pre = {}) {
+        inReplyTo = pre.in_reply_to || "";
         let d = {};
         try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
-        const v = { ...d, ...pre };
+        const v = Object.keys(pre).length ? pre : d; // відповідь / пересилання — без старої чернетки
         ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
         files = [];
         showFiles();
@@ -946,7 +948,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         withBusy(btn, async () => {
             const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
             const g = sigRead();
-            const r = await api({ action: "compose", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
+            const r = await api({ action: "compose", in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
             try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
             close();
             toast(`Лист надіслано: ${[...(r?.to || []), ...(r?.cc || [])].join(", ")}`);
@@ -955,4 +957,168 @@ document.addEventListener("DOMContentLoaded", async () => {
     // ?compose=1&to=…&subject=… — відкрити лист одразу (посилання з інших сторінок)
     const q = new URLSearchParams(location.search);
     if (q.get("compose")) setTimeout(() => open({ to: q.get("to") || "", cc: q.get("cc") || "", subject: q.get("subject") || "", body: q.get("body") || "" }), 600);
+})();
+
+
+/* ---------------- Пошта: Вхідні, Спам, Надіслані — прямо у FURA ---------------- */
+(() => {
+    const ML = { folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false };
+    const KIND = { "\\Inbox": ["Вхідні", "bx-inbox"], "\\Junk": ["Спам", "bx-error-circle"], "\\Sent": ["Надіслані", "bx-send"], "\\Drafts": ["Чернетки", "bx-edit"], "\\Archive": ["Архів", "bx-archive"], "\\Trash": ["Кошик", "bx-trash"] };
+    const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
+    const pathOf = (kind) => (ML.folders.find((f) => f.kind === kind) || {}).path;
+    const when = (d) => {
+        if (!d) return "";
+        const t = new Date(d), now = new Date();
+        return t.toDateString() === now.toDateString() ? t.toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }) : t.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit", year: t.getFullYear() === now.getFullYear() ? undefined : "2-digit" });
+    };
+    function needAccess(msg) {
+        $("mlList").innerHTML = `<p class="ag-empty">${escapeHtml(msg)}</p>`;
+        $("mlFolders").innerHTML = "";
+        $("mlRead").innerHTML = "";
+    }
+    async function loadFolders() {
+        const r = await api({ action: "mail_folders" });
+        ML.folders = r.folders || [];
+        renderFolders();
+    }
+    function renderFolders() {
+        $("mlFolders").innerHTML = ML.folders.map((f) => {
+            const [label, icon] = KIND[f.kind] || [f.name || f.path, "bx-folder"];
+            return `<button type="button" class="sa-mf ${f.path === ML.folder ? "active" : ""} ${f.kind === "\\Junk" ? "junk" : ""}" data-folder="${escapeHtml(f.path)}">
+                <i class="bx ${icon}"></i><span>${escapeHtml(label)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.kind === "\\Junk" && f.total ? `<em>${f.total}</em>` : ""}</button>`;
+        }).join("");
+        const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
+        const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
+        $("cntMail").textContent = n ? String(n) : "";
+    }
+    async function loadList() {
+        $("mlList").innerHTML = '<p class="ag-empty">Завантажую листи…</p>';
+        const r = await api({ action: "mail_list", folder: ML.folder, page: ML.page, q: ML.q, limit: 50 });
+        ML.list = r.list || [];
+        ML.total = r.total || 0;
+        renderList();
+    }
+    function renderList() {
+        const isSent = kindOf(ML.folder) === "\\Sent";
+        $("mlList").innerHTML = (ML.list.map((m) => `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid ? "active" : ""}" data-uid="${m.uid}">
+                <div class="sa-mi-top"><span class="sa-mi-from">${escapeHtml(isSent ? "→ " + (m.to || "") : m.from || m.from_email)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
+                <div class="sa-mi-subj">${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
+            </button>`).join("") || '<p class="ag-empty">Листів немає</p>') +
+            `<div class="sa-mi-pages">${ML.page ? '<button type="button" class="btn btn-secondary" data-pg="-1">← Новіші</button>' : ""}${ML.list.length >= 50 ? '<button type="button" class="btn btn-secondary" data-pg="1">Старіші →</button>' : ""}</div>`;
+    }
+    async function openMail(uid) {
+        ML.open = { uid };
+        renderList();
+        $("mlRead").innerHTML = '<p class="ag-empty">Відкриваю лист…</p>';
+        const m = await api({ action: "mail_read", folder: ML.folder, uid });
+        ML.open = m;
+        const it = ML.list.find((x) => x.uid === uid);
+        if (it && !it.seen) { it.seen = true; renderList(); loadFolders().catch(() => {}); }
+        const junk = kindOf(ML.folder) === "\\Junk";
+        $("mlRead").innerHTML = `
+            ${junk ? '<div class="sa-mr-junk"><i class="bx bx-error-circle"></i> Цей лист у «Спамі». Якщо це клієнт чи перевізник — натисніть «Не спам», і такі листи йтимуть у Вхідні.</div>' : ""}
+            <div class="sa-mr-actions">
+                <button type="button" class="btn btn-primary" data-mr="reply"><i class="bx bx-reply"></i> Відповісти</button>
+                <button type="button" class="btn btn-secondary" data-mr="replyall"><i class="bx bx-reply-all"></i> Усім</button>
+                <button type="button" class="btn btn-secondary" data-mr="fwd"><i class="bx bx-share"></i> Переслати</button>
+                ${junk ? '<button type="button" class="btn btn-primary" data-mr="notspam"><i class="bx bx-check"></i> Не спам</button>' : pathOf("\\Junk") ? '<button type="button" class="btn btn-secondary" data-mr="spam" title="У спам"><i class="bx bx-error-circle"></i></button>' : ""}
+                <button type="button" class="btn btn-secondary" data-mr="unread" title="Позначити непрочитаним"><i class="bx bx-envelope"></i></button>
+                ${pathOf("\\Trash") && kindOf(ML.folder) !== "\\Trash" ? '<button type="button" class="btn btn-secondary" data-mr="trash" title="Видалити"><i class="bx bx-trash"></i></button>' : ""}
+            </div>
+            <h3 class="sa-mr-subj">${escapeHtml(m.subject)}</h3>
+            <div class="sa-mr-meta">
+                <div><b>${escapeHtml(m.from)}</b></div>
+                <div>Кому: ${escapeHtml(m.to)}${m.cc ? ` · Копія: ${escapeHtml(m.cc)}` : ""}</div>
+                <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div>
+            </div>
+            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<button type="button" class="sa-mr-att" data-att="${a.i}"><i class="bx bx-paperclip"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
+            <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
+        // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
+        const doc = m.html
+            ? `<base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;word-wrap:break-word}img{max-width:100%;height:auto}</style>${m.html}`
+            : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
+        const fr = $("mlRead").querySelector(".sa-mr-body");
+        fr.srcdoc = doc;
+        fr.onload = () => { try { fr.style.height = Math.max(300, fr.contentDocument.body.scrollHeight + 30) + "px"; } catch (_) { fr.style.height = "600px"; } };
+    }
+    const quote = (m) => `\n\n\n-------- Вихідне повідомлення --------\nВід: ${m.from}\nДата: ${m.date ? new Date(m.date).toLocaleString("uk-UA") : ""}\nТема: ${m.subject}\n\n${String(m.text || "").slice(0, 8000)}`;
+    async function act(kind, btn) {
+        const m = ML.open;
+        if (!m?.uid) return;
+        const re = (s) => (/^re:/i.test(s) ? s : `Re: ${s}`);
+        if (kind === "reply" || kind === "replyall") {
+            const mine = (status?.from || "").toLowerCase();
+            const others = kind === "replyall" ? [m.to, m.cc].join(",").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)?.filter((x) => !mine.includes(x.toLowerCase())) || [] : [];
+            return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: quote(m), in_reply_to: m.message_id });
+        }
+        if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: quote(m) });
+        if (kind === "unread") {
+            await withBusy(btn, () => api({ action: "mail_move", folder: ML.folder, uid: m.uid, flag: "unseen" }));
+            const it = ML.list.find((x) => x.uid === m.uid); if (it) it.seen = false;
+            renderList(); loadFolders().catch(() => {});
+            return;
+        }
+        const to = kind === "notspam" ? pathOf("\\Inbox") || "INBOX" : kind === "spam" ? pathOf("\\Junk") : pathOf("\\Trash");
+        if (!to) return;
+        await withBusy(btn, () => api({ action: "mail_move", folder: ML.folder, uid: m.uid, to }));
+        toast(kind === "notspam" ? "Перенесено у Вхідні" : kind === "spam" ? "Перенесено у Спам" : "Видалено");
+        ML.list = ML.list.filter((x) => x.uid !== m.uid);
+        ML.open = null;
+        $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
+        renderList(); loadFolders().catch(() => {});
+    }
+    async function start() {
+        if (ML.loaded) return;
+        if (status && !status.mail_reader) {
+            const { data } = await sbClient.auth.getSession();
+            return needAccess(`Пошта доступна лише власнику скриньки. Додайте ваш логін FURA (${data?.session?.user?.email || "ваш e-mail для входу"}) у секрет MAIL_READERS у Supabase.`);
+        }
+        ML.loaded = true;
+        try {
+            await loadFolders();
+            await loadList();
+        } catch (e) { ML.loaded = false; needAccess(e.message); }
+    }
+    document.querySelector('.sa-tab[data-tab="mail"]').addEventListener("click", start);
+    $("mlFolders").addEventListener("click", (e) => {
+        const b = e.target.closest("[data-folder]");
+        if (!b) return;
+        ML.folder = b.dataset.folder; ML.page = 0; ML.open = null;
+        renderFolders();
+        $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
+        loadList().catch((er) => toast(er.message, true));
+    });
+    $("mlList").addEventListener("click", (e) => {
+        const pg = e.target.closest("[data-pg]");
+        if (pg) { ML.page = Math.max(0, ML.page + Number(pg.dataset.pg)); return loadList().catch((er) => toast(er.message, true)); }
+        const it = e.target.closest("[data-uid]");
+        if (it) openMail(Number(it.dataset.uid)).catch((er) => toast(er.message, true));
+    });
+    $("mlRead").addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-mr]");
+        if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
+        const a = e.target.closest("[data-att]");
+        if (a) {
+            await withBusy(a, async () => {
+                const r = await api({ action: "mail_read", folder: ML.folder, uid: ML.open.uid, attachment: Number(a.dataset.att), peek: true });
+                const f = r.file;
+                const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
+                const url = URL.createObjectURL(new Blob([bin], { type: f.type || "application/octet-stream" }));
+                const link = document.createElement("a"); link.href = url; link.download = f.name; link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            });
+        }
+    });
+    let qT = 0;
+    $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { ML.q = e.target.value.trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
+    $("mlRefresh").addEventListener("click", () => { loadFolders().catch(() => {}); loadList().catch((er) => toast(er.message, true)); });
+    $("mlCompose").addEventListener("click", () => window.furaCompose?.());
+    // нові листи — раз на 2 хвилини, коли пошта відкрита
+    setInterval(() => {
+        if (!ML.loaded || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;
+        loadFolders().catch(() => {});
+        if (!ML.page && !ML.q) api({ action: "mail_list", folder: ML.folder, limit: 50 }).then((r) => { if (r.list?.[0]?.uid !== ML.list[0]?.uid) { ML.list = r.list; renderList(); } }).catch(() => {});
+    }, 120000);
+    // якщо вкладка «Пошта» відкрита з минулого разу
+    setTimeout(() => { if (!document.querySelector('.sa-panel[data-panel="mail"]').hidden) start(); }, 1500);
 })();

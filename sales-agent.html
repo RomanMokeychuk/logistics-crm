@@ -18,14 +18,14 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611180732" />
+        <link rel="stylesheet" href="style.css?v=202611180737" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611180732" />
-        <link rel="stylesheet" href="agents.css?v=202611180732" />
-        <link rel="stylesheet" href="sales-agent.css?v=202611180732" />
-        <link rel="stylesheet" href="design.css?v=202611180732" />
+        <link rel="stylesheet" href="theme.css?v=202611180737" />
+        <link rel="stylesheet" href="agents.css?v=202611180737" />
+        <link rel="stylesheet" href="sales-agent.css?v=202611180737" />
+        <link rel="stylesheet" href="design.css?v=202611180737" />
     </head>
     <body>
         <aside class="sidebar">
@@ -113,6 +113,9 @@
                 </button>
                 <button type="button" class="sa-tab" data-tab="sent">
                     <i class="bx bx-send"></i> Надіслані
+                </button>
+                <button type="button" class="sa-tab" data-tab="mail">
+                    <i class="bx bx-envelope"></i> Пошта <span class="ag-count" id="cntMail"></span>
                 </button>
             </nav>
 
@@ -211,6 +214,19 @@
                 </div>
                 <div id="sentList" class="ag-list"></div>
             </section>
+            <!-- 5. Пошта: Вхідні, Спам, Надіслані… -->
+            <section class="ag-card sa-panel sa-mail" data-panel="mail" hidden>
+                <div class="sa-mail-bar">
+                    <div class="sa-mail-search"><i class="bx bx-search"></i><input id="mlQ" type="search" placeholder="Пошук у листах: від кого, тема, текст…" /></div>
+                    <button type="button" class="btn btn-secondary" id="mlRefresh" title="Оновити"><i class="bx bx-refresh"></i></button>
+                    <button type="button" class="btn btn-primary" id="mlCompose"><i class="bx bx-edit"></i> Написати</button>
+                </div>
+                <div class="sa-mail-grid">
+                    <nav class="sa-mail-folders" id="mlFolders"><p class="ag-empty">…</p></nav>
+                    <div class="sa-mail-list" id="mlList"><p class="ag-empty">Відкриваю пошту…</p></div>
+                    <article class="sa-mail-read" id="mlRead"><p class="ag-empty">Оберіть лист зліва</p></article>
+                </div>
+            </section>
         </main>
 
         <!-- Картка клієнта -->
@@ -228,9 +244,9 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="sales-agent.js?v=202611180732"></script>
-        <script src="shell.js?v=202611180732"></script>
-        <script src="notify.js?v=202611180732"></script>
-        <script src="lock.js?v=202611180732"></script>
+        <script src="sales-agent.js?v=202611180737"></script>
+        <script src="shell.js?v=202611180737"></script>
+        <script src="notify.js?v=202611180737"></script>
+        <script src="lock.js?v=202611180737"></script>
     </body>
 </html>
