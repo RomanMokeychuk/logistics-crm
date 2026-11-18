@@ -1752,6 +1752,11 @@ function tempText(r) {
 }
 
 // Один рядок "підпис — значення" (класи картки перевізника зі style.css)
+// Те саме, але порожнє поле не показуємо (картка компактніша)
+function cardRowOpt(label, valueHtml) {
+    return String(valueHtml || "").trim() ? cardRow(label, valueHtml) : "";
+}
+
 function cardRow(label, valueHtml) {
     return `
         <div class="card-row">
@@ -1805,28 +1810,30 @@ function openRequestCard(id) {
         ${chatSectionHtml(r)}
 
         <div class="card-section rq-details">
-            <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span></div>
+            <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span>
+                <button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button>
+            </div>
             <div class="rq-grid">
                 <div class="rq-group">
                     <div class="rq-sub">Вантаж і транспорт</div>
-                    ${cardRow("Вантаж:", escapeHtml(r.cargo))}
-                    ${cardRow("Тип транспорту:", splitTypes(r.transport_type).map((t) => `<span class="badge badge-warning" style="margin-right:4px">${escapeHtml(t)}</span>`).join(""))}
-                    ${cardRow("Вага:", escapeHtml(r.weight))}
-                    ${cardRow("Пакування:", packagingText(r.packaging))}
+                    ${cardRowOpt("Вантаж:", escapeHtml(r.cargo))}
+                    ${cardRowOpt("Тип транспорту:", splitTypes(r.transport_type).map((t) => `<span class="badge badge-warning" style="margin-right:4px">${escapeHtml(t)}</span>`).join(""))}
+                    ${cardRowOpt("Вага:", escapeHtml(r.weight))}
+                    ${cardRowOpt("Пакування:", packagingText(r.packaging))}
                     ${isRef(r.transport_type) || r.temp_from !== null || r.temp_to !== null ? cardRow("Температура:", tempText(r)) : ""}
-                    ${cardRow("Кількість авто:", r.trucks_count ? escapeHtml(`${r.trucks_count} авто${r.trucks_period ? " " + r.trucks_period : " (разово)"}`) : "")}
-                    ${cardRow("Як вантажити:", (r.loading_types || []).length ? escapeHtml(r.loading_types.join(", ")) : "")}
+                    ${cardRowOpt("Кількість авто:", r.trucks_count ? escapeHtml(`${r.trucks_count} авто${r.trucks_period ? " " + r.trucks_period : " (разово)"}`) : "")}
+                    ${cardRowOpt("Як вантажити:", (r.loading_types || []).length ? escapeHtml(r.loading_types.join(", ")) : "")}
                     <div class="rq-sub">Маршрут</div>
-                    ${cardRow("Відвантаження:", locationCell(r.load_country, r.load_address) + extraPointsHtml(r.extra_loads))}
-                    ${cardRow("Розвантаження:", locationCell(r.unload_country, r.unload_address) + extraPointsHtml(r.extra_unloads))}
+                    ${cardRowOpt("Відвантаження:", locationCell(r.load_country, r.load_address) + extraPointsHtml(r.extra_loads))}
+                    ${cardRowOpt("Розвантаження:", locationCell(r.unload_country, r.unload_address) + extraPointsHtml(r.extra_unloads))}
                 </div>
                 <div class="rq-group">
                     <div class="rq-sub">Митниця та кордон</div>
-                    ${cardRow("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export") + extraPointsHtml(r.extra_customs_export))}
-                    ${cardRow("Погран перехід:", escapeHtml(r.border_crossing))}
-                    ${cardRow("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import") + extraPointsHtml(r.extra_customs_import))}
+                    ${cardRowOpt("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export") + extraPointsHtml(r.extra_customs_export))}
+                    ${cardRowOpt("Погран перехід:", escapeHtml(r.border_crossing))}
+                    ${cardRowOpt("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import") + extraPointsHtml(r.extra_customs_import))}
                     <div class="rq-sub">Дата</div>
-                    ${cardRow("Бажана дата:", formatDesiredDate(r.desired_date, r.desired_date_to))}
+                    ${cardRowOpt("Бажана дата:", formatDesiredDate(r.desired_date, r.desired_date_to))}
                     <div class="rq-sub">Нотатки</div>
                     <div class="card-block-text">${notesHtml || "—"}</div>
                 </div>
@@ -1859,6 +1866,7 @@ function openRequestCard(id) {
             ),
         );
 
+    document.getElementById("carrierTextBtn")?.addEventListener("click", () => openCarrierText(r));
     document.getElementById("refuseFromCardBtn")?.addEventListener("click", () => openRefusalModal(r.id));
     document.getElementById("cancelChoiceBtn")?.addEventListener("click", () => cancelChoice(r.id));
     document.querySelectorAll("#requestCardBody [data-offer-act]").forEach((b) =>
@@ -3350,3 +3358,90 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
+
+/* ================================================================= *
+ * «Текст перевізнику» — короткий опис вантажу, щоб скопіювати        *
+ * і надіслати в Viber/Telegram. Без клієнта, без цін.                *
+ * ================================================================= */
+function carrierTextOf(r) {
+    const city = (country, address) => {
+        const a = String(address || "").split(",")[0].trim();
+        return a || String(country || "").trim();
+    };
+    const pts = (main, extra) => [main, ...(Array.isArray(extra) ? extra : [])].map((p) => city(p.country, p.address)).filter(Boolean);
+    const loads = pts({ country: r.load_country, address: r.load_address }, r.extra_loads);
+    const unloads = pts({ country: r.unload_country, address: r.unload_address }, r.extra_unloads);
+    const lines = [];
+    const route = [...loads, ...unloads].join(" - ");
+    if (route) lines.push(route);
+
+    const customs = (kind, country, place) => {
+        const word = kind === "export" ? "Замитнення" : "Розмитнення";
+        if (place === CUSTOMS_HERE) return `${word} по місцю ${kind === "export" ? "завантаження" : "розвантаження"}`;
+        const c = city(country, place);
+        return c ? `${word} ${c}` : "";
+    };
+    const ex = customs("export", r.customs_export_country, r.customs_export);
+    const im = customs("import", r.customs_import_country, r.customs_import);
+    if (ex) lines.push(ex);
+    if (r.border_crossing) lines.push(`Перехід ${String(r.border_crossing).trim()}`);
+    if (im) lines.push(im);
+
+    const pack = (Array.isArray(r.packaging) ? r.packaging : [])
+        .map((p) => `${String(p.type || "").toLowerCase()}${p.qty ? " " + p.qty + " шт" : ""}`.trim()).filter(Boolean).join(", ");
+    const cargo = [String(r.cargo || "").trim(), pack].filter(Boolean).join(", ");
+    if (cargo) lines.push(cargo.charAt(0).toUpperCase() + cargo.slice(1));
+    const w = String(r.weight || "").trim();
+    if (w) lines.push(/^до\b/i.test(w) ? w : `До ${w}`);
+
+    const truck = [splitTypes(r.transport_type).join("/"), (r.loading_types || []).length ? "завантаження " + r.loading_types.join(", ").toLowerCase() : ""]
+        .filter(Boolean).join(", ");
+    if (truck) lines.push(truck.charAt(0).toUpperCase() + truck.slice(1).toLowerCase());
+    const temp = tempText(r);
+    if (temp && (isRef(r.transport_type) || r.temp_from !== null || r.temp_to !== null)) lines.push(`Температура ${temp}`);
+    if (r.trucks_count) lines.push(`${r.trucks_count} авто${r.trucks_period ? " " + r.trucks_period : ""}`);
+    const date = formatDesiredDate(r.desired_date, r.desired_date_to);
+    if (date) lines.push(`Дата завантаження ${date}`);
+
+    // з нотаток — лише умови (без клієнта, цін, ставок)
+    const notes = String(r.notes || "").split(/\n/).map((l) => l.trim())
+        .filter((l) => l && !/(клієнт|клиент|замовник|ставк|ціна|цена|маржа|бюджет|оплат|€|eur|usd|\$|грн|uah|zł|pln|руб)/i.test(l));
+    if (notes.length) lines.push("", ...notes);
+    return lines.join("\n").trim();
+}
+
+function openCarrierText(r) {
+    let box = document.getElementById("carrierTextBox");
+    if (!box) {
+        box = document.createElement("div");
+        box.id = "carrierTextBox";
+        box.className = "ctx-ov";
+        box.innerHTML = `<div class="ctx-card" role="dialog">
+            <div class="ctx-head"><b>Текст перевізнику</b><button type="button" class="ctx-x" data-ctx="close" title="Закрити">&times;</button></div>
+            <textarea class="ctx-text" rows="10"></textarea>
+            <div class="ctx-note">Клієнта і ціни сюди не додаємо. Текст можна правити перед копіюванням.</div>
+            <div class="ctx-acts">
+                <button type="button" class="ctx-go" data-ctx="copy"><i class='bx bx-copy'></i> Скопіювати</button>
+                <button type="button" class="ctx-link" data-ctx="reset">Скинути зміни</button>
+            </div>
+        </div>`;
+        document.body.appendChild(box);
+        box.addEventListener("click", async (e) => {
+            const k = e.target.closest("[data-ctx]")?.dataset.ctx;
+            if (e.target === box || k === "close") { box.hidden = true; return; }
+            const ta = box.querySelector(".ctx-text");
+            if (k === "reset") ta.value = carrierTextOf(box._r);
+            if (k === "copy") {
+                try { await navigator.clipboard.writeText(ta.value); } catch (_) { ta.select(); document.execCommand("copy"); }
+                const b = e.target.closest(".ctx-go");
+                b.innerHTML = "<i class='bx bx-check'></i> Скопійовано";
+                setTimeout(() => { box.hidden = true; b.innerHTML = "<i class='bx bx-copy'></i> Скопіювати"; }, 700);
+            }
+        });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !box.hidden) { e.stopPropagation(); box.hidden = true; } }, true);
+    }
+    box._r = r;
+    box.querySelector(".ctx-text").value = carrierTextOf(r);
+    box.hidden = false;
+    setTimeout(() => box.querySelector(".ctx-text").focus(), 30);
+}

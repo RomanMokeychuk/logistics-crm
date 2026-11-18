@@ -1299,3 +1299,38 @@
 #requestCardBody .rc-coll.rc-collapsed { box-shadow: none; }
 .rc-coll-all[hidden] { display: none !important; }
 @media (max-width: 700px) { #rcCollAll { display: none !important; } }
+
+/* ===== Картка запиту — компактніше ===== */
+#requestCardBody .card-header-block { padding: 14px 18px; }
+#requestCardBody > .card-section + .card-section, #requestCardBody > * + .card-section, #requestCardBody .rq-details, #requestCardBody .rq-people { margin-top: 10px !important; }
+#requestCardBody .card-section-title { padding: 9px 14px; font-size: 14px; min-height: 0; }
+#requestCardBody .card-row { padding: 6px 14px; font-size: 13.5px; grid-template-columns: 130px 1fr; min-height: 0; }
+#requestCardBody .card-row-label { font-size: 13px; }
+#requestCardBody .card-block-text { padding: 6px 14px 8px; font-size: 13.5px; }
+#requestCardBody .location-address { font-size: 12.5px; margin-top: 2px; }
+#requestCardBody .badge-country, #requestCardBody .badge { padding: 1px 7px; font-size: 11px; }
+.rq-sub { padding: 9px 14px 3px; font-size: 11px; }
+.rq-group .card-block-text { padding: 3px 14px 8px; }
+.rq-people-grid .card-row { padding: 8px 14px; gap: 2px; }
+#requestCardBody .rc-coll > .rc-head { padding-right: 44px !important; }
+#requestCardBody .rc-coll > .rc-head::after { width: 22px; height: 22px; right: 12px; }
+#routeMapBox { margin-top: 10px !important; }
+#requestCardBody .route-section { margin-bottom: 0; }
+
+/* ===== «Текст перевізнику» ===== */
+.rq-details > .card-section-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.rq-carrier-text { padding: 5px 12px !important; font-size: 12.5px !important; }
+.ctx-ov { position: fixed; inset: 0; z-index: 2147483000; background: rgba(17, 24, 39, .45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ctx-ov[hidden] { display: none; }
+.ctx-card { width: min(520px, 100%); background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0, 0, 0, .3); padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; color: #111827; }
+.ctx-head { display: flex; align-items: center; justify-content: space-between; }
+.ctx-head b { font-size: 17px; }
+.ctx-x { border: 0; background: none; font-size: 26px; line-height: 1; color: #9ca3af; cursor: pointer; }
+.ctx-text { width: 100%; box-sizing: border-box; border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px 12px; font: 15px/1.45 inherit; font-family: inherit; resize: vertical; }
+.ctx-text:focus { outline: none; border-color: #d9a944; box-shadow: 0 0 0 3px rgba(217, 169, 68, .18); }
+.ctx-note { font-size: 12px; color: #6b7280; }
+.ctx-acts { display: flex; align-items: center; gap: 12px; }
+.ctx-go { border: 0; border-radius: 10px; height: 40px; padding: 0 18px; font: 600 14px inherit; font-family: inherit; color: #fff; background: #c9973a; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.ctx-go:hover { background: #a8781f; }
+.ctx-link { border: 0; background: none; color: #a8781f; text-decoration: underline; cursor: pointer; font: inherit; font-size: 13px; margin-left: auto; }
+@media (max-width: 600px) { .ctx-ov { align-items: flex-end; padding: 0; } .ctx-card { border-radius: 16px 16px 0 0; padding-bottom: calc(16px + env(safe-area-inset-bottom)); } .ctx-go { flex: 1; justify-content: center; } }
