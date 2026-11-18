@@ -505,7 +505,7 @@ const EQ = (() => {
         const cps = new Set(list.map((r) => r.checkpoint)).size;
         const k = (n, l, cls = "") => `<div class="eq-kpi ${cls}"><b>${n.toLocaleString("uk-UA")}</b><span>${l}</span></div>`;
         $("#eqKpis").innerHTML =
-            k(list.length, "машин у черзі") + k(ua.length, "з українськими тягачами") + k(codes.size, "перевізників") +
+            k(list.length, "машин") + k(ua.length, "укр. тягачів") + k(codes.size, "перевізників") +
             k(cps, "пунктів");
     }
 

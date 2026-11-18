@@ -22,11 +22,11 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611182114" />
+        <link rel="stylesheet" href="style.css?v=202611182121" />
         <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611182114" />
-        <link rel="stylesheet" href="echerha.css?v=202611182114" />
-        <link rel="stylesheet" href="design.css?v=202611182114" />
+        <link rel="stylesheet" href="theme.css?v=202611182121" />
+        <link rel="stylesheet" href="echerha.css?v=202611182121" />
+        <link rel="stylesheet" href="design.css?v=202611182121" />
     </head>
     <body>
         <aside class="sidebar"></aside>
@@ -42,12 +42,14 @@
                     <span class="eq-logo">Черга</span>
                     <span class="eq-sub">машини на кордоні зараз</span>
                 </div>
+                <div class="eq-search">
+                    <i class="bx bx-search"></i>
+                    <input id="eqQ" type="search" placeholder="Номер, перевізник, ЄДРПОУ, керівник…" autocomplete="off" />
+                </div>
                 <div class="eq-sync" id="eqSync">Завантаження…</div>
             </header>
 
             <div class="eq-scroll">
-                <div class="eq-kpis" id="eqKpis"></div>
-
                 <div class="eq-toolbar">
                     <div class="eq-views" id="eqViews">
                         <button type="button" data-v="trucks" class="active"><i class="bx bxs-truck"></i> Машини</button>
@@ -56,10 +58,7 @@
                         <button type="button" data-v="watch"><span class="eq-star-ico">★</span> Обрані <b class="eq-watch-n" id="eqWatchN"></b></button>
                     </div>
                     <button type="button" class="eq-filters-toggle" id="eqFiltersToggle" aria-expanded="false" title="Показати / сховати фільтри"><i class="bx bx-slider-alt"></i> Фільтри <b id="eqFiltersN"></b><i class="bx bx-chevron-down"></i></button>
-                    <div class="eq-search">
-                        <i class="bx bx-search"></i>
-                        <input id="eqQ" type="search" placeholder="Номер, перевізник, ЄДРПОУ, керівник…" autocomplete="off" />
-                    </div>
+                    <div class="eq-kpis" id="eqKpis"></div>
                 </div>
 
                 <div class="eq-filters eq-collapsed" id="eqFilters">
@@ -96,9 +95,9 @@
         </main>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="echerha.js?v=202611182114"></script>
-        <script src="shell.js?v=202611182114"></script>
-        <script src="notify.js?v=202611182114"></script>
-        <script src="lock.js?v=202611182114"></script>
+        <script src="echerha.js?v=202611182121"></script>
+        <script src="shell.js?v=202611182121"></script>
+        <script src="notify.js?v=202611182121"></script>
+        <script src="lock.js?v=202611182121"></script>
     </body>
 </html>
