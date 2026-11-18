@@ -715,24 +715,29 @@ async function unsubscribeUrl(email: string) {
     return `${FUNCTION_URL}?u=${encodeURIComponent(email)}&t=${await hmac(email)}`;
 }
 
-async function sendViaSmtp(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
-    const text = `${body}\n\n—\nЯкщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.`;
-    const html = `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">${esc(body).replace(/\n/g, "<br>")}</div>` +
-        `<p style="font-family:Arial,sans-serif;font-size:11px;color:#888;margin-top:24px">Якщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.</p>`;
-    const mail = {
-        from: SMTP_FROM, to, subject, text, html,
-        replyTo: REPLY_TO || undefined,
-        headers: { "List-Unsubscribe": `<mailto:${SMTP_USER}?subject=unsubscribe>` },
+// «Roman Mokeychuk, Grandar <mrs@grandarltd.com>» — кома в імені ламала розбір адреси, тому розбираємо самі
+function smtpFrom(): Any {
+    const m = SMTP_FROM.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+    return m ? { name: m[1].trim(), address: m[2].trim() } : SMTP_FROM;
+}
+const htmlOf = (body: string) => `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">${esc(body).replace(/\n/g, "<br>")}</div>`;
+
+// Відправка з поштової скриньки компанії + копія в «Надіслані» (IMAP)
+async function smtpSend(o: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html: string; headers?: Any; attachments?: Any[] }): Promise<{ id?: string; error?: string }> {
+    const mail: Any = {
+        from: smtpFrom(), to: o.to, cc: o.cc?.length ? o.cc : undefined, subject: o.subject, text: o.text, html: o.html,
+        replyTo: REPLY_TO && REPLY_TO !== SMTP_FROM ? REPLY_TO : undefined, headers: o.headers, attachments: o.attachments,
     };
     try {
-        // 1) збираємо лист один раз — його ж відправляємо і кладемо в «Надіслані»
+        // 1) збираємо лист один раз — його ж відправляємо і кладемо в «Надіслані» (прихована копія в «Надіслані» не потрапляє)
         const raw: Uint8Array = await new Promise((res, rej) => new MailComposer(mail).compile().build((e: Any, m: Any) => (e ? rej(e) : res(m))));
         const tr = nodemailer.createTransport({
             host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
             auth: { user: SMTP_USER, pass: SMTP_PASS },
-            connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000,
+            connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 60000,
         });
-        const info = await tr.sendMail({ envelope: { from: SMTP_USER, to: [to] }, raw });
+        const rcpt = [...o.to, ...(o.cc || []), ...(o.bcc || [])];
+        const info = await tr.sendMail({ envelope: { from: SMTP_USER, to: rcpt }, raw });
         // 2) копія в «Надіслані», щоб лист було видно в Outlook (не страшно, якщо не вийде)
         try {
             const imap = new ImapFlow({ host: IMAP_HOST, port: IMAP_PORT, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS }, logger: false });
@@ -749,6 +754,16 @@ async function sendViaSmtp(to: string, subject: string, body: string): Promise<{
     } catch (e) {
         return { error: "Пошта: " + String((e as Any)?.message || e).slice(0, 280) };
     }
+}
+
+async function sendViaSmtp(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
+    const foot = "Якщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.";
+    return smtpSend({
+        to: [to], subject,
+        text: `${body}\n\n—\n${foot}`,
+        html: htmlOf(body) + `<p style="font-family:Arial,sans-serif;font-size:11px;color:#888;margin-top:24px">${foot}</p>`,
+        headers: { "List-Unsubscribe": `<mailto:${SMTP_USER}?subject=unsubscribe>` },
+    });
 }
 
 async function sendEmail(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
@@ -1103,6 +1118,28 @@ async function actionSend(body: Any, me: Any) {
     return r.ok ? ok() : fail(502, r.error || "Не вдалося надіслати");
 }
 
+// Довільний лист з FURA: кому завгодно, з копією / прихованою копією і вкладеннями — від імені пошти компанії
+async function actionCompose(body: Any, me: Any) {
+    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена (SMTP_HOST, SMTP_USER, SMTP_PASS у секретах).");
+    const list = (v: Any) => [...new Set(String(Array.isArray(v) ? v.join(",") : v || "").split(/[,;\s]+/).map((x) => normEmail(x)).filter(Boolean))];
+    const to = list(body.to), cc = list(body.cc), bcc = list(body.bcc);
+    const bad = [...to, ...cc, ...bcc].filter((x) => !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(x));
+    if (!to.length) return fail(400, "Вкажіть, кому надіслати");
+    if (bad.length) return fail(400, "Невірна адреса: " + bad.join(", "));
+    if (to.length + cc.length + bcc.length > 50) return fail(400, "Не більше 50 адрес в одному листі");
+    const subject = clip(body.subject, 200) || "(без теми)";
+    const text = clip(body.body, 20000);
+    const attachments = (Array.isArray(body.attachments) ? body.attachments : []).slice(0, 10)
+        .filter((f: Any) => f?.name && f?.data)
+        .map((f: Any) => ({ filename: clip(f.name, 150), content: f.data, encoding: "base64", contentType: f.type || undefined }));
+    const size = attachments.reduce((n: number, f: Any) => n + String(f.content).length * 0.75, 0);
+    if (size > 15 * 1024 * 1024) return fail(400, "Вкладення завеликі (разом до 15 МБ)");
+    const r = await smtpSend({ to, cc, bcc, subject, text, html: htmlOf(text), attachments });
+    if (r.error) return fail(502, r.error);
+    console.log("compose:", me?.email, "→", to.join(","), cc.length ? "cc " + cc.join(",") : "", subject);
+    return ok({ to, cc, bcc });
+}
+
 // Тестовий лист собі: та сама тема і текст, але на вашу адресу. Нічого не позначає й ліда не створює.
 async function actionSendTest(body: Any, me: Any) {
     const to = normEmail(body.to || me?.email || "");
@@ -1284,6 +1321,7 @@ Deno.serve(async (req) => {
             case "send": out = await actionSend(body, me); break;
             case "mark_sent": out = await actionMarkSent(body, me); break;
             case "send_test": out = await actionSendTest(body, me); break;
+            case "compose": out = await actionCompose(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             case "set_stage": out = await actionSetStage(body); break;
             case "add_contact": out = await actionAddContact(body); break;

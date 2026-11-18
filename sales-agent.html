@@ -18,14 +18,14 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611180713" />
+        <link rel="stylesheet" href="style.css?v=202611180717" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611180713" />
-        <link rel="stylesheet" href="agents.css?v=202611180713" />
-        <link rel="stylesheet" href="sales-agent.css?v=202611180713" />
-        <link rel="stylesheet" href="design.css?v=202611180713" />
+        <link rel="stylesheet" href="theme.css?v=202611180717" />
+        <link rel="stylesheet" href="agents.css?v=202611180717" />
+        <link rel="stylesheet" href="sales-agent.css?v=202611180717" />
+        <link rel="stylesheet" href="design.css?v=202611180717" />
     </head>
     <body>
         <aside class="sidebar">
@@ -58,7 +58,30 @@
                         Жоден лист не йде клієнту без вашого «Надіслати».
                     </p>
                 </div>
+                <button type="button" class="btn btn-primary sa-compose-btn" id="saComposeBtn"><i class="bx bx-edit"></i> Написати лист</button>
             </header>
+
+            <!-- Новий лист: кому завгодно, з копією і вкладеннями — з пошти компанії -->
+            <div class="sa-cmp hidden" id="saCompose" role="dialog" aria-modal="true">
+                <form class="sa-cmp-box" id="saComposeForm" autocomplete="off">
+                    <div class="sa-cmp-head"><b>Новий лист</b> <span class="sa-muted" id="saCmpFrom"></span><button type="button" class="sa-cmp-x" data-cmp-close title="Закрити">&times;</button></div>
+                    <label class="sa-cmp-row"><span>Кому</span><input name="to" placeholder="client@firma.ua, ще@адреса.com" list="saCmpMails" required /></label>
+                    <label class="sa-cmp-row"><span>Копія</span><input name="cc" placeholder="кого поставити в копію (необов'язково)" list="saCmpMails" /></label>
+                    <label class="sa-cmp-row"><span>Прихована</span><input name="bcc" placeholder="прихована копія (необов'язково)" list="saCmpMails" /></label>
+                    <label class="sa-cmp-row"><span>Тема</span><input name="subject" maxlength="200" placeholder="Тема листа" /></label>
+                    <textarea name="body" rows="12" placeholder="Текст листа…"></textarea>
+                    <div class="sa-cmp-files">
+                        <label class="btn btn-secondary"><i class="bx bx-paperclip"></i> Додати файл<input type="file" id="saCmpFile" multiple hidden /></label>
+                        <span id="saCmpFileList" class="sa-muted"></span>
+                    </div>
+                    <div class="sa-cmp-foot">
+                        <span class="sa-muted">Лист піде з вашої пошти, копія — у «Sent» в Outlook.</span>
+                        <button type="button" class="btn btn-secondary" data-cmp-close>Скасувати</button>
+                        <button type="submit" class="btn btn-primary"><i class="bx bx-send"></i> Надіслати</button>
+                    </div>
+                </form>
+            </div>
+            <datalist id="saCmpMails"></datalist>
 
             <!-- Стан: що підключено -->
             <section class="sa-status" id="saStatus">Перевіряю налаштування…</section>
@@ -193,9 +216,9 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="sales-agent.js?v=202611180713"></script>
-        <script src="shell.js?v=202611180713"></script>
-        <script src="notify.js?v=202611180713"></script>
-        <script src="lock.js?v=202611180713"></script>
+        <script src="sales-agent.js?v=202611180717"></script>
+        <script src="shell.js?v=202611180717"></script>
+        <script src="notify.js?v=202611180717"></script>
+        <script src="lock.js?v=202611180717"></script>
     </body>
 </html>

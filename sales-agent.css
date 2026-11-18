@@ -346,3 +346,24 @@
 /* кнопки «Надіслати» / «Тест собі» — лише коли пошта підключена; інакше головна — «Відкрити в Outlook» */
 body:not(.sa-mail-on) .sa-mail-only { display: none; }
 body:not(.sa-mail-on) .sa-outlook { background: var(--gd-gold, #d9a944); color: #2b1d06; border-color: transparent; }
+
+/* Написати лист */
+.sa-page .top-bar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.sa-compose-btn { white-space: nowrap; }
+.sa-cmp { position: fixed; inset: 0; z-index: 2147483000; background: rgba(17, 24, 39, .45); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; overflow-y: auto; }
+.sa-cmp.hidden { display: none; }
+.sa-cmp-box { width: 100%; max-width: 820px; background: #fff; border-radius: 16px; padding: 18px 20px; box-shadow: 0 20px 50px rgba(0, 0, 0, .25); display: flex; flex-direction: column; gap: 8px; }
+.sa-cmp-head { display: flex; align-items: center; gap: 10px; font-size: 18px; margin-bottom: 4px; }
+.sa-cmp-head .sa-muted { font-size: 13px; }
+.sa-cmp-x { margin-left: auto; border: 0; background: none; font-size: 26px; line-height: 1; color: #9ca3af; cursor: pointer; }
+.sa-cmp-x:hover { color: #111827; }
+.sa-cmp-row { display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 8px; font-size: 13px; color: #6b7280; font-weight: 600; }
+.sa-cmp-box input, .sa-cmp-box textarea { width: 100%; box-sizing: border-box; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font: inherit; font-size: 14px; color: #111827; }
+.sa-cmp-box input:focus, .sa-cmp-box textarea:focus { outline: none; border-color: #d9a944; box-shadow: 0 0 0 3px rgba(217, 169, 68, .18); }
+.sa-cmp-box textarea { resize: vertical; min-height: 220px; line-height: 1.5; }
+.sa-cmp-files { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sa-cmp-file { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 8px; background: #f3f4f6; color: #374151; font-size: 12px; }
+.sa-cmp-file button { border: 0; background: none; cursor: pointer; color: #9ca3af; font-size: 15px; }
+.sa-cmp-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.sa-cmp-foot .sa-muted { flex: 1; font-size: 12px; }
+@media (max-width: 700px) { .sa-cmp { padding: 0; } .sa-cmp-box { border-radius: 0; min-height: 100%; } .sa-cmp-row { grid-template-columns: 1fr; } }

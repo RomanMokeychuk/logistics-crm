@@ -852,3 +852,71 @@ document.addEventListener("DOMContentLoaded", async () => {
         .on("postgres_changes", { event: "*", schema: "public", table: "sales_prospects" }, later)
         .subscribe();
 });
+
+
+/* ---------------- Написати лист: кому завгодно, копія, прихована копія, вкладення ---------------- */
+(() => {
+    const box = $("saCompose"), form = $("saComposeForm");
+    if (!box || !form) return;
+    let files = [];
+    const DRAFT = "fura_compose_draft";
+    const showFiles = () => {
+        $("saCmpFileList").innerHTML = files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
+    };
+    const saveDraft = () => {
+        try { localStorage.setItem(DRAFT, JSON.stringify({ to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value })); } catch (_) { /* без пам'яті */ }
+    };
+    async function fillMails() {
+        // підказки адрес: контакти з AI-продажів (знайдені e-mail)
+        try {
+            const { data } = await sbClient.from("sales_contacts").select("value, person_name").eq("kind", "email").limit(2000);
+            $("saCmpMails").innerHTML = (data || []).map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.person_name || "")}</option>`).join("");
+        } catch (_) { /* без підказок */ }
+    }
+    function open(pre = {}) {
+        let d = {};
+        try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
+        const v = { ...d, ...pre };
+        ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
+        files = [];
+        showFiles();
+        $("saCmpFrom").textContent = status?.from ? `від ${status.from}` : "";
+        box.classList.remove("hidden");
+        setTimeout(() => (form.to.value ? form.body : form.to).focus(), 30);
+        fillMails();
+    }
+    const close = () => box.classList.add("hidden");
+    window.furaCompose = open;
+    $("saComposeBtn").addEventListener("click", () => {
+        if (status && !status.mail) return toast("Пошта компанії не підключена — див. налаштування вгорі.", true);
+        open();
+    });
+    box.addEventListener("click", (e) => {
+        if (e.target.closest("[data-cmp-close]")) { saveDraft(); close(); }
+        const rm = e.target.closest("[data-rm]");
+        if (rm) { files.splice(Number(rm.dataset.rm), 1); showFiles(); }
+    });
+    form.addEventListener("input", saveDraft);
+    $("saCmpFile").addEventListener("change", (e) => {
+        files.push(...e.target.files);
+        e.target.value = "";
+        const total = files.reduce((n, f) => n + f.size, 0);
+        if (total > 15 * 1024 * 1024) { toast("Разом файли більші за 15 МБ — лист може не піти", true); }
+        showFiles();
+    });
+    const b64 = (f) => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1] || ""); r.onerror = rej; r.readAsDataURL(f); });
+    form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const btn = form.querySelector("[type=submit]");
+        withBusy(btn, async () => {
+            const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
+            const r = await api({ action: "compose", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments });
+            try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
+            close();
+            toast(`Лист надіслано: ${[...(r?.to || []), ...(r?.cc || [])].join(", ")}`);
+        });
+    });
+    // ?compose=1&to=…&subject=… — відкрити лист одразу (посилання з інших сторінок)
+    const q = new URLSearchParams(location.search);
+    if (q.get("compose")) setTimeout(() => open({ to: q.get("to") || "", cc: q.get("cc") || "", subject: q.get("subject") || "", body: q.get("body") || "" }), 600);
+})();
