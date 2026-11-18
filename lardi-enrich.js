@@ -19,14 +19,14 @@
     }
 
     let box = null;
-    function modal(html) {
+    function modal(html, title = "Оновити з Lardi") {
         if (!box) {
             box = document.createElement("div");
             box.className = "le-ov";
             document.body.appendChild(box);
             box.addEventListener("click", (e) => { if (e.target === box || e.target.closest("[data-le=close]")) box.hidden = true; });
         }
-        box.innerHTML = `<div class="le-card" role="dialog"><div class="le-head"><b>Оновити з Lardi</b><button type="button" class="le-x" data-le="close">&times;</button></div>${html}</div>`;
+        box.innerHTML = `<div class="le-card" role="dialog"><div class="le-head"><b>${esc(title)}</b><button type="button" class="le-x" data-le="close">&times;</button></div>${html}</div>`;
         box.hidden = false;
     }
 
@@ -78,7 +78,184 @@
         b.innerHTML = "<i class='bx bx-refresh'></i> З Lardi";
         b.addEventListener("click", () => { const id = curId(); if (id) run(id); });
         acts.prepend(b);
+        const pb = document.createElement("button");
+        pb.type = "button";
+        pb.id = "lePasteBtn";
+        pb.className = "btn-card-edit le-btn";
+        pb.title = "Скопіюйте сторінку профілю в Lardi (Cmd+A, Cmd+C) і вставте сюди — FURA сама розбере контакти, реєстраційні дані, автопарк";
+        pb.innerHTML = "<i class='bx bx-paste'></i> Вставити з Lardi";
+        pb.addEventListener("click", () => { const id = curId(); if (id) pasteOpen(id); });
+        b.after(pb);
     }
+
+    /* ---------- «Вставити з Lardi»: розбір скопійованого тексту профілю ---------- */
+    const PHONE = /(\+?\d[\d\s()-]{8,}\d)/;
+    const digits = (v) => String(v || "").replace(/\D/g, "");
+    const normPhone = (v) => { const d = digits(v); return d.length === 12 ? "+" + d : d.length === 10 ? "+38" + d : String(v).trim(); };
+    const VEH = /^(Вантажівка|Тягач|Напівпричіп|Причіп|Автопоїзд|Зчіпка|Бус|Мікроавтобус|Легковий|Truck|Tractor)(?=[\s,]|$)/i;
+    const UA_MONTHS = { січня: 1, лютого: 2, березня: 3, квітня: 4, травня: 5, червня: 6, липня: 7, серпня: 8, вересня: 9, жовтня: 10, листопада: 11, грудня: 12 };
+
+    function parseLardi(text) {
+        const T = String(text || "").replace(/\r/g, "");
+        const lines = T.split("\n").map((l) => l.replace(/\t+/g, " \t ").trim()).filter(Boolean);
+        // «Мітка: значення» в одному рядку (через табуляцію) або в наступному рядку
+        const val = (rx) => {
+            for (let i = 0; i < lines.length; i++) {
+                const l = lines[i];
+                const m = l.match(rx);
+                if (!m) continue;
+                const rest = l.slice(m.index + m[0].length).replace(/^[\s:\t]+/, "").trim();
+                if (rest) return rest;
+                if (lines[i + 1] && !/:$/.test(lines[i + 1])) return lines[i + 1].trim();
+            }
+            return "";
+        };
+        const out = {};
+        out.edrpou = digits(val(/^ЄДРПОУ:?/i)).slice(0, 10);
+        out.director = val(/^(ПІБ керівника|Керівник|Директор):?/i);
+        out.region = val(/^Область:?/i);
+        out.city = val(/^Місто:?/i);
+        out.address = val(/^Адреса:?/i);
+        out.regType = val(/^Тип реєстрації:?/i);
+        out.regDate = val(/^Дата реєстрації на Ларді-Транс:?/i);
+        out.activity = val(/^Профіль діяльності:?/i);
+        // фото: якщо вставили адресу картинки
+        const img = T.match(/https?:\/\/[^\s"']*lardi[^\s"']*(profilelogo|avatar|logo)[^\s"']*/i);
+        out.photo = img ? img[0] : "";
+        const ref = T.match(/lardi-trans\.com\/(?:log\/)?user\/(\d{6,})/i);
+        out.ref = ref ? ref[1] : "";
+        // «Місто, область, Україна» на вкладці «Контакти» + вулиця під ним
+        const addrLine = lines.findIndex((l) => /обл\.?,\s*(Україна|Украина)$/i.test(l));
+        if (addrLine >= 0) {
+            const parts = lines[addrLine].split(",").map((x) => x.trim());
+            if (!out.city) out.city = parts[0];
+            if (!out.region) out.region = parts.find((x) => /обл/i.test(x)) || "";
+            const next = lines[addrLine + 1] || "";
+            if (!out.address && next && !PHONE.test(next) && /\d/.test(next) && next.length < 60) out.address = next;
+        }
+        // контакти: ім'я, а під ним (або в тому ж рядку) телефони
+        const contacts = [];
+        const seen = new Set();
+        let name = "";
+        const isName = (l) => !PHONE.test(l) && !/[:@]|http|обл|Україна|Украина|вул\.|просп|Усього|Leaflet|OpenStreet|Контакти|Загальна|автопарк|Документи|Відгуки|Претензії|Новини|Паспорт|нотатка|замовлення|Повідомлення|Інформація|Copyright|^(ФОП|ТОВ|ПП|ЧП|ПрАТ|ТзОВ)(?=[\s"«]|$)/i.test(l) && /^[A-Za-zА-Яа-яІіЇїЄєҐґ'’ .,-]{2,40}$/.test(l);
+        for (const l of lines) {
+            const ph = l.match(new RegExp(PHONE.source, "g"));
+            if (ph) {
+                const before = l.slice(0, l.indexOf(ph[0])).trim();
+                if (before && isName(before)) name = before;
+                for (const p of ph) {
+                    const d = digits(p);
+                    if (d.length < 10 || d.length > 13) continue;
+                    const k = d.slice(-9);
+                    if (seen.has(k)) continue;
+                    seen.add(k);
+                    contacts.push({ name, phone: normPhone(p) });
+                }
+            } else if (isName(l)) name = l.replace(/,$/, "");
+        }
+        out.contacts = contacts;
+        // «Мій автопарк»: «Вантажівка VOLVO», «Тент», «Власний»…
+        const fleet = [];
+        const ap = lines.findIndex((l) => /^Усього авто/i.test(l));
+        if (ap >= 0) {
+            let cur = null;
+            for (const l of lines.slice(ap + 1)) {
+                if (/^(Copyright|Інфо)/i.test(l)) break;
+                if (VEH.test(l)) { if (cur) fleet.push(cur.join(" · ")); cur = [l]; }
+                else if (cur && l.length < 80 && !PHONE.test(l)) cur.push(l);
+            }
+            if (cur) fleet.push(cur.join(" · "));
+        }
+        out.fleet = fleet;
+        return out;
+    }
+
+    function carrierById(id) {
+        try { return allCarriersCache.find((c) => String(c.id) === String(id)) || null; } catch (e) { return null; } // eslint-disable-line no-undef
+    }
+
+    function pasteChanges(c, d) {
+        const ch = [];
+        const empty = (k) => !String(c[k] ?? "").trim();
+        if (d.ref && !/\/log\/user\//.test(c.profile_url || "")) ch.push({ field: "profile_url", label: "Lardi / профіль", old: c.profile_url || "", new: `https://lardi-trans.com/log/user/${d.ref}/` });
+        if (d.photo && empty("logo_url")) ch.push({ field: "logo_url", label: "Фото", old: "", new: d.photo });
+        if (d.edrpou && d.edrpou.length >= 8 && empty("edrpou")) ch.push({ field: "edrpou", label: "ЄДРПОУ", old: "", new: d.edrpou });
+        if (d.director && "director" in c && empty("director")) ch.push({ field: "director", label: "Директор", old: "", new: d.director });
+        if (d.region && empty("region_ukr")) ch.push({ field: "region_ukr", label: "Область", old: "", new: d.region.toUpperCase().replace(/\s*ОБЛАСТЬ$/, " ОБЛ.") });
+        const cityFull = [d.city, d.address].filter(Boolean).join(", ");
+        if (cityFull) {
+            const cur = String(c.city || "").trim();
+            if (!cur) ch.push({ field: "city", label: "Місто / Адреса", old: "", new: cityFull });
+            else if (d.address && (!d.city || cur.toLowerCase().startsWith(d.city.toLowerCase())) && !cur.toLowerCase().includes(d.address.toLowerCase().slice(0, 8))) ch.push({ field: "city", label: "Місто / Адреса", old: cur, new: `${cur}, ${d.address}` });
+        }
+        // телефони
+        const have = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x) => x?.phone) : [])]
+            .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digits(v).slice(-9)).filter((v) => v.length === 9));
+        const fresh = d.contacts.filter((x) => !have.has(digits(x.phone).slice(-9)));
+        if (fresh.length) ch.push({ field: "contacts", label: "Нові телефони", old: "", new: fresh.map((x) => `${x.name ? x.name + ": " : ""}${x.phone}`).join("\n"), phones: fresh });
+        for (const n of [1, 2]) {
+            const ph = digits(c[`phone_${n}`]).slice(-9);
+            const nm = String(c[`contact_person_${n}`] || "").trim();
+            if (!ph || (nm && !/^(власник|офіс)/i.test(nm))) continue;
+            const x = d.contacts.find((p) => p.name && digits(p.phone).slice(-9) === ph);
+            if (x && x.name !== nm) ch.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
+        }
+        if (d.fleet.length) {
+            const cur = String(c.fleet_params || "").replace(/\n?Автопарк Lardi[\s\S]*$/, "").trim();
+            const next = [cur, `Автопарк Lardi (${d.fleet.length}):`, ...d.fleet].filter(Boolean).join("\n");
+            if (next !== String(c.fleet_params || "").trim()) ch.push({ field: "fleet_params", label: "Автопарк", old: "", new: d.fleet.join("\n"), value: next });
+        }
+        const info = [d.regType, d.activity, d.regDate ? `у Lardi з ${d.regDate}` : ""].filter(Boolean).join(" · ");
+        if (info && !/Lardi:/.test(c.notes || "")) ch.push({ field: "notes", label: "Нотатки", old: "", new: `Lardi: ${info}`, value: [c.notes, `Lardi: ${info}`].filter(Boolean).join("\n") });
+        return ch;
+    }
+
+    function pasteOpen(id) {
+        const c = carrierById(id);
+        if (!c) return;
+        modal(`<div class="le-sub">1. Відкрийте профіль у Lardi (вкладки «Загальна інформація», «Контакти», «Мій автопарк»).<br>2. На кожній вкладці: <b>Cmd+A</b>, <b>Cmd+C</b> — і вставте сюди <b>Cmd+V</b> (можна всі три одна під одною).<br>3. Фото: правою кнопкою на логотипі → «Копіювати адресу зображення» — і теж вставте сюди.</div>
+            <textarea class="le-paste" rows="9" placeholder="Вставте сюди текст сторінки профілю Lardi…"></textarea>
+            <div class="le-acts"><button type="button" class="le-go" data-le="parse">Розібрати</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>
+            <div class="le-res"></div>`, "Вставити з Lardi");
+        const ta = box.querySelector(".le-paste");
+        setTimeout(() => ta.focus(), 30);
+        let changes = [];
+        const show = () => {
+            const d = parseLardi(ta.value);
+            changes = pasteChanges(c, d);
+            const res = box.querySelector(".le-res");
+            res.innerHTML = changes.length
+                ? `<div class="le-list">${changes.map((x) => `<label class="le-row"><input type="checkbox" data-f="${esc(x.field)}" checked><span class="le-lbl">${esc(x.label)}</span><span class="le-val">${x.old ? `<s>${esc(x.old)}</s> → ` : ""}${esc(x.new)}</span></label>`).join("")}</div>
+                   <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля і нові телефони.</div>
+                   <div class="le-acts"><button type="button" class="le-go" data-le="psave">Зберегти обране</button></div>`
+                : `<div class="le-ok">${ta.value.trim() ? "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A)." : ""}</div>`;
+        };
+        ta.addEventListener("paste", () => setTimeout(show, 30));
+        box.querySelector("[data-le=parse]").addEventListener("click", show);
+        box.querySelector(".le-res").addEventListener("click", async (e) => {
+            if (!e.target.closest("[data-le=psave]")) return;
+            const want = new Set([...box.querySelectorAll(".le-res [data-f]:checked")].map((x) => x.dataset.f));
+            const upd = {};
+            for (const x of changes) {
+                if (!want.has(x.field)) continue;
+                if (x.field === "contacts") {
+                    const list = [...x.phones];
+                    if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
+                    if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
+                    if (list.length) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+                } else upd[x.field] = x.value ?? x.new;
+            }
+            if (!Object.keys(upd).length) return (box.hidden = true);
+            e.target.disabled = true; e.target.textContent = "Зберігаю…";
+            const { error } = await sbClient.from("carriers").update(upd).eq("id", id); // eslint-disable-line no-undef
+            if (error) { e.target.disabled = false; e.target.textContent = "Зберегти обране"; return alert("Не вдалося зберегти: " + error.message); }
+            box.hidden = true;
+            await refresh(id);
+            window.furaToast?.({ icon: "✅", title: "Дані з Lardi збережено", text: `Полів: ${Object.keys(upd).length}` });
+        });
+    }
+    window.furaParseLardi = parseLardi; // для перевірки
+
     const css = document.createElement("style");
     css.textContent = `
     .le-ov{position:fixed;inset:0;z-index:2147483100;background:rgba(17,24,39,.45);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -96,6 +273,9 @@
     .le-link{border:0;background:none;color:#a8781f;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}
     .le-load,.le-ok{padding:18px 4px;color:#374151}.le-err{padding:14px;border-radius:10px;background:#fff5f5;color:#b42318}
     .le-dbg{font-size:11.5px;color:#9ca3af}.le-dbg pre{white-space:pre-wrap;max-height:200px;overflow:auto;background:#f8fafc;padding:8px;border-radius:8px}
+    .le-paste{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:13px/1.45 inherit;font-family:inherit;resize:vertical}
+    .le-paste:focus{outline:none;border-color:#d9a944;box-shadow:0 0 0 3px rgba(217,169,68,.18)}
+    .le-res{display:flex;flex-direction:column;gap:10px}
     @media (max-width:600px){.le-row{grid-template-columns:auto 1fr}.le-val{grid-column:2}}`;
     document.head.appendChild(css);
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();

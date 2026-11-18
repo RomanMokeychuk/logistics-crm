@@ -264,6 +264,26 @@ const pointText = (p: Pt) =>
 
 const CUR: Record<string, string> = { "€": "EUR", EUR: "EUR", "$": "USD", USD: "USD", "ГРН": "UAH", UAH: "UAH", PLN: "PLN", "ZŁ": "PLN" };
 
+// Дозволи й документи з заявки: ADR (клас), TIR, CMR, T1, ЕКМТ, санпаспорт… — одним рядком
+function permitsOf(p: Any): string | null {
+    const out = new Set<string>();
+    const adr = nameOf(p.cargoAdr) ?? names(p.transAdr) ?? (num(p.adr) ? txt(p.adr) : null);
+    if (adr) out.add(/adr/i.test(adr) ? adr : `ADR ${adr}`);
+    const RX = /tir|cmr|ekmt|ecmt|екмт|^t1$|t1|sanpass|санпасп|document|permit|dozvil|дозв/i;
+    const visit = (o: Any, path: string) => {
+        if (!o || typeof o !== "object") return;
+        for (const [k, v] of Object.entries(o)) {
+            const kp = `${path}.${k}`;
+            if (/owner|contact|waypoint|payment|proposalUser/i.test(k)) continue;
+            if (Array.isArray(v) && RX.test(k)) v.forEach((x) => { const n = nameOf(x); if (n) out.add(n); });
+            else if (v === true && RX.test(k)) out.add(k.replace(/^(has|need|is)/i, "").toUpperCase().replace("ECMT", "ЕКМТ").replace("EKMT", "ЕКМТ"));
+            else if (v && typeof v === "object") visit(v, kp);
+        }
+    };
+    visit(p, "");
+    return out.size ? [...out].join(", ") : null;
+}
+
 function toRow(p: Any, from: string, to: string, ownerType: string, now: string, kind: Kind = "cargo"): Any | null {
     const pay = p.payment || {};
     let value = num(pay.value ?? p.paymentValue);
@@ -325,7 +345,7 @@ function toRow(p: Any, from: string, to: string, ownerType: string, now: string,
         volume_m3: volume,
         body_types: names(p.cargoBodyTypes) ?? nameOf(p.bodyType) ?? nameOf(p.transBodyType),
         load_types: names(p.loadTypes),
-        adr: nameOf(p.cargoAdr) ?? names(p.transAdr) ?? (num(p.adr) ? txt(p.adr) : null),
+        adr: permitsOf(p),
         groupage: p.groupage === true,
         price,
         price_per_km: pricePerKm,
@@ -777,11 +797,12 @@ async function carrierEnrich(body: Any, row: Any = null) {
 
     // транспорт: заявки «авто» цього перевізника за 60 днів
     const since = new Date(Date.now() - 60 * 86400000).toISOString();
-    const { data: trucks } = await db.from("lardi_trucks").select("from_country, to_country, from_region, to_region, from_town, to_town, from_zone, to_zone, mass_t, volume_m3, body_types, seen_last")
+    const { data: trucks } = await db.from("lardi_trucks").select("from_country, to_country, from_region, to_region, from_town, to_town, from_zone, to_zone, mass_t, volume_m3, body_types, adr, seen_last")
         .eq("owner_ref", Number(ref)).gte("seen_last", since).limit(500);
     const tl = trucks || [];
     const bodies = new Set<string>(), countries = new Set<string>(), uaRegions = new Set<string>();
     const places = new Map<string, Set<string>>(); // країна → воєводства / міста / квадрати
+    const permits = new Set<string>(); // ADR, TIR, CMR, T1, ЕКМТ…
     let mass = 0, vol = 0;
     for (const t of tl) {
         String(t.body_types || "").split(/[;,]\s*/).map((b: string) => b.trim().toUpperCase()).filter(Boolean).forEach((b: string) => bodies.add(b.replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ")));
@@ -798,6 +819,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
             places.set(name, set);
         }
         for (const [cc, rg] of [[t.from_country, t.from_region], [t.to_country, t.to_region]]) if (cc === "UA" && rg) uaRegions.add(String(rg).replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase().slice(0, 3));
+        String(t.adr || "").split(/,\s*/).map((x: string) => x.trim()).filter(Boolean).forEach((x: string) => permits.add(x));
         mass = Math.max(mass, Number(t.mass_t) || 0);
         vol = Math.max(vol, Number(t.volume_m3) || 0);
     }
@@ -807,7 +829,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
     const add = (field: string, label: string, val: string) => { // eslint-disable-line
         const old = String(c[field] ?? "").trim();
         if (!val || !(field in c) || old === val) return;
-        if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts", "fleet_params"].includes(field)) return;
+        if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts", "fleet_params", "additional"].includes(field)) return;
         changes.push({ field, label, old, new: val });
     };
     const profile = `https://lardi-trans.com/log/user/${ref}/`;
@@ -837,6 +859,13 @@ async function carrierEnrich(body: Any, row: Any = null) {
         if (extra.length) changes.push({ field, label, old: cur.join(";"), new: [...cur, ...extra].join(";"), added: extra });
     };
     mergeList("trailer_type", "Тип причепу", bodies);
+    // дозволи — у «Додатково» (через кому, без повторів)
+    if (permits.size && "additional" in c) {
+        const cur = String(c.additional || "").split(/[,;]\s*/).map((x: string) => x.trim()).filter(Boolean);
+        const low = new Set(cur.map((x: string) => x.toLowerCase().replace(/\?$/, "")));
+        const extra = [...permits].filter((x) => !low.has(x.toLowerCase()));
+        if (extra.length) changes.push({ field: "additional", label: "Дозволи (ADR, TIR…)", old: cur.join(", "), new: [...cur.filter((x: string) => x !== "ADR?"), ...extra].join(", "), added: extra });
+    }
     // Закордон: «КРАЇНА - регіон, регіон; …» — доповнюємо і країни, і регіони в них
     {
         const cur = String(c.destinations || "").split(";").map((x: string) => x.trim()).filter(Boolean);

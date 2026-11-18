@@ -141,8 +141,9 @@ const LD = (() => {
             if (TRUCK && st.fura === "yes" && !r.carrier_id) return false;
             if (TRUCK && st.fura === "no" && r.carrier_id) return false;
             if (TRUCK && r.price == null && r.payment_raw == null) return false; // «Авто» — лише машини з ціною
-            if (st.adr === "adr" && !r.adr) return false;
-            if (st.adr === "noadr" && r.adr) return false;
+            const isAdr = /adr|^\d/i.test(String(r.adr || "")); // у полі ще й TIR, CMR, ЕКМТ…
+            if (st.adr === "adr" && !isAdr) return false;
+            if (st.adr === "noadr" && isAdr) return false;
             if (st.route && `${r.from_region || "—"} → ${r.to_region || "—"}` !== st.route) return false;
             if (q) {
                 const hay = [r.from_points, r.to_points, r.cargo, r.owner_name, r.owner_face, r.owner_phone, r.body_types].join(" ").toLowerCase();
@@ -340,7 +341,7 @@ const LD = (() => {
                             <a class="ld-open" href="${esc(lardiUrl(r))}" target="_blank" rel="noopener" title="Відкрити машину на Lardi">Lardi ↗</a></td>
                         <td><b>${esc(r.from_town || "")}</b>${r.from_zone ? ` <span class="ld-muted ld-sm">${esc(r.from_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}${r.from_country && r.from_country !== "UA" ? " · " + esc(r.from_country) : ""}</div></td>
                         <td><b>${esc(r.to_town || "")}</b>${r.to_zone ? ` <span class="ld-muted ld-sm">${esc(r.to_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}${r.to_country !== "UA" ? " · " + esc(r.to_country || "") : ""}</div></td>
-                        <td class="ld-clip" title="${esc([r.body_types, r.cargo].filter(Boolean).join(" · "))}"><b>${esc(r.body_types || "")}</b>${r.cargo ? `<div class="ld-sm ld-muted">${esc(r.cargo)}</div>` : ""}<div class="ld-tags">${r.groupage ? `<span class="ld-tag">Догруз</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">ADR ${esc(r.adr)}</span>` : ""}</div></td>
+                        <td class="ld-clip" title="${esc([r.body_types, r.cargo].filter(Boolean).join(" · "))}"><b>${esc(r.body_types || "")}</b>${r.cargo ? `<div class="ld-sm ld-muted">${esc(r.cargo)}</div>` : ""}<div class="ld-tags">${r.groupage ? `<span class="ld-tag">Догруз</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">${esc(/adr/i.test(r.adr) || !/^\d/.test(r.adr) ? r.adr : "ADR " + r.adr)}</span>` : ""}</div></td>
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
                         <td class="num nw">${r.volume_m3 != null ? fmt(r.volume_m3) + " м³" : ""}</td>
                         <td class="num nw">${r.price != null || r.payment_raw != null ? `<b>${esc(money(r.price ?? r.payment_raw, r.currency))}</b>` : `<span class="ld-muted">—</span>`}${r.price_per_km != null ? `<div class="ld-sm ld-muted">${fmt(r.price_per_km, 2)} ${CUR[r.currency] || ""}/км</div>` : ""}${vsOther(r)}</td>
@@ -373,7 +374,7 @@ const LD = (() => {
                         <td><b>${esc(r.from_town || "")}</b>${r.from_zone ? ` <span class="ld-muted ld-sm">${esc(r.from_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.from_region && r.from_region !== r.from_town ? r.from_region : "")}${r.from_country && r.from_country !== "UA" ? " · " + esc(r.from_country) : ""}</div></td>
                         <td><b>${esc(r.to_town || "")}</b>${r.to_zone ? ` <span class="ld-muted ld-sm">${esc(r.to_zone)} кв.</span>` : ""}<div class="ld-sm ld-muted">${esc(r.to_region && r.to_region !== r.to_town ? r.to_region : "")}${r.to_country !== "UA" ? " · " + esc(r.to_country || "") : ""}</div></td>
                         <td class="ld-clip" title="${esc(r.cargo || "")}">${esc(r.cargo || "")}
-                            <div class="ld-tags">${k !== "full" ? `<span class="ld-tag">${KIND[k]}</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">ADR ${esc(r.adr)}</span>` : ""}</div></td>
+                            <div class="ld-tags">${k !== "full" ? `<span class="ld-tag">${KIND[k]}</span>` : ""}${r.adr ? `<span class="ld-tag ld-tag-adr">${esc(/adr/i.test(r.adr) || !/^\d/.test(r.adr) ? r.adr : "ADR " + r.adr)}</span>` : ""}</div></td>
                         <td class="num nw">${r.mass_t != null ? fmt(r.mass_t, 1) + " т" : ""}</td>
                         <td class="ld-clip" title="${esc(r.body_types || "")}">${esc(r.body_types || "")}</td>
                         <td class="num">${fmt(r.distance_km)}</td>
