@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611181741";
+            css.href = "mobile.css?v=202611181746";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -326,16 +326,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611181741");
+        await addScript("helper.js?v=202611181746");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611181741";
+        css.href = "mobile.css?v=202611181746";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611181741");
+        addScript("mobile-ux.js?v=202611181746");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -484,7 +484,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611181741");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611181746");
         const label = buildSidebar();
         keepSidebarScroll();
         buildTopbar(label);
@@ -495,17 +495,17 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611181741");
+            addScript("global-search.js?v=202611181746");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611181741");
+            addScript("furik.js?v=202611181746");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611181741");
+            addScript("presence.js?v=202611181746");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611181741");
+            addScript("mail-watch.js?v=202611181746");
             // «Написати перевізнику» в Telegram / Viber (msg-carrier.js)
-            addScript("msg-carrier.js?v=202611181741");
+            addScript("msg-carrier.js?v=202611181746");
         }
     }
 
@@ -549,7 +549,14 @@
         }
     });
     // жест «назад» / перезавантаження з відкритим вікном — спершу питаємо
-    addEventListener("beforeunload", (e) => { if (modalOpen()) { e.preventDefault(); e.returnValue = ""; } });
+    // Але якщо ви самі натиснули посилання чи кнопку (перейти до перевізників, відкрити картку…) — не питаємо.
+    let lastClick = 0;
+    document.addEventListener("pointerdown", () => { lastClick = Date.now(); }, true);
+    document.addEventListener("keydown", (e) => { if (e.key === "Enter") lastClick = Date.now(); }, true);
+    addEventListener("beforeunload", (e) => {
+        if (Date.now() - lastClick < 2500) return;
+        if (modalOpen()) { e.preventDefault(); e.returnValue = ""; }
+    });
     try {
         document.documentElement.style.overscrollBehaviorX = "none";
         document.addEventListener("DOMContentLoaded", () => (document.body.style.overscrollBehaviorX = "none"));
