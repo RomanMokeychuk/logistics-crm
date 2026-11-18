@@ -894,8 +894,38 @@ document.addEventListener("DOMContentLoaded", async () => {
     const showFiles = () => {
         $("saCmpFileList").innerHTML = files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
     };
+    // Чернетка: одразу в браузері + за кілька секунд — у папку «Чернетки» на пошті (видно і в Outlook)
+    let draft = { uid: 0, folder: "" }, dirty = false, dT = 0, saving = Promise.resolve();
+    const hasContent = () => !!(form.to.value.trim() || form.subject.value.trim() || form.body.value.trim());
+    const localPut = (extra = {}) => {
+        try {
+            localStorage.setItem(DRAFT, JSON.stringify({ to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value,
+                in_reply_to: inReplyTo, draft_uid: draft.uid, draft_folder: draft.folder, dirty, ...extra }));
+        } catch (_) { /* без пам'яті */ }
+    };
+    const savedMark = (t) => { const el = $("saCmpSaved"); if (el) el.textContent = t; };
+    function pushDraft() {
+        clearTimeout(dT);
+        if (!dirty || !hasContent() || (status && !status.mail_reader)) return saving;
+        dirty = false;
+        const payload = { action: "mail_draft", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, in_reply_to: inReplyTo || undefined };
+        savedMark("зберігаю…");
+        const cur = draft; // саме цей лист (якщо тим часом відкрили інший — не переплутати)
+        saving = saving.then(async () => {
+            const r = await api({ ...payload, draft_uid: cur.uid || undefined, draft_folder: cur.folder || undefined });
+            Object.assign(cur, { uid: r?.uid || 0, folder: r?.folder || "" });
+            if (cur !== draft) return window.dispatchEvent(new Event("fura-draft-saved"));
+            localPut();
+            savedMark("збережено в «Чернетках» " + new Date().toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }));
+            window.dispatchEvent(new Event("fura-draft-saved"));
+        }).catch(() => { if (cur === draft) { dirty = true; localPut(); savedMark("чернетка поки лише в цьому браузері"); } });
+        return saving;
+    }
     const saveDraft = () => {
-        try { localStorage.setItem(DRAFT, JSON.stringify({ to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value })); } catch (_) { /* без пам'яті */ }
+        dirty = true;
+        localPut();
+        clearTimeout(dT);
+        dT = setTimeout(pushDraft, 4000);
     };
     let SALES_MAILS = null;
     async function fillMails() {
@@ -955,6 +985,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     let inReplyTo = "";
     // вікно листа — збоку внизу, як у Gmail: можна відкривати інші листи, згорнути «_» або розгорнути на весь екран
     const head = box.querySelector(".sa-cmp-head");
+    $("saCmpFrom").insertAdjacentHTML("afterend", '<span class="sa-cmp-saved" id="saCmpSaved"></span>');
+    form.querySelector(".sa-cmp-foot [data-cmp-close]")?.insertAdjacentHTML("beforebegin", '<button type="button" class="btn btn-secondary sa-cmp-discard" data-cmp-discard title="Видалити лист і чернетку"><i class="bx bx-trash"></i></button>');
     const headTitle = head.querySelector("b");
     head.querySelector("[data-cmp-close]").insertAdjacentHTML("beforebegin",
         '<button type="button" class="sa-cmp-hb" data-cmp-min title="Згорнути / розгорнути"><i class="bx bx-minus"></i></button>' +
@@ -1060,10 +1092,14 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (!Object.keys(pre).length && !addFiles.length) { setMode(false, box.classList.contains("big")); return form.body.focus(); }
             if (!confirm("У вас відкритий недописаний лист. Закрити його і почати новий?")) { setMode(false, box.classList.contains("big")); return; }
         }
-        inReplyTo = pre.in_reply_to || "";
+        if (hasText()) { dirty = true; pushDraft(); } // старий лист — у «Чернетки»
         let d = {};
         try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
         const v = Object.keys(pre).length ? pre : d; // відповідь / пересилання — без старої чернетки
+        inReplyTo = v.in_reply_to || "";
+        draft = { uid: Number(v.draft_uid) || 0, folder: v.draft_folder || "" };
+        dirty = !!v.dirty;
+        savedMark(draft.uid ? "з «Чернеток»" : "");
         ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
         files = [...addFiles];
         showFiles();
@@ -1082,7 +1118,22 @@ document.addEventListener("DOMContentLoaded", async () => {
         open();
     });
     box.addEventListener("click", (e) => {
-        if (e.target.closest("[data-cmp-close]")) { saveDraft(); close(); }
+        if (e.target.closest("[data-cmp-close]")) {
+            // закрили — лист іде в «Чернетки» на пошті; «Написати» далі відкриє чистий лист
+            if (hasContent()) {
+                dirty = dirty || !draft.uid; localPut();
+                pushDraft().then(() => { if (!dirty) try { localStorage.removeItem(DRAFT); } catch (_) { /* */ } });
+                toast("Лист збережено в «Чернетках»");
+            } else try { localStorage.removeItem(DRAFT); } catch (_) { /* */ }
+            close();
+        }
+        if (e.target.closest("[data-cmp-discard]")) {
+            if (hasContent() && !confirm("Видалити цей лист? Він зникне і з «Чернеток».")) return;
+            const old = draft; draft = { uid: 0, folder: "" }; dirty = false; clearTimeout(dT);
+            if (old.uid) saving = saving.then(() => api({ action: "mail_draft", delete: true, draft_uid: old.uid, draft_folder: old.folder })).then(() => window.dispatchEvent(new Event("fura-draft-saved"))).catch(() => {});
+            try { localStorage.removeItem(DRAFT); } catch (_) { /* */ }
+            close();
+        }
         const rm = e.target.closest("[data-rm]");
         if (rm) { files.splice(Number(rm.dataset.rm), 1); showFiles(); }
     });
@@ -1119,15 +1170,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         withBusy(btn, async () => {
             const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
             const g = sigRead();
-            const r = await api({ action: "compose", in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
+            clearTimeout(dT);
+            await saving.catch(() => {});
+            const r = await api({ action: "compose", draft_uid: draft.uid || undefined, draft_folder: draft.folder || undefined, in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
             try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
+            const hadDraft = draft.uid; draft = { uid: 0, folder: "" }; dirty = false;
             close();
+            if (hadDraft) window.dispatchEvent(new Event("fura-draft-saved"));
             toast(`Лист надіслано: ${[...(r?.to || []), ...(r?.cc || [])].join(", ")}`);
         });
     });
     // ?compose=1&to=…&subject=… — відкрити лист одразу (посилання з інших сторінок)
     const q = new URLSearchParams(location.search);
     if (q.get("compose")) setTimeout(() => open({ to: q.get("to") || "", cc: q.get("cc") || "", subject: q.get("subject") || "", body: q.get("body") || "" }), 600);
+    else setTimeout(() => {
+        // після оновлення сторінки недописаний лист повертається (згорнутим) і зберігається в «Чернетки»
+        let d = {}; try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
+        if (!(d.to || d.subject || d.body) || !box.classList.contains("hidden")) return;
+        open();
+        setMode(true, false);
+        if (dirty) pushDraft();
+    }, 1800);
+    // закривають вкладку — встигнути зберегти
+    addEventListener("pagehide", () => { if (dirty && hasContent()) localPut(); });
 })();
 
 
@@ -1264,6 +1329,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             api({ action: "mail_move", folder: fp, uid, flag: "seen" }).catch(() => {});
         }
         ML.open = { ...m, fp };
+        // чернетка — відкриваємо у вікні листа, щоб дописати й надіслати
+        if (kindOf(ML.folder) === "\\Drafts") {
+            window.furaCompose?.({ to: m.to || "", cc: m.cc || "", bcc: m.bcc || "", subject: m.subject === "(без теми)" ? "" : m.subject, body: String(m.text || "").replace(/\s+$/, ""),
+                in_reply_to: m.in_reply_to || "", draft_uid: m.uid, draft_folder: fp });
+        }
         if (it && !it.seen) { it.seen = true; renderList(); loadFolders().catch(() => {}); }
         const junk = kindOf(ML.folder) === "\\Junk";
         $("mlRead").innerHTML = `
@@ -1573,6 +1643,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
     }
 
+    // чернетку збережено / надіслано — оновити список, якщо дивимось «Чернетки»
+    window.addEventListener("fura-draft-saved", () => { if (ML.loaded && !ML.book && kindOf(ML.folder) === "\\Drafts") loadList().catch(() => {}); });
     // нові листи — раз на 2 хвилини, коли пошта відкрита
     setInterval(() => {
         if (!ML.loaded || ML.book || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;
