@@ -3446,3 +3446,26 @@ function openCarrierText(r) {
     box.hidden = false;
     setTimeout(() => box.querySelector(".ctx-text").focus(), 30);
 }
+
+/* ================================================================= *
+ * Вигляд списку запитів: рядками (таблиця) або квадратиками (картки) *
+ * ================================================================= */
+(function () {
+    const KEY = "fura_req_view";
+    const area = document.getElementById("tableScrollArea");
+    const sw = document.getElementById("reqView");
+    if (!area || !sw) return;
+    const get = () => { try { return localStorage.getItem(KEY) === "tiles" ? "tiles" : "rows"; } catch (e) { return "rows"; } };
+    const apply = (v) => {
+        area.classList.toggle("fura-tiles", v === "tiles");
+        sw.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+    };
+    sw.addEventListener("click", (e) => {
+        const v = e.target.closest("[data-view]")?.dataset.view;
+        if (!v) return;
+        try { localStorage.setItem(KEY, v); } catch (err) { /* без пам'яті */ }
+        apply(v);
+        area.scrollTop = 0;
+    });
+    apply(get());
+})();

@@ -994,3 +994,15 @@ body, html { background-attachment: scroll !important; }
     body.sidebar-collapsed .sidebar-toggle-btn, body.sidebar-collapsed #sidebarToggleBtn { left: 62px !important; }
     body.sidebar-collapsed:not([style*="visible"])::before { left: 76px; }
 }
+
+/* ===== Кнопка «Скинути фільтри» ===== */
+.fura-reset-filters {
+    display: inline-flex; align-items: center; gap: 5px; flex: none; height: 36px; padding: 0 12px;
+    border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; color: #9ca3af;
+    font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.fura-reset-filters i { font-size: 16px; }
+.fura-reset-filters.on { color: #b42318; border-color: #f5c2c0; background: #fff5f5; }
+.fura-reset-filters.on:hover { background: #fee4e2; }
+.fura-reset-filters:not(.on) { cursor: default; opacity: .75; }
+.an-filters .fura-reset-filters, .cm-filters .fura-reset-filters { align-self: flex-end; }

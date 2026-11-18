@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611182148";
+            css.href = "mobile.css?v=202611182153";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -35,6 +35,55 @@
         }
         return;
     }
+
+    /* ---------- Кнопка «Скинути фільтри» на сторінках з фільтрами ----------
+     * На Блокноті, Черзі й Ларді вона вже є своя. Тут — для решти сторінок. */
+    (function resetFiltersButton() {
+        const PAGES = {
+            "requests.html": { box: ".rq-topbar .rq-head-search", after: true, inputs: ["#requestsSearch"], fn: "resetAllFilters",
+                has: () => { try { return Object.keys(activeFilters).length > 0; } catch (e) { return false; } } }, // eslint-disable-line no-undef
+            "index.html": { box: ".top-bar h1", after: true, fn: "resetCarriersFilters", has: () => typeof hasCarriersFilters === "function" && hasCarriersFilters() }, // eslint-disable-line no-undef
+            "leads.html": { box: ".lead-filters", inputs: ["#leadsSearch", "#leadsTradeFilter", "#leadsCountryFilter", "#leadsSalesFilter", "#leadsTodayOnly"] },
+            "deals.html": { box: ".lead-filters", inputs: ["#dealsSearch"] },
+            "trips.html": { box: ".trips-filters", inputs: ["#tripsSearch"] },
+            "clients.html": { box: ".lead-filters", inputs: ["#clientsSearch", "#clientsTradeFilter", "#clientsSalesFilter"] },
+            "comms.html": { box: ".cm-filters", inputs: ["#cmSearch", "#cmChannel", "#cmStaff"] },
+            "reports.html": { box: ".an-filters", inputs: ["#fSales", "#fLogist", "#fKind", "#fQ"] },
+        };
+        const page = (location.pathname.split("/").pop() || "index.html").toLowerCase() || "index.html";
+        const cfg = PAGES[page];
+        if (!cfg) return;
+        const els = () => (cfg.inputs || []).map((q) => document.querySelector(q)).filter(Boolean);
+        const dirty = (el) => (el.type === "checkbox" ? el.checked : el.tagName === "SELECT" ? el.selectedIndex > 0 && el.value !== "" : !!el.value.trim());
+        const hasAny = () => els().some(dirty) || !!(cfg.has && cfg.has());
+        function reset() {
+            els().forEach((el) => {
+                if (!dirty(el)) return;
+                if (el.type === "checkbox") el.checked = false; else if (el.tagName === "SELECT") el.selectedIndex = 0; else el.value = "";
+                el.dispatchEvent(new Event("input", { bubbles: true }));
+                el.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+            if (cfg.fn && typeof window[cfg.fn] === "function") window[cfg.fn]();
+            paint();
+        }
+        let btn = null;
+        function paint() { if (btn) btn.classList.toggle("on", hasAny()); }
+        function mount() {
+            if (btn?.isConnected) return;
+            const box = document.querySelector(cfg.box);
+            if (!box) return;
+            btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "fura-reset-filters";
+            btn.title = "Скинути всі фільтри й пошук";
+            btn.innerHTML = "<i class='bx bx-filter-alt'></i> Скинути фільтри";
+            btn.addEventListener("click", reset);
+            if (cfg.after) box.after(btn); else box.appendChild(btn);
+            paint();
+        }
+        const start = () => { mount(); setInterval(() => { mount(); paint(); }, 800); };
+        if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+    })();
 
     /* ---------- Посилання на профіль у Lardi — завжди через кабінет (/log/user/…) ----------
      * Стара адреса lardi-trans.com/user/ID показує «Нет доступа», навіть коли ви увійшли в Lardi;
@@ -342,16 +391,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611182148");
+        await addScript("helper.js?v=202611182153");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611182148";
+        css.href = "mobile.css?v=202611182153";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611182148");
+        addScript("mobile-ux.js?v=202611182153");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -521,7 +570,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182148");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182153");
         const label = buildSidebar();
         paintNavBadges();
         keepSidebarScroll();
@@ -533,15 +582,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611182148");
+            addScript("global-search.js?v=202611182153");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611182148");
+            addScript("furik.js?v=202611182153");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611182148");
+            addScript("presence.js?v=202611182153");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611182148");
+            addScript("mail-watch.js?v=202611182153");
         }
     }
 

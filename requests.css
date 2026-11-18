@@ -1345,3 +1345,44 @@
     .rq-topbar { flex-wrap: wrap; gap: 10px; }
     .rq-head-search { order: 3; flex-basis: 100%; max-width: none; }
 }
+
+/* ===== Перемикач «рядками / квадратиками» ===== */
+.fura-view { display: inline-flex; flex: none; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; background: #fff; }
+.fura-view button { width: 38px; height: 36px; border: 0; background: none; color: #6b7280; font-size: 18px; cursor: pointer; display: grid; place-items: center; }
+.fura-view button + button { border-left: 1px solid #e5e7eb; }
+.fura-view button.on { background: #fdf3d8; color: #7a5410; }
+
+/* ===== Запити квадратиками (на комп'ютері; на телефоні й так картки) ===== */
+@media (min-width: 901px) {
+    .table-card.fura-tiles table { display: block; width: 100% !important; min-width: 0 !important; table-layout: auto !important; }
+    /* шапка з фільтрами лишається — як смужка зверху */
+    .table-card.fura-tiles thead { display: block; position: sticky; top: 0; z-index: 3; }
+    .table-card.fura-tiles thead tr { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; }
+    .table-card.fura-tiles thead th { display: block; width: auto !important; min-width: 0 !important; padding: 2px 0 !important; border: 0 !important; background: none !important; }
+    .table-card.fura-tiles thead th:first-child, .table-card.fura-tiles thead th:last-child { display: none; }
+    .table-card.fura-tiles tbody { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; padding: 12px; }
+    .table-card.fura-tiles tbody tr { display: flex; flex-direction: column; position: relative; border: 1px solid var(--f-line, #e4e8ef); border-radius: 14px; padding: 12px 14px 10px; box-shadow: 0 1px 3px rgba(15, 23, 42, .05); cursor: pointer; }
+    .table-card.fura-tiles tbody tr:hover { box-shadow: 0 8px 22px -12px rgba(15, 23, 42, .3); }
+    .table-card.fura-tiles tbody td {
+        display: block; position: relative !important; width: auto !important; min-width: 0 !important; max-width: none !important;
+        padding: 3px 0 3px 104px !important; border: none !important; background: transparent !important; box-shadow: none !important;
+        text-align: left !important; white-space: normal !important; height: auto !important; font-size: 13px;
+    }
+    .table-card.fura-tiles tbody td[data-label]:not([data-label=""])::before {
+        content: attr(data-label); position: absolute; left: 0; top: 6px; width: 98px;
+        font-size: 10.5px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--f-muted, #6b7280);
+    }
+    .table-card.fura-tiles tbody td:not([data-label]), .table-card.fura-tiles tbody td[data-label=""] { padding-left: 0 !important; }
+    /* № — у куті; клієнт — великим заголовком */
+    .table-card.fura-tiles tbody td:first-child { position: absolute !important; top: 10px; right: 12px; padding: 0 !important; font-size: 12px; color: #9ca3af; }
+    .table-card.fura-tiles tbody td:first-child::before { display: none; }
+    .table-card.fura-tiles tbody td:nth-child(2) { padding: 0 34px 6px 0 !important; font-size: 15px; font-weight: 700; }
+    .table-card.fura-tiles tbody td:nth-child(2)::before { display: none; }
+    .table-card.fura-tiles tbody td:last-child { margin-top: auto; padding: 8px 0 0 !important; border-top: 1px solid #f1f5f9 !important; text-align: right !important; }
+    .table-card.fura-tiles tbody td:last-child::before { display: none; }
+    /* колір стану — смужкою зліва */
+    .table-card.fura-tiles tbody tr.req-new { border-left: 4px solid #f59e0b; }
+    .table-card.fura-tiles tbody tr.req-overdue { border-left: 4px solid #ef4444; }
+    .table-card.fura-tiles tbody tr.req-answered { border-left: 4px solid #10b981; }
+}
+@media (max-width: 900px) { .fura-view { display: none; } }
