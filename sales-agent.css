@@ -736,3 +736,18 @@ body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, bo
     .ml-icons .sa-mf-row:hover .sa-mf b { visibility: visible; }
 }
 .sa-mi-fold { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: #a8781f; background: #fdf6e7; border-radius: 5px; padding: 1px 5px; margin-right: 2px; vertical-align: 1px; }
+
+/* завантаження в пошті: смужка + рядки, що переливаються */
+.sa-sk-head b { color: #a8781f; font-weight: 600; font-size: 14px; }
+.sa-sk-bar { position: relative; height: 3px; overflow: hidden; background: #f3ede0; border-radius: 3px; margin: 0 0 6px; }
+.sa-sk-bar i { position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 3px; background: linear-gradient(90deg, transparent, #d9a944, #f2cf7b, #d9a944, transparent); animation: saSkBar 1.1s ease-in-out infinite; }
+@keyframes saSkBar { 0% { left: -35%; } 100% { left: 100%; } }
+.sa-sk-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #f5f1e8; }
+.sa-sk-lines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+.sa-sk { display: block; height: 11px; border-radius: 6px; background: linear-gradient(90deg, #f1ece1 0%, #faf6ee 40%, #f1ece1 80%); background-size: 300% 100%; animation: saSk 1.3s ease-in-out infinite; }
+.sa-sk-av { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+.sa-sk-row:nth-child(odd) .sa-sk { animation-delay: .12s; }
+@keyframes saSk { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+.sa-sk-read { display: flex; flex-direction: column; gap: 12px; padding: 16px 4px; }
+.sa-sk-read .sa-sk { height: 12px; }
+@media (prefers-reduced-motion: reduce) { .sa-sk, .sa-sk-bar i { animation: none; } }

@@ -1393,7 +1393,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     async function loadList() {
         if (ML.book) return;
-        $("mlList").innerHTML = '<p class="ag-empty">Завантажую листи…</p>';
+        const nF = ML.q ? ML.folders.filter((f) => f.kind !== "\\Trash").length : 1;
+        $("mlList").innerHTML = skeleton(ML.q ? `Шукаю «${ML.q}» у ${nF} папках…` : "Завантажую листи…");
         // об'єднаний «Спам»: беремо з кожної папки і зливаємо за датою
         // пошук — у всіх папках одразу (Вхідні, Надіслані, Чернетки, Архів, Спам…), без Кошика
         const paths = ML.q ? ML.folders.filter((f) => f.kind !== "\\Trash").flatMap((f) => f.paths || [f.path]) : realPaths(ML.folder);
@@ -1405,6 +1406,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         prefetch();
     }
     const folderName = (fp) => { const f = ML.folders.find((x) => x.path === fp || (x.paths || []).includes(fp)) || {}; return (KIND[f.kind] || [f.name || fp])[0]; };
+    // красиве завантаження: смужка зверху + «примарні» рядки листів, що переливаються
+    function skeleton(text) {
+        const row = (w1, w2) => `<div class="sa-sk-row"><span class="sa-sk sa-sk-av"></span><div class="sa-sk-lines"><span class="sa-sk" style="width:${w1}%"></span><span class="sa-sk" style="width:${w2}%"></span></div></div>`;
+        return `<div class="sa-ml-head sa-sk-head"><b>${escapeHtml(text)}</b></div><div class="sa-sk-bar"><i></i></div>` +
+            [[55, 85], [40, 70], [62, 90], [35, 60], [50, 80], [45, 75], [58, 88]].map(([a, b]) => row(a, b)).join("");
+    }
     function renderList() {
         const isSent = kindOf(ML.folder) === "\\Sent";
         const fname = (ML.folders.find((f) => f.path === ML.folder) || {});
@@ -1452,7 +1459,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         let m = MCACHE.get(ck(fp, uid));
         if (!m) {
             // одразу показуємо, що вже знаємо зі списку, текст — коли підвантажиться
-            $("mlRead").innerHTML = it ? `<h3 class="sa-mr-subj">${escapeHtml(it.subject)}</h3><div class="sa-mr-meta">${avatar(it.from || it.from_email)}<div class="sa-mr-who"><b>${escapeHtml(it.from || it.from_email)}</b><div class="sa-muted">${it.date ? escapeHtml(new Date(it.date).toLocaleString("uk-UA")) : ""}</div></div></div><p class="ag-empty sa-mr-loading">Завантажую текст листа…</p>` : '<p class="ag-empty">Відкриваю лист…</p>';
+            $("mlRead").innerHTML = it ? `<h3 class="sa-mr-subj">${escapeHtml(it.subject)}</h3><div class="sa-mr-meta">${avatar(it.from || it.from_email)}<div class="sa-mr-who"><b>${escapeHtml(it.from || it.from_email)}</b><div class="sa-muted">${it.date ? escapeHtml(new Date(it.date).toLocaleString("uk-UA")) : ""}</div></div></div><div class="sa-sk-bar"><i></i></div><div class="sa-sk-read">${[92, 85, 96, 60, 0, 88, 75, 40].map((w) => (w ? `<span class="sa-sk" style="width:${w}%"></span>` : "<br>")).join("")}</div>` : `<div class="sa-sk-bar"><i></i></div><div class="sa-sk-read">${[50, 92, 85, 70].map((w) => `<span class="sa-sk" style="width:${w}%"></span>`).join("")}</div>`;
             m = await api({ action: "mail_read", folder: fp, uid });
             MCACHE.set(ck(fp, uid), m);
             if (ML.open?.uid !== uid || ML.open?.fp !== fp) return; // уже відкрили інший
