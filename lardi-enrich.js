@@ -242,16 +242,35 @@
             const x = d.contacts.find((p) => p.name && digits(p.phone).slice(-9) === ph);
             if (x && x.name !== nm) ch.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
         }
-        // кузови з автопарку → «Тип причепу» (лише нові)
-        if (d.fleet.length) {
+        // Автопарк → розкладаємо по полях «Техніки»: Тип причепу, Об'єм, Тоннаж, Додатково (ADR, ЕКМТ…)
+        // беремо і щойно вставлене, і те, що вже записано в «Автопарк» картки
+        const fleetAll = [...d.fleet, ...String(c.fleet_params || "").split("\n").filter((l) => !/^(Автопарк Lardi|Тягачів:)/i.test(l.trim()))]
+            .map((l) => l.trim()).filter(Boolean);
+        if (fleetAll.length) {
             const BODY = [[/тент/i, "ТЕНТ"], [/реф|рефрижератор/i, "РЕФ"], [/ізотерм/i, "ІЗОТЕРМ"], [/цільномет/i, "ЦІЛЬНОМЕТ"], [/платформ/i, "ПЛАТФОРМА"],
                 [/контейнеровоз/i, "КОНТЕЙНЕРОВОЗ"], [/автовоз/i, "АВТОВОЗ"], [/зерновоз/i, "ЗЕРНОВОЗ"], [/самоскид/i, "САМОСКИД"], [/бортов/i, "БОРТОВИЙ"], [/цистерн/i, "ЦИСТЕРНА"], [/мега|mega/i, "МЕГА"]];
             const cur = String(c.trailer_type || "").split(/[;,]/).map((x) => x.trim().toUpperCase()).filter(Boolean);
             const add = [];
-            d.fleet.forEach((f) => BODY.forEach(([rx, name]) => { if (rx.test(f) && !cur.includes(name) && !add.includes(name)) add.push(name); }));
+            fleetAll.forEach((f) => BODY.forEach(([rx, name]) => { if (rx.test(f) && !cur.includes(name) && !add.includes(name)) add.push(name); }));
             if (add.length) ch.push({ field: "trailer_type", label: "Тип причепу (з автопарку)", old: cur.join("; "), new: [...cur, ...add].join("; "), added: add });
-            const tons = d.fleet.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*т\.?(?!\w)/i) || [])[1]).filter(Boolean).map((x) => Number(x.replace(",", ".")));
+            // перше число перед «т» — загальний тоннаж машини («46т. (23т. + 23т.)» → 46)
+            const num = (x) => Number(String(x).replace(",", "."));
+            const tons = fleetAll.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*т(?:\.|он|\b|(?=[\s(,]|$))/i) || [])[1]).filter(Boolean).map(num);
             if (tons.length && !String(c.tonnage || "").trim()) ch.push({ field: "tonnage", label: "Тоннаж, т", old: "", new: String(Math.max(...tons)) });
+            const vols = fleetAll.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*(?:м[²³23]|m[23]|куб)/i) || [])[1]).filter(Boolean).map(num);
+            if (vols.length && !String(c.volume || "").trim()) ch.push({ field: "volume", label: "Об'єм, м³", old: "", new: String(Math.max(...vols)) });
+            // дозволи: ADR (з класом), ЕКМТ, CMR, CMR-страхування, TIR, T1, санпаспорт
+            const PERM = [[/\bADR\s*([1-9](?:\.\d)?(?:\s*[,-]\s*[1-9])*)?/i, (m) => "ADR" + (m[1] ? " " + m[1].replace(/\s+/g, "") : "")],
+                [/ЕКМТ|ЄКМТ|ECMT|EKMT|CEMT/i, () => "ЕКМТ"], [/CMR[-\s]*страхуван/i, () => "CMR-страхування"], [/\bCMR\b(?![-\s]*страх)/i, () => "CMR"],
+                [/\bTIR\b/i, () => "TIR"], [/\bT1\b/i, () => "T1"], [/санпаспорт|санітарн/i, () => "Санпаспорт"]];
+            const perms = [];
+            fleetAll.forEach((f) => PERM.forEach(([rx, fmt]) => { const m = f.match(rx); if (m) { const v = fmt(m); if (!perms.includes(v)) perms.push(v); } }));
+            if (perms.length) {
+                const curA = String(c.additional || "").split(/[,;]\s*/).map((x) => x.trim()).filter((x) => x && x !== "ADR?");
+                const low = new Set(curA.map((x) => x.toUpperCase()));
+                const extra = perms.filter((x) => !low.has(x.toUpperCase()) && !(x === "ADR" && [...low].some((y) => y.startsWith("ADR"))));
+                if (extra.length) ch.push({ field: "additional", label: "Додатково (дозволи)", old: String(c.additional || ""), new: [...curA, ...extra].join(", "), added: extra });
+            }
         }
         if (d.fleet.length) {
             const cur = String(c.fleet_params || "").replace(/\n?Автопарк Lardi[\s\S]*$/, "").trim();
