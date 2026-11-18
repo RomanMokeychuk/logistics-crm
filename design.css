@@ -1113,3 +1113,6 @@ body, html { background-attachment: scroll !important; }
 /* Картка перевізника: щільна сітка (висоту рядків задає script.js) */
 #carrierCardBody .card-grid.cc-masonry { grid-auto-rows: 4px; row-gap: 0 !important; align-items: start; }
 #carrierCardBody .card-grid.cc-masonry > * { margin-bottom: 12px !important; }
+
+/* Перевізники: «липка» шапка таблиці не просвічує — рядки під нею не видно */
+#tableScrollArea:not(.fura-tiles) thead th { background: #fbf6ec !important; }

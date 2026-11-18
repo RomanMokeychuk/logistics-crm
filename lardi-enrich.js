@@ -63,6 +63,16 @@
             const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); // eslint-disable-line no-undef
             if (i >= 0) allCarriersCache[i] = { ...allCarriersCache[i], ...data }; // eslint-disable-line no-undef
         }
+        // одразу оновлюємо і рядок у списку перевізників (і кеш браузера), не лише картку
+        try {
+            if (typeof prepCarrierSearch === "function") { const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); if (i >= 0) prepCarrierSearch(allCarriersCache[i]); } // eslint-disable-line no-undef
+            if (typeof renderCarriers === "function" && !(typeof CARRIER_POPUP !== "undefined" && CARRIER_POPUP)) { // eslint-disable-line no-undef
+                const bx = document.querySelector(".table-card");
+                const keep = bx ? bx.scrollTop : 0;
+                renderCarriers(); // eslint-disable-line no-undef
+                if (bx) bx.scrollTop = keep;
+            }
+        } catch (e) { /* список оновиться при наступному відкритті */ }
         if (typeof openCarrierCard === "function") openCarrierCard(id); // eslint-disable-line no-undef
     }
 
