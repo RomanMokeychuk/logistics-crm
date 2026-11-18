@@ -310,3 +310,12 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
     .nb-page .nb-head .nb-search input { height: 38px; }
     .nb-page .nb-head .nb-btn { height: 38px; }
 }
+
+/* Машини в черзі у вікні перевізника — згорнуто, розгортається кліком */
+.nb-pop-q summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+.nb-pop-q summary::-webkit-details-marker { display: none; }
+.nb-pop-q summary::after { content: "▸"; margin-left: auto; color: #a8781f; transition: transform .15s; }
+.nb-pop-q[open] summary::after { transform: rotate(90deg); }
+.nb-pop-q .nb-pop-q-hint { color: #a8781f; font-size: 11.5px; font-weight: 600; }
+.nb-pop-q[open] .nb-pop-q-hint { display: none; }
+.nb-pop-q[open] summary { margin-bottom: 4px; }

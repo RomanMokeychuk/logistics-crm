@@ -877,7 +877,7 @@ const NB = (() => {
             </div>
             ${(() => {
                 const qu = queueOf(c);
-                return qu.length ? `<div class="nb-pop-q"><b>🚦 Зараз у черзі на кордоні (${qu.length}):</b>${qu.slice(0, 6).map((x) => `<div>${esc(x.tractor || "")} · ${esc(x.checkpoint || "")}${x.entry_at ? ` · в'їзд ${esc(String(x.entry_at).slice(0, 16))}` : ""}</div>`).join("")}<a href="echerha.html?q=${encodeURIComponent(c.edrpou || c.name || "")}">Відкрити в Черзі →</a></div>` : "";
+                return qu.length ? `<details class="nb-pop-q"><summary><b>🚦 Зараз у черзі на кордоні: ${qu.length} маш.</b><span class="nb-pop-q-hint">показати</span></summary>${qu.slice(0, 6).map((x) => `<div>${esc(x.tractor || "")} · ${esc(x.checkpoint || "")}${x.entry_at ? ` · в'їзд ${esc(String(x.entry_at).slice(0, 16))}` : ""}</div>`).join("")}<a href="echerha.html?q=${encodeURIComponent(c.edrpou || c.name || "")}">Відкрити в Черзі →</a></details>` : "";
             })()}
             <div class="nb-pop-cts">
                 <div class="nb-pop-cth"><b>Контакти</b>
