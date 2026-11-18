@@ -18,14 +18,14 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611180931" />
-        <link rel="stylesheet" href="requests.css?v=202611180931" />
-        <link rel="stylesheet" href="reports.css?v=202611180931" />
+        <link rel="stylesheet" href="style.css?v=202611180935" />
+        <link rel="stylesheet" href="requests.css?v=202611180935" />
+        <link rel="stylesheet" href="reports.css?v=202611180935" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-            <link rel="stylesheet" href="theme.css?v=202611180931" />
-        <link rel="stylesheet" href="design.css?v=202611180931" />
+            <link rel="stylesheet" href="theme.css?v=202611180935" />
+        <link rel="stylesheet" href="design.css?v=202611180935" />
     </head>
     <body>
         <aside class="sidebar">
@@ -61,73 +61,147 @@
         </button>
 
         <main class="main-content reports-page">
-            <header class="top-bar">
+            <header class="top-bar rep-top">
                 <h1>Підсумки</h1>
-                <div class="month-nav">
-                    <button type="button" class="pager-btn" id="prevMonthBtn" title="Попередній місяць"><i class="bx bx-chevron-left"></i></button>
-                    <span class="month-title" id="monthTitle">—</span>
-                    <button type="button" class="pager-btn" id="nextMonthBtn" title="Наступний місяць"><i class="bx bx-chevron-right"></i></button>
+                <div class="rep-period">
+                    <div class="rep-seg" id="periodUnit" role="tablist" aria-label="Період">
+                        <button type="button" data-unit="month" class="active">Місяць</button>
+                        <button type="button" data-unit="quarter">Квартал</button>
+                        <button type="button" data-unit="year">Рік</button>
+                    </div>
+                    <div class="month-nav">
+                        <button type="button" class="pager-btn" id="prevMonthBtn" title="Попередній період"><i class="bx bx-chevron-left"></i></button>
+                        <span class="month-title" id="monthTitle">—</span>
+                        <button type="button" class="pager-btn" id="nextMonthBtn" title="Наступний період"><i class="bx bx-chevron-right"></i></button>
+                    </div>
                 </div>
                 <button class="btn btn-secondary" onclick="logout()" title="Вийти">
                     <i class="bx bx-log-out"></i> Вийти
                 </button>
             </header>
 
+            <nav class="rep-tabs" id="repTabs">
+                <button type="button" data-tab="overview" class="active"><i class="bx bx-grid-alt"></i> Огляд</button>
+                <button type="button" data-tab="people" class="boss-only" hidden><i class="bx bx-group"></i> Люди</button>
+                <button type="button" data-tab="deals" class="money-only" hidden><i class="bx bx-dollar-circle"></i> <span id="dealsTabLabel">Угоди</span></button>
+                <button type="button" data-tab="archive"><i class="bx bx-archive"></i> Архів</button>
+            </nav>
+
             <div class="reports-scroll" id="reportsRoot">
                 <div class="rep-scope" id="repScope"></div>
 
-                <section class="rep-card my-card" id="myCard">
-                    <div class="rep-card-head"><h2 id="myTitle">Моя робота</h2><span class="rep-sub" id="mySub"></span></div>
-                    <div id="myBody"></div>
-                </section>
+                <!-- ============ ОГЛЯД ============ -->
+                <div data-panel="overview">
+                    <div class="boss-only" hidden><h2 class="team-h2"><i class="bx bx-group"></i> Уся команда</h2></div>
+                    <div class="kpi-grid rep-kpi6 boss-only" id="kpiGrid" hidden></div>
 
-                <div class="team-only" id="teamHead"><h2 class="team-h2"><i class="bx bx-group"></i> Уся команда</h2></div>
-                <div class="kpi-grid team-only" id="kpiGrid"></div>
+                    <section class="rep-card my-card" id="myCard">
+                        <div class="rep-card-head"><h2 id="myTitle">Моя робота</h2><span class="rep-sub" id="mySub"></span></div>
+                        <div id="myBody"></div>
+                    </section>
 
-                <section class="rep-card">
-                    <div class="rep-card-head"><h2>Запити по днях</h2><span class="rep-sub" id="daysSub"></span></div>
-                    <div class="daychart" id="dayChart"></div>
-                </section>
 
-                <div class="rep-two">
                     <section class="rep-card">
-                        <div class="rep-card-head"><h2>Запити за статусами</h2><span class="rep-sub">створені цього місяця</span></div>
-                        <div id="statusChart"></div>
+                        <div class="rep-card-head">
+                            <h2 id="chartTitle">Запити по днях</h2>
+                            <span class="rep-sub" id="daysSub"></span>
+                            <div class="rep-seg rep-seg-sm boss-only" id="chartMode" hidden>
+                                <button type="button" data-mode="profit" class="active">Профіт</button>
+                                <button type="button" data-mode="requests">Запити</button>
+                            </div>
+                        </div>
+                        <div class="daychart" id="dayChart"></div>
+                    </section>
+
+                    <div class="rep-three">
+                        <section class="rep-card">
+                            <div class="rep-card-head"><h2>Запити за статусами</h2></div>
+                            <div id="statusChart"></div>
+                        </section>
+                        <section class="rep-card">
+                            <div class="rep-card-head"><h2>Запити за типами</h2></div>
+                            <div id="typeChart"></div>
+                        </section>
+                        <section class="rep-card">
+                            <div class="rep-card-head"><h2>Ліди за етапами</h2><span class="rep-sub">зараз</span></div>
+                            <div id="leadStageChart"></div>
+                        </section>
+                    </div>
+                </div>
+
+                <!-- ============ ЛЮДИ (керівник) ============ -->
+                <div data-panel="people" hidden>
+                    <section class="rep-card">
+                        <div class="rep-card-head"><h2>Sales</h2><span class="rep-sub">натисніть на рядок — деталі людини</span></div>
+                        <div class="rep-table-wrap"><table class="rep-table an-table" id="salesTable"></table></div>
                     </section>
                     <section class="rep-card">
-                        <div class="rep-card-head"><h2>Запити за типами</h2><span class="rep-sub">створені цього місяця</span></div>
-                        <div id="typeChart"></div>
+                        <div class="rep-card-head"><h2>Логісти</h2><span class="rep-sub">натисніть на рядок — деталі людини</span></div>
+                        <div class="rep-table-wrap"><table class="rep-table an-table" id="logistTable"></table></div>
                     </section>
                 </div>
 
-                <div class="rep-two">
-                    <section class="rep-card">
-                        <div class="rep-card-head"><h2>Ліди за етапами</h2><span class="rep-sub">зараз, усі клієнти</span></div>
-                        <div id="leadStageChart"></div>
+                <!-- ============ УГОДИ (керівник — усі, Sales — свої) ============ -->
+                <div data-panel="deals" hidden>
+                    <section class="an-filters">
+                        <label>Дата угоди
+                            <select id="fBasis" title="За якою датою відносити угоду до періоду">
+                                <option value="load">завантаження</option>
+                                <option value="unload">розвантаження</option>
+                                <option value="created">створення</option>
+                            </select>
+                        </label>
+                        <label class="boss-only" hidden>Sales <select id="fSales"><option value="">Усі</option></select></label>
+                        <label class="boss-only" hidden>Логіст <select id="fLogist"><option value="">Усі</option></select></label>
+                        <label>Тип <select id="fKind"><option value="">Усі</option></select></label>
+                        <label class="an-q">Пошук <input type="search" id="fQ" placeholder="№, клієнт, перевізник, країна" /></label>
+                        <button type="button" class="btn btn-secondary" id="anCsv" title="Завантажити угоди за фільтром"><i class="bx bx-download"></i> CSV</button>
                     </section>
-                    <section class="rep-card team-only">
-                        <div class="rep-card-head"><h2>Нові ліди за місяць</h2><span class="rep-sub">хто скільки додав</span></div>
-                        <div id="newLeadsChart"></div>
+                    <div class="an-scope" id="anScope"></div>
+                    <section class="kpi-grid an-kpis" id="anKpis"></section>
+
+                    <div class="rep-two">
+                        <section class="rep-card">
+                            <div class="rep-card-head"><h2>Клієнти за профітом</h2></div>
+                            <div id="anClients"></div>
+                        </section>
+                        <section class="rep-card">
+                            <div class="rep-card-head"><h2>Напрямки</h2></div>
+                            <div id="anRoutes"></div>
+                        </section>
+                    </div>
+
+                    <section class="rep-card">
+                        <div class="rep-card-head">
+                            <h2>Угоди <span class="an-count" id="anDealCount"></span></h2>
+                            <label class="an-check"><input type="checkbox" id="fProblem" /> лише проблемні (мінус, маржа &lt; 5%, без курсу, неоплата &gt; 14 дн.)</label>
+                        </div>
+                        <div class="rep-table-wrap"><table class="rep-table an-table an-deals" id="anDeals"></table></div>
+                        <button type="button" class="btn btn-secondary an-more" id="anMore" hidden>Показати ще</button>
                     </section>
                 </div>
 
-                <section class="rep-card team-only">
-                    <div class="rep-card-head"><h2>Як працюють Sales</h2><span class="rep-sub">за місяць</span></div>
-                    <div class="rep-table-wrap"><table class="rep-table" id="salesTable"></table></div>
-                </section>
-
-                <section class="rep-card team-only">
-                    <div class="rep-card-head"><h2>Як працюють логісти</h2><span class="rep-sub">за місяць</span></div>
-                    <div class="rep-table-wrap"><table class="rep-table" id="logistTable"></table></div>
-                </section>
-
-                <section class="rep-card" id="archive">
-                    <div class="rep-card-head"><h2>Архів по місяцях</h2><span class="rep-sub">натисніть «Докладніше», щоб відкрити місяць</span></div>
-                    <div class="rep-table-wrap"><table class="rep-table" id="archiveTable"></table></div>
-                </section>
+                <!-- ============ АРХІВ ============ -->
+                <div data-panel="archive" hidden>
+                    <section class="rep-card" id="archive">
+                        <div class="rep-card-head"><h2>Архів по місяцях</h2><span class="rep-sub">«Відкрити» — показати місяць на вкладці «Огляд»</span></div>
+                        <div class="rep-table-wrap"><table class="rep-table" id="archiveTable"></table></div>
+                    </section>
+                </div>
             </div>
             <div class="rep-tip" id="repTip" hidden></div>
         </main>
+
+        <!-- Деталі людини (керівник) -->
+        <div class="modal-overlay" id="anMgrOverlay">
+            <div class="modal an-mgr" role="dialog" aria-modal="true">
+                <div class="modal-header">
+                    <h2 id="anMgrTitle">Співробітник</h2>
+                    <button type="button" class="an-close" id="anMgrClose" title="Закрити"><i class="bx bx-x"></i></button>
+                </div>
+                <div id="anMgrBody"></div>
+            </div>
+        </div>
 
         <!-- Модальне вікно "Шлях" — перевірка транспортних засобів -->
         <div class="modal-overlay" id="shlyahModalOverlay">
@@ -178,9 +252,10 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="reports.js?v=202611180931"></script>
-        <script src="shell.js?v=202611180931"></script>
-        <script src="notify.js?v=202611180931"></script>
-        <script src="lock.js?v=202611180931"></script>
+        <script src="analytics-core.js?v=202611180935"></script>
+        <script src="reports.js?v=202611180935"></script>
+        <script src="shell.js?v=202611180935"></script>
+        <script src="notify.js?v=202611180935"></script>
+        <script src="lock.js?v=202611180935"></script>
     </body>
 </html>

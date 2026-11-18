@@ -417,3 +417,84 @@
 [hidden] {
     display: none !important;
 }
+
+/* ================================================================= */
+/* Вкладки, період, гроші (раніше окрема сторінка «Аналітика»)        */
+/* ================================================================= */
+.reports-page [hidden] { display: none !important; }
+.rep-top { flex-wrap: wrap; gap: 12px; }
+.rep-period { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rep-seg { display: inline-flex; background: #eef1f6; border-radius: 10px; padding: 3px; gap: 2px; }
+.rep-seg button { border: 0; background: transparent; padding: 6px 12px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; }
+.rep-seg button.active { background: #fff; color: var(--f-text, #111827); box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12); }
+.rep-seg-sm { margin-left: auto; }
+.rep-seg-sm button { padding: 4px 10px; font-size: 12px; }
+.rep-tabs { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--f-line, #e4e8ef); overflow-x: auto; }
+.rep-tabs button { border: 0; background: none; padding: 10px 14px; font: inherit; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+.rep-tabs button.active { color: var(--f-text, #111827); border-bottom-color: var(--f-orange, #c9973a); }
+.rep-tabs button:hover { color: var(--f-text, #111827); }
+.rep-three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.rep-three .rep-card { margin-bottom: 16px; }
+@media (max-width: 1100px) { .rep-three { grid-template-columns: 1fr; } }
+.rep-card-head { flex-wrap: wrap; }
+.kpi.an-bad { border-color: #fecaca; background: #fff7f7; }
+.an-warn { color: #b45309; font-weight: 600; }
+.an-neg { color: #dc2626; }
+
+.an-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; background: var(--f-card, #fff); border: 1px solid var(--f-line, #e4e8ef); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; }
+.an-filters label { display: grid; gap: 3px; font-size: 12px; color: var(--f-muted, #6b7280); font-weight: 600; }
+.an-filters select, .an-filters input { height: 34px; border: 1px solid var(--f-line, #e4e8ef); border-radius: 8px; padding: 0 8px; background: #fff; font: inherit; font-size: 14px; color: var(--f-text, #111827); min-width: 0; }
+.an-filters .an-q { flex: 1; min-width: 180px; }
+.an-scope { font-size: 13px; color: var(--f-muted, #6b7280); margin: 4px 2px 10px; }
+.an-kpis { margin-bottom: 16px; }
+
+.an-svg { width: 100%; height: auto; display: block; }
+.an-axis { stroke: #cbd5e1; stroke-width: 1; }
+.an-bar-p { fill: var(--series-3, #1baf7a); }
+.an-bar-dim { fill: #b9e5d3; }
+.an-bar-neg { fill: #dc2626; }
+.an-val { font-size: 10px; fill: #475569; text-anchor: middle; font-weight: 600; }
+.an-lbl { font-size: 11px; fill: #64748b; text-anchor: middle; }
+.an-yr { font-size: 10px; fill: #94a3b8; }
+.an-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--f-muted, #6b7280); margin-top: 4px; }
+.an-sw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+.an-sw-p { background: var(--series-3, #1baf7a); } .an-sw-dim { background: #b9e5d3; } .an-sw-neg { background: #dc2626; }
+
+.an-table th.an-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.an-table th.an-sort:hover { color: var(--f-blue, #1d5bd8); }
+.an-row { cursor: pointer; }
+.an-row:hover td { background: #f8fafc; }
+.an-mini { font-size: 11px; color: var(--f-muted, #6b7280); font-weight: 500; }
+.an-mini .kpi-trend { font-size: 11px; }
+.an-problem td { background: #fffbeb; }
+.an-pay span { color: #94a3b8; font-weight: 600; font-size: 12px; white-space: nowrap; }
+.an-pay span.ok { color: #15803d; }
+.an-count { font-size: 13px; color: var(--f-muted, #6b7280); font-weight: 600; margin-left: 6px; }
+.an-check { font-size: 13px; color: var(--f-muted, #6b7280); display: inline-flex; gap: 6px; align-items: center; }
+.an-more { margin-top: 10px; }
+.an-deals td { vertical-align: top; }
+.an-hbar { grid-template-columns: minmax(80px, 34%) 1fr auto !important; }
+.an-hbar .hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.an-hbar .hbar-value { white-space: nowrap; text-align: right; min-width: 70px; line-height: 1.15; }
+.an-hbar .hbar-value .an-mini { display: block; }
+
+.an-mgr { max-width: 860px; width: calc(100% - 32px); max-height: 90vh; overflow-y: auto; }
+.an-close { border: 0; background: none; font-size: 24px; cursor: pointer; color: var(--f-muted, #6b7280); }
+.an-mgr-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+.an-h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--f-muted, #6b7280); margin: 16px 0 6px; }
+.an-spark { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; height: 120px; align-items: end; }
+.an-spark-col { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.an-spark-bar { width: 70%; min-height: 2px; background: var(--series-3, #1baf7a); border-radius: 4px 4px 0 0; }
+.an-spark-bar.neg { background: #dc2626; }
+.an-spark-l { font-size: 11px; color: #64748b; }
+.an-li { display: grid; grid-template-columns: 1fr auto; gap: 0 10px; padding: 6px 0; border-bottom: 1px solid #eef1f5; font-size: 14px; color: inherit; text-decoration: none; }
+.an-li .an-mini { grid-column: 1 / -1; }
+a.an-li:hover span:first-child { color: var(--f-blue, #1d5bd8); }
+.an-mgr-deals { max-height: 320px; overflow-y: auto; }
+@media (max-width: 700px) {
+    .an-mgr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .rep-tabs { padding: 0 12px; }
+}
+.rep-kpi6 { grid-template-columns: repeat(6, minmax(0, 1fr)); margin-bottom: 16px; }
+@media (max-width: 1250px) { .rep-kpi6 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .rep-kpi6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
