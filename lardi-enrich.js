@@ -35,6 +35,8 @@
         let r;
         try { r = await call({ action: "carrier_enrich", carrier_id: id }); } catch (e) { return modal(`<div class="le-err">${esc(e.message)}</div>`); }
         if (!r.found) return modal(`<div class="le-err">${esc(r.message || "Не знайдено")}</div>`);
+        // автоматичний обхід міг уже записати дані в базу — картка в браузері старіша; підтягуємо свіжу
+        if (!(r.changes || []).length) await refresh(id);
         const list = r.changes || [];
         const rows = list.map((c, i) => `<label class="le-row"><input type="checkbox" data-f="${esc(c.field)}" checked>
             <span class="le-lbl">${esc(c.label)}</span>
@@ -43,7 +45,7 @@
             ${list.length ? `<div class="le-list">${rows}</div>
                 <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля й нові пункти у списках.</div>
                 <div class="le-acts"><button type="button" class="le-go" data-le="save">Зберегти обране</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>`
-            : `<div class="le-ok">Нового в Lardi немає — картка вже актуальна.</div>`}
+            : `<div class="le-ok">Нового в Lardi немає — усе вже записано в картку (частину міг заповнити автоматичний обхід). Картку оновлено.</div>`}
             <details class="le-dbg"${list.some((c) => /region_ukr|city|logo_url/.test(c.field)) ? "" : " open"}><summary>Технічні дані (для налаштування)</summary><pre>${esc(JSON.stringify(r.debug, null, 1))}</pre></details>`);
         box.querySelector("[data-le=save]")?.addEventListener("click", async (e) => {
             const fields = [...box.querySelectorAll("[data-f]:checked")].map((x) => x.dataset.f);
@@ -402,6 +404,21 @@
         });
     }
     window.furaParseLardi = parseLardi; // для перевірки
+
+    // Відкрили картку — тихо звіряємо з базою (обхід Lardi міг дописати посилання, рейтинг, телефони)
+    let lastFresh = "";
+    setInterval(async () => {
+        const id = curId();
+        if (!id || String(id) === lastFresh || !document.querySelector("#carrierCardOverlay.active")) { if (!id) lastFresh = ""; return; }
+        lastFresh = String(id);
+        try {
+            const { data } = await sbClient.from("carriers").select("*").eq("id", id).maybeSingle(); // eslint-disable-line no-undef
+            const old = carrierById(id);
+            if (!data || !old || String(curId()) !== String(id)) return;
+            const changed = Object.keys(data).some((k) => JSON.stringify(data[k] ?? null) !== JSON.stringify(old[k] ?? null));
+            if (changed && !document.querySelector("#carrierCardBody.cc-editing, #carrierCardBody .qe-on")) await refresh(id);
+        } catch (e) { /* без мережі — лишаємо як є */ }
+    }, 700);
 
     // Знімок можна кинути прямо на відкриту картку перевізника — вікно «Вставити з Lardi» відкриється саме
     document.addEventListener("dragover", (e) => {
