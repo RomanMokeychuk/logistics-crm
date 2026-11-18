@@ -896,13 +896,61 @@ document.addEventListener("DOMContentLoaded", async () => {
     const saveDraft = () => {
         try { localStorage.setItem(DRAFT, JSON.stringify({ to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value })); } catch (_) { /* без пам'яті */ }
     };
+    let SALES_MAILS = null;
     async function fillMails() {
-        // підказки адрес: контакти з AI-продажів (знайдені e-mail)
+        // підказки адрес: «Адреси» з пошти + контакти з AI-продажів
+        if (SALES_MAILS) return;
         try {
             const { data } = await sbClient.from("sales_contacts").select("value, person_name").eq("kind", "email").limit(2000);
-            $("saCmpMails").innerHTML = (data || []).map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.person_name || "")}</option>`).join("");
-        } catch (_) { /* без підказок */ }
+            SALES_MAILS = (data || []).map((c) => ({ email: c.value, name: c.person_name || "", company: "" }));
+        } catch (_) { SALES_MAILS = []; }
     }
+    // випадаючі підказки для «Кому / Копія / Прихована» — підказує по останній адресі після коми
+    const sugBox = document.createElement("div");
+    sugBox.className = "sa-cmp-sug"; sugBox.hidden = true;
+    form.appendChild(sugBox);
+    let sugFor = null, sugItems = [], sugI = 0;
+    const lastTok = (v) => v.split(/[,;]/).pop().trim();
+    function sugShow(inp) {
+        const t = lastTok(inp.value).toLowerCase();
+        if (t.length < 1) { sugBox.hidden = true; return; }
+        const have = new Set((inp.value.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || []).map((x) => x.toLowerCase()));
+        const seen = new Set();
+        sugItems = [...(window.furaMailBook?.list || []), ...(SALES_MAILS || [])].filter((c) => {
+            const e = String(c.email || "").toLowerCase();
+            if (!e || seen.has(e) || (have.has(e) && e !== t)) return false;
+            seen.add(e);
+            return [e, c.name, c.company].join(" ").toLowerCase().includes(t);
+        }).slice(0, 8);
+        if (!sugItems.length) { sugBox.hidden = true; return; }
+        sugFor = inp; sugI = 0;
+        sugBox.innerHTML = sugItems.map((c, i) => `<button type="button" class="${i === 0 ? "on" : ""}" data-sug="${i}"><b>${escapeHtml(c.name || c.email)}</b> <span>${escapeHtml(c.email)}${c.company ? " · " + escapeHtml(c.company) : ""}</span></button>`).join("");
+        const r = inp.getBoundingClientRect(), fr = form.getBoundingClientRect();
+        Object.assign(sugBox.style, { left: r.left - fr.left + "px", top: r.bottom - fr.top + form.scrollTop + 4 + "px", width: r.width + "px" });
+        sugBox.hidden = false;
+    }
+    function sugPick(i) {
+        const c = sugItems[i]; if (!c || !sugFor) return;
+        const parts = sugFor.value.split(/[,;]/); parts.pop();
+        sugFor.value = [...parts.map((x) => x.trim()).filter(Boolean), c.email].join(", ") + ", ";
+        sugBox.hidden = true; sugFor.focus(); saveDraft();
+    }
+    ["to", "cc", "bcc"].forEach((k) => {
+        const inp = form[k];
+        inp.removeAttribute("list");
+        inp.addEventListener("input", () => sugShow(inp));
+        inp.addEventListener("focus", () => fillMails());
+        inp.addEventListener("blur", () => setTimeout(() => { if (sugFor === inp) sugBox.hidden = true; }, 150));
+        inp.addEventListener("keydown", (e) => {
+            if (sugBox.hidden || sugFor !== inp) return;
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                e.preventDefault(); sugI = (sugI + (e.key === "ArrowDown" ? 1 : -1) + sugItems.length) % sugItems.length;
+                sugBox.querySelectorAll("button").forEach((b, i) => b.classList.toggle("on", i === sugI));
+            } else if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); sugPick(sugI); }
+            else if (e.key === "Escape") { e.stopPropagation(); sugBox.hidden = true; }
+        });
+    });
+    sugBox.addEventListener("mousedown", (e) => { const b = e.target.closest("[data-sug]"); if (b) { e.preventDefault(); sugPick(Number(b.dataset.sug)); } });
     let inReplyTo = "";
     function open(pre = {}, addFiles = []) {
         if (pre instanceof Event) pre = {};
@@ -1039,12 +1087,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         const hidden = ML.folders.filter((f) => hid.has(f.path) && f.path !== ML.folder);
         $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки</div>` + shown.map((f) => btn(f, hid.has(f.path))).join("") +
             (hidden.length ? `<button type="button" class="sa-mf-more" data-showhidden>${ML.showHidden ? "▾" : "▸"} Приховані (${hidden.length})</button>` +
-                (ML.showHidden ? hidden.map((f) => btn(f, true)).join("") : "") : "");
+                (ML.showHidden ? hidden.map((f) => btn(f, true)).join("") : "") : "") +
+            `<div class="sa-mf-title">Довідник</div><div class="sa-mf-row"><button type="button" class="sa-mf t-book ${ML.book ? "active" : ""}" data-book><i class="bx bx-book-bookmark"></i><span>Адреси</span>${BOOK.list.length ? `<em>${BOOK.list.length}</em>` : ""}</button></div>`;
+        if (ML.book) $("mlFolders").querySelectorAll("[data-folder].active").forEach((b) => b.classList.remove("active"));
         const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
         const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
         $("cntMail").textContent = n ? String(n) : "";
     }
     async function loadList() {
+        if (ML.book) return;
         $("mlList").innerHTML = '<p class="ag-empty">Завантажую листи…</p>';
         // об'єднаний «Спам»: беремо з кожної папки і зливаємо за датою
         const paths = realPaths(ML.folder);
@@ -1116,6 +1167,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <button type="button" class="btn btn-secondary" data-mr="fwd"><i class="bx bx-share"></i> Переслати</button>
                 ${junk ? '<button type="button" class="btn btn-primary" data-mr="notspam"><i class="bx bx-check"></i> Не спам</button>' : pathOf("\\Junk") ? '<button type="button" class="btn btn-secondary" data-mr="spam" title="У спам"><i class="bx bx-error-circle"></i></button>' : ""}
                 <button type="button" class="btn btn-secondary" data-mr="unread" title="Позначити непрочитаним"><i class="bx bx-envelope"></i></button>
+                <button type="button" class="btn btn-secondary" data-mr="book" title="Зберегти відправника в «Адреси»"><i class="bx bx-book-add"></i> ${BOOK.byEmail(m.from_email) ? "В адресах" : "В адреси"}</button>
                 ${pathOf("\\Trash") && kindOf(ML.folder) !== "\\Trash" ? '<button type="button" class="btn btn-secondary" data-mr="trash" title="Видалити"><i class="bx bx-trash"></i></button>' : ""}
             </div>
             <h3 class="sa-mr-subj">${escapeHtml(m.subject)}</h3>
@@ -1167,6 +1219,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: quote(m), in_reply_to: m.message_id });
         }
         if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: quote(m) });
+        if (kind === "book") return openBook(guessContact(m));
         if (kind === "unread") {
             await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, flag: "unseen" }));
             const it = ML.list.find((x) => x.uid === m.uid && x.fp === m.fp); if (it) it.seen = false;
@@ -1240,20 +1293,24 @@ document.addEventListener("DOMContentLoaded", async () => {
             return renderFolders();
         }
         if (e.target.closest("[data-showhidden]")) { ML.showHidden = !ML.showHidden; return renderFolders(); }
+        if (e.target.closest("[data-book]")) return openBook();
         const b = e.target.closest("[data-folder]");
         if (!b) return;
+        ML.book = false;
         ML.folder = b.dataset.folder; ML.page = 0; ML.open = null;
         renderFolders();
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
         loadList().catch((er) => toast(er.message, true));
     });
     $("mlList").addEventListener("click", (e) => {
+        if (ML.book) return bookListClick(e);
         const pg = e.target.closest("[data-pg]");
         if (pg) { ML.page = Math.max(0, ML.page + Number(pg.dataset.pg)); return loadList().catch((er) => toast(er.message, true)); }
         const it = e.target.closest("[data-uid]");
         if (it) openMail(Number(it.dataset.uid), it.dataset.fp).catch((er) => toast(er.message, true));
     });
     $("mlRead").addEventListener("click", async (e) => {
+        if (ML.book) return bookCardClick(e);
         const b = e.target.closest("[data-mr]");
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");
@@ -1295,9 +1352,123 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("mlWho").innerHTML = "";
         start();
     });
+    /* ---------- Довідник «Адреси»: e-mail, чия адреса, компанія, телефон, підпис ---------- */
+    const FREE = /^(gmail|ukr|i\.ua|meta|outlook|hotmail|yahoo|icloud|wp|onet|o2|interia|mail|yandex|bigmir|gmx|web)\./i;
+    const BOOK = {
+        list: [], loaded: false, sel: null, q: "", err: "",
+        byEmail: (e) => BOOK.list.find((c) => c.email.toLowerCase() === String(e || "").toLowerCase()),
+        async load() {
+            const { data, error } = await sbClient.from("mail_contacts").select("*").order("name").limit(5000);
+            if (error) { BOOK.err = /does not exist|schema cache/i.test(error.message) ? "Довідник ще не створено: у Supabase → SQL Editor виконайте файл mail_contacts.sql." : error.message; BOOK.list = []; }
+            else { BOOK.err = ""; BOOK.list = data || []; }
+            BOOK.loaded = true;
+        },
+    };
+    window.furaMailBook = BOOK;
+    BOOK.load().then(() => { if (ML.folders.length) renderFolders(); }).catch(() => {});
+    // з листа: ім'я, компанія за доменом, телефон і підпис з кінця тексту
+    function guessContact(m) {
+        const email = m.from_email || "";
+        const name = String(m.from || "").replace(/<[^>]*>/, "").replace(/["']/g, "").trim();
+        const dom = email.split("@")[1] || "";
+        const company = dom && !FREE.test(dom) ? dom.split(".").slice(-2, -1)[0].replace(/^./, (c) => c.toUpperCase()) : "";
+        // текст до цитати попереднього листа
+        let txt = String(m.text || "").split(/\n\s*(?:-{3,}|_{5,}|From:|От:|Від:|Od:|Von:|De:|-------- )/)[0];
+        const lines = txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        let at = lines.findIndex((l) => /^(best regards|kind regards|regards|pozdrawiam|pozdrowienia|з повагою|с уважением|mit freundlichen|cordialement|bien à vous|thanks|thank you|дякую|спасибо)/i.test(l));
+        const sig = (at >= 0 ? lines.slice(at + 1) : lines.slice(-8)).filter((l) => l.length < 120).slice(0, 12).join("\n");
+        const phone = ((sig.match(/(?:\+|00)\d[\d\s().-]{7,}\d/g) || [])[0] || "").trim();
+        const sl = sig.split("\n");
+        const first = (name.split(/\s+/)[0] || "").toLowerCase();
+        const position = first && sl[0]?.toLowerCase().includes(first) && sl[1] && !/[@\d]/.test(sl[1]) && sl[1].length < 60 ? sl[1] : "";
+        const known = BOOK.byEmail(email);
+        return known || { email, name, company, phone, signature: sig, position, note: "", _new: true };
+    }
+    function bookFiltered() {
+        const q = BOOK.q.toLowerCase();
+        return !q ? BOOK.list : BOOK.list.filter((c) => [c.email, c.name, c.company, c.position, c.phone, c.note, c.signature].join(" ").toLowerCase().includes(q));
+    }
+    function renderBookList() {
+        const list = bookFiltered();
+        $("mlList").innerHTML = `<div class="sa-ml-head"><b>Адреси</b><span>${BOOK.list.length} контактів</span></div>
+            <div class="sa-bk-bar"><input id="bkQ" type="search" placeholder="Пошук: e-mail, ім'я, компанія, телефон…" value="${escapeHtml(BOOK.q)}" /><button type="button" class="btn btn-primary" data-bk-new><i class="bx bx-plus"></i> Додати</button></div>
+            ${BOOK.err ? `<p class="ag-empty">${escapeHtml(BOOK.err)}</p>` : !list.length ? `<p class="ag-empty">${BOOK.q ? "Нічого не знайдено" : "Ще порожньо. Відкрийте лист і натисніть «В адреси» або «Додати»."}</p>` : ""}
+            ${list.map((c) => `<button type="button" class="sa-mi sa-bk-item ${BOOK.sel?.id === c.id ? "active" : ""}" data-bk="${c.id}">
+                ${avatar(c.name || c.email)}<div class="sa-mi-body"><div class="sa-mi-top"><span class="sa-mi-from">${escapeHtml(c.name || c.email)}</span><span class="sa-mi-date">${escapeHtml(c.company || "")}</span></div>
+                <div class="sa-mi-subj">${escapeHtml(c.email)}${c.note ? ` · ${escapeHtml(c.note)}` : ""}</div></div></button>`).join("")}`;
+        const q = $("bkQ");
+        q.addEventListener("input", () => { BOOK.q = q.value; const pos = q.selectionStart; renderBookList(); const n = $("bkQ"); n.focus(); n.setSelectionRange(pos, pos); });
+    }
+    function renderBookCard() {
+        const c = BOOK.sel;
+        if (!c) { $("mlRead").innerHTML = '<p class="ag-empty">Оберіть контакт зліва або натисніть «Додати»</p>'; return; }
+        const f = (k, label, ph = "", type = "text") => `<label class="sa-bk-f"><span>${label}</span><input name="${k}" type="${type}" value="${escapeHtml(c[k] || "")}" placeholder="${ph}" /></label>`;
+        $("mlRead").innerHTML = `<form class="sa-bk-card" id="bkForm" autocomplete="off">
+            <div class="sa-bk-head">${avatar(c.name || c.email || "?")}<div><h3>${escapeHtml(c.name || c.email || "Новий контакт")}</h3><div class="sa-muted">${escapeHtml([c.position, c.company].filter(Boolean).join(" · "))}</div></div></div>
+            <div class="sa-bk-grid">
+                ${f("email", "E-mail *", "name@firma.com", "email")}${f("name", "Чия адреса (ім'я)", "Ім'я Прізвище")}
+                ${f("company", "Компанія", "Назва компанії")}${f("position", "Посада", "напр. Logistics manager")}
+                ${f("phone", "Телефон", "+48 …")}${f("note", "Нотатка", "клієнт / перевізник / митниця…")}
+            </div>
+            <label class="sa-bk-f"><span>Підпис (як підписується в листах)</span><textarea name="signature" rows="7" placeholder="Скопіюйте сюди підпис з листа">${escapeHtml(c.signature || "")}</textarea></label>
+            <div class="sa-bk-actions">
+                <button type="submit" class="btn btn-primary"><i class="bx bx-save"></i> Зберегти</button>
+                ${c.email ? `<button type="button" class="btn btn-secondary" data-bk-write><i class="bx bx-edit"></i> Написати</button><button type="button" class="btn btn-secondary" data-bk-copy title="Скопіювати e-mail"><i class="bx bx-copy"></i></button>` : ""}
+                ${c.id ? `<button type="button" class="btn btn-secondary sa-bk-del" data-bk-del title="Видалити"><i class="bx bx-trash"></i></button>` : ""}
+            </div></form>`;
+        $("bkForm").addEventListener("submit", (e) => { e.preventDefault(); saveBook(e.submitter || $("bkForm").querySelector('[type="submit"]')); });
+    }
+    async function openBook(pre) {
+        ML.book = true; ML.open = null;
+        if (!BOOK.loaded) await BOOK.load().catch(() => {});
+        if (pre) BOOK.sel = pre._new ? { ...pre } : pre;
+        renderFolders(); renderBookList(); renderBookCard();
+        if (pre) setTimeout(() => $("bkForm")?.querySelector(pre._new ? '[name="name"]' : '[name="note"]')?.focus(), 30);
+    }
+    async function saveBook(btn) {
+        const fd = new FormData($("bkForm"));
+        const row = Object.fromEntries(["email", "name", "company", "position", "phone", "note", "signature"].map((k) => [k, String(fd.get(k) || "").trim()]));
+        row.email = (row.email.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [""])[0].toLowerCase();
+        if (!row.email) return toast("Вкажіть правильний e-mail", true);
+        const dup = BOOK.byEmail(row.email);
+        if (dup && dup.id !== BOOK.sel?.id) return toast("Така адреса вже є в «Адресах»", true);
+        await withBusy(btn, async () => {
+            const q = BOOK.sel?.id ? sbClient.from("mail_contacts").update(row).eq("id", BOOK.sel.id) : sbClient.from("mail_contacts").insert(row);
+            const { data, error } = await q.select().single();
+            if (error) throw new Error(/does not exist|schema cache/i.test(error.message) ? "Спершу виконайте mail_contacts.sql у Supabase" : error.message);
+            const i = BOOK.list.findIndex((c) => c.id === data.id);
+            if (i >= 0) BOOK.list[i] = data; else BOOK.list.push(data);
+            BOOK.list.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, "uk"));
+            BOOK.sel = data;
+            toast("Збережено в «Адреси»");
+            renderFolders(); renderBookList(); renderBookCard();
+        });
+    }
+    function bookListClick(e) {
+        const pg = e.target.closest("[data-bk-new]");
+        if (pg) { BOOK.sel = { email: "", _new: true }; renderBookList(); renderBookCard(); return setTimeout(() => $("bkForm")?.email.focus(), 30); }
+        const it = e.target.closest("[data-bk]");
+        if (it) { BOOK.sel = BOOK.list.find((c) => c.id === it.dataset.bk) || null; renderBookList(); renderBookCard(); }
+    }
+    async function bookCardClick(e) {
+        const c = BOOK.sel;
+        if (!c) return;
+        if (e.target.closest("[data-bk-write]")) return window.furaCompose?.({ to: c.email });
+        if (e.target.closest("[data-bk-copy]")) { navigator.clipboard?.writeText(c.email).then(() => toast("E-mail скопійовано")).catch(() => {}); return; }
+        const del = e.target.closest("[data-bk-del]");
+        if (del && confirm(`Видалити ${c.email} з «Адрес»?`)) {
+            await withBusy(del, async () => {
+                const { error } = await sbClient.from("mail_contacts").delete().eq("id", c.id);
+                if (error) throw new Error(error.message);
+                BOOK.list = BOOK.list.filter((x) => x.id !== c.id); BOOK.sel = null;
+                renderFolders(); renderBookList(); renderBookCard();
+            }).catch((er) => toast(er.message, true));
+        }
+    }
+
     // нові листи — раз на 2 хвилини, коли пошта відкрита
     setInterval(() => {
-        if (!ML.loaded || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;
+        if (!ML.loaded || ML.book || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;
         loadFolders().catch(() => {});
         if (!ML.page && !ML.q && realPaths(ML.folder).length === 1) {
             const fp = realPaths(ML.folder)[0];

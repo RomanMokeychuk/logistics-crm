@@ -497,3 +497,32 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
 .sa-mf-more:hover { color: #a8781f; }
 @media (hover: none) { .sa-mf-eye { display: inline-flex; } }
 .sa-mr-loading { margin-top: 30px; }
+/* галочка «Підпис» — звичайного розміру, текст не налазить */
+.sa-cmp-box input[type="checkbox"] { width: 16px !important; height: 16px; padding: 0 !important; margin: 0 !important; flex: none; accent-color: #c9971f; }
+.sa-sig summary label { flex: none; white-space: nowrap; }
+.sa-sig summary #saSigShort { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sa-sig summary .sa-sig-edit { flex: none; }
+
+/* підказки адрес у новому листі */
+.sa-cmp-sug { position: absolute; z-index: 5; background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.14); padding: 4px; display: flex; flex-direction: column; max-height: 300px; overflow: auto; }
+.sa-cmp-sug[hidden] { display: none; }
+.sa-cmp-sug button { border: 0; background: none; text-align: left; padding: 8px 10px; border-radius: 7px; font: inherit; font-size: 14px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-cmp-sug button span { color: #6b7280; font-size: 13px; }
+.sa-cmp-sug button.on, .sa-cmp-sug button:hover { background: #fdf6e7; }
+
+/* Пошта → «Адреси» */
+.sa-mf.t-book i { color: #a8781f; }
+.sa-bk-bar { display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #f0f1f4; }
+.sa-bk-bar input { flex: 1; min-width: 0; padding: 8px 11px; border: 1px solid #e5e7eb; border-radius: 9px; font: inherit; font-size: 14px; }
+.sa-bk-bar .btn { white-space: nowrap; }
+.sa-bk-card { display: flex; flex-direction: column; gap: 12px; padding: 4px 4px 16px; }
+.sa-bk-head { display: flex; align-items: center; gap: 12px; }
+.sa-bk-head h3 { margin: 0; font-size: 20px; }
+.sa-bk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.sa-bk-f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: #6b7280; font-weight: 600; }
+.sa-bk-f input, .sa-bk-f textarea { padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 9px; font: inherit; font-size: 14px; font-weight: 400; color: #111827; background: #fff; }
+.sa-bk-f textarea { font-family: Calibri, Arial, sans-serif; resize: vertical; }
+.sa-bk-f input:focus, .sa-bk-f textarea:focus { outline: none; border-color: #d9a944; box-shadow: 0 0 0 3px rgba(217,169,68,.18); }
+.sa-bk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sa-bk-del { margin-left: auto; color: #b42318 !important; }
+@media (max-width: 760px) { .sa-bk-grid { grid-template-columns: 1fr; } }
