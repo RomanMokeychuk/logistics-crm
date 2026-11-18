@@ -856,12 +856,12 @@ const NB = (() => {
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
     // текст для перевізника: лише маршрут, вантаж, авто (ні клієнта, ні ставки клієнта з коментаря)
-    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "" });
-    const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "" }) : "");
+    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "", comment: r?.comment || "" });
+    const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, ...msgCtx(r) }) : "");
     window.furaMsgContext = (b) => {
-        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", route: POP.r.addresses || POP.r.direction || "", cargo: POP.r.cargo || "", truck: POP.r.truck || "" }; }
+        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", ...msgCtx(POP.r) }; }
         const f = document.getElementById("nbForm");
-        if (f && b.closest("#nbModal")) return { carrier: b.closest(".nb-cedit")?.querySelector(".nb-cin")?.value || "", route: f.addresses.value || f.direction.value, cargo: f.cargo.value, truck: f.truck.value };
+        if (f && b.closest("#nbModal")) return { carrier: b.closest(".nb-cedit")?.querySelector(".nb-cin")?.value || "", route: f.addresses.value || f.direction.value, cargo: f.cargo.value, truck: f.truck.value, comment: f.comment.value };
         return {};
     };
     const ctRow = (k = {}) => `<div class="nb-ct">

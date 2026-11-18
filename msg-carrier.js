@@ -13,13 +13,14 @@
     if (window.furaMsgBtns) return;
     const TPL_KEY = "fura_msg_tpl";
     const DEF_TPL =
-        "Добрий день{, [ІМʼЯ]}!\n" +
-        "Компанія Грандар{, логіст [Я]}.\n" +
-        "{Є вантаж: [МАРШРУТ]}\n" +
-        "{Вантаж: [ВАНТАЖ]}\n" +
-        "{Авто: [АВТО]}\n" +
-        "{Дата: [ДАТА]}\n" +
-        "Цікаво? Підкажіть, будь ласка, ставку і коли зможете подати авто.";
+        "Доброго дня, Компанія Грандар{, логіст [Я]}\n" +
+        "\n" +
+        "[МАРШРУТ]\n" +
+        "{[ВАНТАЖ]}\n" +
+        "{[АВТО]}\n" +
+        "{[УМОВИ]}\n" +
+        "\n" +
+        "Скажіть, будь ласка, чи цікавить?";
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
     const digits = (p) => {
         let d = String(p || "").replace(/\D/g, "");
@@ -41,9 +42,13 @@
             "ІМʼЯ": String(ctx.person || "").split(/\s+/)[0] || "",
             "Я": myName(),
             "МАРШРУТ": String(ctx.route || ctx.direction || "").replace(/\s*\n\s*/g, " – ").trim(),
-            "ВАНТАЖ": String(ctx.cargo || "").replace(/\s*\n\s*/g, ", ").trim(),
+            "ВАНТАЖ": String(ctx.cargo || "").split(/\n/).map((l) => l.trim()).filter(Boolean).join("\n"),
             "АВТО": String(ctx.truck || "").trim(),
             "ДАТА": String(ctx.date || "").trim(),
+            // з коментаря беремо лише умови (митниця, «без Сенту»…) — рядки з ціною, ставкою, клієнтом НЕ беремо
+            "УМОВИ": String(ctx.comment || "").split(/\n|;/).map((l) => l.trim())
+                .filter((l) => l && !/(клієнт|клиент|замовник|ставк|ціна|цена|маржа|бюджет|оплат|€|eur|usd|\$|грн|uah|zł|pln|руб)/i.test(l) && !/^[\d\s.,]+$/.test(l))
+                .join("\n"),
             "ПЕРЕВІЗНИК": String(ctx.carrier || "").trim(),
         };
         const fill = (s) => s.replace(/\[([^\[\]]+)\]/g, (m, k) => (k in v ? v[k] : m));
@@ -73,7 +78,7 @@
             <button type="button" class="fmsg-link" data-fx="tpl">Шаблон…</button>
         </div>
         <div class="fmsg-tpl" hidden>
-            <div class="fmsg-note">Шаблон для всіх повідомлень. Слова [ІМʼЯ] [Я] [МАРШРУТ] [ВАНТАЖ] [АВТО] [ДАТА] [ПЕРЕВІЗНИК] підставляються самі. Частина у фігурних дужках {…} зникне, якщо даних для неї нема.</div>
+            <div class="fmsg-note">Шаблон для всіх повідомлень. Слова [ІМʼЯ] [Я] [МАРШРУТ] [УМОВИ] [ВАНТАЖ] [АВТО] [ДАТА] [ПЕРЕВІЗНИК] підставляються самі. Частина у фігурних дужках {…} зникне, якщо даних для неї нема.</div>
             <textarea class="fmsg-tpl-text" rows="8"></textarea>
             <div class="fmsg-acts"><button type="button" class="fmsg-go fmsg-go-cp" data-fx="tplsave">Зберегти шаблон</button><button type="button" class="fmsg-link" data-fx="tplreset">Як було</button></div>
         </div>
