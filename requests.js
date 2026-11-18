@@ -1804,10 +1804,11 @@ function openRequestCard(id) {
 
         ${chatSectionHtml(r)}
 
-        <div class="card-columns">
-            <div class="card-col">
-                <div class="card-section">
-                    <div class="card-section-title">Вантаж і транспорт</div>
+        <div class="card-section rq-details">
+            <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span></div>
+            <div class="rq-grid">
+                <div class="rq-group">
+                    <div class="rq-sub">Вантаж і транспорт</div>
                     ${cardRow("Вантаж:", escapeHtml(r.cargo))}
                     ${cardRow("Тип транспорту:", splitTypes(r.transport_type).map((t) => `<span class="badge badge-warning" style="margin-right:4px">${escapeHtml(t)}</span>`).join(""))}
                     ${cardRow("Вага:", escapeHtml(r.weight))}
@@ -1815,40 +1816,33 @@ function openRequestCard(id) {
                     ${isRef(r.transport_type) || r.temp_from !== null || r.temp_to !== null ? cardRow("Температура:", tempText(r)) : ""}
                     ${cardRow("Кількість авто:", r.trucks_count ? escapeHtml(`${r.trucks_count} авто${r.trucks_period ? " " + r.trucks_period : " (разово)"}`) : "")}
                     ${cardRow("Як вантажити:", (r.loading_types || []).length ? escapeHtml(r.loading_types.join(", ")) : "")}
-                </div>
-
-                <div class="card-section">
-                    <div class="card-section-title">Маршрут</div>
+                    <div class="rq-sub">Маршрут</div>
                     ${cardRow("Відвантаження:", locationCell(r.load_country, r.load_address) + extraPointsHtml(r.extra_loads))}
                     ${cardRow("Розвантаження:", locationCell(r.unload_country, r.unload_address) + extraPointsHtml(r.extra_unloads))}
                 </div>
-
-                <div class="card-section">
-                    <div class="card-section-title">Нотатки</div>
-                    <div class="card-block-text">${notesHtml || "—"}</div>
-                </div>
-            </div>
-
-            <div class="card-col">
-                <div class="card-section">
-                    <div class="card-section-title">Митниця та кордон</div>
+                <div class="rq-group">
+                    <div class="rq-sub">Митниця та кордон</div>
                     ${cardRow("Замитнення:", customsText(r.customs_export_country, r.customs_export, "export") + extraPointsHtml(r.extra_customs_export))}
                     ${cardRow("Погран перехід:", escapeHtml(r.border_crossing))}
                     ${cardRow("Розмитнення:", customsText(r.customs_import_country, r.customs_import, "import") + extraPointsHtml(r.extra_customs_import))}
-                </div>
-
-                <div class="card-section">
-                    <div class="card-section-title">Дата та відповідальні</div>
+                    <div class="rq-sub">Дата</div>
                     ${cardRow("Бажана дата:", formatDesiredDate(r.desired_date, r.desired_date_to))}
-                    ${cardRow("Sales:", r.sales ? `<span class="request-card-person">${escapeHtml(r.sales)}</span>` : "")}
-                    ${cardRow("Logistician:", r.logistician ? `<span class="request-card-person">${escapeHtml(r.logistician)}</span>` : "")}
-                    ${cardRow("Запит від Sales:", formatDateTime(r.created_at))}
-                    ${cardRow("Відповідь логіста:", r.answered_at ? formatDateTime(r.answered_at) : "")}
-                    ${cardRow("Час реакції:", timerHtml(r, requestState(r)))}
+                    <div class="rq-sub">Нотатки</div>
+                    <div class="card-block-text">${notesHtml || "—"}</div>
                 </div>
             </div>
         </div>
 
+        <div class="card-section rq-people">
+            <div class="card-section-title"><span><i class='bx bx-group'></i> Відповідальні</span></div>
+            <div class="rq-people-grid">
+                ${cardRow("Sales:", r.sales ? `<span class="request-card-person">${escapeHtml(r.sales)}</span>` : "")}
+                ${cardRow("Logistician:", r.logistician ? `<span class="request-card-person">${escapeHtml(r.logistician)}</span>` : "")}
+                ${cardRow("Запит від Sales:", formatDateTime(r.created_at))}
+                ${cardRow("Відповідь логіста:", r.answered_at ? formatDateTime(r.answered_at) : "")}
+                ${cardRow("Час реакції:", timerHtml(r, requestState(r)))}
+            </div>
+        </div>
 
         <div id="routeMapBox" style="margin-top:16px"></div>
     `;
@@ -3273,3 +3267,86 @@ document.addEventListener("DOMContentLoaded", async () => {
         history.replaceState(null, "", location.pathname);
     }
 });
+
+/* ================================================================= *
+ * Розділи картки запиту згортаються кліком по заголовку              *
+ * (що згорнули — пам'ятається для всіх запитів на цьому комп'ютері)  *
+ * ================================================================= */
+(function () {
+    const KEY = "fura_req_coll";
+    const BODY = "#requestCardBody";
+    const TITLES = ".card-section-title";
+    const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { return {}; } };
+    const save = (st) => { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* без пам'яті */ } };
+    const SKIP = new Set(["card-section", "rc-coll", "rc-collapsed"]);
+    const secOf = (t) => t.closest(".card-section");
+    const keyOf = (sec) => sec.id || [...sec.classList].find((c) => !SKIP.has(c)) || "";
+    function prep(t) {
+        const sec = secOf(t);
+        if (!sec || !keyOf(sec)) return null;
+        const head = [...sec.children].find((c) => c.contains(t));
+        if (!head) return null;
+        head.classList.add("rc-head");
+        sec.classList.add("rc-coll");
+        return sec;
+    }
+    function apply() {
+        const body = document.querySelector(BODY);
+        if (!body) return;
+        const st = load();
+        body.querySelectorAll(TITLES).forEach((t) => {
+            const sec = prep(t);
+            if (!sec) return;
+            const want = !!st[keyOf(sec)];
+            if (sec.classList.contains("rc-collapsed") !== want) sec.classList.toggle("rc-collapsed", want);
+        });
+        paintAll();
+    }
+    function setColl(sec, on) {
+        sec.classList.toggle("rc-collapsed", on);
+        const st = load();
+        if (on) st[keyOf(sec)] = 1; else delete st[keyOf(sec)];
+        save(st);
+        if (!on) setTimeout(() => window.dispatchEvent(new Event("resize")), 30); // карта перемальовується
+    }
+    document.addEventListener("click", (e) => {
+        if (e.target.closest("a, button, select, input, textarea, label")) return;
+        const head = e.target.closest(BODY + " .rc-head");
+        if (!head) return;
+        const sec = head.parentElement;
+        setColl(sec, !sec.classList.contains("rc-collapsed"));
+        paintAll();
+    });
+    // Кнопка «Згорнути все / Розгорнути все» у шапці картки
+    function paintAll() {
+        const btn = document.getElementById("rcCollAll");
+        const body = document.querySelector(BODY);
+        if (!btn || !body) return;
+        const secs = [...body.querySelectorAll(".rc-coll")];
+        const anyOpen = secs.some((x) => !x.classList.contains("rc-collapsed"));
+        btn.innerHTML = anyOpen ? `<i class="bx bx-collapse-vertical"></i> Згорнути все` : `<i class="bx bx-expand-vertical"></i> Розгорнути все`;
+        btn.dataset.mode = anyOpen ? "close" : "open";
+        btn.hidden = !secs.length;
+    }
+    function init() {
+        const body = document.querySelector(BODY);
+        if (!body) return;
+        const actions = document.querySelector("#requestCardOverlay .carrier-card-actions");
+        if (actions && !document.getElementById("rcCollAll")) {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.id = "rcCollAll";
+            btn.className = "btn-card-edit rc-coll-all";
+            actions.prepend(btn);
+            btn.addEventListener("click", () => {
+                const close = btn.dataset.mode === "close";
+                body.querySelectorAll(".rc-coll").forEach((sec) => setColl(sec, close));
+                paintAll();
+            });
+        }
+        let t = 0;
+        new MutationObserver(() => { clearTimeout(t); t = setTimeout(apply, 0); }).observe(body, { childList: true, subtree: true });
+        apply();
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
+})();
