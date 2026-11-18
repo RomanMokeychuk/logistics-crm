@@ -484,3 +484,15 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
     content: "Відпустіть — файли додадуться до листа"; position: absolute; inset: 8px; z-index: 5; display: flex; align-items: center; justify-content: center;
     border: 3px dashed #d9a944; border-radius: 16px; background: rgba(253, 246, 227, .92); color: #8a5f12; font-size: 18px; font-weight: 800; pointer-events: none; }
 .sa-drop-hint { font-size: 12px; }
+
+/* сховати папку */
+.sa-mf-row { position: relative; display: flex; align-items: center; }
+.sa-mf-row .sa-mf { flex: 1; min-width: 0; }
+.sa-mf-eye { position: absolute; right: 6px; width: 26px; height: 26px; border: 0; border-radius: 7px; background: #fff; color: #9ca3af; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.sa-mf-row:hover .sa-mf-eye { display: inline-flex; }
+.sa-mf-row:hover .sa-mf b, .sa-mf-row:hover .sa-mf em { visibility: hidden; }
+.sa-mf-eye:hover { color: #a8781f; }
+.sa-mf-row.is-hidden .sa-mf { opacity: .55; }
+.sa-mf-more { margin-top: 6px; border: 0; background: none; text-align: left; padding: 8px 12px; font: inherit; font-size: 13px; color: #9ca3af; cursor: pointer; }
+.sa-mf-more:hover { color: #a8781f; }
+@media (hover: none) { .sa-mf-eye { display: inline-flex; } }

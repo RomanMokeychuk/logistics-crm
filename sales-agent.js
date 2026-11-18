@@ -978,7 +978,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 /* ---------------- Пошта: Вхідні, Спам, Надіслані — прямо у FURA ---------------- */
 (() => {
-    const ML = { folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false };
+    const ML = { folder: "INBOX", folders: [], list: [], page: 0, q: "", open: null, loaded: false, showHidden: false };
+    // приховані папки (у цьому браузері)
+    const HID_KEY = "fura_mail_hidden";
+    const hidGet = () => { try { return new Set(JSON.parse(localStorage.getItem(HID_KEY) || "[]")); } catch (_) { return new Set(); } };
+    const hidSet = (set) => { try { localStorage.setItem(HID_KEY, JSON.stringify([...set])); } catch (_) { /* без пам'яті */ } };
+    // справжні папки на сервері для пункту (об'єднаний «Спам» = кілька папок)
+    const realPaths = (path) => (ML.folders.find((f) => f.path === path) || {}).paths || [path];
     const KIND = { "\\Inbox": ["Вхідні", "bx-envelope"], "\\Junk": ["Спам", "bx-error-circle"], "\\Sent": ["Надіслані", "bx-send"], "\\Drafts": ["Чернетки", "bx-edit"], "\\Archive": ["Архів", "bx-archive"], "\\Trash": ["Кошик", "bx-trash"] };
     // кружечок з ініціалами — як у звичайній пошті
     const AV = ["#d9a944", "#5b8def", "#16a34a", "#e2725b", "#8b5cf6", "#0891b2", "#db2777", "#64748b"];
@@ -990,7 +996,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         return `<span class="sa-av" style="background:${AV[h % AV.length]}">${escapeHtml(ini)}</span>`;
     }
     const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
-    const pathOf = (kind) => (ML.folders.find((f) => f.kind === kind) || {}).path;
+    const pathOf = (kind) => { const f = ML.folders.find((x) => x.kind === kind); return f ? (f.paths || [f.path])[0] : undefined; };
     const when = (d) => {
         if (!d) return "";
         const t = new Date(d), now = new Date();
@@ -1003,29 +1009,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     async function loadFolders() {
         const r = await api({ action: "mail_folders" });
-        ML.folders = r.folders || [];
+        const all = r.folders || [];
+        // кілька папок спаму (хостинг «spam» + Outlook «Junk») — один пункт «Спам»
+        const junk = all.filter((f) => f.kind === "\\Junk");
+        ML.folders = all.filter((f) => f.kind !== "\\Junk");
+        if (junk.length) {
+            const v = junk.length === 1 ? junk[0] : { path: "__junk__", kind: "\\Junk", name: "Спам", paths: junk.map((f) => f.path),
+                unseen: junk.reduce((n, f) => n + (f.unseen || 0), 0), total: junk.reduce((n, f) => n + (f.total || 0), 0) };
+            const at = ML.folders.findIndex((f) => f.kind === "\\Inbox");
+            ML.folders.splice(at + 1, 0, v);
+        }
+        if (!ML.folders.some((f) => f.path === ML.folder)) ML.folder = (ML.folders.find((f) => f.kind === "\\Inbox") || ML.folders[0] || {}).path || "INBOX";
         renderFolders();
     }
     function renderFolders() {
-        // дві папки одного типу (напр. «Spam» і «Junk» на хостингу) — підписуємо справжньою назвою
         const same = (k) => ML.folders.filter((x) => x.kind === k).length > 1;
         const tone = { "\\Inbox": "in", "\\Junk": "junk", "\\Sent": "sent", "\\Drafts": "draft", "\\Archive": "arch", "\\Trash": "trash" };
-        $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки</div>` + ML.folders.map((f) => {
+        const hid = hidGet();
+        const btn = (f, hidden) => {
             const [label, icon] = KIND[f.kind] || [f.name || f.path, "bx-folder"];
             const real = String(f.name || f.path).replace(/^INBOX[./]/i, "");
             const text = f.kind && same(f.kind) ? `${label} · ${real}` : label;
-            return `<button type="button" class="sa-mf t-${tone[f.kind] || "other"} ${f.path === ML.folder ? "active" : ""}" data-folder="${escapeHtml(f.path)}" title="${escapeHtml(f.path)}">
-                <i class="bx ${icon}"></i><span>${escapeHtml(text)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.total ? `<em>${f.total}</em>` : ""}</button>`;
-        }).join("");
+            const canHide = f.kind !== "\\Inbox";
+            return `<div class="sa-mf-row ${hidden ? "is-hidden" : ""}"><button type="button" class="sa-mf t-${tone[f.kind] || "other"} ${f.path === ML.folder ? "active" : ""}" data-folder="${escapeHtml(f.path)}" title="${escapeHtml((f.paths || [f.path]).join(" + "))}">
+                <i class="bx ${icon}"></i><span>${escapeHtml(text)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.total ? `<em>${f.total}</em>` : ""}</button>
+                ${canHide ? `<button type="button" class="sa-mf-eye" data-hide="${escapeHtml(f.path)}" title="${hidden ? "Показати папку" : "Сховати папку"}"><i class="bx ${hidden ? "bx-show" : "bx-hide"}"></i></button>` : ""}</div>`;
+        };
+        const shown = ML.folders.filter((f) => !hid.has(f.path) || f.path === ML.folder);
+        const hidden = ML.folders.filter((f) => hid.has(f.path) && f.path !== ML.folder);
+        $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки</div>` + shown.map((f) => btn(f, hid.has(f.path))).join("") +
+            (hidden.length ? `<button type="button" class="sa-mf-more" data-showhidden>${ML.showHidden ? "▾" : "▸"} Приховані (${hidden.length})</button>` +
+                (ML.showHidden ? hidden.map((f) => btn(f, true)).join("") : "") : "");
         const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
         const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
         $("cntMail").textContent = n ? String(n) : "";
     }
     async function loadList() {
         $("mlList").innerHTML = '<p class="ag-empty">Завантажую листи…</p>';
-        const r = await api({ action: "mail_list", folder: ML.folder, page: ML.page, q: ML.q, limit: 50 });
-        ML.list = r.list || [];
-        ML.total = r.total || 0;
+        // об'єднаний «Спам»: беремо з кожної папки і зливаємо за датою
+        const paths = realPaths(ML.folder);
+        const res = await Promise.all(paths.map((fp) => api({ action: "mail_list", folder: fp, page: ML.page, q: ML.q, limit: 50 }).then((r) => (r.list || []).map((m) => ({ ...m, fp })))));
+        ML.list = res.flat().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 50 * paths.length);
         renderList();
     }
     function renderList() {
@@ -1034,7 +1058,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const head = `<div class="sa-ml-head"><b>${escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>`;
         $("mlList").innerHTML = head + (ML.list.map((m) => {
             const who = isSent ? m.to || "" : m.from || m.from_email;
-            return `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid ? "active" : ""}" data-uid="${m.uid}">
+            return `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid && ML.open?.fp === m.fp ? "active" : ""}" data-uid="${m.uid}" data-fp="${escapeHtml(m.fp)}">
                 ${avatar(isSent ? m.to : m.from || m.from_email)}
                 <div class="sa-mi-body">
                     <div class="sa-mi-top"><span class="sa-mi-from">${isSent ? "Кому: " : ""}${escapeHtml(who)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
@@ -1044,13 +1068,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : "У цій папці листів немає"}</span></div>`) +
             `<div class="sa-mi-pages">${ML.page ? '<button type="button" class="btn btn-secondary" data-pg="-1">← Новіші</button>' : ""}${ML.list.length >= 50 ? '<button type="button" class="btn btn-secondary" data-pg="1">Старіші →</button>' : ""}</div>`;
     }
-    async function openMail(uid) {
-        ML.open = { uid };
+    async function openMail(uid, fp) {
+        fp = fp || realPaths(ML.folder)[0];
+        ML.open = { uid, fp };
         renderList();
         $("mlRead").innerHTML = '<p class="ag-empty">Відкриваю лист…</p>';
-        const m = await api({ action: "mail_read", folder: ML.folder, uid });
-        ML.open = m;
-        const it = ML.list.find((x) => x.uid === uid);
+        const m = await api({ action: "mail_read", folder: fp, uid });
+        ML.open = { ...m, fp };
+        const it = ML.list.find((x) => x.uid === uid && x.fp === fp);
         if (it && !it.seen) { it.seen = true; renderList(); loadFolders().catch(() => {}); }
         const junk = kindOf(ML.folder) === "\\Junk";
         $("mlRead").innerHTML = `
@@ -1092,16 +1117,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: quote(m) });
         if (kind === "unread") {
-            await withBusy(btn, () => api({ action: "mail_move", folder: ML.folder, uid: m.uid, flag: "unseen" }));
-            const it = ML.list.find((x) => x.uid === m.uid); if (it) it.seen = false;
+            await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, flag: "unseen" }));
+            const it = ML.list.find((x) => x.uid === m.uid && x.fp === m.fp); if (it) it.seen = false;
             renderList(); loadFolders().catch(() => {});
             return;
         }
         const to = kind === "notspam" ? pathOf("\\Inbox") || "INBOX" : kind === "spam" ? pathOf("\\Junk") : pathOf("\\Trash");
         if (!to) return;
-        await withBusy(btn, () => api({ action: "mail_move", folder: ML.folder, uid: m.uid, to }));
+        await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, to }));
         toast(kind === "notspam" ? "Перенесено у Вхідні" : kind === "spam" ? "Перенесено у Спам" : "Видалено");
-        ML.list = ML.list.filter((x) => x.uid !== m.uid);
+        ML.list = ML.list.filter((x) => !(x.uid === m.uid && x.fp === m.fp));
         ML.open = null;
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
         renderList(); loadFolders().catch(() => {});
@@ -1155,6 +1180,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     document.querySelector('.sa-tab[data-tab="mail"]').addEventListener("click", start);
     $("mlFolders").addEventListener("click", (e) => {
+        const eye = e.target.closest("[data-hide]");
+        if (eye) {
+            const h = hidGet(), k = eye.dataset.hide;
+            if (h.has(k)) h.delete(k); else h.add(k);
+            hidSet(h);
+            if (h.has(k) && ML.folder === k) { ML.folder = pathOf("\\Inbox") || "INBOX"; ML.open = null; loadList().catch(() => {}); }
+            return renderFolders();
+        }
+        if (e.target.closest("[data-showhidden]")) { ML.showHidden = !ML.showHidden; return renderFolders(); }
         const b = e.target.closest("[data-folder]");
         if (!b) return;
         ML.folder = b.dataset.folder; ML.page = 0; ML.open = null;
@@ -1166,7 +1200,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const pg = e.target.closest("[data-pg]");
         if (pg) { ML.page = Math.max(0, ML.page + Number(pg.dataset.pg)); return loadList().catch((er) => toast(er.message, true)); }
         const it = e.target.closest("[data-uid]");
-        if (it) openMail(Number(it.dataset.uid)).catch((er) => toast(er.message, true));
+        if (it) openMail(Number(it.dataset.uid), it.dataset.fp).catch((er) => toast(er.message, true));
     });
     $("mlRead").addEventListener("click", async (e) => {
         const b = e.target.closest("[data-mr]");
@@ -1174,7 +1208,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const a = e.target.closest("[data-att]");
         if (a) {
             await withBusy(a, async () => {
-                const r = await api({ action: "mail_read", folder: ML.folder, uid: ML.open.uid, attachment: Number(a.dataset.att), peek: true });
+                const r = await api({ action: "mail_read", folder: ML.open.fp, uid: ML.open.uid, attachment: Number(a.dataset.att), peek: true });
                 const f = r.file;
                 const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
                 const url = URL.createObjectURL(new Blob([bin], { type: f.type || "application/octet-stream" }));
@@ -1213,7 +1247,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     setInterval(() => {
         if (!ML.loaded || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;
         loadFolders().catch(() => {});
-        if (!ML.page && !ML.q) api({ action: "mail_list", folder: ML.folder, limit: 50 }).then((r) => { if (r.list?.[0]?.uid !== ML.list[0]?.uid) { ML.list = r.list; renderList(); } }).catch(() => {});
+        if (!ML.page && !ML.q && realPaths(ML.folder).length === 1) {
+            const fp = realPaths(ML.folder)[0];
+            api({ action: "mail_list", folder: fp, limit: 50 }).then((r) => { if (r.list?.[0]?.uid !== ML.list[0]?.uid) { ML.list = (r.list || []).map((m) => ({ ...m, fp })); renderList(); } }).catch(() => {});
+        }
     }, 120000);
     // якщо вкладка «Пошта» відкрита з минулого разу
     setTimeout(() => { if (!document.querySelector('.sa-panel[data-panel="mail"]').hidden) start(); }, 1500);
