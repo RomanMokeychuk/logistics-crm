@@ -586,3 +586,70 @@ body.sa-only-mail .sa-mail { padding: 12px 14px; }
 body.sa-only-mail .sa-mail-bar { padding-bottom: 10px; margin-bottom: 10px; }
 body.sa-only-mail .sa-mail-grid { min-height: calc(100vh - 150px); }
 body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: calc(100vh - 150px); }
+
+/* ================= Пошта на телефоні ================= */
+.sa-mr-back { display: none; }
+@media (max-width: 760px) {
+    body.sa-only-mail .main-content.agents-page { padding: 8px 8px 0 !important; gap: 8px; }
+    body.sa-only-mail .sa-mail { padding: 8px !important; border-radius: 14px; }
+    /* рядок: пошук · оновити · написати */
+    .sa-mail-bar { flex-wrap: nowrap; gap: 6px; padding-bottom: 8px !important; margin-bottom: 8px !important; }
+    .sa-mail-search { flex: 1 1 auto; min-width: 0; }
+    .sa-mail-search input { font-size: 16px; padding-top: 10px; padding-bottom: 10px; }
+    #mlRefresh { flex: none; width: 42px; padding: 0; }
+    #mlCompose { flex: none; padding: 0 12px; font-size: 0; gap: 0; }
+    #mlCompose i { font-size: 20px; }
+    .sa-ml-who { display: none !important; }
+    /* папки — смужка, гортається вбік */
+    .sa-mail-grid { display: flex !important; flex-direction: column; gap: 8px !important; min-height: 0 !important; }
+    .sa-mail-folders { display: flex !important; flex-direction: row !important; flex-wrap: nowrap; overflow-x: auto; gap: 6px; padding: 6px !important; border-radius: 12px; -webkit-overflow-scrolling: touch; scrollbar-width: none; align-self: stretch !important; }
+    .sa-mail-folders::-webkit-scrollbar { display: none; }
+    .sa-mf-title { display: none; }
+    .sa-mf-row { flex: none; }
+    .sa-mf-eye { display: none !important; }
+    .sa-mf, .sa-mf-more { flex: none; white-space: nowrap; padding: 8px 12px !important; border-radius: 999px; font-size: 14px; }
+    .sa-mf.active { background: #fff; }
+    /* список на всю ширину */
+    .sa-mail-list { max-height: none !important; overflow: visible !important; border-radius: 12px; }
+    body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: none !important; }
+    .sa-mi { padding: 12px 10px; gap: 10px; }
+    .sa-mi .sa-av { width: 40px; height: 40px; font-size: 14px; flex: none; }
+    .sa-mi-from { font-size: 15px; }
+    .sa-mi-subj { font-size: 14px; }
+    .sa-mail-read { display: none; }
+    /* відкритий лист — на весь екран замість списку */
+    body.ml-reading .sa-mail-folders, body.ml-reading .sa-mail-list, body.ml-reading .sa-mail-bar { display: none !important; }
+    body.ml-reading .sa-mail-read { display: block; border: 0; padding: 4px 2px 80px; overflow: visible; }
+    body.ml-reading .sa-mr-back { display: inline-flex; align-items: center; gap: 2px; align-self: flex-start; border: 0; background: none; color: #a8781f; font: inherit; font-size: 16px; font-weight: 600; padding: 6px 4px; cursor: pointer; position: sticky; top: 0; z-index: 2; }
+    body.ml-reading .sa-mr-back i { font-size: 24px; }
+    .sa-mr-actions { gap: 6px; position: sticky; top: 0; background: #fff; z-index: 1; padding: 4px 0 8px; margin-bottom: 6px !important; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+    .sa-mr-actions::-webkit-scrollbar { display: none; }
+    .sa-mr-actions .btn { flex: none; padding: 8px 12px; font-size: 14px; }
+    .sa-mr-subj { font-size: 18px !important; line-height: 1.3; word-break: break-word; }
+    .sa-mr-meta { font-size: 13px; word-break: break-word; }
+    .sa-mr-atts { gap: 6px; }
+    .sa-mr-att { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sa-mr-body { width: 100%; min-height: 300px; }
+    .sa-mr-junk { font-size: 13px; }
+    /* Адреси */
+    .sa-bk-bar { padding: 8px; }
+    .sa-bk-bar input { font-size: 16px; }
+    .sa-bk-card { padding: 0 2px 80px; }
+    .sa-bk-f input, .sa-bk-f textarea { font-size: 16px; }
+    .sa-bk-actions .btn { flex: 1 1 auto; }
+    /* під час читання — без плаваючих кнопок поверх тексту */
+    body.ml-reading .fk, body.ml-reading [class^="fk-"], body.ml-reading .fh-fab, body.ml-reading [class*="furik"] { display: none !important; }
+    /* новий лист — на весь екран, кнопка «Надіслати» завжди внизу */
+    .sa-cmp:not(.min) { inset: 0 !important; width: auto !important; left: 0 !important; top: 0 !important; }
+    .sa-cmp:not(.min) .sa-cmp-box { height: 100% !important; max-height: 100% !important; min-height: 100%; border-radius: 0 !important; padding: 0 12px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; }
+    .sa-cmp-head { margin: 0 -12px 6px !important; border-radius: 0 !important; padding: calc(10px + env(safe-area-inset-top)) 10px 10px 14px !important; }
+    .sa-cmp-head .sa-muted, .sa-cmp-saved { display: none; }
+    .sa-cmp-hb[data-cmp-big] { display: none; }
+    .sa-cmp-row { grid-template-columns: 74px 1fr !important; gap: 6px; font-size: 13px; }
+    .sa-cmp-box input, .sa-cmp-box textarea { font-size: 16px !important; }
+    .sa-cmp-box textarea { flex: 1 1 auto; min-height: 160px !important; }
+    .sa-cmp-foot { position: sticky; bottom: 0; background: #fff; padding: 8px 0; margin-top: 4px; flex-wrap: wrap; }
+    .sa-cmp-foot .sa-muted { display: none; }
+    .sa-cmp-foot [type="submit"] { flex: 1 1 auto; }
+    .sa-cmp.min { left: 0 !important; right: 0 !important; width: auto !important; top: auto !important; bottom: 0 !important; }
+}

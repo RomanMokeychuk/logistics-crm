@@ -1215,6 +1215,26 @@ document.addEventListener("DOMContentLoaded", async () => {
         let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0;
         return `<span class="sa-av" style="background:${AV[h % AV.length]}">${escapeHtml(ini)}</span>`;
     }
+    /* ---------- Телефон: список і лист — по черзі на весь екран, «← Назад» повертає до списку ---------- */
+    const mob = () => matchMedia("(max-width: 760px)").matches;
+    $("mlRead").insertAdjacentHTML("beforebegin", '<button type="button" class="sa-mr-back" id="mlBack"><i class="bx bx-chevron-left"></i> <span>Назад</span></button>');
+    function readMode(on) {
+        const was = document.body.classList.contains("ml-reading");
+        document.body.classList.toggle("ml-reading", !!on);
+        const back = $("mlBack");
+        if (back) back.querySelector("span").textContent = ML.book ? "Адреси" : ((KIND[kindOf(ML.folder)] || [])[0] || "Назад");
+        if (on && !was && mob()) {
+            try { history.pushState({ mlRead: 1 }, ""); } catch (_) { /* */ }
+            window.scrollTo(0, 0); document.querySelector(".main-content")?.scrollTo?.(0, 0);
+        }
+    }
+    function closeRead() {
+        document.body.classList.remove("ml-reading");
+        if (!ML.book) { ML.open = null; renderList(); }
+        else { BOOK.sel = null; renderBookList(); }
+    }
+    $("mlBack").addEventListener("click", () => { if (history.state?.mlRead) history.back(); else closeRead(); });
+    addEventListener("popstate", () => { if (document.body.classList.contains("ml-reading")) closeRead(); });
     const kindOf = (path) => (ML.folders.find((f) => f.path === path) || {}).kind || "";
     const pathOf = (kind) => { const f = ML.folders.find((x) => x.kind === kind); return f ? (f.paths || [f.path])[0] : undefined; };
     const when = (d) => {
@@ -1316,6 +1336,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function openMail(uid, fp) {
         fp = fp || realPaths(ML.folder)[0];
         ML.open = { uid, fp };
+        readMode(true);
         renderList();
         const it = ML.list.find((x) => x.uid === uid && x.fp === fp);
         let m = MCACHE.get(ck(fp, uid));
@@ -1410,6 +1431,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ML.list = ML.list.filter((x) => !(x.uid === m.uid && x.fp === m.fp));
         ML.open = null;
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
+        if (document.body.classList.contains("ml-reading")) { if (history.state?.mlRead) history.back(); else readMode(false); }
         renderList(); loadFolders().catch(() => {});
     }
     // Підключити свою пошту: e-mail + пароль від неї (сервер для @grandarltd.com підставиться сам)
@@ -1483,6 +1505,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (!b) return;
         ML.book = false;
         ML.folder = b.dataset.folder; ML.page = 0; ML.open = null;
+        readMode(false);
         renderFolders();
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
         loadList().catch((er) => toast(er.message, true));
@@ -1607,6 +1630,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ML.book = true; ML.open = null;
         if (!BOOK.loaded) await BOOK.load().catch(() => {});
         if (pre) BOOK.sel = pre._new ? { ...pre } : pre;
+        readMode(!!pre);
         renderFolders(); renderBookList(); renderBookCard();
         if (pre) setTimeout(() => $("bkForm")?.querySelector(pre._new ? '[name="name"]' : '[name="note"]')?.focus(), 30);
     }
@@ -1631,9 +1655,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     function bookListClick(e) {
         const pg = e.target.closest("[data-bk-new]");
-        if (pg) { BOOK.sel = { email: "", _new: true }; renderBookList(); renderBookCard(); return setTimeout(() => $("bkForm")?.email.focus(), 30); }
+        if (pg) { BOOK.sel = { email: "", _new: true }; readMode(true); renderBookList(); renderBookCard(); return setTimeout(() => $("bkForm")?.email.focus(), 30); }
         const it = e.target.closest("[data-bk]");
-        if (it) { BOOK.sel = BOOK.list.find((c) => c.id === it.dataset.bk) || null; renderBookList(); renderBookCard(); }
+        if (it) { BOOK.sel = BOOK.list.find((c) => c.id === it.dataset.bk) || null; readMode(true); renderBookList(); renderBookCard(); }
     }
     async function bookCardClick(e) {
         const c = BOOK.sel;
