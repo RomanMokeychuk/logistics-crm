@@ -952,8 +952,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     sugBox.addEventListener("mousedown", (e) => { const b = e.target.closest("[data-sug]"); if (b) { e.preventDefault(); sugPick(Number(b.dataset.sug)); } });
     let inReplyTo = "";
+    // вікно листа — збоку внизу, як у Gmail: можна відкривати інші листи, згорнути «_» або розгорнути на весь екран
+    const head = box.querySelector(".sa-cmp-head");
+    const headTitle = head.querySelector("b");
+    head.querySelector("[data-cmp-close]").insertAdjacentHTML("beforebegin",
+        '<button type="button" class="sa-cmp-hb" data-cmp-min title="Згорнути / розгорнути"><i class="bx bx-minus"></i></button>' +
+        '<button type="button" class="sa-cmp-hb" data-cmp-big title="На весь екран / збоку"><i class="bx bx-expand-alt"></i></button>');
+    const setMode = (min, big) => {
+        box.classList.toggle("min", !!min); box.classList.toggle("big", !!big && !min);
+        head.querySelector("[data-cmp-min] i").className = "bx " + (min ? "bx-chevron-up" : "bx-minus");
+        head.querySelector("[data-cmp-big] i").className = "bx " + (box.classList.contains("big") ? "bx-collapse-alt" : "bx-expand-alt");
+        document.body.classList.toggle("sa-cmp-big", box.classList.contains("big"));
+        titleUpd();
+    };
+    const titleUpd = () => { headTitle.textContent = box.classList.contains("min") && form.subject.value.trim() ? form.subject.value.trim() : "Новий лист"; };
+    head.addEventListener("click", (e) => {
+        if (e.target.closest("[data-cmp-min]")) return setMode(!box.classList.contains("min"), false);
+        if (e.target.closest("[data-cmp-big]")) return setMode(false, !box.classList.contains("big"));
+        if (box.classList.contains("min") && !e.target.closest("button")) setMode(false, false); // клік по згорнутому — розгорнути
+    });
+    const hasText = () => !box.classList.contains("hidden") && (form.body.value.trim() || form.to.value.trim() || files.length);
     function open(pre = {}, addFiles = []) {
         if (pre instanceof Event) pre = {};
+        // уже пишете лист: «Написати» без нічого — просто показати його; відповідь/пересилання — спитати
+        if (hasText()) {
+            if (!Object.keys(pre).length && !addFiles.length) { setMode(false, box.classList.contains("big")); return form.body.focus(); }
+            if (!confirm("У вас відкритий недописаний лист. Закрити його і почати новий?")) { setMode(false, box.classList.contains("big")); return; }
+        }
         inReplyTo = pre.in_reply_to || "";
         let d = {};
         try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
@@ -964,11 +989,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("saCmpFrom").textContent = status?.mail_box || status?.from ? `від ${status.mail_box || status.from}` : "";
         sigFill();
         box.classList.remove("hidden");
+        setMode(false, false);
         document.body.classList.add("sa-cmp-open");
         setTimeout(() => (form.to.value ? form.body : form.to).focus(), 30);
         fillMails();
     }
-    const close = () => { box.classList.add("hidden"); document.body.classList.remove("sa-cmp-open"); };
+    const close = () => { box.classList.add("hidden"); box.classList.remove("min", "big"); document.body.classList.remove("sa-cmp-open", "sa-cmp-big"); };
     window.furaCompose = open;
     $("saComposeBtn").addEventListener("click", () => {
         if (status && !status.mail) return toast("Пошта компанії не підключена — див. налаштування вгорі.", true);

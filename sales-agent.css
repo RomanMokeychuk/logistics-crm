@@ -526,3 +526,32 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
 .sa-bk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .sa-bk-del { margin-left: auto; color: #b42318 !important; }
 @media (max-width: 760px) { .sa-bk-grid { grid-template-columns: 1fr; } }
+
+/* Новий лист — вікно збоку внизу (як у Gmail): сторінка під ним працює */
+.sa-cmp { inset: auto 24px 0 auto; width: min(600px, calc(100vw - 32px)); background: none; padding: 0; display: block; overflow: visible; }
+.sa-cmp-box { max-width: none; max-height: min(620px, calc(100vh - 80px)); overflow-y: auto; border-radius: 14px 14px 0 0; padding: 0 18px 14px; box-shadow: 0 -4px 40px rgba(0, 0, 0, .28); border: 1px solid #e5e7eb; }
+.sa-cmp-head { position: sticky; top: 0; z-index: 3; margin: 0 -18px 4px; padding: 10px 12px 10px 18px; background: #1f2937; color: #fff; border-radius: 14px 14px 0 0; font-size: 15px; gap: 8px; }
+.sa-cmp-head b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-cmp-head .sa-muted { color: #9ca3af !important; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sa-cmp-head .sa-cmp-x { margin-left: 0; color: #d1d5db; font-size: 24px; padding: 0 4px; }
+.sa-cmp-head .sa-cmp-x:hover, .sa-cmp-hb:hover { color: #fff; }
+.sa-cmp-hb { border: 0; background: none; color: #d1d5db; font-size: 18px; cursor: pointer; padding: 2px 4px; line-height: 1; }
+.sa-cmp-hb:first-of-type { margin-left: auto; }
+.sa-cmp-box textarea { min-height: 180px; }
+/* згорнуте — лише смужка із заголовком */
+.sa-cmp.min { width: 340px; }
+.sa-cmp.min .sa-cmp-box { padding-bottom: 0; overflow: hidden; }
+.sa-cmp.min .sa-cmp-box > :not(.sa-cmp-head) { display: none !important; }
+.sa-cmp.min .sa-cmp-head { margin-bottom: 0; cursor: pointer; }
+.sa-cmp.min .sa-cmp-head .sa-muted { display: none; }
+/* на весь екран — як раніше, із затемненням */
+.sa-cmp.big { inset: 0; width: auto; background: rgba(17, 24, 39, .45); display: flex; justify-content: center; align-items: flex-start; padding: 30px 16px; overflow-y: auto; }
+.sa-cmp.big .sa-cmp-box { width: 100%; max-width: 900px; max-height: none; border-radius: 14px; overflow: visible; }
+.sa-cmp.big .sa-cmp-head { position: static; }
+.sa-cmp.big .sa-cmp-box textarea { min-height: 340px; }
+@media (max-width: 700px) {
+    .sa-cmp, .sa-cmp.big { inset: 0; width: auto; }
+    .sa-cmp.min { inset: auto 0 0 0; width: auto; }
+    .sa-cmp-box { max-height: 100vh; border-radius: 0; min-height: 100%; }
+    .sa-cmp.min .sa-cmp-box { min-height: 0; }
+}
