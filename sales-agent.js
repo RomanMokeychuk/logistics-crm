@@ -1411,8 +1411,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             <h3 class="sa-mr-subj">${escapeHtml(m.subject)}</h3>
             <div class="sa-mr-meta">
                 ${avatar(m.from)}
-                <div class="sa-mr-who"><div><b>${escapeHtml(m.from)}</b></div>
-                <div>Кому: ${escapeHtml(m.to)}${m.cc ? ` · Копія: ${escapeHtml(m.cc)}` : ""}</div>
+                <div class="sa-mr-who"><div class="sa-mr-from">${people(m.from, true)}</div>
+                <div class="sa-mr-line"><span class="sa-mr-lbl">Кому:</span> ${people(m.to)}</div>
+                ${m.cc ? `<div class="sa-mr-line"><span class="sa-mr-lbl">Копія:</span> ${people(m.cc)}</div>` : ""}
                 <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
             </div>
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
@@ -1450,6 +1451,20 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (String(m.text || "").trim()) return String(m.text);
         try { const d = new DOMParser().parseFromString(String(m.html || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr|li|h\d)>/gi, "\n"), "text/html"); return d.body.textContent.replace(/\n{3,}/g, "\n\n"); } catch (_) { return ""; }
     };
+    // Адреси в листі: «Ім'я <e-mail>» — наведіть, щоб скопіювати повністю або лише e-mail
+    function people(list, bold) {
+        const out = [];
+        const rx = /\s*(?:"?([^"<>,]*?)"?\s*<([^<>\s]+@[^<>\s]+)>|([^\s,;<>]+@[^\s,;<>]+))\s*(?:,|;|$)/g;
+        let mm;
+        const src = String(list || "");
+        while ((mm = rx.exec(src))) {
+            if (!mm[0]) { rx.lastIndex++; continue; }
+            const email = mm[2] || mm[3] || "", name = (mm[1] || "").replace(/^'+|'+$/g, "").trim();
+            const full = name ? `${name} <${email}>` : email;
+            out.push(`<span class="sa-pp" data-full="${escapeHtml(full)}" data-email="${escapeHtml(email)}">${bold ? "<b>" : ""}${escapeHtml(name || email)}${bold ? "</b>" : ""}${name ? ` <span class="sa-pp-mail">&lt;${escapeHtml(email)}&gt;</span>` : ""}<span class="sa-pp-act"><button type="button" data-cp="full" title="Скопіювати повністю: ${escapeHtml(full)}"><i class="bx bx-copy"></i></button><button type="button" data-cp="email" title="Скопіювати лише e-mail">@</button></span></span>`);
+        }
+        return out.length ? out.join('<span class="sa-pp-sep">, </span>') : escapeHtml(src);
+    }
     const quote = (m) => `-------- Вихідне повідомлення --------\nВід: ${m.from}\nДата: ${m.date ? new Date(m.date).toLocaleString("uk-UA") : ""}\nКому: ${m.to || ""}${m.cc ? `\nКопія: ${m.cc}` : ""}\nТема: ${m.subject}\n\n${plain(m).trim().slice(0, 12000)}`;
     async function act(kind, btn) {
         const m = ML.open;
@@ -1563,6 +1578,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     $("mlRead").addEventListener("click", async (e) => {
         if (ML.book) return bookCardClick(e);
+        const cp = e.target.closest("[data-cp]");
+        if (cp) {
+            const pp = cp.closest(".sa-pp");
+            const t = cp.dataset.cp === "email" ? pp.dataset.email : pp.dataset.full;
+            try { await navigator.clipboard.writeText(t); } catch (_) {
+                const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove();
+            }
+            cp.classList.add("ok"); setTimeout(() => cp.classList.remove("ok"), 1200);
+            return toast("Скопійовано: " + t);
+        }
         const b = e.target.closest("[data-mr]");
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");

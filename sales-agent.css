@@ -686,3 +686,18 @@ body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, bo
 .sa-cmp-qtoggle:hover { border-color: #d9a944; color: #a8781f; }
 .sa-cmp-qrm { border: 0; background: none; font: inherit; font-size: 12px; color: #9ca3af; text-decoration: underline; cursor: pointer; }
 .sa-cmp-qtext { flex: 1 1 100%; margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; font: 12px/1.45 Arial, sans-serif; color: #555; background: #fafafa; border-left: 3px solid #e5e7eb; padding: 8px 10px; border-radius: 4px; }
+
+/* адреси в листі: наведіть — кнопки «скопіювати» */
+.sa-mr-from { font-size: 14px; }
+.sa-mr-line { line-height: 1.7; }
+.sa-mr-lbl { color: #6b7280; }
+.sa-pp { position: relative; display: inline; border-radius: 6px; padding: 1px 2px; cursor: default; }
+.sa-pp:hover { background: #fdf6e7; }
+.sa-pp-mail { color: #4b5563; }
+.sa-pp-act { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: middle; opacity: 0; transition: opacity .12s; }
+.sa-pp:hover .sa-pp-act, .sa-pp:focus-within .sa-pp-act { opacity: 1; }
+.sa-pp-act button { border: 1px solid #e5e7eb; background: #fff; border-radius: 6px; height: 22px; min-width: 22px; padding: 0 5px; font: inherit; font-size: 12px; font-weight: 700; color: #6b7280; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.sa-pp-act button i { font-size: 13px; }
+.sa-pp-act button:hover { border-color: #d9a944; color: #a8781f; }
+.sa-pp-act button.ok { background: #dcfce7; border-color: #86efac; color: #15803d; }
+@media (hover: none) { .sa-pp-act { opacity: 1; } }
