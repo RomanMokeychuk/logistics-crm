@@ -356,3 +356,31 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-qbar .nb-qcpbtn { max-width: 210px; }
 .nb-qbar .nb-qsel select { max-width: 145px; }
 .nb-qbar .nb-qsel input { width: 180px; }
+
+/* Перемикач «квадратики / рядки» */
+.nb-qview { display: inline-flex; border: 1px solid #e5e7eb; border-radius: 9px; overflow: hidden; background: #fff; flex: none; }
+.nb-qview button { width: 34px; height: 30px; border: 0; background: none; font-size: 15px; color: #6b7280; cursor: pointer; }
+.nb-qview button + button { border-left: 1px solid #e5e7eb; }
+.nb-qview button.on { background: #fdf3d8; color: #7a5410; }
+/* Рядками: один перевізник — один рядок */
+.nb-qlist.nb-qrows { grid-template-columns: 1fr; gap: 6px; }
+.nb-qrows .nb-qitem {
+    display: grid; grid-template-columns: minmax(200px, 1.1fr) minmax(170px, 1fr) minmax(190px, 1fr) minmax(260px, 1.6fr) auto;
+    grid-template-areas: "title bad phones trucks add" "meta bad phones trucks add";
+    column-gap: 14px; row-gap: 2px; align-items: start; padding: 8px 12px;
+}
+.nb-qrows .nb-qtitle { grid-area: title; }
+.nb-qrows .nb-qmeta { grid-area: meta; }
+.nb-qrows .nb-qbad { grid-area: bad; align-content: flex-start; }
+.nb-qrows .nb-qphones { grid-area: phones; padding: 4px 8px; }
+.nb-qrows .nb-qtrucks { grid-area: trucks; border-top: 0; padding-top: 0; gap: 2px; }
+.nb-qrows .nb-qtrucks .nb-qtr:nth-child(n+3) { display: none; }
+.nb-qrows .nb-qadd { grid-area: add; align-self: center; margin: 0; white-space: nowrap; }
+.nb-qrows .nb-qtr { font-size: 12px; line-height: 1.35; }
+@media (max-width: 1000px) {
+    .nb-qrows .nb-qitem { grid-template-columns: 1fr 1fr; grid-template-areas: "title add" "meta meta" "bad bad" "phones trucks"; }
+}
+.nb-qrows .nb-qmeta { white-space: nowrap; flex-wrap: nowrap; }
+.nb-qrows .nb-qmeta span { white-space: nowrap; }
+.nb-qrows .nb-qcount { margin-left: 4px; }
+.nb-qrows .nb-qitem { grid-template-columns: minmax(230px, 1.1fr) minmax(160px, 1fr) minmax(190px, 1fr) minmax(260px, 1.6fr) auto; }

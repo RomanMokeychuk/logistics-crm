@@ -629,6 +629,7 @@ const NB = (() => {
             ${cpsBlock()}
             <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "у черзі", "Стоять у черзі")}${tg("passed", "пройшли ≤3 дн", "Щойно пройшли кордон (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}<span class="nb-qsep"></span>${tg("fura", "у FURA", "Є у FURA")}${tg("deals", "були угоди", "Були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}»`, "Возили цей вантаж (митні дані)") : ""}${tg("fresh", "нові для мене", "Ще не в моїх запитах")}</div>
             <div class="nb-qopts nb-qsel">
+                <span class="nb-qview" title="Як показувати перевізників"><button type="button" data-qview="tiles" class="${qRows() ? "" : "on"}" title="Квадратиками">▦</button><button type="button" data-qview="rows" class="${qRows() ? "on" : ""}" title="Рядками">☰</button></span>
                 <input class="nb-qq" data-qin="q" placeholder="Пошук: перевізник, ЄДРПОУ, номер…" value="${esc(o.q || "")}" />
                 <select data-qin="region" title="Область перевізника"><option value="">Область: усі</option>${[...new Set([...(QS.fura?.values() || [])].map((c) => c.region_ukr).filter(Boolean))].sort().map((x) => `<option ${o.region === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
                 <select data-qin="minN" title="Скільки машин у перевізника"><option value="0">Машин: усі</option>${[2, 3, 5, 10].map((n) => `<option value="${n}" ${o.minN === n ? "selected" : ""}>від ${n} машин</option>`).join("")}</select>
@@ -636,7 +637,7 @@ const NB = (() => {
                 <select data-qin="sort" title="Порядок">${[["", "Рекомендовані"], ["many", "Більше машин"], ["soon", "Раніший в'їзд"], ["goods", "Возили цей вантаж"]].map(([v, l]) => `<option value="${v}" ${(o.sort || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
             </div>
             </div>
-            <div class="nb-qlist">${items.map((it) => {
+            <div class="nb-qlist${qRows() ? " nb-qrows" : ""}">${items.map((it) => {
                 const x = it.trucks[0];
                 const lines = it.trucks.slice(0, 3).map((t) => {
                     const tt = entryT(t.entry_at), passed = tt && now - tt > 3 * 3600 * 1000;
@@ -670,6 +671,8 @@ const NB = (() => {
             ${total > items.length ? `<button type="button" class="nb-more" data-qmore>Показати ще (${total - items.length})</button>` : ""}
         </div>`;
     }
+    // Вигляд списку «Машини з Черги»: квадратики або рядки (пам'ятаємо)
+    const qRows = () => { try { return localStorage.getItem("fura_nb_qview") === "rows"; } catch (_) { return false; } };
     let FURA_CODES = new Set();
     const cpBtn = (text, title) => (text ? `<button type="button" class="nb-cp" data-copy="${esc(String(text).trim())}" title="${esc(title || "Копіювати")}"><i class="bx bx-copy"></i></button>` : "");
     async function addFromQueue(r, code) {
@@ -1204,6 +1207,8 @@ const NB = (() => {
                 if (r) showCarrier(r, Number(ch.dataset.ci), ch);
                 return;
             }
+            const qv = e.target.closest("[data-qview]")?.dataset.qview;
+            if (qv) { try { localStorage.setItem("fura_nb_qview", qv); } catch (_) { /* */ } render(); return; }
             if (e.target.closest("[data-qcpbtn]")) { QS.cpOpen = !QS.cpOpen; render(); return; }
             const qa2 = e.target.closest("[data-qcpa]")?.dataset.qcpa;
             if (qa2) {
