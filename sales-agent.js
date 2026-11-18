@@ -860,6 +860,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!box || !form) return;
     let files = [];
     const DRAFT = "fura_compose_draft";
+    /* ---- підпис, як в Outlook (зберігається в цьому браузері) ---- */
+    const SIG_KEY = "fura_compose_sig";
+    const SIG_DEF = { greet: "Best regards,", name: "", title: "", company: "GRANDAR LLC", phone: "", email: "", on: true };
+    const sigGet = () => { try { return { ...SIG_DEF, ...JSON.parse(localStorage.getItem(SIG_KEY) || "{}") }; } catch (_) { return { ...SIG_DEF }; } };
+    const sigRead = () => {
+        const o = { on: $("saSigOn").checked };
+        document.querySelectorAll("#saSig [data-sig]").forEach((el) => (o[el.dataset.sig] = el.value.trim()));
+        return o;
+    };
+    function sigShow() {
+        const g = sigRead();
+        try { localStorage.setItem(SIG_KEY, JSON.stringify(g)); } catch (_) { /* без пам'яті */ }
+        $("saSigShort").textContent = g.on ? [g.name, g.title].filter(Boolean).join(" | ") || "заповніть ім'я" : "без підпису";
+        const line = (t) => (t ? `<p>${escapeHtml(t)}</p>` : "");
+        $("saSigPrev").innerHTML = g.on ? `${line(g.greet)}${line([g.name, g.title].filter(Boolean).join(" | "))}${line(g.company)}${line(g.phone)}${g.email ? `<p><u>${escapeHtml(g.email)}</u></p>` : ""}<img src="email-logo.png" alt="GRANDAR" width="96" />` : "";
+    }
+    function sigFill() {
+        const g = sigGet();
+        if (!g.email && status?.from) g.email = (String(status.from).match(/<([^>]+)>/) || [])[1] || "";
+        $("saSigOn").checked = g.on !== false;
+        document.querySelectorAll("#saSig [data-sig]").forEach((el) => (el.value = g[el.dataset.sig] || ""));
+        sigShow();
+        if (!g.name) $("saSig").open = true;
+    }
+    $("saSig").addEventListener("input", sigShow);
+    $("saSigOn").addEventListener("change", sigShow);
     const showFiles = () => {
         $("saCmpFileList").innerHTML = files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
     };
@@ -881,11 +907,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         files = [];
         showFiles();
         $("saCmpFrom").textContent = status?.from ? `від ${status.from}` : "";
+        sigFill();
         box.classList.remove("hidden");
+        document.body.classList.add("sa-cmp-open");
         setTimeout(() => (form.to.value ? form.body : form.to).focus(), 30);
         fillMails();
     }
-    const close = () => box.classList.add("hidden");
+    const close = () => { box.classList.add("hidden"); document.body.classList.remove("sa-cmp-open"); };
     window.furaCompose = open;
     $("saComposeBtn").addEventListener("click", () => {
         if (status && !status.mail) return toast("Пошта компанії не підключена — див. налаштування вгорі.", true);
@@ -917,7 +945,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         ["to", "cc", "bcc"].forEach((k) => form[k].dispatchEvent(new Event("blur")));
         withBusy(btn, async () => {
             const attachments = await Promise.all(files.map(async (f) => ({ name: f.name, type: f.type, data: await b64(f) })));
-            const r = await api({ action: "compose", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments });
+            const g = sigRead();
+            const r = await api({ action: "compose", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
             try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
             close();
             toast(`Лист надіслано: ${[...(r?.to || []), ...(r?.cc || [])].join(", ")}`);

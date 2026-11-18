@@ -1118,6 +1118,27 @@ async function actionSend(body: Any, me: Any) {
     return r.ok ? ok() : fail(502, r.error || "Не вдалося надіслати");
 }
 
+// Підпис як в Outlook: синім, ім'я | посада, компанія, телефон, e-mail, логотип GRANDAR
+const LOGO_URL = env("SALES_LOGO_URL", "https://romanmokeychuk.github.io/logistics-crm/email-logo.png");
+function signatureOf(sig: Any): { text: string; html: string } {
+    if (!sig || typeof sig !== "object") return { text: "", html: "" };
+    const f = (k: string) => clip(String(sig[k] || ""), 160).trim();
+    const name = f("name"), title = f("title"), company = f("company"), phone = f("phone"), email = f("email"), greet = f("greet");
+    if (!name && !company && !phone && !email) return { text: "", html: "" };
+    const text = ["", greet, [name, title].filter(Boolean).join(" | "), company, phone, email].filter((x, i) => i === 0 || x).join("\n");
+    const st = "font-family:Calibri,Arial,sans-serif;font-size:15px;color:#2F5496;margin:0 0 10px 0";
+    const p = (t: string) => (t ? `<p style="${st}">${t}</p>` : "");
+    const html = `<div style="margin-top:22px">` +
+        p(esc(greet)) +
+        p(esc([name, title].filter(Boolean).join(" | "))) +
+        p(esc(company)) +
+        p(esc(phone)) +
+        (email ? `<p style="${st}"><a href="mailto:${esc(email)}" style="color:#2F5496">${esc(email)}</a></p>` : "") +
+        (sig.logo === false ? "" : `<img src="${esc(LOGO_URL)}" alt="GRANDAR" width="116" style="display:block;margin-top:6px;border:0">`) +
+        `</div>`;
+    return { text, html };
+}
+
 // Довільний лист з FURA: кому завгодно, з копією / прихованою копією і вкладеннями — від імені пошти компанії
 async function actionCompose(body: Any, me: Any) {
     if (!USE_SMTP) return fail(400, "Пошта компанії не підключена (SMTP_HOST, SMTP_USER, SMTP_PASS у секретах).");
@@ -1135,7 +1156,8 @@ async function actionCompose(body: Any, me: Any) {
         .map((f: Any) => ({ filename: clip(f.name, 150), content: f.data, encoding: "base64", contentType: f.type || undefined }));
     const size = attachments.reduce((n: number, f: Any) => n + String(f.content).length * 0.75, 0);
     if (size > 15 * 1024 * 1024) return fail(400, "Вкладення завеликі (разом до 15 МБ)");
-    const r = await smtpSend({ to, cc, bcc, subject, text, html: htmlOf(text), attachments });
+    const sig = signatureOf(body.signature);
+    const r = await smtpSend({ to, cc, bcc, subject, text: text + sig.text, html: htmlOf(text) + sig.html, attachments });
     if (r.error) return fail(502, r.error);
     console.log("compose:", me?.email, "→", to.join(","), cc.length ? "cc " + cc.join(",") : "", subject);
     return ok({ to, cc, bcc });

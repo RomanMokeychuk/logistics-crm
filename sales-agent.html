@@ -18,14 +18,14 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611180723" />
+        <link rel="stylesheet" href="style.css?v=202611180732" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-        <link rel="stylesheet" href="theme.css?v=202611180723" />
-        <link rel="stylesheet" href="agents.css?v=202611180723" />
-        <link rel="stylesheet" href="sales-agent.css?v=202611180723" />
-        <link rel="stylesheet" href="design.css?v=202611180723" />
+        <link rel="stylesheet" href="theme.css?v=202611180732" />
+        <link rel="stylesheet" href="agents.css?v=202611180732" />
+        <link rel="stylesheet" href="sales-agent.css?v=202611180732" />
+        <link rel="stylesheet" href="design.css?v=202611180732" />
     </head>
     <body>
         <aside class="sidebar">
@@ -70,6 +70,18 @@
                     <label class="sa-cmp-row"><span>Прихована</span><input name="bcc" placeholder="прихована копія (необов'язково)" list="saCmpMails" /></label>
                     <label class="sa-cmp-row"><span>Тема</span><input name="subject" maxlength="200" placeholder="Тема листа" /></label>
                     <textarea name="body" rows="12" placeholder="Текст листа…"></textarea>
+                    <details class="sa-sig" id="saSig">
+                        <summary><label><input type="checkbox" id="saSigOn" checked /> Підпис</label> <span class="sa-muted" id="saSigShort"></span> <span class="sa-sig-edit">змінити</span></summary>
+                        <div class="sa-sig-grid">
+                            <input data-sig="greet" placeholder="Best regards," />
+                            <input data-sig="name" placeholder="Roman Mokeychuk" />
+                            <input data-sig="title" placeholder="Logistics specialist" />
+                            <input data-sig="company" placeholder="GRANDAR LLC" />
+                            <input data-sig="phone" placeholder="+38 0__ ___ __ __ (Mobile/Telegram/WhatsApp/Viber)" />
+                            <input data-sig="email" placeholder="mrs@grandarltd.com" />
+                        </div>
+                        <div class="sa-sig-prev" id="saSigPrev"></div>
+                    </details>
                     <div class="sa-cmp-files">
                         <label class="btn btn-secondary"><i class="bx bx-paperclip"></i> Додати файл<input type="file" id="saCmpFile" multiple hidden /></label>
                         <span id="saCmpFileList" class="sa-muted"></span>
@@ -216,9 +228,9 @@
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-        <script src="sales-agent.js?v=202611180723"></script>
-        <script src="shell.js?v=202611180723"></script>
-        <script src="notify.js?v=202611180723"></script>
-        <script src="lock.js?v=202611180723"></script>
+        <script src="sales-agent.js?v=202611180732"></script>
+        <script src="shell.js?v=202611180732"></script>
+        <script src="notify.js?v=202611180732"></script>
+        <script src="lock.js?v=202611180732"></script>
     </body>
 </html>

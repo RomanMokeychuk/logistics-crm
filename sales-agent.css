@@ -367,3 +367,16 @@ body:not(.sa-mail-on) .sa-outlook { background: var(--gd-gold, #d9a944); color: 
 .sa-cmp-foot { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .sa-cmp-foot .sa-muted { flex: 1; font-size: 12px; }
 @media (max-width: 700px) { .sa-cmp { padding: 0; } .sa-cmp-box { border-radius: 0; min-height: 100%; } .sa-cmp-row { grid-template-columns: 1fr; } }
+
+/* підпис у новому листі */
+.sa-sig { border: 1px solid #eef0f3; border-radius: 10px; padding: 8px 12px; background: #fafbfc; }
+.sa-sig summary { cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; list-style: none; }
+.sa-sig summary::-webkit-details-marker { display: none; }
+.sa-sig summary label { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: #374151; }
+.sa-sig-edit { margin-left: auto; color: #a8781f; font-weight: 600; }
+.sa-sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+.sa-sig-grid input { padding: 7px 10px !important; font-size: 13px !important; }
+.sa-sig-prev { font-family: Calibri, Arial, sans-serif; color: #2F5496; font-size: 14px; }
+.sa-sig-prev p { margin: 0 0 6px; }
+.sa-sig-prev img { display: block; margin-top: 4px; }
+body.sa-cmp-open .fk, body.sa-cmp-open [class^="fk-"], body.sa-cmp-open .fh-fab, body.sa-cmp-open [class*="furik"] { display: none !important; }
