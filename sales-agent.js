@@ -152,7 +152,17 @@ async function loadStatus() {
         item(s.sources.apollo, "Apollo"),
         item(s.sources.rocketreach, "RocketReach"),
         `<span class="sa-st">${s.auto_followup ? "Нагадування: автоматично" : "Нагадування: через схвалення"}</span>`,
+        `<button type="button" class="btn btn-secondary sa-testmail" id="saTestMail"><i class="bx bx-envelope"></i> Перевірити пошту</button>`,
     ].join("");
+    $("saTestMail").onclick = async (ev) => {
+        const to = prompt("Надіслати тестовий лист на адресу:", localStorage.getItem("fura_sales_test_to") || "mokeychukroma@gmail.com");
+        if (!to) return;
+        try { localStorage.setItem("fura_sales_test_to", to); } catch (_) { /* без пам'яті */ }
+        withBusy(ev.currentTarget, async () => {
+            await api({ action: "send_test", to, subject: "Перевірка пошти FURA", body: "Добрий день!\n\nЦе тестовий лист з FURA. Якщо ви його бачите — відправка працює.\n\nЗ повагою,\nГрандар" });
+            toast(`Тестовий лист надіслано на ${to}. Перевірте пошту (і папку «Спам»).`);
+        });
+    };
     $("limitHint").textContent = `Сьогодні надіслано перших листів: ${s.sent_today} з ${s.daily_limit}`;
     $("paidMin").textContent = s.paid_min_score;
 }
@@ -462,8 +472,9 @@ function draftHtml(m) {
             <button type="button" class="btn btn-secondary" data-act="not_sent">Ще ні</button>
         </div>
         <div class="ag-item-actions">
-            <button type="button" class="btn btn-primary" data-act="outlook" title="Відкриє готовий лист у вашій пошті — перечитайте і натисніть «Надіслати» там"><i class="bx bx-envelope-open"></i> Відкрити в Outlook</button>
-            ${status?.mail && !status?.cold_via_outlook_only ? `<button type="button" class="btn btn-secondary" data-act="send" title="Відправити через сервіс розсилки (лише для своїх клієнтів, які погодились отримувати листи)"><i class="bx bx-send"></i> Через сервіс</button>` : ""}
+            ${status?.mail ? `<button type="button" class="btn btn-primary" data-act="send" title="Лист піде клієнту одразу"><i class="bx bx-send"></i> Надіслати</button>
+            <button type="button" class="btn btn-secondary" data-act="test" title="Цей самий лист — на вашу адресу, клієнту нічого не піде"><i class="bx bx-test-tube"></i> Тест собі</button>` : ""}
+            <button type="button" class="btn ${status?.mail ? "btn-secondary" : "btn-primary"}" data-act="outlook" title="Відкриє готовий лист у вашій пошті — перечитайте і натисніть «Надіслати» там"><i class="bx bx-envelope-open"></i> Відкрити в Outlook</button>
             <button type="button" class="btn btn-secondary" data-act="save"><i class="bx bx-save"></i> Зберегти</button>
             <button type="button" class="btn btn-secondary" data-act="reject"><i class="bx bx-x"></i> Не надсилати</button>
         </div>
@@ -486,6 +497,16 @@ $("approveList").addEventListener("click", (e) => {
         openInOutlook(item.querySelector(".sa-to b").textContent.trim(), subject, body);
         api({ action: "save", id, subject, body }).catch(() => {});
         item.querySelector(".sa-sent-ask").classList.remove("hidden");
+        return;
+    }
+    if (btn.dataset.act === "test") {
+        const to = prompt("На яку адресу надіслати тест?", localStorage.getItem("fura_sales_test_to") || "mokeychukroma@gmail.com");
+        if (!to) return;
+        try { localStorage.setItem("fura_sales_test_to", to); } catch (_) { /* без пам'яті */ }
+        withBusy(btn, async () => {
+            await api({ action: "send_test", to, subject, body });
+            toast(`Тестовий лист надіслано на ${to}. Перевірте пошту (і папку «Спам»).`);
+        });
         return;
     }
     if (btn.dataset.act === "not_sent") {

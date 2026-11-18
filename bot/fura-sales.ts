@@ -1051,6 +1051,14 @@ async function actionSend(body: Any, me: Any) {
     return r.ok ? ok() : fail(502, r.error || "Не вдалося надіслати");
 }
 
+// Тестовий лист собі: та сама тема і текст, але на вашу адресу. Нічого не позначає й ліда не створює.
+async function actionSendTest(body: Any, me: Any) {
+    const to = normEmail(body.to || me?.email || "");
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(to)) return fail(400, "Вкажіть e-mail для тесту");
+    const r = await sendEmail(to, `[ТЕСТ] ${clip(body.subject || "Тестовий лист FURA", 140)}`, clip(body.body || "Це тестовий лист з FURA — пошта працює.", 8000));
+    return r.error ? fail(502, r.error) : ok({ to, id: r.id || null });
+}
+
 // Sales відкрив лист у своєму Outlook і надіслав — позначаємо надісланим
 async function actionMarkSent(body: Any, me: Any) {
     const { data: m } = await db.from("sales_messages").select("*").eq("id", body.id).maybeSingle();
@@ -1223,6 +1231,7 @@ Deno.serve(async (req) => {
             case "save": out = await actionSave(body); break;
             case "send": out = await actionSend(body, me); break;
             case "mark_sent": out = await actionMarkSent(body, me); break;
+            case "send_test": out = await actionSendTest(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             case "set_stage": out = await actionSetStage(body); break;
             case "add_contact": out = await actionAddContact(body); break;
