@@ -658,12 +658,15 @@ async function directions(body: Any) {
 /*  Повертає список змін; записує лише після підтвердження (apply).     */
 /* ================================================================== */
 const LARDI_COUNTRY_UA: Record<string, string> = {
-    PL: "ПОЛЬЩА", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", EE: "ЕСТОНІЯ", CZ: "ЧЕХІЯ", SK: "СЛОВАЧЧИНА", HU: "УГОРЩИНА",
+    PL: "ПОЛЬША", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", EE: "ЕСТОНІЯ", CZ: "ЧЕХІЯ", SK: "СЛОВАЧЧИНА", HU: "УГОРЩИНА",
     RO: "РУМУНІЯ", MD: "МОЛДОВА", BG: "БОЛГАРІЯ", TR: "ТУРЕЧЧИНА", AT: "АВСТРІЯ", IT: "ІТАЛІЯ", FR: "ФРАНЦІЯ", NL: "НІДЕРЛАНДИ",
     BE: "БЕЛЬГІЯ", ES: "ІСПАНІЯ", PT: "ПОРТУГАЛІЯ", DK: "ДАНІЯ", SE: "ШВЕЦІЯ", FI: "ФІНЛЯНДІЯ", NO: "НОРВЕГІЯ", CH: "ШВЕЙЦАРІЯ",
-    GB: "ВЕЛИКА БРИТАНІЯ", GR: "ГРЕЦІЯ", SI: "СЛОВЕНІЯ", HR: "ХОРВАТІЯ", RS: "СЕРБІЯ", GE: "ГРУЗІЯ", AM: "ВІРМЕНІЯ", AZ: "АЗЕРБАЙДЖАН",
-    KZ: "КАЗАХСТАН", UZ: "УЗБЕКИСТАН", LU: "ЛЮКСЕМБУРГ", IE: "ІРЛАНДІЯ", MK: "ПІВНІЧНА МАКЕДОНІЯ", AL: "АЛБАНІЯ", BA: "БОСНІЯ І ГЕРЦЕГОВИНА",
+    GB: "ВЕЛИКОБРИТАНІЯ", GR: "ГРЕЦІЯ", SI: "СЛОВЕНІЯ", HR: "ХОРВАТІЯ", RS: "СЕРБІЯ", GE: "ГРУЗІЯ", AM: "ВІРМЕНІЯ", AZ: "АЗЕРБАЙДЖАН",
+    KZ: "КАЗАХСТАН", UZ: "УЗБЕКИСТАН", LU: "ЛЮКСЕМБУРГ", IE: "ІРЛАНДІЯ", MK: "МАКЕДОНІЯ", AL: "АЛБАНІЯ", BA: "БОСНІЯ",
 };
+// Назви країн — як у FURA (список у формі перевізника): «ПОЛЬША», «ВЕЛИКОБРИТАНІЯ»…
+const COUNTRY_ALIAS: Record<string, string> = { "ПОЛЬЩА": "ПОЛЬША", "ВЕЛИКА БРИТАНІЯ": "ВЕЛИКОБРИТАНІЯ", "БОСНІЯ І ГЕРЦЕГОВИНА": "БОСНІЯ", "ПІВНІЧНА МАКЕДОНІЯ": "МАКЕДОНІЯ" };
+const normCountry = (v: string) => { const c = String(v || "").trim().toUpperCase().replace(/\s+/g, " "); return COUNTRY_ALIAS[c] || c; };
 const digitsOnly = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 const codeKey = (v: unknown) => digitsOnly(v).replace(/^0+/, "");
 
@@ -872,9 +875,9 @@ async function carrierEnrich(body: Any, row: Any = null) {
         const map = new Map<string, string[]>();
         for (const e of cur) {
             const i = e.indexOf("-");
-            const cn = (i >= 0 ? e.slice(0, i) : e).trim().toUpperCase();
+            const cn = normCountry(i >= 0 ? e.slice(0, i) : e);
             const rg = i >= 0 ? e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : [];
-            map.set(cn, [...(map.get(cn) || []), ...rg]);
+            map.set(cn, [...(map.get(cn) || []), ...rg.filter((r) => !(map.get(cn) || []).some((x) => x.toLowerCase() === r.toLowerCase()))]);
         }
         const added: string[] = [];
         for (const cn of countries) {

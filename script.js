@@ -512,7 +512,7 @@ function mergeDestinations(str) {
     const map = new Map();
     String(str || "").split(";").map((x) => x.trim()).filter(Boolean).forEach((pair) => {
         const i = pair.indexOf("-");
-        const country = (i !== -1 ? pair.substring(0, i) : pair).trim().toUpperCase();
+        const country = normCountryName(i !== -1 ? pair.substring(0, i) : pair); // «ПОЛЬЩА» і «ПОЛЬША» — одна країна
         const regs = i !== -1 ? pair.substring(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : [];
         const cur = map.get(country) || [];
         regs.forEach((r) => { if (!cur.some((x) => x.toLowerCase() === r.toLowerCase())) cur.push(r); });
@@ -892,7 +892,7 @@ const OBLAST_CODES = {
 };
 function normCountryName(v) {
     const c = String(v || "").trim().toUpperCase().replace(/\s+/g, " ");
-    return c === "ПОЛЬЩА" ? "ПОЛЬША" : c;
+    return { "ПОЛЬЩА": "ПОЛЬША", "ВЕЛИКА БРИТАНІЯ": "ВЕЛИКОБРИТАНІЯ", "БОСНІЯ І ГЕРЦЕГОВИНА": "БОСНІЯ", "ПІВНІЧНА МАКЕДОНІЯ": "МАКЕДОНІЯ" }[c] || c;
 }
 function normOblast(v) {
     let o = String(v || "").trim().toUpperCase().replace(/\s+/g, " ").replace(/^\uFFFD/, "Х");
