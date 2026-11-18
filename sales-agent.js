@@ -1051,6 +1051,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const res = await Promise.all(paths.map((fp) => api({ action: "mail_list", folder: fp, page: ML.page, q: ML.q, limit: 50 }).then((r) => (r.list || []).map((m) => ({ ...m, fp })))));
         ML.list = res.flat().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 50 * paths.length);
         renderList();
+        prefetch();
     }
     function renderList() {
         const isSent = kindOf(ML.folder) === "\\Sent";
@@ -1068,14 +1069,43 @@ document.addEventListener("DOMContentLoaded", async () => {
         }).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : "У цій папці листів немає"}</span></div>`) +
             `<div class="sa-mi-pages">${ML.page ? '<button type="button" class="btn btn-secondary" data-pg="-1">← Новіші</button>' : ""}${ML.list.length >= 50 ? '<button type="button" class="btn btn-secondary" data-pg="1">Старіші →</button>' : ""}</div>`;
     }
+    // Кеш відкритих листів + попереднє завантаження верхніх листів списку — відкриваються миттєво
+    const MCACHE = new Map();
+    const ck = (fp, uid) => `${fp}|${uid}`;
+    let prefetching = false;
+    async function prefetch() {
+        if (prefetching) return;
+        prefetching = true;
+        try {
+            const byFp = new Map();
+            ML.list.slice(0, 12).forEach((m) => { if (!MCACHE.has(ck(m.fp, m.uid))) (byFp.get(m.fp) || byFp.set(m.fp, []).get(m.fp)).push(m.uid); });
+            // маленькими порціями — щоб лист, на який ви клікнули, не чекав у черзі
+            for (const [fp, uids] of byFp) {
+                for (let i = 0; i < uids.length; i += 3) {
+                    const part = uids.slice(i, i + 3).filter((u) => !MCACHE.has(ck(fp, u)));
+                    if (!part.length) continue;
+                    const r = await api({ action: "mail_read", folder: fp, uids: part, peek: true });
+                    (r.list || []).forEach((x) => MCACHE.set(ck(fp, x.uid), x));
+                }
+            }
+        } catch (_) { /* не критично */ } finally { prefetching = false; }
+    }
     async function openMail(uid, fp) {
         fp = fp || realPaths(ML.folder)[0];
         ML.open = { uid, fp };
         renderList();
-        $("mlRead").innerHTML = '<p class="ag-empty">Відкриваю лист…</p>';
-        const m = await api({ action: "mail_read", folder: fp, uid });
-        ML.open = { ...m, fp };
         const it = ML.list.find((x) => x.uid === uid && x.fp === fp);
+        let m = MCACHE.get(ck(fp, uid));
+        if (!m) {
+            // одразу показуємо, що вже знаємо зі списку, текст — коли підвантажиться
+            $("mlRead").innerHTML = it ? `<h3 class="sa-mr-subj">${escapeHtml(it.subject)}</h3><div class="sa-mr-meta">${avatar(it.from || it.from_email)}<div class="sa-mr-who"><b>${escapeHtml(it.from || it.from_email)}</b><div class="sa-muted">${it.date ? escapeHtml(new Date(it.date).toLocaleString("uk-UA")) : ""}</div></div></div><p class="ag-empty sa-mr-loading">Завантажую текст листа…</p>` : '<p class="ag-empty">Відкриваю лист…</p>';
+            m = await api({ action: "mail_read", folder: fp, uid });
+            MCACHE.set(ck(fp, uid), m);
+            if (ML.open?.uid !== uid || ML.open?.fp !== fp) return; // уже відкрили інший
+        } else if (it && !it.seen) {
+            api({ action: "mail_move", folder: fp, uid, flag: "seen" }).catch(() => {});
+        }
+        ML.open = { ...m, fp };
         if (it && !it.seen) { it.seen = true; renderList(); loadFolders().catch(() => {}); }
         const junk = kindOf(ML.folder) === "\\Junk";
         $("mlRead").innerHTML = `
@@ -1208,7 +1238,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         const a = e.target.closest("[data-att]");
         if (a) {
             await withBusy(a, async () => {
-                const r = await api({ action: "mail_read", folder: ML.open.fp, uid: ML.open.uid, attachment: Number(a.dataset.att), peek: true });
+                const att = (ML.open.attachments || [])[Number(a.dataset.att)] || {};
+                const r = await api({ action: "mail_read", folder: ML.open.fp, uid: ML.open.uid, part: att.part, name: att.name, peek: true });
                 const f = r.file;
                 const bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
                 const url = URL.createObjectURL(new Blob([bin], { type: f.type || "application/octet-stream" }));

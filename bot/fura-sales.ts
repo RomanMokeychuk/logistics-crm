@@ -38,7 +38,6 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import nodemailer from "npm:nodemailer@6.9.16";
 import MailComposer from "npm:nodemailer@6.9.16/lib/mail-composer/index.js";
 import { ImapFlow } from "npm:imapflow@1.0.164";
-import { simpleParser } from "npm:mailparser@3.7.1";
 
 // deno-lint-ignore no-explicit-any
 type Any = any;
@@ -1190,10 +1189,64 @@ function signatureOf(sig: Any): { text: string; html: string } {
 /* ================================================================== */
 /* Пошта: читати скриньку (Вхідні, Спам, Надіслані…) прямо у FURA     */
 /* ================================================================== */
-async function withImap<T>(box: Box, fn: (imap: Any) => Promise<T>): Promise<T> {
+// З'єднання з поштою тримаємо відкритим між запитами (поки функція «тепла») — без нового входу щоразу
+const imapPool = new Map<string, { imap: Any; at: number }>();
+async function imapFor(box: Box, fresh = false): Promise<Any> {
+    const key = `${box.user}|${box.imap_host}`;
+    const hit = imapPool.get(key);
+    if (hit && !fresh && hit.imap.usable && Date.now() - hit.at < 4 * 60 * 1000) { hit.at = Date.now(); return hit.imap; }
+    if (hit) { try { hit.imap.close(); } catch (_) { /* вже закрито */ } imapPool.delete(key); }
     const imap = new ImapFlow({ host: box.imap_host, port: box.imap_port, secure: true, auth: { user: box.user, pass: box.pass }, logger: false });
+    imap.on("error", () => imapPool.delete(key));
+    imap.on("close", () => imapPool.delete(key));
     await imap.connect();
-    try { return await fn(imap); } finally { try { await imap.logout(); } catch (_) { /* вже закрито */ } }
+    imapPool.set(key, { imap, at: Date.now() });
+    return imap;
+}
+async function withImap<T>(box: Box, fn: (imap: Any) => Promise<T>): Promise<T> {
+    try {
+        return await fn(await imapFor(box));
+    } catch (e) {
+        // з'єднання «заснуло» — один раз пробуємо з новим
+        if (/closed|not connected|socket|ECONN|timeout|usable/i.test(String((e as Any)?.message || e))) return await fn(await imapFor(box, true));
+        throw e;
+    }
+}
+const streamBuf = async (st: Any): Promise<Uint8Array> => {
+    const chunks: Uint8Array[] = [];
+    for await (const c of st) chunks.push(typeof c === "string" ? new TextEncoder().encode(c) : new Uint8Array(c));
+    const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+    let o = 0; for (const c of chunks) { out.set(c, o); o += c.length; }
+    return out;
+};
+// Частини листа за структурою: текст, html і вкладення — без завантаження самих файлів
+function walkParts(node: Any, out: { text?: string; html?: string; atts: Any[] }, inAlt = false) {
+    if (!node) return;
+    if (node.childNodes?.length) { for (const c of node.childNodes) walkParts(c, out, inAlt || /alternative/i.test(node.type || "")); return; }
+    const type = String(node.type || "").toLowerCase();
+    const name = node.dispositionParameters?.filename || node.parameters?.name || "";
+    const isAtt = /attachment/i.test(node.disposition || "") || (!!name && !/^text\/(plain|html)$/.test(type));
+    if (isAtt) { out.atts.push({ part: node.part || "1", name: name || "файл", type, size: node.size || 0, inline: /inline/i.test(node.disposition || ""), cid: node.id || "" }); return; }
+    if (type === "text/plain" && !out.text) out.text = node.part || "1";
+    else if (type === "text/html" && !out.html) out.html = node.part || "1";
+}
+async function readMessage(imap: Any, uid: number, peek: boolean) {
+    const m = await imap.fetchOne(String(uid), { envelope: true, bodyStructure: true, flags: true }, { uid: true });
+    if (!m) return null;
+    const parts = { atts: [] as Any[] } as { text?: string; html?: string; atts: Any[] };
+    walkParts(m.bodyStructure, parts);
+    const dl = async (part: string) => new TextDecoder().decode(await streamBuf((await imap.download(String(uid), part, { uid: true })).content));
+    const html = parts.html ? await dl(parts.html) : "";
+    const text = parts.text ? await dl(parts.text) : "";
+    if (!peek && !m.flags?.has?.("\\Seen")) await imap.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(() => {});
+    const e = m.envelope || {};
+    const addr = (list: Any[]) => (list || []).map((v: Any) => (v.name ? `${v.name} <${v.address}>` : v.address)).join(", ");
+    return {
+        uid, subject: e.subject || "(без теми)", from: addr(e.from), from_email: e.from?.[0]?.address || "", to: addr(e.to), cc: addr(e.cc),
+        date: e.date || null, text: clip(text, 60000), html: clip(html, 400000),
+        attachments: parts.atts.filter((a) => !(a.inline && a.cid && html.includes("cid:"))).map((a, i) => ({ i, part: a.part, name: a.name, type: a.type, size: a.size })),
+        message_id: e.messageId || "",
+    };
 }
 const FOLDER_ORDER: Record<string, number> = { "\\Inbox": 0, "\\Junk": 1, "\\Sent": 2, "\\Drafts": 3, "\\Archive": 4, "\\Trash": 5 };
 function folderKind(b: Any): string {
@@ -1260,26 +1313,24 @@ async function actionMailList(body: Any, me: Any) {
 async function actionMailRead(body: Any, me: Any) {
     const box = await boxOf(me);
     if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї.");
-    const folder = clip(body.folder || "INBOX", 200), uid = Number(body.uid);
-    if (!uid) return fail(400, "Немає листа");
+    const folder = clip(body.folder || "INBOX", 200);
+    // кілька листів одразу (попереднє завантаження списку) — без позначки «прочитано»
+    const uids: number[] = (Array.isArray(body.uids) ? body.uids : [body.uid]).map(Number).filter(Boolean).slice(0, 15);
+    if (!uids.length) return fail(400, "Немає листа");
     const res = await withImap(box, async (imap) => {
         const lock = await imap.getMailboxLock(folder);
         try {
-            const m = await imap.fetchOne(String(uid), { source: true, flags: true }, { uid: true });
-            if (!m?.source) return null;
-            if (!body.peek) await imap.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(() => {});
-            const mail = await simpleParser(m.source);
-            const atts = (mail.attachments || []).map((a: Any, i: number) => ({ i, name: a.filename || `файл-${i + 1}`, type: a.contentType, size: a.size }));
-            if (body.attachment != null) {
-                const a = (mail.attachments || [])[Number(body.attachment)];
-                return a ? { file: { name: a.filename || "file", type: a.contentType, data: btoa(Array.from(new Uint8Array(a.content), (c) => String.fromCharCode(c)).join("")) } } : null;
+            if (body.part) {
+                // завантажити одне вкладення
+                const { content, meta } = await imap.download(String(uids[0]), String(body.part), { uid: true });
+                const buf = await streamBuf(content);
+                return { file: { name: clip(body.name || meta?.filename || "file", 150), type: meta?.contentType || "application/octet-stream", data: b64e(buf) } };
             }
-            const addr = (x: Any) => (x?.value || []).map((v: Any) => (v.name ? `${v.name} <${v.address}>` : v.address)).join(", ");
-            return {
-                uid, subject: mail.subject || "(без теми)", from: addr(mail.from), from_email: mail.from?.value?.[0]?.address || "", to: addr(mail.to), cc: addr(mail.cc),
-                date: mail.date || null, text: clip(mail.text || "", 60000), html: mail.html ? clip(String(mail.html), 400000) : "", attachments: atts,
-                message_id: mail.messageId || "",
-            };
+            const list: Any[] = [];
+            for (const uid of uids) {
+                try { const r = await readMessage(imap, uid, !!body.peek || uids.length > 1); if (r) list.push(r); } catch (e) { console.warn("mail_read", uid, String(e).slice(0, 120)); }
+            }
+            return Array.isArray(body.uids) ? { list } : list[0] || null;
         } finally { lock.release(); }
     });
     return res ? ok(res) : fail(404, "Лист не знайдено");
@@ -1293,6 +1344,7 @@ async function actionMailMove(body: Any, me: Any) {
         const lock = await imap.getMailboxLock(folder);
         try {
             if (body.flag === "unseen") await imap.messageFlagsRemove(uid, ["\\Seen"], { uid: true });
+            else if (body.flag === "seen") await imap.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
             else await imap.messageMove(uid, to, { uid: true });
         } finally { lock.release(); }
     });

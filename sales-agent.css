@@ -496,3 +496,4 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
 .sa-mf-more { margin-top: 6px; border: 0; background: none; text-align: left; padding: 8px 12px; font: inherit; font-size: 13px; color: #9ca3af; cursor: pointer; }
 .sa-mf-more:hover { color: #a8781f; }
 @media (hover: none) { .sa-mf-eye { display: inline-flex; } }
+.sa-mr-loading { margin-top: 30px; }
