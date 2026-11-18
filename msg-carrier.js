@@ -112,6 +112,7 @@
             <button type="button" class="fmsg-go fmsg-go-tg" data-fx="tg">Telegram</button>
             <button type="button" class="fmsg-go fmsg-go-vb" data-fx="viber">Viber</button>
             <button type="button" class="fmsg-go fmsg-go-cp" data-fx="copy">Скопіювати</button>
+            <button type="button" class="fmsg-link" data-fx="vbfwd" title="Viber відкриє «Поділитися» з усім текстом — оберіть у списку цього перевізника">Viber: весь текст через «Поділитися»</button>
             <button type="button" class="fmsg-link" data-fx="tpl">Шаблон…</button>
         </div>
         <div class="fmsg-tpl" hidden>
@@ -237,6 +238,15 @@
         const k = b.dataset.fx;
         if (k === "close") { box.hidden = true; return; }
         if (k === "tg" || k === "viber") return go(k);
+        if (k === "vbfwd") {
+            // спроба: «Поділитися» у Viber приймає довгий текст; контакт обираєте у вікні Viber
+            const text = ta().value.trim();
+            await copy(text);
+            const a = document.createElement("a"); a.href = `viber://forward?text=${encodeURIComponent(text)}`; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
+            const note = box.querySelector(".fmsg-note"); note.classList.add("fmsg-hint");
+            note.innerHTML = `👉 У Viber відкрилось «Поділитися»: знайдіть перевізника (номер <b>+${esc(CTX.phone)}</b> або ім'я) і натисніть «Надіслати». Якщо Viber не вставив весь текст — він у буфері, Cmd+V.`;
+            return;
+        }
         if (k === "bot") {
             b.disabled = true; b.textContent = "⏳ Надсилаю…";
             try {
