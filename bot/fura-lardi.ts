@@ -818,7 +818,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
             if (zn) set.add(`${String(zn).replace(/\D/g, "").padStart(2, "0")} кв.`);
             places.set(name, set);
         }
-        for (const [cc, rg] of [[t.from_country, t.from_region], [t.to_country, t.to_region]]) if (cc === "UA" && rg) uaRegions.add(String(rg).replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase().slice(0, 3));
+        for (const [cc, rg] of [[t.from_country, t.from_region], [t.to_country, t.to_region]]) if (cc === "UA" && rg && /обл/i.test(String(rg))) uaRegions.add(String(rg).replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase() + " ОБЛ.");
         String(t.adr || "").split(/,\s*/).map((x: string) => x.trim()).filter(Boolean).forEach((x: string) => permits.add(x));
         mass = Math.max(mass, Number(t.mass_t) || 0);
         vol = Math.max(vol, Number(t.volume_m3) || 0);
@@ -887,7 +887,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
         if (added.length) changes.push({ field: "destinations", label: "Напрямки закордон", old: cur.join(";"),
             new: [...map].map(([cn, rg]) => (rg.length ? `${cn} - ${rg.join(", ")}` : cn)).join(";"), added });
     }
-    mergeList("ukraine_directions", "Напрямки в Україні", uaRegions);
+    mergeList("ukraine_directions", "Напрямки в Україні", uaRegions, (x) => x.trim().toUpperCase());
     // телефони, яких ще немає в картці
     const haveP = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x: Any) => x?.phone) : [])]
         .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digitsOnly(v).slice(-9)).filter((v) => v.length === 9));

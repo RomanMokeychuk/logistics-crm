@@ -167,8 +167,32 @@
             if (cur) fleet.push(cur.join(" · "));
         }
         out.fleet = fleet;
+        // «Відгуки»: «09.09.2026  UA - RO  Хмельницький - Сучава» — маршрути, якими реально возив
+        const routes = new Map();
+        const RX = /\b([A-Z]{2}(?:\s*,\s*[A-Z]{2})*)\s*-\s*([A-Z]{2}(?:\s*,\s*[A-Z]{2})*)\s*[\t\n ]+([^\n\t]+?)\s+-\s+([^\n\t]+)/g;
+        let m;
+        while ((m = RX.exec(T))) {
+            const fromCc = m[1].split(",")[0].trim(), toCc = m[2].split(",").pop().trim();
+            const from = m[3].trim(), to = m[4].trim().replace(/\s{2,}.*$/, "");
+            if (from.length > 40 || to.length > 40 || /\d{2}\.\d{2}/.test(from + to)) continue;
+            const k = `${from}|${to}|${fromCc}|${toCc}`;
+            routes.set(k, (routes.get(k) || 0) + 1);
+        }
+        out.routes = [...routes].map(([k, n]) => { const [from, to, fc, tc] = k.split("|"); return { from, to, fc, tc, n }; }).sort((a, b) => b.n - a.n);
         return out;
     }
+
+    const COUNTRY_UA = { PL: "ПОЛЬЩА", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", EE: "ЕСТОНІЯ", CZ: "ЧЕХІЯ", SK: "СЛОВАЧЧИНА", HU: "УГОРЩИНА", RO: "РУМУНІЯ", MD: "МОЛДОВА", BG: "БОЛГАРІЯ", TR: "ТУРЕЧЧИНА", AT: "АВСТРІЯ", IT: "ІТАЛІЯ", FR: "ФРАНЦІЯ", NL: "НІДЕРЛАНДИ", BE: "БЕЛЬГІЯ", ES: "ІСПАНІЯ", PT: "ПОРТУГАЛІЯ", DK: "ДАНІЯ", SE: "ШВЕЦІЯ", FI: "ФІНЛЯНДІЯ", NO: "НОРВЕГІЯ", CH: "ШВЕЙЦАРІЯ", GB: "ВЕЛИКА БРИТАНІЯ", GR: "ГРЕЦІЯ", SI: "СЛОВЕНІЯ", HR: "ХОРВАТІЯ", RS: "СЕРБІЯ", GE: "ГРУЗІЯ", AM: "ВІРМЕНІЯ", AZ: "АЗЕРБАЙДЖАН", KZ: "КАЗАХСТАН", UZ: "УЗБЕКИСТАН", LU: "ЛЮКСЕМБУРГ", IE: "ІРЛАНДІЯ", MK: "ПІВНІЧНА МАКЕДОНІЯ", AL: "АЛБАНІЯ", BA: "БОСНІЯ І ГЕРЦЕГОВИНА", BY: "БІЛОРУСЬ" };
+    const OBL = {
+        "ВІННИЦЬКА": "вінниця", "ВОЛИНСЬКА": "луцьк ковель володимир нововолинськ", "ДНІПРОПЕТРОВСЬКА": "дніпро кривий ріг кам'янське нікополь павлоград", "ДОНЕЦЬКА": "донецьк краматорськ слов'янськ маріуполь",
+        "ЖИТОМИРСЬКА": "житомир бердичів коростень", "ЗАКАРПАТСЬКА": "ужгород мукачево чоп берегове", "ЗАПОРІЗЬКА": "запоріжжя мелітополь", "ІВАНО-ФРАНКІВСЬКА": "івано-франківськ калуш коломия",
+        "КИЇВСЬКА": "київ біла церква бровари бориспіль ірпінь фастів", "КІРОВОГРАДСЬКА": "кропивницький олександрія", "ЛУГАНСЬКА": "луганськ сєвєродонецьк", "ЛЬВІВСЬКА": "львів дрогобич стрий червоноград шептицький самбір",
+        "МИКОЛАЇВСЬКА": "миколаїв первомайськ", "ОДЕСЬКА": "одеса ізмаїл чорноморськ південне", "ПОЛТАВСЬКА": "полтава кременчук горішні плавні", "РІВНЕНСЬКА": "рівне дубно", "СУМСЬКА": "суми конотоп шостка",
+        "ТЕРНОПІЛЬСЬКА": "тернопіль", "ХАРКІВСЬКА": "харків", "ХЕРСОНСЬКА": "херсон", "ХМЕЛЬНИЦЬКА": "хмельницький кам'янець-подільський", "ЧЕРКАСЬКА": "черкаси умань", "ЧЕРНІВЕЦЬКА": "чернівці", "ЧЕРНІГІВСЬКА": "чернігів ніжин",
+    };
+    const UA_OBL = {};
+    // багатослівні назви («біла церква», «горішні плавні») — окремо
+    Object.entries(OBL).forEach(([ob, cities]) => cities.replace(/(біла церква|кривий ріг|горішні плавні|кам'янець-подільський)/g, (x) => x.replace(/ /g, "_")).split(" ").forEach((cName) => (UA_OBL[cName.replace(/_/g, " ")] = ob + " ОБЛ.")));
 
     function carrierById(id) {
         try { return allCarriersCache.find((c) => String(c.id) === String(id)) || null; } catch (e) { return null; } // eslint-disable-line no-undef
@@ -205,6 +229,33 @@
             const next = [cur, `Автопарк Lardi (${d.fleet.length}):`, ...d.fleet].filter(Boolean).join("\n");
             if (next !== String(c.fleet_params || "").trim()) ch.push({ field: "fleet_params", label: "Автопарк", old: "", new: d.fleet.join("\n"), value: next });
         }
+        // маршрути з відгуків → напрямки (закордон: країна + місто; Україна: область)
+        if (d.routes.length) {
+            const cur = String(c.destinations || "").split(";").map((x) => x.trim()).filter(Boolean);
+            const map = new Map();
+            cur.forEach((e) => { const i = e.indexOf("-"); const cn = (i >= 0 ? e.slice(0, i) : e).trim().toUpperCase(); const rg = i >= 0 ? e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : []; map.set(cn, [...(map.get(cn) || []), ...rg]); });
+            const before = JSON.stringify([...map]);
+            const ua = new Set(String(c.ukraine_directions || "").split(";").map((x) => x.trim().toUpperCase()).filter(Boolean));
+            const uaAdd = [];
+            for (const r of d.routes) {
+                for (const [cc, city] of [[r.fc, r.from], [r.tc, r.to]]) {
+                    if (cc === "UA") {
+                        const ob = UA_OBL[city.toLowerCase()];
+                        if (ob && !ua.has(ob)) { ua.add(ob); uaAdd.push(ob); }
+                        continue;
+                    }
+                    const cn = COUNTRY_UA[cc];
+                    if (!cn) continue;
+                    const list = map.get(cn) || [];
+                    if (!list.some((x) => x.toLowerCase() === city.toLowerCase())) list.push(city);
+                    map.set(cn, list);
+                }
+            }
+            if (JSON.stringify([...map]) !== before) ch.push({ field: "destinations", label: "Напрямки закордон (з відгуків)", old: cur.join("; "), new: [...map].map(([cn, rg]) => (rg.length ? `${cn} - ${rg.join(", ")}` : cn)).join(";") });
+            if (uaAdd.length) ch.push({ field: "ukraine_directions", label: "Напрямки в Україні (з відгуків)", old: [...ua].filter((x) => !uaAdd.includes(x)).join("; "), new: [...ua].join(";") });
+            const top = d.routes.slice(0, 12).map((r) => `${r.from} → ${r.to} (${r.fc}→${r.tc})${r.n > 1 ? " ×" + r.n : ""}`).join("; ");
+            if (!/Маршрути з відгуків Lardi/.test(c.notes || "")) ch.push({ field: "notes_routes", label: "Маршрути з відгуків", old: "", new: top, value: `Маршрути з відгуків Lardi: ${top}` });
+        }
         const info = [d.regType, d.activity, d.regDate ? `у Lardi з ${d.regDate}` : ""].filter(Boolean).join(" · ");
         if (info && !/Lardi:/.test(c.notes || "")) ch.push({ field: "notes", label: "Нотатки", old: "", new: `Lardi: ${info}`, value: [c.notes, `Lardi: ${info}`].filter(Boolean).join("\n") });
         return ch;
@@ -213,7 +264,7 @@
     function pasteOpen(id) {
         const c = carrierById(id);
         if (!c) return;
-        modal(`<div class="le-sub">1. Відкрийте профіль у Lardi (вкладки «Загальна інформація», «Контакти», «Мій автопарк»).<br>2. На кожній вкладці: <b>Cmd+A</b>, <b>Cmd+C</b> — і вставте сюди <b>Cmd+V</b> (можна всі три одна під одною).<br>3. Фото: правою кнопкою на логотипі → «Копіювати адресу зображення» — і теж вставте сюди.</div>
+        modal(`<div class="le-sub">1. Відкрийте профіль у Lardi (вкладки «Загальна інформація», «Контакти», «Мій автопарк», «Відгуки»).<br>2. На кожній вкладці: <b>Cmd+A</b>, <b>Cmd+C</b> — і вставте сюди <b>Cmd+V</b> (можна кілька вкладок одна під одною).<br>3. Фото: правою кнопкою на логотипі → «Копіювати адресу зображення» — і теж вставте сюди.</div>
             <textarea class="le-paste" rows="9" placeholder="Вставте сюди текст сторінки профілю Lardi…"></textarea>
             <div class="le-acts"><button type="button" class="le-go" data-le="parse">Розібрати</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>
             <div class="le-res"></div>`, "Вставити з Lardi");
@@ -243,6 +294,8 @@
                     if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
                     if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
                     if (list.length) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+                } else if (x.field === "notes" || x.field === "notes_routes") {
+                    upd.notes = [upd.notes ?? c.notes, x.field === "notes" ? x.new : x.value].filter(Boolean).join("\n");
                 } else upd[x.field] = x.value ?? x.new;
             }
             if (!Object.keys(upd).length) return (box.hidden = true);
