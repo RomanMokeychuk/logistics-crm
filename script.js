@@ -648,6 +648,7 @@ function openCarrierCard(id) {
                 ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
                 ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "", "volume")}
                 ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "", "tonnage")}
+                ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(item.fleet_params)}</div>`) : ""}
                 ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
             </div>
 

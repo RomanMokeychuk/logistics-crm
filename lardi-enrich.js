@@ -90,7 +90,7 @@
     .le-list{display:flex;flex-direction:column;border:1px solid #f1ead9;border-radius:12px;overflow:hidden}
     .le-row{display:grid;grid-template-columns:auto 150px 1fr;gap:10px;align-items:start;padding:9px 12px;cursor:pointer}
     .le-row+.le-row{border-top:1px solid #f5efe1}.le-row input{accent-color:#c9973a;margin-top:2px}
-    .le-lbl{color:#6b7280;font-size:13px}.le-val{word-break:break-word}.le-val s{color:#9ca3af}
+    .le-lbl{color:#6b7280;font-size:13px}.le-val{word-break:break-word;white-space:pre-line}.le-val s{color:#9ca3af}
     .le-acts{display:flex;align-items:center;gap:12px}
     .le-go{border:0;border-radius:10px;height:40px;padding:0 18px;font:600 14px inherit;font-family:inherit;color:#2b1d06;background:linear-gradient(180deg,#f2d27f,#d9a944);cursor:pointer}
     .le-link{border:0;background:none;color:#a8781f;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}

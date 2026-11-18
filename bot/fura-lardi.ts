@@ -715,6 +715,7 @@ async function carrierEnrich(body: Any) {
     const pairs = parts.flatMap((p) => walk(p));
 
     const isUrl = (v: string) => /^https?:\/\/|^\/\//.test(v) && /\.(png|jpe?g|webp|gif)|avatar|logo|photo|image|img/i.test(v);
+    const bodiesFromFleet = new Set<string>();
     const found = {
         name: pick(pairs, /^(name|nameWithBrand|fullName|companyName)$/),
         edrpou: pick(pairs, /edrpou|okpo/i, (v) => digitsOnly(v).length >= 8),
@@ -749,16 +750,58 @@ async function carrierEnrich(body: Any) {
         }
     }
 
+    // «Мій автопарк» у Lardi: беремо, якщо ключ дає цей метод
+    const fleet: string[] = [];
+    let fleetMass = 0, fleetVol = 0;
+    for (const path of [`/users/${ref}/autopark`, `/users/${ref}/transport`, `/users/${ref}/trucks`, `/users/autopark/${ref}`, `/autopark/${ref}`]) {
+        const j = await lardiGet(path);
+        tried[path] = !!j;
+        if (!j) { await sleep(300); continue; }
+        const list: Any[] = Array.isArray(j) ? j : (j.content || j.items || j.autopark || j.transports || j.trucks || j.result || []);
+        for (const a of Array.isArray(list) ? list : []) {
+            const pr = walk(a);
+            const val = (rx: RegExp) => pick(pr, rx);
+            const line = [
+                [val(/^(type|transType|kind)(\.name)?$/i), val(/brand|mark|model/i)].filter(Boolean).join(" "),
+                val(/body(Type)?(\.name)?$/i),
+                val(/own(ership)?(Type)?(\.name)?$/i),
+                val(/^(mass|tonnage|capacity|weight)$/i) ? val(/^(mass|tonnage|capacity|weight)$/i) + " т" : "",
+                val(/^volume$/i) ? val(/^volume$/i) + " м³" : "",
+                pr.filter(([k, , p]) => /load(Type)?s?/i.test(p) && /name/i.test(k)).map(([, v]) => v).join(", "),
+                pr.filter(([k, , p]) => /permit|adr|document/i.test(p) && /name/i.test(k)).map(([, v]) => v).join(", "),
+                val(/number|plate|regNum/i),
+            ].filter(Boolean).join(" · ");
+            if (line) fleet.push(line);
+            fleetMass = Math.max(fleetMass, Number(val(/^(mass|tonnage|capacity)$/i)) || 0);
+            fleetVol = Math.max(fleetVol, Number(val(/^volume$/i)) || 0);
+            const b = val(/body(Type)?(\.name)?$/i);
+            if (b) bodiesFromFleet.add(b.toUpperCase().replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ"));
+        }
+        if (fleet.length) break;
+    }
+
     // транспорт: заявки «авто» цього перевізника за 60 днів
     const since = new Date(Date.now() - 60 * 86400000).toISOString();
-    const { data: trucks } = await db.from("lardi_trucks").select("from_country, to_country, from_region, to_region, mass_t, volume_m3, body_types, seen_last")
+    const { data: trucks } = await db.from("lardi_trucks").select("from_country, to_country, from_region, to_region, from_town, to_town, from_zone, to_zone, mass_t, volume_m3, body_types, seen_last")
         .eq("owner_ref", Number(ref)).gte("seen_last", since).limit(500);
     const tl = trucks || [];
     const bodies = new Set<string>(), countries = new Set<string>(), uaRegions = new Set<string>();
+    const places = new Map<string, Set<string>>(); // країна → воєводства / міста / квадрати
     let mass = 0, vol = 0;
     for (const t of tl) {
         String(t.body_types || "").split(/[;,]\s*/).map((b: string) => b.trim().toUpperCase()).filter(Boolean).forEach((b: string) => bodies.add(b.replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ")));
-        for (const cc of [t.from_country, t.to_country]) if (cc && cc !== "UA" && LARDI_COUNTRY_UA[cc]) countries.add(LARDI_COUNTRY_UA[cc]);
+        for (const [cc, rg, tw, zn] of [[t.from_country, t.from_region, t.from_town, t.from_zone], [t.to_country, t.to_region, t.to_town, t.to_zone]]) {
+            if (!cc || cc === "UA" || !LARDI_COUNTRY_UA[cc]) continue;
+            const name = LARDI_COUNTRY_UA[cc];
+            countries.add(name);
+            const set = places.get(name) || new Set<string>();
+            // воєводство / земля / регіон; квадрат (зона), якщо Lardi його дав; інакше — місто
+            const reg = String(rg || "").replace(/\s*(воєв(одство)?|обл(асть)?)\.?$/i, "").trim();
+            if (reg && reg !== tw) set.add(reg);
+            else if (tw) set.add(String(tw).trim());
+            if (zn) set.add(`${String(zn).replace(/\D/g, "").padStart(2, "0")} кв.`);
+            places.set(name, set);
+        }
         for (const [cc, rg] of [[t.from_country, t.from_region], [t.to_country, t.to_region]]) if (cc === "UA" && rg) uaRegions.add(String(rg).replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase().slice(0, 3));
         mass = Math.max(mass, Number(t.mass_t) || 0);
         vol = Math.max(vol, Number(t.volume_m3) || 0);
@@ -769,7 +812,7 @@ async function carrierEnrich(body: Any) {
     const add = (field: string, label: string, val: string) => {
         const old = String(c[field] ?? "").trim();
         if (!val || !(field in c) || old === val) return;
-        if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts"].includes(field)) return;
+        if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts", "fleet_params"].includes(field)) return;
         changes.push({ field, label, old, new: val });
     };
     const profile = `https://lardi-trans.com/log/user/${ref}/`;
@@ -779,8 +822,14 @@ async function carrierEnrich(body: Any) {
     add("region_ukr", "Область", found.region ? found.region.toUpperCase().replace(/\s*ОБЛАСТЬ$/, " ОБЛ.") : "");
     add("city", "Місто / Адреса", [found.city, found.address].filter(Boolean).join(", "));
     if (!c.edrpou && found.edrpou) add("edrpou", "ЄДРПОУ", digitsOnly(found.edrpou));
-    if (mass) add("tonnage", "Тоннаж, т", String(mass));
-    if (vol) add("volume", "Об'єм, м³", String(vol));
+    bodiesFromFleet.forEach((b) => bodies.add(b));
+    if (mass || fleetMass) add("tonnage", "Тоннаж, т", String(Math.max(mass, fleetMass)));
+    if (vol || fleetVol) add("volume", "Об'єм, м³", String(Math.max(vol, fleetVol)));
+    if (fleet.length) {
+        const old = String(c.fleet_params || "").trim();
+        const next = [`Автопарк Lardi (${fleet.length}):`, ...fleet].join("\n");
+        if ("fleet_params" in c && old !== next) changes.push({ field: "fleet_params", label: "Автопарк", old, new: next });
+    }
     const mergeList = (field: string, label: string, items: Set<string>, keyOf = (x: string) => x.split("-")[0].trim().toUpperCase()) => {
         const cur = String(c[field] || "").split(";").map((x: string) => x.trim()).filter(Boolean);
         const have = new Set(cur.map(keyOf));
@@ -788,7 +837,27 @@ async function carrierEnrich(body: Any) {
         if (extra.length) changes.push({ field, label, old: cur.join(";"), new: [...cur, ...extra].join(";"), added: extra });
     };
     mergeList("trailer_type", "Тип причепу", bodies);
-    mergeList("destinations", "Напрямки закордон", countries);
+    // Закордон: «КРАЇНА - регіон, регіон; …» — доповнюємо і країни, і регіони в них
+    {
+        const cur = String(c.destinations || "").split(";").map((x: string) => x.trim()).filter(Boolean);
+        const map = new Map<string, string[]>();
+        for (const e of cur) {
+            const i = e.indexOf("-");
+            const cn = (i >= 0 ? e.slice(0, i) : e).trim().toUpperCase();
+            const rg = i >= 0 ? e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : [];
+            map.set(cn, [...(map.get(cn) || []), ...rg]);
+        }
+        const added: string[] = [];
+        for (const cn of countries) {
+            const have = map.get(cn);
+            const low = new Set((have || []).map((x) => x.toLowerCase()));
+            const fresh = [...(places.get(cn) || [])].filter((x) => !low.has(x.toLowerCase()));
+            if (!have) { map.set(cn, fresh); added.push(fresh.length ? `${cn} (${fresh.join(", ")})` : cn); }
+            else if (fresh.length) { map.set(cn, [...have, ...fresh]); added.push(`${cn}: ${fresh.join(", ")}`); }
+        }
+        if (added.length) changes.push({ field: "destinations", label: "Напрямки закордон", old: cur.join(";"),
+            new: [...map].map(([cn, rg]) => (rg.length ? `${cn} - ${rg.join(", ")}` : cn)).join(";"), added });
+    }
     mergeList("ukraine_directions", "Напрямки в Україні", uaRegions);
     // телефони, яких ще немає в картці
     const haveP = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x: Any) => x?.phone) : [])]
