@@ -36,6 +36,22 @@
         "Доброго дня, Компанія Грандар{, логіст [Я]}\n" +
         "\n" +
         "Чи є у вас зараз вільні авто? Підкажіть, будь ласка, де вони і куди шукаєте завантаження.";
+    // Telegram-бот FURA: спільне посилання для перевізників і розсилка через бота
+    const sbc = () => (typeof sbClient !== "undefined" ? sbClient : null);
+    async function agent(body) {
+        const { data, error } = await sbc().functions.invoke("fura-agent", { body });
+        if (error) { let m = ""; try { m = (await error.context?.json())?.error || ""; } catch (_) { /* */ } throw new Error(m || "Сервер не відповів"); }
+        return data;
+    }
+    let JOIN = null;
+    async function joinLink() {
+        if (JOIN) return JOIN;
+        try { JOIN = localStorage.getItem("fura_bot_join") || ""; } catch (_) { JOIN = ""; }
+        if (!JOIN) { try { JOIN = (await agent({ action: "join_link" }))?.link || ""; localStorage.setItem("fura_bot_join", JOIN); } catch (_) { JOIN = ""; } }
+        return JOIN;
+    }
+    window.furaJoinLink = joinLink;
+    const JOIN_LINE = (l) => `\n\nЩоб отримувати наші запити одразу в Telegram — натисніть: ${l}`;
     let REQS = null; // мої запити з Блокнота
     async function loadReqs() {
         if (REQS) return REQS;
@@ -89,7 +105,9 @@
         <label class="fmsg-pick" hidden><span>Вантаж:</span><select class="fmsg-req"><option value="">— без вантажу (спитати про вільні авто) —</option></select></label>
         <textarea class="fmsg-text" rows="9"></textarea>
         <div class="fmsg-note">Ціну клієнта і назву клієнта перевізнику не пишемо. Текст можна правити.</div>
+        <label class="fmsg-join fmsg-sjoin"><input type="checkbox" class="fmsg-joinon1" checked> Додати посилання на бота FURA (щоб наступні запити приходили йому автоматично)</label>
         <div class="fmsg-acts">
+            <button type="button" class="fmsg-go fmsg-go-bot fmsg-sbot" data-fx="bot" hidden>🤖 Надіслати ботом</button>
             <button type="button" class="fmsg-go fmsg-go-tg" data-fx="tg">Telegram</button>
             <button type="button" class="fmsg-go fmsg-go-vb" data-fx="viber">Viber</button>
             <button type="button" class="fmsg-go fmsg-go-cp" data-fx="copy">Скопіювати</button>
@@ -123,6 +141,11 @@
 .fmsg-tpl{display:flex;flex-direction:column;gap:8px;border-top:1px dashed #e5e7eb;padding-top:10px}.fmsg-tpl[hidden]{display:none}
 .fmsg-pick{display:flex;align-items:center;gap:8px;font-size:13px;color:#6b7280}.fmsg-pick[hidden]{display:none}
 .fmsg-req{flex:1;min-width:0;border:1px solid #e5e7eb;border-radius:9px;padding:8px 10px;font:inherit;font-size:14px;color:#111827;background:#fff}
+.fmsg-go-bot{background:#0f8fd0}.fmsg-go[hidden],.fmsg-join[hidden]{display:none}.fmsg-go-bot:disabled{opacity:.6;cursor:default}
+.fmsg-botrow{gap:10px}.fmsg-botrow[hidden]{display:none}
+.fmsg-botb{font-style:normal;font-size:11px;color:#1d7fb0;background:#e6f4fb;border-radius:6px;padding:1px 6px}
+.fmsg-err{font-style:normal;font-size:11px;color:#b42318}
+.fmsg-join{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:#4b5563;cursor:pointer}.fmsg-join input{margin-top:2px;accent-color:#c9971f}
 .fmsg-app{display:flex;gap:16px;font-size:14px}.fmsg-app label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .fmsg-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto;border:1px solid #f0ece2;border-radius:10px;padding:6px}
 .fmsg-it{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:8px;cursor:pointer}.fmsg-it:hover{background:#fdf9f0}
@@ -157,6 +180,11 @@
             };
         }
         box.querySelector(".fmsg-tpl").hidden = true;
+        // уже в боті — надсилаємо ботом, посилання не потрібне
+        const sb = box.querySelector(".fmsg-sbot"), sj = box.querySelector(".fmsg-sjoin");
+        sb.hidden = true; sj.hidden = false;
+        if (ctx.carrier_id && sbc()) sbc().from("carriers").select("tg_chat_id").eq("id", ctx.carrier_id).maybeSingle().then(({ data }) => { if (data?.tg_chat_id) { sb.hidden = false; sj.hidden = true; } }, () => {});
+        joinLink();
         box.hidden = false;
         box.querySelectorAll(".fmsg-go-tg, .fmsg-go-vb").forEach((b) => b.classList.toggle("main", b.dataset.fx === app));
         setTimeout(() => ta().focus(), 30);
@@ -169,7 +197,7 @@
     }
     const say = (m) => (typeof window.furaToast === "function" ? window.furaToast({ icon: "📋", title: m, text: "" }) : (typeof window.toast === "function" ? window.toast(m) : null));
     async function go(app) {
-        const text = ta().value.trim();
+        const text = ta().value.trim() + (box.querySelector(".fmsg-joinon1").checked && !box.querySelector(".fmsg-sjoin").hidden && JOIN ? JOIN_LINE(JOIN) : "");
         await copy(text);
         const ph = CTX.phone;
         const url = app === "tg" ? `https://t.me/+${ph}?text=${encodeURIComponent(text)}` : vbUrl(ph, text);
@@ -184,6 +212,16 @@
         const k = b.dataset.fx;
         if (k === "close") { box.hidden = true; return; }
         if (k === "tg" || k === "viber") return go(k);
+        if (k === "bot") {
+            b.disabled = true; b.textContent = "⏳ Надсилаю…";
+            try {
+                const r = await agent({ action: "direct_send", request_id: CTX.request_id || undefined, my_request_id: CTX.my_request_id || undefined, items: [{ carrier_id: CTX.carrier_id, text: ta().value.trim() }] });
+                if (r?.sent) { b.textContent = "✓ Надіслано ботом"; say("Надіслано ботом. Відповідь прийде вам у Telegram."); return; }
+                b.textContent = "Не вдалося: " + (r?.results?.[0]?.error || "помилка");
+            } catch (er) { b.textContent = "Не вдалося: " + er.message; }
+            setTimeout(() => { b.disabled = false; b.textContent = "🤖 Надіслати ботом"; }, 3000);
+            return;
+        }
         if (k === "copy") { await copy(ta().value.trim()); b.textContent = "✓ Скопійовано"; setTimeout(() => (b.textContent = "Скопіювати"), 1200); return; }
         if (k === "tpl") { const p = box.querySelector(".fmsg-tpl"); p.hidden = !p.hidden; box.querySelector(".fmsg-tpl-text").value = tpl(); return; }
         if (k === "tplsave") { try { localStorage.setItem(TPL_KEY, box.querySelector(".fmsg-tpl-text").value); } catch (_) { /* */ } ta().value = build(CTX); box.querySelector(".fmsg-tpl").hidden = true; return; }
@@ -214,6 +252,8 @@
         <textarea class="fmsg-text fmsg-btext" rows="7"></textarea>
         <div class="fmsg-note">Ім'я кожного підставиться саме ([ІМʼЯ]). Ціну й назву клієнта не пишемо.</div>
         <div class="fmsg-list"></div>
+        <div class="fmsg-acts fmsg-botrow" hidden><button type="button" class="fmsg-go fmsg-go-bot" data-bx="bot"></button><span class="fmsg-note">надсилає бот FURA одразу всім, хто підключений, — без вашої участі</span></div>
+        <label class="fmsg-join"><input type="checkbox" class="fmsg-joinon" checked> Тим, хто не в боті, додати посилання на бота (щоб наступного разу все йшло автоматично)</label>
         <div class="fmsg-acts"><button type="button" class="fmsg-go fmsg-go-vb fmsg-next" data-bx="next"></button><button type="button" class="fmsg-link" data-bx="all">обрати всіх / нікого</button></div>
         <div class="fmsg-note fmsg-how">Натисніть кнопку — відкриється чат першого перевізника. Текст скопійовано: клацніть у поле, Cmd+V, «Надіслати» (короткий текст до 100 символів Viber вставить сам). Поверніться сюди — наступний.</div>
     </div>`;
@@ -221,20 +261,43 @@
     const bmount = () => { if (!bx.isConnected) document.body.appendChild(bx); };
     const app = () => bx.querySelector('[name="fmsgApp"]:checked')?.value || "viber";
     const personal = (it) => build({ ...B.ctx, ...it }, bx.querySelector(".fmsg-btext").value.trim());
+    const withJoin = (t) => (bx.querySelector(".fmsg-joinon").checked && JOIN ? t + JOIN_LINE(JOIN) : t);
     function brender() {
-        const left = B.list.filter((x) => x.on && !x.done);
+        const left = B.list.filter((x) => x.on && !x.done && !(x.bot && B.useBot));
+        const bots = B.list.filter((x) => x.on && !x.done && x.bot);
+        const br = bx.querySelector(".fmsg-botrow");
+        br.hidden = !B.list.some((x) => x.bot);
+        const bb = bx.querySelector(".fmsg-go-bot");
+        bb.disabled = !bots.length || B.sending;
+        bb.textContent = B.sending ? "⏳ Надсилаю…" : bots.length ? `🤖 Надіслати ботом зараз (${bots.length})` : "🤖 Усім у боті надіслано";
         bx.querySelector(".fmsg-who").textContent = `обрано ${B.list.filter((x) => x.on).length} · надіслано ${B.list.filter((x) => x.done).length}`;
         bx.querySelector(".fmsg-list").innerHTML = B.list.map((x, i) => `<label class="fmsg-it ${x.done ? "done" : ""}">
             <input type="checkbox" data-bi="${i}" ${x.on ? "checked" : ""} ${x.done ? "disabled" : ""}>
-            <span class="fmsg-itn"><b>${esc(x.carrier || "—")}</b>${x.person ? ` · ${esc(x.person)}` : ""}<small>+${esc(x.phone)}</small></span>
-            ${x.done ? '<span class="fmsg-ok">✓ відкрито</span>' : `<button type="button" class="fmsg-one" data-bone="${i}" title="Відкрити саме цей чат">відкрити</button>`}</label>`).join("") || '<div class="fmsg-note">Немає перевізників з номером телефону.</div>';
+            <span class="fmsg-itn"><b>${esc(x.carrier || "—")}</b>${x.person ? ` · ${esc(x.person)}` : ""}<small>+${esc(x.phone)}</small>${x.bot ? '<em class="fmsg-botb">🤖 у боті</em>' : ""}${x.err ? `<em class="fmsg-err">${esc(x.err)}</em>` : ""}</span>
+            ${x.done ? `<span class="fmsg-ok">✓ ${x.viaBot ? "надіслано ботом" : "відкрито"}</span>` : x.bot && B.useBot ? '<span class="fmsg-ok" style="color:#2aa3df">чекає бота</span>' : `<button type="button" class="fmsg-one" data-bone="${i}" title="Відкрити саме цей чат">відкрити</button>`}</label>`).join("") || '<div class="fmsg-note">Немає перевізників з номером телефону.</div>';
         const nb = bx.querySelector(".fmsg-next");
         nb.className = `fmsg-go ${app() === "tg" ? "fmsg-go-tg" : "fmsg-go-vb"} fmsg-next`;
         nb.disabled = !left.length;
         nb.textContent = left.length ? `▶ Відкрити ${app() === "tg" ? "Telegram" : "Viber"}: ${left[0].carrier || "+" + left[0].phone} (залишилось ${left.length})` : "✓ Усім обраним відкрито";
     }
+    async function sendBots() {
+        const bots = B.list.filter((x) => x.on && !x.done && x.bot);
+        if (!bots.length) return;
+        B.sending = true; brender();
+        try {
+            const r = await agent({ action: "direct_send", request_id: B.ctx.request_id || undefined, my_request_id: B.ctx.my_request_id || undefined,
+                items: bots.map((x) => ({ carrier_id: x.carrier_id, text: personal(x) })) });
+            for (const res of r?.results || []) {
+                const x = bots.find((y) => String(y.carrier_id) === String(res.carrier_id));
+                if (!x) continue;
+                if (res.ok) { x.done = true; x.viaBot = true; } else { x.bot = false; x.err = res.error; } // не вийшло — лишаємо в ручній черзі
+            }
+            say(`Бот надіслав: ${r?.sent || 0}. Відповіді прийдуть вам у Telegram.`);
+        } catch (e) { say("Бот не надіслав: " + e.message); }
+        B.sending = false; brender();
+    }
     async function openOne(x) {
-        const text = personal(x);
+        const text = x.bot ? personal(x) : withJoin(personal(x));
         await copy(text);
         const url = app() === "tg" ? `https://t.me/+${x.phone}?text=${encodeURIComponent(text)}` : vbUrl(x.phone, text);
         const a = document.createElement("a"); a.href = url; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove();
@@ -251,13 +314,24 @@
         const k = b.dataset.bx;
         if (k === "close") { bx.hidden = true; return; }
         if (k === "all") { const on = !B.list.every((x) => x.on || x.done); B.list.forEach((x) => { if (!x.done) x.on = on; }); return brender(); }
-        if (k === "next") { const x = B.list.find((y) => y.on && !y.done); if (x) openOne(x); }
+        if (k === "bot") return sendBots();
+        if (k === "next") { const x = B.list.find((y) => y.on && !y.done && !(y.bot && B.useBot)); if (x) openOne(x); }
     });
     // list = [{ carrier, person, phone }], ctx = { route, cargo, truck, date }
     window.furaMsgBatch = (list, ctx = {}) => {
         bmount();
         const seen = new Set();
-        B = { ctx, list: list.map((x) => ({ ...x, phone: digits(x.phone), on: true, done: false })).filter((x) => x.phone.length >= 10 && !seen.has(x.phone) && seen.add(x.phone)) };
+        B = { ctx, useBot: true, list: list.map((x) => ({ ...x, phone: digits(x.phone), on: true, done: false })).filter((x) => x.phone.length >= 10 && !seen.has(x.phone) && seen.add(x.phone)) };
+        // хто вже підключений до Telegram-бота FURA — тим надішле бот сам
+        const ids = [...new Set(B.list.map((x) => x.carrier_id).filter(Boolean).map(String))];
+        if (ids.length && sbc()) {
+            sbc().from("carriers").select("id, tg_chat_id").in("id", ids).then(({ data }) => {
+                const on = new Set((data || []).filter((c) => c.tg_chat_id).map((c) => String(c.id)));
+                B.list.forEach((x) => { x.bot = on.has(String(x.carrier_id || "")); });
+                brender();
+            }, () => {});
+        }
+        joinLink();
         // текст уже з маршрутом/вантажем; лишається тільки [ІМʼЯ] — для кожного своє
         bx.querySelector(".fmsg-btext").value = build({ ...ctx, person: "\u0001" }).replace(/, \u0001/g, "{, [ІМʼЯ]}").replace(/\u0001/g, "[ІМʼЯ]");
         try { const a = localStorage.getItem("fura_msg_app"); if (a) bx.querySelector(`[name="fmsgApp"][value="${a}"]`).checked = true; } catch (_) { /* */ }

@@ -629,7 +629,7 @@ const NB = (() => {
                 const name = x.carrier || it.fc?.name || "—";
                 const phones = it.fc ? [[it.fc.contact_person_1, it.fc.phone_1], [it.fc.contact_person_2, it.fc.phone_2]]
                     .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 6).map((v) => [n, v.trim()])) : [];
-                (QS.phonesBy ||= {})[it.code] = phones.map(([n, ph]) => ({ carrier: name, person: n || "", phone: ph }));
+                (QS.phonesBy ||= {})[it.code] = phones.map(([n, ph]) => ({ carrier: name, carrier_id: it.fc?.id || "", person: n || "", phone: ph }));
                 return `<div class="nb-qitem">
                     <div class="nb-qrow nb-qtitle">
                         ${it.inFura ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i>' : ""}
@@ -648,7 +648,7 @@ const NB = (() => {
                         ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
                         ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
                     </div>` : ""}
-                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}${msgBtns(ph, { carrier: name, person: n }, r)}</div>`).join("")}</div>` : ""}
+                    ${phones.length ? `<div class="nb-qphones">${phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}${msgBtns(ph, { carrier: name, carrier_id: it.fc?.id || "", person: n }, r)}</div>`).join("")}</div>` : ""}
                     <div class="nb-qtrucks">${lines}${it.trucks.length > 3 ? `<div class="nb-muted">ще ${it.trucks.length - 3}…</div>` : ""}</div>
                     <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-qadd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
                 </div>`;
@@ -856,10 +856,20 @@ const NB = (() => {
     /* ---------- перегляд перевізника в запиті ---------- */
     let POP = null; // {r, i} — який перевізник відкритий у віконці
     // текст для перевізника: лише маршрут, вантаж, авто (ні клієнта, ні ставки клієнта з коментаря)
-    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "", comment: r?.comment || "" });
+    const msgCtx = (r) => ({ route: r?.addresses || r?.direction || "", cargo: r?.cargo || "", truck: r?.truck || "", comment: r?.comment || "", request_id: r?.request_id || "", my_request_id: r?.id || "" });
     const msgBtns = (ph, who, r) => (window.furaMsgBtns ? window.furaMsgBtns(ph, { ...who, ...msgCtx(r) }) : "");
+    // Спільне посилання на Telegram-бота для всіх перевізників
+    document.getElementById("nbJoin")?.addEventListener("click", async (e) => {
+        const b = e.currentTarget;
+        const link = await window.furaJoinLink?.();
+        if (!link) return alert("Не вдалося отримати посилання на бота. Перевірте, що оновлена функція fura-agent.");
+        const text = `Доброго дня! Це компанія «Грандар». Щоб отримувати наші запити на перевезення одразу в Telegram, натисніть посилання і «Поділитися номером»:\n${link}`;
+        try { await navigator.clipboard.writeText(text); } catch (_) { prompt("Скопіюйте:", text); return; }
+        b.innerHTML = '<i class="bx bx-check"></i> Скопійовано — вставте у Viber / статус / розсилку';
+        setTimeout(() => (b.innerHTML = '<i class="bx bxl-telegram"></i> Посилання на бота'), 3500);
+    });
     window.furaMsgContext = (b) => {
-        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", ...msgCtx(POP.r) }; }
+        if (b.closest("#nbPop") && POP) { const c = (POP.r.carriers || [])[POP.i] || {}; return { carrier: c.name || "", carrier_id: c.id || "", ...msgCtx(POP.r) }; }
         const f = document.getElementById("nbForm");
         if (f && b.closest("#nbModal")) return { carrier: b.closest(".nb-cedit")?.querySelector(".nb-cin")?.value || "", route: f.addresses.value || f.direction.value, cargo: f.cargo.value, truck: f.truck.value, comment: f.comment.value };
         return {};
@@ -1216,7 +1226,7 @@ const NB = (() => {
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
             if (e.target.closest("[data-msend]")) {
                 const r = ROWS.find((x) => x.id === rid);
-                const list = (r?.carriers || []).flatMap((c) => (c.contacts || []).filter((k) => k.phone).map((k) => ({ carrier: c.name, person: k.name, phone: k.phone })));
+                const list = (r?.carriers || []).flatMap((c) => (c.contacts || []).filter((k) => k.phone).map((k) => ({ carrier: c.name, carrier_id: c.id || "", person: k.name, phone: k.phone })));
                 if (!list.length) { alert("У перевізників цього запиту ще немає номерів телефонів. Додайте номери або оберіть перевізників у «🚦 з черги»."); return; }
                 window.furaMsgBatch?.(list, msgCtx(r));
                 return;

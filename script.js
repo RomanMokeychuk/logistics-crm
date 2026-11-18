@@ -251,7 +251,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Формує рядок "Ім'я: телефон [іконка Viber]".
 // Іконка веде на viber://chat?number=... — це ВІДКРИВАЄ ЧАТ у Viber
 // (можна побачити ім'я/фото профілю), а не одразу дзвонить.
-function renderContactLine(person, phone, withCopy) {
+function renderContactLine(person, phone, withCopy, carrier) {
     if (!person && !phone) return "";
     // У полі може бути кілька номерів через кому — кожен зі своєю іконкою Viber
     const phones = String(phone || "")
@@ -266,7 +266,7 @@ function renderContactLine(person, phone, withCopy) {
             const copy = withCopy && digits.length >= 6
                 ? ` <button type="button" class="qe-copy qe-copy-phone" data-copy="${escapeHtml(p)}" title="Копіювати номер"><i class='bx bx-copy'></i></button>`
                 : "";
-            const msg = withCopy && window.furaMsgBtns ? window.furaMsgBtns(p, { person: person || "" }) : "";
+            const msg = withCopy && window.furaMsgBtns ? window.furaMsgBtns(p, { person: person || "", carrier: carrier?.name || "", carrier_id: carrier?.id || "" }) : "";
             return `<span class="phone-line">${escapeHtml(p)}${viber}${copy}${msg}</span>`;
         })
         .join("");
@@ -487,7 +487,7 @@ function contactsListHtml(item) {
     if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
     extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
     return rows
-        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true)}</div>`)
+        .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true, item)}</div>`)
         .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
 }
 

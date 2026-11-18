@@ -819,6 +819,23 @@ async function handleMessage(msg: Any) {
         return;
     }
 
+    // Спільне посилання для всіх перевізників: t.me/<бот>?start=join → просимо поділитися номером
+    if (/^\/start\s+join/.test(text)) {
+        return tg("sendMessage", {
+            chat_id: chatId,
+            text: "Вітаємо! Це бот компанії «Грандар» — сюди надходитимуть запити на перевезення.\n\nНатисніть кнопку нижче «📱 Поділитися номером», щоб ми знайшли вашу компанію.",
+            reply_markup: { keyboard: [[{ text: "📱 Поділитися номером", request_contact: true }]], resize_keyboard: true, one_time_keyboard: true },
+        });
+    }
+    // Перевізник поділився СВОЇМ номером
+    if (msg.contact && (!msg.contact.user_id || Number(msg.contact.user_id) === Number(msg.from?.id))) {
+        const r = await callAgent({
+            action: "link_phone", chat_id: chatId, phone: String(msg.contact.phone_number || ""),
+            name: [msg.contact.first_name, msg.contact.last_name].filter(Boolean).join(" "), username,
+        });
+        if (r?.handled) return;
+    }
+
     // Кабінет перевізника / клієнта (Mini App): /cabinet або посилання t.me/<бот>?start=cabinet
     if (/^\/(cabinet|кабінет)(@\w+)?$/i.test(text) || /^\/start\s+cabinet/.test(text)) {
         return send(chatId, "🌐 Кабінет Грандар: запропоновані рейси, ваші ставки й перевезення.", [[cabinetButton]]);
