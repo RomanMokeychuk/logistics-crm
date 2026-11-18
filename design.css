@@ -1093,3 +1093,16 @@ body, html { background-attachment: scroll !important; }
     .table-card.fura-tiles tbody td[data-label]:not([data-label=""])::before { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .table-card.fura-tiles thead .fura-col-resize, .table-card.fura-tiles thead [class*="resize"] { display: none !important; }
 }
+
+/* ===== Групи меню згортаються («Довідники», «Система» — згорнуті за замовчуванням) ===== */
+.fura-grp-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; border-radius: 8px; }
+.fura-grp-toggle:hover { color: #f0cd78 !important; }
+.fura-grp-caret { font-size: 15px; margin-left: auto; margin-right: 6px; transition: transform .2s ease; opacity: .8; }
+.fura-grp-closed .fura-grp-caret { transform: rotate(-90deg); }
+.fura-grp-closed > :not(.fura-nav-title) { display: none !important; }
+/* меню, згорнуте до значків, показує всі значки */
+@media (min-width: 901px) {
+    body.sidebar-collapsed .fura-grp-closed > a.fura-nav-item:not([hidden]) { display: flex !important; }
+    body.sidebar-collapsed .fura-grp-closed > .fura-nav-branch { display: block !important; }
+    body.sidebar-collapsed .fura-grp-caret { display: none; }
+}

@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611182201";
+            css.href = "mobile.css?v=202611182207";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -233,7 +233,12 @@
                     return `<a href="${it.href}" class="fura-nav-item${active ? " active" : ""}"${only}>${ico}<span>${it.label}</span></a>`;
                 })
                 .join("");
-            return `<div class="fura-nav-group"><div class="fura-nav-title">${g.group}</div>${links}</div>`;
+            // Групи «Довідники» і «Система» за замовчуванням згорнуті; клік по назві — розгорнути/згорнути (пам'ятаємо)
+            const gk = g.group;
+            let closed = g.group !== MENU[0].group;
+            try { const v = localStorage.getItem("fura_nav_grp_" + gk); if (v !== null) closed = v === "0"; } catch (e) { /* без пам'яті */ }
+            if (/class="fura-nav-item[^"]*\bactive\b/.test(links)) closed = false; // тут відкрита сторінка — показуємо
+            return `<div class="fura-nav-group${closed ? " fura-grp-closed" : ""}" data-grp="${gk}"><div class="fura-nav-title fura-grp-toggle" title="Показати / сховати">${g.group}<i class="bx bx-chevron-down fura-grp-caret"></i></div>${links}</div>`;
         }).join("");
 
         aside.classList.add("fura-sidebar");
@@ -252,6 +257,11 @@
                 <button type="button" class="fura-logout" title="Вийти"><i class="bx bx-log-out"></i></button>
             </div>`;
 
+        aside.querySelectorAll(".fura-grp-toggle").forEach((t) => t.addEventListener("click", () => {
+            const g = t.closest(".fura-nav-group");
+            const closed = g.classList.toggle("fura-grp-closed");
+            try { localStorage.setItem("fura_nav_grp_" + g.dataset.grp, closed ? "0" : "1"); } catch (err) { /* без пам'яті */ }
+        }));
         aside.querySelectorAll("[data-branch-toggle]").forEach((a) => a.addEventListener("click", (e) => {
             e.preventDefault();
             const br = a.closest(".fura-nav-branch");
@@ -391,16 +401,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611182201");
+        await addScript("helper.js?v=202611182207");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611182201";
+        css.href = "mobile.css?v=202611182207";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611182201");
+        addScript("mobile-ux.js?v=202611182207");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -570,7 +580,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182201");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182207");
         const label = buildSidebar();
         paintNavBadges();
         keepSidebarScroll();
@@ -582,15 +592,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611182201");
+            addScript("global-search.js?v=202611182207");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611182201");
+            addScript("furik.js?v=202611182207");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611182201");
+            addScript("presence.js?v=202611182207");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611182201");
+            addScript("mail-watch.js?v=202611182207");
         }
     }
 
