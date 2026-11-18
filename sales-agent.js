@@ -912,7 +912,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ["to", "cc", "bcc", "subject", "body"].forEach((k) => (form[k].value = v[k] || ""));
         files = [];
         showFiles();
-        $("saCmpFrom").textContent = status?.from ? `від ${status.from}` : "";
+        $("saCmpFrom").textContent = status?.mail_box || status?.from ? `від ${status.mail_box || status.from}` : "";
         sigFill();
         box.classList.remove("hidden");
         document.body.classList.add("sa-cmp-open");
@@ -1071,13 +1071,48 @@ document.addEventListener("DOMContentLoaded", async () => {
         $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>';
         renderList(); loadFolders().catch(() => {});
     }
+    // Підключити свою пошту: e-mail + пароль від неї (сервер для @grandarltd.com підставиться сам)
+    async function connectForm() {
+        const { data } = await sbClient.auth.getSession();
+        const login = data?.session?.user?.email || "";
+        const dom = status?.mail_default_domain || "";
+        $("mlFolders").innerHTML = "";
+        $("mlRead").innerHTML = "";
+        document.body.classList.add("sa-mail-connect");
+        $("mlList").innerHTML = `<form class="sa-mc" id="mlConnect" autocomplete="on">
+            <h3>Підключіть свою пошту</h3>
+            <p class="sa-muted">Введіть e-mail і пароль від вашої робочої пошти — тієї, що в Outlook. FURA перевірить вхід і покаже ваші Вхідні, Спам і Надіслані. Пароль зберігається зашифрованим, колеги його не бачать.</p>
+            <label>E-mail<input name="email" type="email" required autocomplete="username" value="${escapeHtml(login.endsWith("@" + dom) ? login : "")}" placeholder="ім'я@${escapeHtml(dom || "grandarltd.com")}" /></label>
+            <label>Пароль від пошти<input name="password" type="password" required autocomplete="current-password" /></label>
+            <label>Ім'я відправника <span class="sa-muted">(як бачитиме клієнт)</span><input name="from_name" placeholder="Mokeychuk Roman" /></label>
+            <details><summary>Інший поштовий сервер</summary>
+                <label>Сервер (IMAP і SMTP)<input name="host" placeholder="для @${escapeHtml(dom || "grandarltd.com")} — не треба" /></label>
+                <div class="sa-mc-row"><label>SMTP порт<input name="smtp_port" value="465" /></label><label>IMAP порт<input name="imap_port" value="993" /></label></div>
+            </details>
+            <button type="submit" class="btn btn-primary"><i class="bx bx-plug"></i> Підключити</button>
+            ${status && !status.mail_can_connect ? '<p class="sa-bad">Адміністратору: додайте секрет MAIL_ENC_KEY у Supabase (функція fura-sales).</p>' : ""}
+        </form>`;
+        $("mlConnect").addEventListener("submit", (e) => {
+            e.preventDefault();
+            const f = e.target, btn = f.querySelector("[type=submit]");
+            withBusy(btn, async () => {
+                btn.innerHTML = "Перевіряю вхід…";
+                try {
+                    await api({ action: "mail_connect", email: f.email.value, password: f.password.value, from_name: f.from_name.value, host: f.host.value, smtp_port: f.smtp_port.value, imap_port: f.imap_port.value });
+                } finally { btn.innerHTML = '<i class="bx bx-plug"></i> Підключити'; }
+                toast("Пошту підключено");
+                await loadStatus();
+                ML.loaded = false;
+                start();
+            });
+        });
+    }
     async function start() {
         if (ML.loaded) return;
-        if (status && !status.mail_reader) {
-            const { data } = await sbClient.auth.getSession();
-            return needAccess(`Пошта доступна лише власнику скриньки. Додайте ваш логін FURA (${data?.session?.user?.email || "ваш e-mail для входу"}) у секрет MAIL_READERS у Supabase.`);
-        }
+        if (status && !status.mail_reader) return connectForm();
         ML.loaded = true;
+        document.body.classList.remove("sa-mail-connect");
+        $("mlWho").innerHTML = status?.mail_box ? `<i class="bx bx-user-circle"></i> ${escapeHtml(status.mail_box)}${status.mail_own ? ' · <button type="button" class="sa-link" id="mlOff">відключити</button>' : ""}` : "";
         try {
             await loadFolders();
             await loadList();
@@ -1117,6 +1152,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("mlQ").addEventListener("input", (e) => { clearTimeout(qT); qT = setTimeout(() => { ML.q = e.target.value.trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
     $("mlRefresh").addEventListener("click", () => { loadFolders().catch(() => {}); loadList().catch((er) => toast(er.message, true)); });
     $("mlCompose").addEventListener("click", () => window.furaCompose?.());
+    $("mlWho").addEventListener("click", async (e) => {
+        if (!e.target.closest("#mlOff") || !confirm("Відключити вашу пошту від FURA? Пароль буде видалено з FURA.")) return;
+        await api({ action: "mail_disconnect" });
+        toast("Пошту відключено");
+        await loadStatus();
+        ML.loaded = false; ML.list = []; ML.folders = [];
+        $("mlWho").innerHTML = "";
+        start();
+    });
     // нові листи — раз на 2 хвилини, коли пошта відкрита
     setInterval(() => {
         if (!ML.loaded || document.hidden || document.querySelector('.sa-panel[data-panel="mail"]').hidden) return;

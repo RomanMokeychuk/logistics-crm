@@ -63,6 +63,48 @@ const USE_SMTP = !!(SMTP_HOST && SMTP_USER && SMTP_PASS);
 // Хто може читати цю скриньку і писати з неї довільні листи (логіни FURA через кому). Інші співробітники — ні.
 const MAIL_READERS = env("MAIL_READERS", SMTP_USER).toLowerCase().split(/[,;\s]+/).filter(Boolean);
 const canMail = (me: Any) => !!me?.email && MAIL_READERS.includes(String(me.email).toLowerCase());
+
+/* Поштові скриньки. Кожен співробітник може підключити СВОЮ пошту (логін і пароль від неї) —
+ * пароль зберігається зашифрованим (MAIL_ENC_KEY у секретах), сайт його ніколи не бачить.
+ * Скринька з секретів (SMTP_*) — запасна: для AI-розсилки і для тих, хто в MAIL_READERS. */
+type Box = { user: string; pass: string; from: string; smtp_host: string; smtp_port: number; imap_host: string; imap_port: number };
+const ENV_BOX: Box | null = USE_SMTP ? { user: SMTP_USER, pass: SMTP_PASS, from: SMTP_FROM, smtp_host: SMTP_HOST, smtp_port: SMTP_PORT, imap_host: IMAP_HOST, imap_port: IMAP_PORT } : null;
+const ENC_KEY = env("MAIL_ENC_KEY");
+const MAIL_DEFAULT_HOST = env("MAIL_DEFAULT_HOST", SMTP_HOST || "eushared20.twinservers.net");
+const MAIL_DEFAULT_DOMAIN = env("MAIL_DEFAULT_DOMAIN", (SMTP_USER.split("@")[1] || "grandarltd.com")).toLowerCase();
+async function aesKey() {
+    const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ENC_KEY));
+    return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+const b64e = (u: Uint8Array) => btoa(Array.from(u, (c) => String.fromCharCode(c)).join(""));
+const b64d = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function encPass(p: string) {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await aesKey(), new TextEncoder().encode(p)));
+    const out = new Uint8Array(iv.length + ct.length); out.set(iv); out.set(ct, iv.length);
+    return b64e(out);
+}
+async function decPass(s: string) {
+    const all = b64d(s);
+    return new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: all.slice(0, 12) }, await aesKey(), all.slice(12)));
+}
+const boxCache = new Map<string, Box | null>();
+async function boxOf(me: Any): Promise<Box | null> {
+    if (!me?.id) return null;
+    if (boxCache.has(me.id)) return boxCache.get(me.id)!;
+    let box: Box | null = null;
+    if (ENC_KEY) {
+        const { data: r } = await db.from("staff_mailboxes").select("*").eq("staff_id", me.id).maybeSingle();
+        if (r) {
+            try {
+                box = { user: r.email, pass: await decPass(r.pass_enc), from: r.from_name ? `${r.from_name} <${r.email}>` : r.email, smtp_host: r.smtp_host, smtp_port: r.smtp_port || 465, imap_host: r.imap_host || r.smtp_host, imap_port: r.imap_port || 993 };
+            } catch (_) { box = null; }
+        }
+    }
+    if (!box && canMail(me)) box = ENV_BOX;
+    boxCache.set(me.id, box);
+    return box;
+}
 const REPLY_TO = env("SALES_REPLY_TO", USE_SMTP ? SMTP_FROM : FROM);
 const CRON_SECRET = env("SALES_CRON_SECRET");
 const INBOUND_SECRET = env("SALES_INBOUND_SECRET", CRON_SECRET);
@@ -720,31 +762,31 @@ async function unsubscribeUrl(email: string) {
 }
 
 // «Roman Mokeychuk, Grandar <mrs@grandarltd.com>» — кома в імені ламала розбір адреси, тому розбираємо самі
-function smtpFrom(): Any {
-    const m = SMTP_FROM.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
-    return m ? { name: m[1].trim(), address: m[2].trim() } : SMTP_FROM;
+function smtpFrom(box: Box): Any {
+    const m = box.from.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+    return m ? { name: m[1].trim(), address: m[2].trim() } : box.from;
 }
 const htmlOf = (body: string) => `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.5;color:#222">${esc(body).replace(/\n/g, "<br>")}</div>`;
 
 // Відправка з поштової скриньки компанії + копія в «Надіслані» (IMAP)
-async function smtpSend(o: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html: string; headers?: Any; attachments?: Any[] }): Promise<{ id?: string; error?: string }> {
+async function smtpSend(box: Box, o: { to: string[]; cc?: string[]; bcc?: string[]; subject: string; text: string; html: string; headers?: Any; attachments?: Any[] }): Promise<{ id?: string; error?: string }> {
     const mail: Any = {
-        from: smtpFrom(), to: o.to, cc: o.cc?.length ? o.cc : undefined, subject: o.subject, text: o.text, html: o.html,
-        replyTo: REPLY_TO && REPLY_TO !== SMTP_FROM ? REPLY_TO : undefined, headers: o.headers, attachments: o.attachments,
+        from: smtpFrom(box), to: o.to, cc: o.cc?.length ? o.cc : undefined, subject: o.subject, text: o.text, html: o.html,
+        replyTo: box === ENV_BOX && REPLY_TO && REPLY_TO !== SMTP_FROM ? REPLY_TO : undefined, headers: o.headers, attachments: o.attachments,
     };
     try {
         // 1) збираємо лист один раз — його ж відправляємо і кладемо в «Надіслані» (прихована копія в «Надіслані» не потрапляє)
         const raw: Uint8Array = await new Promise((res, rej) => new MailComposer(mail).compile().build((e: Any, m: Any) => (e ? rej(e) : res(m))));
         const tr = nodemailer.createTransport({
-            host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465,
-            auth: { user: SMTP_USER, pass: SMTP_PASS },
+            host: box.smtp_host, port: box.smtp_port, secure: box.smtp_port === 465,
+            auth: { user: box.user, pass: box.pass },
             connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 60000,
         });
         const rcpt = [...o.to, ...(o.cc || []), ...(o.bcc || [])];
-        const info = await tr.sendMail({ envelope: { from: SMTP_USER, to: rcpt }, raw });
+        const info = await tr.sendMail({ envelope: { from: box.user, to: rcpt }, raw });
         // 2) копія в «Надіслані», щоб лист було видно в Outlook (не страшно, якщо не вийде)
         try {
-            const imap = new ImapFlow({ host: IMAP_HOST, port: IMAP_PORT, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS }, logger: false });
+            const imap = new ImapFlow({ host: box.imap_host, port: box.imap_port, secure: true, auth: { user: box.user, pass: box.pass }, logger: false });
             await imap.connect();
             const boxes = await imap.list();
             const sent = boxes.find((b: Any) => b.specialUse === "\\Sent") ||
@@ -760,18 +802,19 @@ async function smtpSend(o: { to: string[]; cc?: string[]; bcc?: string[]; subjec
     }
 }
 
-async function sendViaSmtp(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
+async function sendViaSmtp(box: Box, to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
     const foot = "Якщо тема для вас неактуальна — просто дайте знати у відповідь, і я більше не писатиму.";
-    return smtpSend({
+    return smtpSend(box, {
         to: [to], subject,
         text: `${body}\n\n—\n${foot}`,
         html: htmlOf(body) + `<p style="font-family:Arial,sans-serif;font-size:11px;color:#888;margin-top:24px">${foot}</p>`,
-        headers: { "List-Unsubscribe": `<mailto:${SMTP_USER}?subject=unsubscribe>` },
+        headers: { "List-Unsubscribe": `<mailto:${box.user}?subject=unsubscribe>` },
     });
 }
 
-async function sendEmail(to: string, subject: string, body: string): Promise<{ id?: string; error?: string }> {
-    if (USE_SMTP) return sendViaSmtp(to, subject, body);
+async function sendEmail(to: string, subject: string, body: string, box?: Box | null): Promise<{ id?: string; error?: string }> {
+    const b = box || ENV_BOX;
+    if (b) return sendViaSmtp(b, to, subject, body);
     if (!RESEND_KEY || !FROM) return { error: "Пошта не налаштована: додайте RESEND_API_KEY і SALES_FROM у секрети функції." };
     const unsub = await unsubscribeUrl(to);
     const text = `${body}\n\n—\nЯкщо тема неактуальна, відпишіться тут: ${unsub}`;
@@ -875,7 +918,8 @@ async function deliver(m: Any, me: Any | null, manual = false): Promise<{ ok: bo
         await db.from("sales_messages").update({ status: "cancelled", error: "У стоп-листі" }).eq("id", m.id);
         return { ok: false, error: "Клієнт у стоп-листі — лист не надіслано." };
     }
-    const r: Any = manual ? { id: "outlook" } : await sendEmail(m.to_email, m.subject, m.body);
+    // лист іде з пошти того, хто натиснув «Надіслати» (якщо він підключив свою), інакше — із загальної
+    const r: Any = manual ? { id: "outlook" } : await sendEmail(m.to_email, m.subject, m.body, await boxOf(me));
     if (r.error) {
         await db.from("sales_messages").update({ status: "failed", error: r.error }).eq("id", m.id);
         return { ok: false, error: r.error };
@@ -1146,8 +1190,8 @@ function signatureOf(sig: Any): { text: string; html: string } {
 /* ================================================================== */
 /* Пошта: читати скриньку (Вхідні, Спам, Надіслані…) прямо у FURA     */
 /* ================================================================== */
-async function withImap<T>(fn: (imap: Any) => Promise<T>): Promise<T> {
-    const imap = new ImapFlow({ host: IMAP_HOST, port: IMAP_PORT, secure: true, auth: { user: SMTP_USER, pass: SMTP_PASS }, logger: false });
+async function withImap<T>(box: Box, fn: (imap: Any) => Promise<T>): Promise<T> {
+    const imap = new ImapFlow({ host: box.imap_host, port: box.imap_port, secure: true, auth: { user: box.user, pass: box.pass }, logger: false });
     await imap.connect();
     try { return await fn(imap); } finally { try { await imap.logout(); } catch (_) { /* вже закрито */ } }
 }
@@ -1164,24 +1208,24 @@ function folderKind(b: Any): string {
     return "";
 }
 async function actionMailFolders(me: Any) {
-    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена.");
-    if (!canMail(me)) return fail(403, "Ця скринька доступна лише її власнику (див. MAIL_READERS у секретах).");
-    const out = await withImap(async (imap) => {
+    const box = await boxOf(me);
+    if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї.");
+    const out = await withImap(box, async (imap) => {
         const boxes = await imap.list({ statusQuery: { messages: true, unseen: true } });
         return boxes.filter((b: Any) => !b.flags?.has?.("\\Noselect")).map((b: Any) => ({
             path: b.path, name: b.name, kind: folderKind(b), total: b.status?.messages ?? null, unseen: b.status?.unseen ?? null,
         })).sort((a: Any, b: Any) => (FOLDER_ORDER[a.kind] ?? 9) - (FOLDER_ORDER[b.kind] ?? 9) || a.path.localeCompare(b.path));
     });
-    return ok({ folders: out, mailbox: SMTP_USER });
+    return ok({ folders: out, mailbox: box.user });
 }
 async function actionMailList(body: Any, me: Any) {
-    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена.");
-    if (!canMail(me)) return fail(403, "Ця скринька доступна лише її власнику.");
+    const box = await boxOf(me);
+    if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї.");
     const folder = clip(body.folder || "INBOX", 200);
     const limit = Math.min(100, Math.max(10, Number(body.limit) || 50));
     const page = Math.max(0, Number(body.page) || 0);
     const q = clip(body.q || "", 100).trim();
-    const items = await withImap(async (imap) => {
+    const items = await withImap(box, async (imap) => {
         const lock = await imap.getMailboxLock(folder);
         try {
             const total = imap.mailbox?.exists || 0;
@@ -1214,11 +1258,11 @@ async function actionMailList(body: Any, me: Any) {
     return ok({ folder, ...items, page, limit });
 }
 async function actionMailRead(body: Any, me: Any) {
-    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена.");
-    if (!canMail(me)) return fail(403, "Ця скринька доступна лише її власнику.");
+    const box = await boxOf(me);
+    if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї.");
     const folder = clip(body.folder || "INBOX", 200), uid = Number(body.uid);
     if (!uid) return fail(400, "Немає листа");
-    const res = await withImap(async (imap) => {
+    const res = await withImap(box, async (imap) => {
         const lock = await imap.getMailboxLock(folder);
         try {
             const m = await imap.fetchOne(String(uid), { source: true, flags: true }, { uid: true });
@@ -1242,10 +1286,10 @@ async function actionMailRead(body: Any, me: Any) {
 }
 // «Не спам» / у кошик / позначки
 async function actionMailMove(body: Any, me: Any) {
-    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена.");
-    if (!canMail(me)) return fail(403, "Ця скринька доступна лише її власнику.");
+    const box = await boxOf(me);
+    if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї.");
     const folder = clip(body.folder || "INBOX", 200), uid = String(Number(body.uid)), to = clip(body.to || "INBOX", 200);
-    await withImap(async (imap) => {
+    await withImap(box, async (imap) => {
         const lock = await imap.getMailboxLock(folder);
         try {
             if (body.flag === "unseen") await imap.messageFlagsRemove(uid, ["\\Seen"], { uid: true });
@@ -1255,10 +1299,50 @@ async function actionMailMove(body: Any, me: Any) {
     return ok();
 }
 
+// Підключити свою пошту: перевіряємо логін/пароль на сервері і зберігаємо (пароль — зашифровано)
+async function actionMailConnect(body: Any, me: Any) {
+    if (!me?.id) return fail(401, "Увійдіть у FURA");
+    if (!ENC_KEY) return fail(500, "Адміністратору: додайте секрет MAIL_ENC_KEY (будь-який довгий випадковий рядок).");
+    const email = normEmail(String(body.email || ""));
+    const pass = String(body.password || "");
+    if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(email) || !pass) return fail(400, "Вкажіть e-mail і пароль від пошти");
+    const dom = email.split("@")[1];
+    const host = clip(body.host || "", 120).trim() || (dom === MAIL_DEFAULT_DOMAIN ? MAIL_DEFAULT_HOST : `mail.${dom}`);
+    const box: Box = {
+        user: email, pass, from: "", smtp_host: clip(body.smtp_host || "", 120).trim() || host, smtp_port: Number(body.smtp_port) || 465,
+        imap_host: clip(body.imap_host || "", 120).trim() || host, imap_port: Number(body.imap_port) || 993,
+    };
+    // перевірка: вхід в IMAP і SMTP
+    try {
+        await withImap(box, async (imap) => imap.list());
+    } catch (e) {
+        return fail(400, `Не вдалося увійти в пошту (${box.imap_host}). Перевірте e-mail і пароль. ${String((e as Any)?.responseText || (e as Any)?.message || e).slice(0, 160)}`);
+    }
+    try {
+        await nodemailer.createTransport({ host: box.smtp_host, port: box.smtp_port, secure: box.smtp_port === 465, auth: { user: email, pass }, connectionTimeout: 20000 }).verify();
+    } catch (e) {
+        return fail(400, `Вхідна пошта працює, а відправка — ні (${box.smtp_host}:${box.smtp_port}). ${String((e as Any)?.message || e).slice(0, 160)}`);
+    }
+    const from_name = clip(body.from_name || me.full_name || "", 120).trim();
+    const { error } = await db.from("staff_mailboxes").upsert([{
+        staff_id: me.id, email, from_name, pass_enc: await encPass(pass),
+        smtp_host: box.smtp_host, smtp_port: box.smtp_port, imap_host: box.imap_host, imap_port: box.imap_port, updated_at: nowIso(),
+    }], { onConflict: "staff_id" });
+    if (error) return fail(500, error.message.includes("staff_mailboxes") ? "Виконайте staff_mailboxes.sql у Supabase" : error.message);
+    boxCache.delete(me.id);
+    return ok({ email, from: from_name ? `${from_name} <${email}>` : email });
+}
+async function actionMailDisconnect(me: Any) {
+    if (!me?.id) return fail(401, "Увійдіть у FURA");
+    await db.from("staff_mailboxes").delete().eq("staff_id", me.id);
+    boxCache.delete(me.id);
+    return ok();
+}
+
 // Довільний лист з FURA: кому завгодно, з копією / прихованою копією і вкладеннями — від імені пошти компанії
 async function actionCompose(body: Any, me: Any) {
-    if (!USE_SMTP) return fail(400, "Пошта компанії не підключена (SMTP_HOST, SMTP_USER, SMTP_PASS у секретах).");
-    if (!canMail(me)) return fail(403, "Писати з цієї скриньки може лише її власник (MAIL_READERS у секретах).");
+    const box = await boxOf(me);
+    if (!box) return fail(403, "Підключіть свою пошту: e-mail і пароль від неї (сторінка «Пошта»).");
     // беремо лише самі адреси — навіть якщо вставили з Outlook: 'Toporkov Olexandr' <oot@grandarltd.com>; 'forwarding@…'
     const list = (v: Any) => [...new Set((String(Array.isArray(v) ? v.join(",") : v || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || []).map((x) => normEmail(x)))];
     const to = list(body.to), cc = list(body.cc), bcc = list(body.bcc);
@@ -1275,7 +1359,7 @@ async function actionCompose(body: Any, me: Any) {
     if (size > 15 * 1024 * 1024) return fail(400, "Вкладення завеликі (разом до 15 МБ)");
     const sig = signatureOf(body.signature);
     const reply = body.in_reply_to ? { "In-Reply-To": clip(body.in_reply_to, 300), References: clip(body.in_reply_to, 300) } : undefined;
-    const r = await smtpSend({ to, cc, bcc, subject, text: text + sig.text, html: htmlOf(text) + sig.html, attachments, headers: reply });
+    const r = await smtpSend(box, { to, cc, bcc, subject, text: text + sig.text, html: htmlOf(text) + sig.html, attachments, headers: reply });
     if (r.error) return fail(502, r.error);
     console.log("compose:", me?.email, "→", to.join(","), cc.length ? "cc " + cc.join(",") : "", subject);
     return ok({ to, cc, bcc });
@@ -1285,7 +1369,7 @@ async function actionCompose(body: Any, me: Any) {
 async function actionSendTest(body: Any, me: Any) {
     const to = normEmail(body.to || me?.email || "");
     if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(to)) return fail(400, "Вкажіть e-mail для тесту");
-    const r = await sendEmail(to, `[ТЕСТ] ${clip(body.subject || "Тестовий лист FURA", 140)}`, clip(body.body || "Це тестовий лист з FURA — пошта працює.", 8000));
+    const r = await sendEmail(to, `[ТЕСТ] ${clip(body.subject || "Тестовий лист FURA", 140)}`, clip(body.body || "Це тестовий лист з FURA — пошта працює.", 8000), await boxOf(me));
     return r.error ? fail(502, r.error) : ok({ to, id: r.id || null });
 }
 
@@ -1464,6 +1548,8 @@ Deno.serve(async (req) => {
             case "send_test": out = await actionSendTest(body, me); break;
             case "compose": out = await actionCompose(body, me); break;
             case "mail_folders": out = await actionMailFolders(me); break;
+            case "mail_connect": out = await actionMailConnect(body, me); break;
+            case "mail_disconnect": out = await actionMailDisconnect(me); break;
             case "mail_list": out = await actionMailList(body, me); break;
             case "mail_read": out = await actionMailRead(body, me); break;
             case "mail_move": out = await actionMailMove(body, me); break;
@@ -1473,7 +1559,7 @@ Deno.serve(async (req) => {
             case "set_primary": out = await actionSetPrimary(body); break;
             case "manual_reply": out = await actionManualReply(body, me); break;
             case "status": out = ok({
-                ai: !!AI_KEY, mail: USE_SMTP || !!(RESEND_KEY && FROM), from: USE_SMTP ? SMTP_FROM : FROM || null, mail_via: USE_SMTP ? "smtp" : RESEND_KEY ? "resend" : null, mail_reader: USE_SMTP && canMail(me), daily_limit: DAILY_LIMIT, sent_today: await sentToday(),
+                ai: !!AI_KEY, mail: USE_SMTP || !!(RESEND_KEY && FROM), from: USE_SMTP ? SMTP_FROM : FROM || null, mail_via: USE_SMTP ? "smtp" : RESEND_KEY ? "resend" : null, mail_reader: !!(await boxOf(me)), mail_box: (await boxOf(me))?.from || null, mail_own: !!(await boxOf(me)) && (await boxOf(me)) !== ENV_BOX, mail_can_connect: !!ENC_KEY, mail_default_domain: MAIL_DEFAULT_DOMAIN, daily_limit: DAILY_LIMIT, sent_today: await sentToday(),
                 auto_followup: AUTO_FOLLOWUP, paid_min_score: PAID_MIN_SCORE,
                 sources: {
                     opendatabot: !!env("OPENDATABOT_API_KEY"), youcontrol: !!(env("YOUCONTROL_API_KEY") && env("YOUCONTROL_URL")),

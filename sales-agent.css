@@ -428,3 +428,19 @@ body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: c
 /* підпис: назва і коротко — без накладання */
 .sa-sig summary label { position: static !important; margin: 0 !important; padding: 0 !important; width: auto !important; }
 .sa-sig summary #saSigShort { margin-left: 4px; }
+
+/* підключення своєї пошти */
+.sa-ml-who { margin-left: auto; font-size: 13px; color: #6b7280; display: inline-flex; align-items: center; gap: 4px; }
+.sa-link { border: 0; background: none; color: #b42318; font: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
+.sa-mc { padding: 16px; display: flex; flex-direction: column; gap: 10px; max-width: 460px; }
+.sa-mc h3 { margin: 0; }
+.sa-mc label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: #374151; }
+.sa-mc input { padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font: inherit; font-size: 14px; }
+.sa-mc input:focus { outline: none; border-color: #d9a944; }
+.sa-mc details summary { cursor: pointer; font-size: 13px; color: #a8781f; }
+.sa-mc-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.sa-mc .btn { align-self: flex-start; }
+.sa-bad { color: #b42318; font-size: 13px; }
+body.sa-mail-connect .sa-mail-grid { grid-template-columns: 1fr; }
+body.sa-mail-connect .sa-mail-folders, body.sa-mail-connect .sa-mail-read { display: none; }
+body.sa-mail-connect .sa-mail-list { border: 0; }
