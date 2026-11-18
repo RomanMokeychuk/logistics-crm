@@ -401,6 +401,9 @@ function closeCarrierCard() {
 // Закрили картку — показуємо, де цей перевізник у списку (переходимо на його сторінку, підсвічуємо)
 let lastFilteredIds = [];
 const lastCarrierId = () => new URLSearchParams(location.search).get("last") || "";
+// Кого щойно змінювали (у цій вкладці) — у списку позначаємо ✏️
+const editedCarrierId = () => { try { return sessionStorage.getItem("fura_carrier_edited") || ""; } catch (e) { return ""; } };
+window.furaMarkEdited = (id) => { try { sessionStorage.setItem("fura_carrier_edited", String(id)); } catch (e) { /* */ } };
 function showCarrierInList(id) {
     id = String(id);
     let tr = carriersTableBody?.querySelector(`tr[data-carrier-id="${CSS.escape(id)}"]`);
@@ -414,6 +417,7 @@ function showCarrierInList(id) {
     if (!tr) return;
     carriersTableBody.querySelectorAll("tr.carrier-last").forEach((r) => r.classList.remove("carrier-last"));
     tr.classList.add("carrier-last");
+    if (String(id) === editedCarrierId()) tr.classList.add("carrier-edited");
     tr.scrollIntoView({ block: "center", behavior: "smooth" });
     tr.classList.remove("row-flash");
     void tr.offsetWidth;
@@ -1101,6 +1105,7 @@ function renderCarriers() {
         row.classList.add("clickable-row");
         row.dataset.carrierId = item.id;
         if (String(item.id) === lastCarrierId()) row.classList.add("carrier-last");
+        if (String(item.id) === editedCarrierId()) row.classList.add("carrier-edited");
         row.title = "Натисніть, щоб відкрити картку перевізника";
         const rowNumber = pageStart + index + 1; // наскрізний номер з урахуванням сторінки
 
@@ -1597,6 +1602,7 @@ if (addCarrierForm) {
                 .select("*");
             error = res.error;
             window.__lastCarrierSave = res.data;
+            if (!res.error) window.furaMarkEdited(carrierId);
             // База може «мовчки» не зберегти (немає прав) — тоді рядків 0
             if (!error && Array.isArray(res.data) && res.data.length === 0) {
                 error = { message: "зміни не збереглися — у вас немає прав змінювати цього перевізника або його вже видалили. Оновіть сторінку (Cmd+Shift+R) і спробуйте ще раз." };
@@ -2221,6 +2227,7 @@ function carrierPopupReady(id) {
     }
 
     function rerender(id) {
+        window.furaMarkEdited(id);
         const modal = document.querySelector("#carrierCardOverlay .carrier-card-modal");
         const top = modal ? modal.scrollTop : 0;
         openCarrierCard(id);

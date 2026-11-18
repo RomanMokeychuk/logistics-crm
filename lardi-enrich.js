@@ -63,6 +63,7 @@
             const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); // eslint-disable-line no-undef
             if (i >= 0) allCarriersCache[i] = { ...allCarriersCache[i], ...data }; // eslint-disable-line no-undef
         }
+        window.furaMarkEdited?.(id);
         // одразу оновлюємо і рядок у списку перевізників (і кеш браузера), не лише картку
         try {
             if (typeof prepCarrierSearch === "function") { const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); if (i >= 0) prepCarrierSearch(allCarriersCache[i]); } // eslint-disable-line no-undef

@@ -1116,3 +1116,13 @@ body, html { background-attachment: scroll !important; }
 
 /* Перевізники: «липка» шапка таблиці не просвічує — рядки під нею не видно */
 #tableScrollArea:not(.fura-tiles) thead th { background: #fbf6ec !important; }
+
+/* Останній відкритий перевізник — помітно: золота смужка й тло; щойно змінений — ще й ✏️ */
+tr.carrier-last > td { background: #fff7e3 !important; }
+tr.carrier-last > td:first-child { box-shadow: inset 5px 0 0 #d9a944 !important; position: relative; }
+tr.carrier-last { outline: 2px solid rgba(217, 169, 68, .55) !important; outline-offset: -2px; }
+tr.carrier-last > td:first-child::after { content: "👁"; display: block; font-size: 12px; line-height: 1; margin-top: 4px; opacity: .8; }
+tr.carrier-edited > td:first-child::after { content: "✏️"; }
+tr.carrier-edited > td { background: #fff1cc !important; }
+tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
+@keyframes d-row-flash-gold { 0%, 35% { background: #ffe39a; } 100% { background: #fff7e3; } }
