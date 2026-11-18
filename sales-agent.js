@@ -861,6 +861,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 /* ---------------- Написати лист: кому завгодно, копія, прихована копія, вкладення ---------------- */
 (() => {
     const box = $("saCompose"), form = $("saComposeForm");
+    document.body.appendChild(box); // поза сторінкою — щоб вікно правильно рухалось по всьому екрану
     if (!box || !form) return;
     let files = [];
     const DRAFT = "fura_compose_draft";
@@ -958,8 +959,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     head.querySelector("[data-cmp-close]").insertAdjacentHTML("beforebegin",
         '<button type="button" class="sa-cmp-hb" data-cmp-min title="Згорнути / розгорнути"><i class="bx bx-minus"></i></button>' +
         '<button type="button" class="sa-cmp-hb" data-cmp-big title="На весь екран / збоку"><i class="bx bx-expand-alt"></i></button>');
+    // вікно можна перетягувати за темну смужку; місце запам'ятовується
+    const POS = "fura_compose_pos";
+    const placeAt = (x, y) => {
+        const w = box.offsetWidth, h = box.querySelector(".sa-cmp-box").offsetHeight;
+        x = Math.max(0, Math.min(x, innerWidth - w)); y = Math.max(0, Math.min(y, innerHeight - Math.min(h, 60)));
+        Object.assign(box.style, { left: x + "px", top: y + "px", right: "auto", bottom: "auto" });
+        box.classList.add("moved");
+        return { x, y };
+    };
+    const unplace = () => { Object.assign(box.style, { left: "", top: "", right: "", bottom: "" }); box.classList.remove("moved"); };
+    const restorePos = () => {
+        if (box.classList.contains("min") || box.classList.contains("big") || innerWidth < 700) return unplace();
+        let p = null; try { p = JSON.parse(localStorage.getItem(POS) || "null"); } catch (_) { p = null; }
+        if (p) placeAt(p.x, p.y); else unplace();
+    };
+    head.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 || e.target.closest("button") || box.classList.contains("min") || box.classList.contains("big") || innerWidth < 700) return;
+        e.preventDefault();
+        const r = box.getBoundingClientRect(), dx = e.clientX - r.left, dy = e.clientY - r.top;
+        head.setPointerCapture?.(e.pointerId);
+        head.classList.add("dragging");
+        let last = null;
+        const mv = (ev) => { last = placeAt(ev.clientX - dx, ev.clientY - dy); };
+        const up = () => {
+            head.classList.remove("dragging");
+            head.removeEventListener("pointermove", mv); head.removeEventListener("pointerup", up); head.removeEventListener("pointercancel", up);
+            if (last) try { localStorage.setItem(POS, JSON.stringify(last)); } catch (_) { /* без пам'яті */ }
+        };
+        head.addEventListener("pointermove", mv); head.addEventListener("pointerup", up); head.addEventListener("pointercancel", up);
+    });
+    // подвійний клік по смужці — повернути в правий нижній кут
+    head.addEventListener("dblclick", (e) => { if (e.target.closest("button") || box.classList.contains("min")) return; try { localStorage.removeItem(POS); } catch (_) { /* */ } unplace(); });
+    addEventListener("resize", () => { if (!box.classList.contains("hidden")) restorePos(); });
     const setMode = (min, big) => {
         box.classList.toggle("min", !!min); box.classList.toggle("big", !!big && !min);
+        restorePos();
         head.querySelector("[data-cmp-min] i").className = "bx " + (min ? "bx-chevron-up" : "bx-minus");
         head.querySelector("[data-cmp-big] i").className = "bx " + (box.classList.contains("big") ? "bx-collapse-alt" : "bx-expand-alt");
         document.body.classList.toggle("sa-cmp-big", box.classList.contains("big"));

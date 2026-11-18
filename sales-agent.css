@@ -555,3 +555,7 @@ body.sa-mail-connect .sa-mail-list { border: 0; }
     .sa-cmp-box { max-height: 100vh; border-radius: 0; min-height: 100%; }
     .sa-cmp.min .sa-cmp-box { min-height: 0; }
 }
+/* перетягування вікна листа */
+.sa-cmp:not(.min):not(.big) .sa-cmp-head { cursor: grab; user-select: none; touch-action: none; }
+.sa-cmp .sa-cmp-head.dragging { cursor: grabbing; }
+.sa-cmp.moved:not(.min):not(.big) .sa-cmp-box { border-radius: 14px; }
