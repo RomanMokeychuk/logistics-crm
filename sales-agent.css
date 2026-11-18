@@ -718,3 +718,20 @@ body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, bo
 @media (max-width: 760px) { .sa-split { display: none; } }
 .sa-mr-attdl.ok { background: #dcfce7; color: #15803d; }
 .sa-cmp-paste[hidden] { display: none !important; }
+
+/* колонка папок: «лише значки» */
+.sa-mf-title { display: flex; align-items: center; justify-content: space-between; }
+.sa-mf-fold { border: 0; background: none; color: #9ca3af; cursor: pointer; padding: 2px 4px; border-radius: 6px; font-size: 16px; line-height: 1; }
+.sa-mf-fold:hover { background: #fff; color: #a8781f; }
+@media (min-width: 761px) {
+    .ml-icons .sa-mail-folders { padding: 8px 6px !important; }
+    .ml-icons .sa-mf-title { justify-content: center; padding: 2px 0 8px; font-size: 0; }
+    .ml-icons .sa-mf-title:not(:first-child) { height: 1px; padding: 0; margin: 8px 6px; background: #ebe5d8; }
+    .ml-icons .sa-mf-title .sa-mf-fold { font-size: 18px; }
+    .ml-icons .sa-mf { justify-content: center; position: relative; padding: 10px 0 !important; }
+    .ml-icons .sa-mf span, .ml-icons .sa-mf em { display: none; }
+    .ml-icons .sa-mf i { width: auto; font-size: 20px; }
+    .ml-icons .sa-mf b { position: absolute; top: 2px; right: 4px; font-size: 10px; min-width: 16px; height: 16px; line-height: 16px; padding: 0 4px; }
+    .ml-icons .sa-mf-eye, .ml-icons .sa-mf-more { display: none !important; }
+    .ml-icons .sa-mf-row:hover .sa-mf b { visibility: visible; }
+}

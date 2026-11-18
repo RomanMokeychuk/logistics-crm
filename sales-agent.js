@@ -1279,17 +1279,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         const grid = document.querySelector(".sa-mail-grid"); if (!grid) return;
         const KEY = "fura_mail_cols", DEF = { c1: 210, c2: 380 };
         let cols = { ...DEF }; try { cols = { ...DEF, ...JSON.parse(localStorage.getItem(KEY) || "{}") }; } catch (_) { /* */ }
-        const apply = () => { grid.style.setProperty("--ml-c1", cols.c1 + "px"); grid.style.setProperty("--ml-c2", cols.c2 + "px"); };
+        const apply = () => {
+            grid.classList.toggle("ml-icons", !!cols.icons);
+            grid.style.setProperty("--ml-c1", (cols.icons ? 64 : cols.c1) + "px"); grid.style.setProperty("--ml-c2", cols.c2 + "px");
+        };
+        const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cols)); } catch (_) { /* */ } };
+        // «лише значки» для колонки папок
+        window.furaMailFold = () => { cols.icons = !cols.icons; apply(); save(); renderFolders(); };
         apply();
         grid.insertAdjacentHTML("beforeend", '<div class="sa-split s1" data-split="c1" title="Тягніть, щоб змінити ширину. Подвійний клік — як було"></div><div class="sa-split s2" data-split="c2" title="Тягніть, щоб змінити ширину. Подвійний клік — як було"></div>');
         grid.addEventListener("pointerdown", (e) => {
             const h = e.target.closest("[data-split]"); if (!h || e.button !== 0) return;
             e.preventDefault();
-            const k = h.dataset.split, x0 = e.clientX, v0 = cols[k], W = grid.getBoundingClientRect().width;
+            const k = h.dataset.split, x0 = e.clientX, W = grid.getBoundingClientRect().width;
+            if (k === "c1" && cols.icons) { cols.icons = false; cols.c1 = 140; apply(); renderFolders(); }
+            const v0 = cols[k];
             h.setPointerCapture?.(e.pointerId); document.body.classList.add("sa-resizing"); h.classList.add("on");
             const mv = (ev) => {
                 const other = k === "c1" ? cols.c2 : cols.c1;
-                cols[k] = Math.round(Math.max(k === "c1" ? 140 : 260, Math.min(v0 + ev.clientX - x0, W - other - 28 - 340)));
+                const want = v0 + ev.clientX - x0;
+                // папки стягнули зовсім вузько — лишаємо тільки значки
+                if (k === "c1" && want < 110) { if (!cols.icons) { cols.icons = true; apply(); renderFolders(); } return; }
+                if (k === "c1" && cols.icons) { cols.icons = false; renderFolders(); }
+                cols[k] = Math.round(Math.max(k === "c1" ? 140 : 260, Math.min(want, W - other - 28 - 340)));
                 apply();
             };
             const up = () => {
@@ -1299,7 +1311,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             };
             h.addEventListener("pointermove", mv); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
         });
-        grid.addEventListener("dblclick", (e) => { const h = e.target.closest("[data-split]"); if (!h) return; cols[h.dataset.split] = DEF[h.dataset.split]; apply(); try { localStorage.setItem(KEY, JSON.stringify(cols)); } catch (_) { /* */ } });
+        grid.addEventListener("dblclick", (e) => { const h = e.target.closest("[data-split]"); if (!h) return; cols[h.dataset.split] = DEF[h.dataset.split]; if (h.dataset.split === "c1") cols.icons = false; apply(); renderFolders(); try { localStorage.setItem(KEY, JSON.stringify(cols)); } catch (_) { /* */ } });
     })();
 
     /* ---------- Телефон: список і лист — по черзі на весь екран, «← Назад» повертає до списку ---------- */
@@ -1364,16 +1376,16 @@ document.addEventListener("DOMContentLoaded", async () => {
             const real = String(f.name || f.path).replace(/^INBOX[./]/i, "");
             const text = f.kind && same(f.kind) ? `${label} · ${real}` : label;
             const canHide = f.kind !== "\\Inbox";
-            return `<div class="sa-mf-row ${hidden ? "is-hidden" : ""}"><button type="button" class="sa-mf t-${tone[f.kind] || "other"} ${f.path === ML.folder ? "active" : ""}" data-folder="${escapeHtml(f.path)}" title="${escapeHtml((f.paths || [f.path]).join(" + "))}">
+            return `<div class="sa-mf-row ${hidden ? "is-hidden" : ""}"><button type="button" class="sa-mf t-${tone[f.kind] || "other"} ${f.path === ML.folder ? "active" : ""}" data-folder="${escapeHtml(f.path)}" title="${escapeHtml(text)}${f.unseen ? ` — нових: ${f.unseen}` : ""}">
                 <i class="bx ${icon}"></i><span>${escapeHtml(text)}</span>${f.unseen ? `<b>${f.unseen}</b>` : f.total ? `<em>${f.total}</em>` : ""}</button>
                 ${canHide ? `<button type="button" class="sa-mf-eye" data-hide="${escapeHtml(f.path)}" title="${hidden ? "Показати папку" : "Сховати папку"}"><i class="bx ${hidden ? "bx-show" : "bx-hide"}"></i></button>` : ""}</div>`;
         };
         const shown = ML.folders.filter((f) => !hid.has(f.path) || f.path === ML.folder);
         const hidden = ML.folders.filter((f) => hid.has(f.path) && f.path !== ML.folder);
-        $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки</div>` + shown.map((f) => btn(f, hid.has(f.path))).join("") +
+        $("mlFolders").innerHTML = `<div class="sa-mf-title">Папки<button type="button" class="sa-mf-fold" data-fold title="${document.querySelector(".sa-mail-grid")?.classList.contains("ml-icons") ? "Показати назви папок" : "Лишити тільки значки"}"><i class="bx ${document.querySelector(".sa-mail-grid")?.classList.contains("ml-icons") ? "bx-chevrons-right" : "bx-chevrons-left"}"></i></button></div>` + shown.map((f) => btn(f, hid.has(f.path))).join("") +
             (hidden.length ? `<button type="button" class="sa-mf-more" data-showhidden>${ML.showHidden ? "▾" : "▸"} Приховані (${hidden.length})</button>` +
                 (ML.showHidden ? hidden.map((f) => btn(f, true)).join("") : "") : "") +
-            `<div class="sa-mf-title">Довідник</div><div class="sa-mf-row"><button type="button" class="sa-mf t-book ${ML.book ? "active" : ""}" data-book><i class="bx bx-book-bookmark"></i><span>Адреси</span>${BOOK.list.length ? `<em>${BOOK.list.length}</em>` : ""}</button></div>`;
+            `<div class="sa-mf-title">Довідник</div><div class="sa-mf-row"><button type="button" class="sa-mf t-book ${ML.book ? "active" : ""}" data-book title="Адреси"><i class="bx bx-book-bookmark"></i><span>Адреси</span>${BOOK.list.length ? `<em>${BOOK.list.length}</em>` : ""}</button></div>`;
         if (ML.book) $("mlFolders").querySelectorAll("[data-folder].active").forEach((b) => b.classList.remove("active"));
         const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
         const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
@@ -1614,6 +1626,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         if (e.target.closest("[data-showhidden]")) { ML.showHidden = !ML.showHidden; return renderFolders(); }
         if (e.target.closest("[data-book]")) return openBook();
+        if (e.target.closest("[data-fold]")) return window.furaMailFold?.();
         const b = e.target.closest("[data-folder]");
         if (!b) return;
         ML.book = false;
