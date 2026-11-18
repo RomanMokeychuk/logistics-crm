@@ -668,7 +668,10 @@ function walk(o: Any, out: Array<[string, Any, string]> = [], path = ""): Array<
     return out;
 }
 const pick = (pairs: Array<[string, Any, string]>, rx: RegExp, ok: (v: string) => boolean = (v) => !!v.trim()) => {
-    for (const [k, v, p] of pairs) if (rx.test(k) || rx.test(p)) { const s = String(v ?? "").trim(); if (s && ok(s)) return s; }
+    for (const [k, v, p] of pairs) {
+        const tail = p.split(".").filter((x) => !/^\d+$/.test(x)).slice(-2).join(".");
+        if (rx.test(k) || rx.test(tail)) { const s = String(v ?? "").trim(); if (s && ok(s)) return s; }
+    }
     return "";
 };
 
@@ -707,21 +710,26 @@ async function carrierEnrich(body: Any) {
         await sleep(300);
     }
     if (!user) {
-        const r = await lardiGet(`/users/search?query=${encodeURIComponent(ref)}&queryLimit=3`);
-        const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || []);
-        const u = list.find((x) => String(x.refId ?? x.id) === ref);
-        if (u) parts.push(u);
+        // профіль знайдено за посиланням — шукаємо його ж у пошуку Lardi (там є місто, область, фото)
+        for (const q of [c.edrpou, c.name, ref].filter(Boolean)) {
+            const r = await lardiGet(`/users/search?query=${encodeURIComponent(String(q))}&queryLimit=20`);
+            const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || r?.result || []);
+            tried[`/users/search?query=${String(q).slice(0, 20)}`] = list.length > 0;
+            const u = list.find((x) => String(x.refId ?? x.id ?? x.userId) === ref);
+            if (u) { parts.push(u); break; }
+            await sleep(300);
+        }
     }
     const pairs = parts.flatMap((p) => walk(p));
 
-    const isUrl = (v: string) => /^https?:\/\/|^\/\//.test(v) && /\.(png|jpe?g|webp|gif)|avatar|logo|photo|image|img/i.test(v);
+    const isUrl = (v: string) => /^(https?:)?\/\/|^\/[a-z]/i.test(v) && /\.(png|jpe?g|webp|gif)|avatar|logo|photo|image|img/i.test(v);
     const bodiesFromFleet = new Set<string>();
     const found = {
         name: pick(pairs, /^(name|nameWithBrand|fullName|companyName)$/),
         edrpou: pick(pairs, /edrpou|okpo/i, (v) => digitsOnly(v).length >= 8),
-        region: pick(pairs, /^(region|area|oblast)(Name)?$/i),
-        city: pick(pairs, /^(town|city)(Name)?$/i),
-        address: pick(pairs, /^(address|street)$/i),
+        region: pick(pairs, /^(region|area|oblast|regionName|areaName)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)),
+        city: pick(pairs, /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)),
+        address: pick(pairs, /^(address|street|addressLine)(\.(name|value))?$/i, (v) => !/^\d+$/.test(v)),
         director: pick(pairs, /director|chief|head(Name)?$|boss/i),
         avatar: pick(pairs, /avatar|logo|photo|image/i, isUrl),
     };
@@ -832,7 +840,7 @@ async function carrierEnrich(body: Any) {
     };
     const profile = `https://lardi-trans.com/log/user/${ref}/`;
     if (!c.profile_url || !/\/log\/user\//.test(c.profile_url)) changes.push({ field: "profile_url", label: "Lardi / профіль", old: c.profile_url || "", new: profile });
-    add("logo_url", "Фото", found.avatar.startsWith("//") ? "https:" + found.avatar : found.avatar);
+    add("logo_url", "Фото", !found.avatar ? "" : found.avatar.startsWith("//") ? "https:" + found.avatar : found.avatar.startsWith("/") ? "https://lardi-trans.com" + found.avatar : found.avatar);
     add("director", "Директор", found.director);
     add("region_ukr", "Область", found.region ? found.region.toUpperCase().replace(/\s*ОБЛАСТЬ$/, " ОБЛ.") : "");
     add("city", "Місто / Адреса", [found.city, found.address].filter(Boolean).join(", "));
@@ -909,7 +917,7 @@ async function carrierEnrich(body: Any) {
         data: {
             found: true, ref, profile, changes, trucks: tl.length,
             // для налаштування: які методи Lardi відповіли і які поля прийшли
-            debug: { endpoints: tried, keys: [...new Set(pairs.map(([, , p]) => p.replace(/\.\d+\./g, ".*.")))].slice(0, 120) },
+            debug: { endpoints: tried, sample: pairs.slice(0, 60).map(([, v, p]) => `${p} = ${String(v).slice(0, 60)}`), keys: [...new Set(pairs.map(([, , p]) => p.replace(/\.\d+\./g, ".*.")))].slice(0, 120) },
         },
     };
 }

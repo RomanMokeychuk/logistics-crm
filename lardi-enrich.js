@@ -44,7 +44,7 @@
                 <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля й нові пункти у списках.</div>
                 <div class="le-acts"><button type="button" class="le-go" data-le="save">Зберегти обране</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>`
             : `<div class="le-ok">Нового в Lardi немає — картка вже актуальна.</div>`}
-            <details class="le-dbg"><summary>Технічні дані (для налаштування)</summary><pre>${esc(JSON.stringify(r.debug, null, 1))}</pre></details>`);
+            <details class="le-dbg"${list.some((c) => /region_ukr|city|logo_url/.test(c.field)) ? "" : " open"}><summary>Технічні дані (для налаштування)</summary><pre>${esc(JSON.stringify(r.debug, null, 1))}</pre></details>`);
         box.querySelector("[data-le=save]")?.addEventListener("click", async (e) => {
             const fields = [...box.querySelectorAll("[data-f]:checked")].map((x) => x.dataset.f);
             if (!fields.length) return (box.hidden = true);
