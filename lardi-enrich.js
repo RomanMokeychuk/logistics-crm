@@ -279,11 +279,17 @@
             const d = parseLardi(ta.value);
             changes = pasteChanges(c, d);
             const res = box.querySelector(".le-res");
-            res.innerHTML = changes.length
+            // які телефони знайшли і які з них уже є в картці — щоб було видно, чому номер не пропонується
+            const have = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x) => x?.phone) : [])]
+                .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digits(v).slice(-9)).filter((v) => v.length === 9));
+            const phonesInfo = d.contacts.length
+                ? `<div class="le-phones">📞 Знайдено телефонів: <b>${d.contacts.length}</b> — ${d.contacts.map((x) => `${esc(x.name || "без імені")}: ${esc(x.phone)}${have.has(digits(x.phone).slice(-9)) ? ' <span class="le-have">✓ уже є в картці</span>' : ""}`).join("; ")}</div>`
+                : "";
+            res.innerHTML = phonesInfo + (changes.length
                 ? `<div class="le-list">${changes.map((x) => `<label class="le-row"><input type="checkbox" data-f="${esc(x.field)}" checked><span class="le-lbl">${esc(x.label)}</span><span class="le-val">${x.old ? `<s>${esc(x.old)}</s> → ` : ""}${esc(x.new)}</span></label>`).join("")}</div>
                    <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля і нові телефони.</div>
                    <div class="le-acts"><button type="button" class="le-go" data-le="psave">Зберегти обране</button></div>`
-                : `<div class="le-ok">${!ta.value.trim() ? "" : /^\s*(https?:\/\/\S+\s*)+$/.test(ta.value) ? "Ви вставили лише посилання. Потрібен сам <b>текст сторінки</b>: відкрийте вкладку в Lardi, натисніть <b>Cmd+A</b>, потім <b>Cmd+C</b> — і вставте сюди." : "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A)."}</div>`;
+                : `<div class="le-ok">${!ta.value.trim() ? "" : /^\s*(https?:\/\/\S+\s*)+$/.test(ta.value) ? "Ви вставили лише посилання. Потрібен сам <b>текст сторінки</b>: відкрийте вкладку в Lardi, натисніть <b>Cmd+A</b>, потім <b>Cmd+C</b> — і вставте сюди." : (d.contacts.length ? "Усе з цього тексту вже є в картці." : "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A).")}</div>`);
         };
         // скріншоти: вставка з буфера або вибір файлу → FURA читає текст (Claude) і дописує в поле
         const shrink = (file) => new Promise((ok, bad) => {
@@ -388,6 +394,7 @@
     .le-paste{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:13px/1.45 inherit;font-family:inherit;resize:vertical}
     .le-paste:focus{outline:none;border-color:#d9a944;box-shadow:0 0 0 3px rgba(217,169,68,.18)}
     .le-res{display:flex;flex-direction:column;gap:10px}
+    .le-phones{font-size:13px;color:#374151;background:#f8fafc;border-radius:10px;padding:8px 10px}.le-have{color:#16a34a;font-weight:600;white-space:nowrap}
     .le-drop{outline:3px dashed #d9a944;outline-offset:-6px}
     .le-shots{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12.5px;color:#6b7280}.le-shotbtn{margin:0;cursor:pointer}
     @media (max-width:600px){.le-row{grid-template-columns:auto 1fr}.le-val{grid-column:2}}`;
