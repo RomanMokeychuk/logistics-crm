@@ -102,7 +102,7 @@
     const PHONE = /(\+?\d[\d\s()-]{8,}\d)/;
     const digits = (v) => String(v || "").replace(/\D/g, "");
     const normPhone = (v) => { const d = digits(v); return d.length === 12 ? "+" + d : d.length === 10 ? "+38" + d : String(v).trim(); };
-    const VEH = /^(Вантажівка|Тягач|Напівпричіп|Причіп|Автопоїзд|Зчіпка|Бус|Мікроавтобус|Легковий|Truck|Tractor)(?=[\s,]|$)/i;
+    const VEH = /^(Вантажівка|Тягач|Напівпричіп|Причіп|Автопоїзд|Зчіпка|Бус|Мікроавтобус|Легковий|Truck|Tractor)/i;
     const UA_MONTHS = { січня: 1, лютого: 2, березня: 3, квітня: 4, травня: 5, червня: 6, липня: 7, серпня: 8, вересня: 9, жовтня: 10, листопада: 11, грудня: 12 };
 
     function parseLardi(text) {
@@ -180,7 +180,7 @@
             if (cur) fleet.push(cur.join(" · "));
         }
         // «напівпричіпAC2803BX» — номер авто злипся з назвою
-        out.fleet = fleet.map((f) => f.replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"));
+        out.fleet = fleet.map((f) => f.replace(/^(Вантажівка|Тягач|Напівпричіп|Причіп|Бус)(?=[а-яіїєґ])/i, "$1 ").replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"));
         // «Відгуки»: «09.09.2026  UA - RO  Хмельницький - Сучава» — маршрути, якими реально возив
         const routes = new Map();
         // Lardi копіює це злитно: «10.07.2024UA - GEКиїв - Тбілісі» — тому прив'язуємось до дати
@@ -241,6 +241,17 @@
             if (!ph || (nm && !/^(власник|офіс)/i.test(nm))) continue;
             const x = d.contacts.find((p) => p.name && digits(p.phone).slice(-9) === ph);
             if (x && x.name !== nm) ch.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
+        }
+        // кузови з автопарку → «Тип причепу» (лише нові)
+        if (d.fleet.length) {
+            const BODY = [[/тент/i, "ТЕНТ"], [/реф|рефрижератор/i, "РЕФ"], [/ізотерм/i, "ІЗОТЕРМ"], [/цільномет/i, "ЦІЛЬНОМЕТ"], [/платформ/i, "ПЛАТФОРМА"],
+                [/контейнеровоз/i, "КОНТЕЙНЕРОВОЗ"], [/автовоз/i, "АВТОВОЗ"], [/зерновоз/i, "ЗЕРНОВОЗ"], [/самоскид/i, "САМОСКИД"], [/бортов/i, "БОРТОВИЙ"], [/цистерн/i, "ЦИСТЕРНА"], [/мега|mega/i, "МЕГА"]];
+            const cur = String(c.trailer_type || "").split(/[;,]/).map((x) => x.trim().toUpperCase()).filter(Boolean);
+            const add = [];
+            d.fleet.forEach((f) => BODY.forEach(([rx, name]) => { if (rx.test(f) && !cur.includes(name) && !add.includes(name)) add.push(name); }));
+            if (add.length) ch.push({ field: "trailer_type", label: "Тип причепу (з автопарку)", old: cur.join("; "), new: [...cur, ...add].join("; "), added: add });
+            const tons = d.fleet.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*т\.?(?!\w)/i) || [])[1]).filter(Boolean).map((x) => Number(x.replace(",", ".")));
+            if (tons.length && !String(c.tonnage || "").trim()) ch.push({ field: "tonnage", label: "Тоннаж, т", old: "", new: String(Math.max(...tons)) });
         }
         if (d.fleet.length) {
             const cur = String(c.fleet_params || "").replace(/\n?Автопарк Lardi[\s\S]*$/, "").trim();
