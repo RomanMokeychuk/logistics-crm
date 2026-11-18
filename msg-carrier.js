@@ -110,9 +110,9 @@
         <div class="fmsg-acts">
             <button type="button" class="fmsg-go fmsg-go-bot fmsg-sbot" data-fx="bot" hidden>🤖 Надіслати ботом</button>
             <button type="button" class="fmsg-go fmsg-go-tg" data-fx="tg">Telegram</button>
-            <button type="button" class="fmsg-go fmsg-go-vb" data-fx="viber">Viber</button>
+            <button type="button" class="fmsg-go fmsg-go-vbf" data-fx="vbfwd" title="Viber відкриє «Поділитися» з усім текстом — оберіть цього перевізника і «Надіслати»">Viber</button>
             <button type="button" class="fmsg-go fmsg-go-cp" data-fx="copy">Скопіювати</button>
-            <button type="button" class="fmsg-go fmsg-go-vbf" data-fx="vbfwd" title="Viber відкриє «Поділитися» з усім текстом — оберіть цього перевізника і «Надіслати»">Viber · весь текст</button>
+            <button type="button" class="fmsg-link" data-fx="viber" title="Відкрити чат за номером (для нових номерів, яких нема у ваших контактах Viber). Довгий текст — Cmd+V">чат за номером</button>
             <button type="button" class="fmsg-link" data-fx="tpl">Шаблон…</button>
         </div>
         <div class="fmsg-tpl" hidden>
@@ -193,7 +193,7 @@
         if (ctx.carrier_id && sbc()) sbc().from("carriers").select("tg_chat_id").eq("id", ctx.carrier_id).maybeSingle().then(({ data }) => { if (data?.tg_chat_id) { sb.hidden = false; sj.hidden = true; } }, () => {});
         joinLink();
         box.hidden = false;
-        box.querySelectorAll(".fmsg-go-tg, .fmsg-go-vb").forEach((b) => b.classList.toggle("main", b.dataset.fx === app));
+        box.querySelectorAll(".fmsg-go-tg, .fmsg-go-vbf").forEach((b) => b.classList.toggle("main", b.dataset.fx === (app === "viber" ? "vbfwd" : app)));
         setTimeout(() => ta().focus(), 30);
     }
     async function copy(t) {
@@ -283,7 +283,7 @@
     bx.className = "fmsg fmsg-batch"; bx.hidden = true;
     bx.innerHTML = `<div class="fmsg-card" role="dialog">
         <div class="fmsg-head"><b>Розіслати перевізникам</b><span class="fmsg-who"></span><button type="button" class="fmsg-x" data-bx="close" title="Закрити">&times;</button></div>
-        <div class="fmsg-app"><label><input type="radio" name="fmsgApp" value="viber" checked> <span class="fmsg-b fmsg-vb">Vb</span> Viber</label><label><input type="radio" name="fmsgApp" value="vbf"> <span class="fmsg-b fmsg-vb">Vb</span> Viber · весь текст («Поділитися»)</label><label><input type="radio" name="fmsgApp" value="tg"> <span class="fmsg-b fmsg-tg">TG</span> Telegram</label></div>
+        <div class="fmsg-app"><label><input type="radio" name="fmsgApp" value="vbf" checked> <span class="fmsg-b fmsg-vb">Vb</span> Viber</label><label><input type="radio" name="fmsgApp" value="viber"> <span class="fmsg-b fmsg-vb">Vb</span> Viber · чат за номером (Cmd+V)</label><label><input type="radio" name="fmsgApp" value="tg"> <span class="fmsg-b fmsg-tg">TG</span> Telegram</label></div>
         <textarea class="fmsg-text fmsg-btext" rows="7"></textarea>
         <div class="fmsg-note">Ім'я кожного підставиться саме ([ІМʼЯ]). Ціну й назву клієнта не пишемо.</div>
         <div class="fmsg-list"></div>
@@ -344,7 +344,7 @@
     }
     bx.addEventListener("change", (e) => {
         const c = e.target.closest("[data-bi]"); if (c) { B.list[+c.dataset.bi].on = c.checked; brender(); }
-        if (e.target.name === "fmsgApp") { try { localStorage.setItem("fura_msg_app", app()); } catch (_) { /* */ } brender(); }
+        if (e.target.name === "fmsgApp") { try { localStorage.setItem("fura_msg_app2", app()); } catch (_) { /* */ } brender(); }
     });
     bx.addEventListener("click", (e) => {
         const b = e.target.closest("[data-bx],[data-bone]"); if (!b) return;
@@ -372,7 +372,7 @@
         joinLink();
         // текст уже з маршрутом/вантажем; лишається тільки [ІМʼЯ] — для кожного своє
         bx.querySelector(".fmsg-btext").value = build({ ...ctx, person: "\u0001" }).replace(/, \u0001/g, "{, [ІМʼЯ]}").replace(/\u0001/g, "[ІМʼЯ]");
-        try { const a = localStorage.getItem("fura_msg_app"); if (a) bx.querySelector(`[name="fmsgApp"][value="${a}"]`).checked = true; } catch (_) { /* */ }
+        try { const a = localStorage.getItem("fura_msg_app2"); if (a) bx.querySelector(`[name="fmsgApp"][value="${a}"]`).checked = true; } catch (_) { /* */ }
         bx.hidden = false;
         brender();
     };
