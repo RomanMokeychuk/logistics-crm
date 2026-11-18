@@ -685,30 +685,28 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null }> {
         if (!list.length) continue;
         // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один
         const byCode = code ? list.find((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code)) : null;
-        const u = byCode || (q === c.name && list.length === 1 ? list[0] : null);
+        // пошук за ЄДРПОУ, що дав рівно одну компанію, — це вона (Lardi шукає за кодом, але код не повертає)
+        const u = byCode || (list.length === 1 ? list[0] : null);
         const ref = u && (u.refId ?? u.id ?? u.userId);
         if (ref) return { ref: String(ref), user: u };
     }
     return { ref: "", user: null };
 }
 
-async function carrierEnrich(body: Any) {
+async function carrierEnrich(body: Any, row: Any = null) {
     if (!KEY) return { status: 400, data: { error: "Не задано LARDI_API_KEY у Supabase Secrets" } };
-    const { data: c } = await db.from("carriers").select("*").eq("id", body.carrier_id).maybeSingle();
+    const c = row || (await db.from("carriers").select("*").eq("id", body.carrier_id).maybeSingle()).data;
     if (!c) return { status: 404, data: { error: "Перевізника не знайдено" } };
 
     const { ref, user } = await findRef(c);
+    const stamp = { lardi_checked_at: new Date().toISOString(), lardi_found: !!ref };
+    if (!ref) { if ("lardi_checked_at" in c) await db.from("carriers").update(stamp).eq("id", c.id); }
     if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ і назвою). Вставте посилання на профіль у картку — і спробуйте ще раз." } };
 
     // Методи профілю: беремо ті, що дає ключ (решта просто пропускаються)
     const tried: Record<string, boolean> = {};
     const parts: Any[] = user ? [user] : [];
-    for (const path of [`/users/${ref}`, `/users/${ref}/info`, `/users/${ref}/contacts`, `/users/info/${ref}`, `/users/contacts/${ref}`]) {
-        const j = await lardiGet(path);
-        tried[path] = !!j;
-        if (j) parts.push(j);
-        await sleep(300);
-    }
+    // Ключ Lardi дає лише пошук компаній (перевірено: /users/{id}, /contacts, /autopark — закриті)
     if (!user) {
         // профіль знайдено за посиланням — шукаємо його ж у пошуку Lardi (там є місто, область, фото)
         for (const q of [c.edrpou, c.name, ref].filter(Boolean)) {
@@ -776,32 +774,6 @@ async function carrierEnrich(body: Any) {
     // «Мій автопарк» у Lardi: беремо, якщо ключ дає цей метод
     const fleet: string[] = [];
     let fleetMass = 0, fleetVol = 0;
-    for (const path of [`/users/${ref}/autopark`, `/users/${ref}/transport`, `/users/${ref}/trucks`, `/users/autopark/${ref}`, `/autopark/${ref}`]) {
-        const j = await lardiGet(path);
-        tried[path] = !!j;
-        if (!j) { await sleep(300); continue; }
-        const list: Any[] = Array.isArray(j) ? j : (j.content || j.items || j.autopark || j.transports || j.trucks || j.result || []);
-        for (const a of Array.isArray(list) ? list : []) {
-            const pr = walk(a);
-            const val = (rx: RegExp) => pick(pr, rx);
-            const line = [
-                [val(/^(type|transType|kind)(\.name)?$/i), val(/brand|mark|model/i)].filter(Boolean).join(" "),
-                val(/body(Type)?(\.name)?$/i),
-                val(/own(ership)?(Type)?(\.name)?$/i),
-                val(/^(mass|tonnage|capacity|weight)$/i) ? val(/^(mass|tonnage|capacity|weight)$/i) + " т" : "",
-                val(/^volume$/i) ? val(/^volume$/i) + " м³" : "",
-                pr.filter(([k, , p]) => /load(Type)?s?/i.test(p) && /name/i.test(k)).map(([, v]) => v).join(", "),
-                pr.filter(([k, , p]) => /permit|adr|document/i.test(p) && /name/i.test(k)).map(([, v]) => v).join(", "),
-                val(/number|plate|regNum/i),
-            ].filter(Boolean).join(" · ");
-            if (line) fleet.push(line);
-            fleetMass = Math.max(fleetMass, Number(val(/^(mass|tonnage|capacity)$/i)) || 0);
-            fleetVol = Math.max(fleetVol, Number(val(/^volume$/i)) || 0);
-            const b = val(/body(Type)?(\.name)?$/i);
-            if (b) bodiesFromFleet.add(b.toUpperCase().replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ"));
-        }
-        if (fleet.length) break;
-    }
 
     // транспорт: заявки «авто» цього перевізника за 60 днів
     const since = new Date(Date.now() - 60 * 86400000).toISOString();
@@ -839,6 +811,11 @@ async function carrierEnrich(body: Any) {
         changes.push({ field, label, old, new: val });
     };
     const profile = `https://lardi-trans.com/log/user/${ref}/`;
+    // рейтинг Lardi (окремі поля — свої зірки FURA не чіпаємо)
+    const lr = Number(pick(pairs, /^rating\.points$/i)) || 0;
+    const lp = Number(pick(pairs, /^rating\.positiveCommentCount$/i)) || 0;
+    const ln = Number(pick(pairs, /^rating\.negativeCommentCount$/i)) || 0;
+    const ratingUpd: Any = "lardi_rating" in c ? { lardi_ref: Number(ref), lardi_rating: lr ? Math.round(lr * 10) / 10 : null, lardi_reviews_pos: lp, lardi_reviews_neg: ln } : {};
     if (!c.profile_url || !/\/log\/user\//.test(c.profile_url)) changes.push({ field: "profile_url", label: "Lardi / профіль", old: c.profile_url || "", new: profile });
     add("logo_url", "Фото", !found.avatar ? "" : found.avatar.startsWith("//") ? "https:" + found.avatar : found.avatar.startsWith("/") ? "https://lardi-trans.com" + found.avatar : found.avatar);
     add("director", "Директор", found.director);
@@ -898,7 +875,7 @@ async function carrierEnrich(body: Any) {
 
     if (body.apply) {
         const want = new Set<string>(Array.isArray(body.fields) ? body.fields : changes.map((x) => x.field));
-        const upd: Any = {};
+        const upd: Any = { ...ratingUpd, ...("lardi_checked_at" in c ? stamp : {}) };
         for (const ch of changes) {
             if (!want.has(ch.field)) continue;
             if (ch.field !== "contacts") { upd[ch.field] = ch.new; continue; }
@@ -910,7 +887,8 @@ async function carrierEnrich(body: Any) {
         if (!Object.keys(upd).length) return { status: 200, data: { applied: 0 } };
         const { error } = await db.from("carriers").update(upd).eq("id", c.id);
         if (error) return { status: 500, data: { error: error.message } };
-        return { status: 200, data: { applied: Object.keys(upd).length, fields: Object.keys(upd) } };
+        const real = Object.keys(upd).filter((k) => !/^lardi_/.test(k));
+        return { status: 200, data: { applied: real.length, fields: real } };
     }
     return {
         status: 200,
@@ -922,6 +900,33 @@ async function carrierEnrich(body: Any) {
     };
 }
 
+/* Обхід усіх перевізників FURA порціями (розклад): спершу ті, кого ще не перевіряли,
+   далі — перевірені понад 7 днів тому. Записує одразу (лише порожнє й нове). */
+async function enrichTick(limit: number) {
+    const week = new Date(Date.now() - 7 * 86400000).toISOString();
+    const { data: list, error } = await db.from("carriers").select("*")
+        .or(`lardi_checked_at.is.null,lardi_checked_at.lt.${week}`)
+        .order("lardi_checked_at", { ascending: true, nullsFirst: true }).order("id").limit(limit);
+    if (error) return { error: error.message };
+    let done = 0, found = 0, updated = 0;
+    const started = Date.now();
+    for (const c of list || []) {
+        if (Date.now() - started > 120000) break; // не довше 2 хв за раз
+        try {
+            const r = await carrierEnrich({ apply: true }, c);
+            done++;
+            if (r.data?.applied !== undefined || r.data?.found !== false) found += r.data?.found === false ? 0 : 1;
+            if ((r.data?.applied || 0) > 0) updated++;
+        } catch (e) {
+            if (e instanceof LardiError && e.status === 429) break; // Lardi просить паузу — продовжимо наступного разу
+            await db.from("carriers").update({ lardi_checked_at: new Date().toISOString() }).eq("id", c.id);
+        }
+        await sleep(1200);
+    }
+    const { count: left } = await db.from("carriers").select("id", { count: "exact", head: true }).is("lardi_checked_at", null);
+    return { ok: true, done, found, updated, left_unchecked: left ?? null };
+}
+
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
     if (req.method !== "POST") return new Response("FURA Lardi monitor is running");
@@ -931,6 +936,10 @@ Deno.serve(async (req) => {
     try { body = await req.json(); } catch { return json(400, { error: "bad request" }); }
 
     try {
+        if (body.action === "enrich_tick") {
+            if (!secretOk(req, url)) return json(403, { error: "forbidden" });
+            return json(200, await enrichTick(Math.max(1, Math.min(60, Number(body.limit) || 30))));
+        }
         if (body.action === "tick") {
             if (!secretOk(req, url)) return json(403, { error: "forbidden" });
             // body.kind: "cargo" (вантажі) або "truck" (машини); body.stale_hours — оновлювати напрямки, старші за N год
@@ -964,6 +973,11 @@ Deno.serve(async (req) => {
             case "carrier_enrich": {
                 const out = await carrierEnrich(body);
                 return json(out.status, out.data);
+            }
+            case "enrich_status": {
+                const q = (f: (x: Any) => Any) => f(db.from("carriers").select("id", { count: "exact", head: true }));
+                const [all, checked, found] = await Promise.all([q((x) => x), q((x) => x.not("lardi_checked_at", "is", null)), q((x) => x.eq("lardi_found", true))]);
+                return json(200, { all: all.count, checked: checked.count, found: found.count });
             }
             case "status":
                 return json(200, { key: !!KEY, cron: !!CRON_SECRET, boss: isBoss(me), pageSize: PAGE_SIZE, maxPages: MAX_PAGES });

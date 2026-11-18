@@ -620,6 +620,7 @@ function openCarrierCard(id) {
                 <div class="card-header-badges">
                     <span class="card-rating-badge"><i class='bx bxs-star'></i> ${rating ? rating : "—"}</span>
                     ${starsHtml}
+                    ${item.lardi_rating != null && item.lardi_rating !== "" ? `<a class="card-lardi-badge" href="${escapeHtml(item.profile_url || "#")}" target="_blank" rel="noopener" title="Рейтинг і відгуки в Lardi">Lardi ★ ${escapeHtml(item.lardi_rating)} · 👍 ${Number(item.lardi_reviews_pos) || 0} · 👎 ${Number(item.lardi_reviews_neg) || 0}</a>` : ""}
                 </div>
             </div>
         </div>
