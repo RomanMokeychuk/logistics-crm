@@ -224,7 +224,7 @@ const LD = (() => {
 
 
     // Компанія з Lardi: назва з посиланням на профіль, відгуки, місто; контакт з кнопками месенджерів
-    const profileUrl = (ref) => (ref ? `https://lardi-trans.com/user/${encodeURIComponent(ref)}/` : "");
+    const profileUrl = (ref) => (ref ? `https://lardi-trans.com/log/user/${encodeURIComponent(ref)}/` : "");
     function ownerHtml(o) {
         const url = profileUrl(o.ref);
         const name = url

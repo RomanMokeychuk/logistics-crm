@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611182142";
+            css.href = "mobile.css?v=202611182146";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -35,6 +35,22 @@
         }
         return;
     }
+
+    /* ---------- Посилання на профіль у Lardi — завжди через кабінет (/log/user/…) ----------
+     * Стара адреса lardi-trans.com/user/ID показує «Нет доступа», навіть коли ви увійшли в Lardi;
+     * адреса кабінету lardi-trans.com/log/user/ID відкриває профіль одразу. Виправляємо перед переходом. */
+    (function fixLardiLinks() {
+        const RX = /^https?:\/\/(?:www\.)?lardi-trans\.(?:com|ua)\/(?:(?:uk|ru|en|pl)\/)?user\/(\d+)\/?(.*)$/i;
+        const fix = (e) => {
+            const a = e.target.closest?.("a[href]");
+            if (!a) return;
+            const m = a.href.match(RX);
+            if (m) a.href = `https://lardi-trans.com/log/user/${m[1]}/${m[2] || ""}`;
+        };
+        document.addEventListener("pointerdown", fix, true);
+        document.addEventListener("keydown", (e) => { if (e.key === "Enter") fix(e); }, true);
+        document.addEventListener("click", fix, true);
+    })();
 
     /* ---------- Згорнуте бічне меню пам'ятаємо між оновленнями й сторінками ---------- */
     (function rememberSidebar() {
@@ -326,16 +342,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611182142");
+        await addScript("helper.js?v=202611182146");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611182142";
+        css.href = "mobile.css?v=202611182146";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611182142");
+        addScript("mobile-ux.js?v=202611182146");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -505,7 +521,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182142");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182146");
         const label = buildSidebar();
         paintNavBadges();
         keepSidebarScroll();
@@ -517,15 +533,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611182142");
+            addScript("global-search.js?v=202611182146");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611182142");
+            addScript("furik.js?v=202611182146");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611182142");
+            addScript("presence.js?v=202611182146");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611182142");
+            addScript("mail-watch.js?v=202611182146");
         }
     }
 
