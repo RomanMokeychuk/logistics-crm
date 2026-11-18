@@ -670,10 +670,18 @@ const normCountry = (v: string) => { const c = String(v || "").trim().toUpperCas
 const digitsOnly = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 const codeKey = (v: unknown) => digitsOnly(v).replace(/^0+/, "");
 
-async function lardiGet(path: string): Promise<Any | null> {
+async function lardiGet(path: string, tries = 3): Promise<Any | null> {
     requestCount++;
-    const res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}language=uk`, { headers: { Authorization: KEY, Accept: "application/json" } });
+    let res: Response;
+    try {
+        res = await fetch(`${API}${path}${path.includes("?") ? "&" : "?"}language=uk`, { headers: { Authorization: KEY, Accept: "application/json" } });
+    } catch (e) {
+        if (tries > 1) { await sleep(1500); return lardiGet(path, tries - 1); }
+        throw new LardiError(503, "Lardi не відповідає. Спробуйте за хвилину.");
+    }
     const text = await res.text();
+    // Lardi обмежує частоту (автоматичний обхід теж робить запити) — чекаємо і пробуємо ще
+    if ((res.status === 429 || res.status >= 500) && tries > 1) { await sleep(res.status === 429 ? 4000 : 1500); return lardiGet(path, tries - 1); }
     if (res.status === 429) throw new LardiError(429, "Lardi просить зачекати (забагато запитів). Спробуйте за хвилину.");
     if (!res.ok) return null;
     try { return JSON.parse(text); } catch { return null; }
@@ -1051,6 +1059,7 @@ Deno.serve(async (req) => {
         }
     } catch (e) {
         console.error(e);
-        return json(500, { error: "Помилка сервера. Спробуйте ще раз." });
+        if (e instanceof LardiError) return json(e.status === 429 ? 429 : 502, { error: e.message });
+        return json(500, { error: "Помилка сервера: " + String((e as Error)?.message || e).slice(0, 200) });
     }
 });
