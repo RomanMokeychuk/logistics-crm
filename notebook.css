@@ -289,3 +289,24 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-cnrow { display: flex; align-items: flex-start; gap: 4px; }
 .nb-cnrow .nb-cname { flex: 1; }
 .nb-pop-head .nb-cp { margin-top: 4px; }
+
+/* ===== Шапка Блокнота в один рядок: назва — пошук — кнопки ===== */
+.nb-page .nb-head { flex-wrap: nowrap; gap: 16px; margin-bottom: 10px !important; }
+.nb-head .nb-title { flex: none; }
+.nb-head .nb-logo { padding: 6px 14px; font-size: 19px; }
+.nb-head .nb-search { flex: 1 1 auto; min-width: 0; max-width: 720px; margin: 0 auto; }
+.nb-head .nb-actions { flex: none; }
+.nb-page .nb-toolbar { margin-bottom: 8px; }
+@media (max-width: 1450px) { .nb-head .nb-sub { display: none; } }
+@media (max-width: 900px) {
+    .nb-page .nb-head { flex-wrap: wrap; gap: 10px; }
+    .nb-head .nb-search { order: 3; flex-basis: 100%; max-width: none; }
+}
+/* Фільтри компактніші — вміщаються в один рядок */
+@media (min-width: 901px) {
+    .nb-page .nb-toolbar:not(.nb-toolbar2) { gap: 6px; flex-wrap: wrap; }
+    .nb-page .nb-toolbar .nb-ms-btn, .nb-page .nb-toolbar .nb-sel { height: 34px; padding: 0 9px; font-size: 12.5px; border-radius: 9px; }
+    .nb-page .nb-toolbar .nb-sel { max-width: 170px; }
+    .nb-page .nb-head .nb-search input { height: 38px; }
+    .nb-page .nb-head .nb-btn { height: 38px; }
+}
