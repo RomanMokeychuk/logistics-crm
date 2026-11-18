@@ -489,6 +489,19 @@ function contactsListHtml(item) {
     if (item.contact_person_1 || item.phone_1) rows.push(["c1", item.contact_person_1, item.phone_1]);
     if (item.contact_person_2 || item.phone_2) rows.push(["c2", item.contact_person_2, item.phone_2]);
     extraContactsOf(item).forEach((c, i) => rows.push(["x" + i, c.name, c.phone]));
+    // Той самий номер двічі (напр. «380…» і «+380…») — показуємо один раз; різні імена — через « / »
+    const key = (p) => String(p || "").split(/[,;]/).map((x) => x.replace(/\D/g, "").slice(-9)).filter((x) => x.length === 9).sort().join("|");
+    const seen = new Map();
+    for (let i = 0; i < rows.length; i++) {
+        const k = key(rows[i][2]);
+        if (!k) continue;
+        if (seen.has(k)) {
+            const first = rows[seen.get(k)];
+            const n = String(rows[i][1] || "").trim();
+            if (n && !String(first[1] || "").toLowerCase().split(" / ").includes(n.toLowerCase())) first[1] = first[1] ? `${first[1]} / ${n}` : n;
+            rows.splice(i--, 1);
+        } else seen.set(k, i);
+    }
     return rows
         .map(([k, n, p]) => `<div class="qe qe-block" data-qe="${k}" title="Двічі натисніть, щоб змінити">${renderContactLine(n, p, true)}</div>`)
         .join("") + `<button type="button" class="qe-add-btn" data-qe-add="contact"><i class='bx bx-plus'></i> Додати контакт</button>`;
@@ -667,7 +680,7 @@ function openCarrierCard(id) {
                 ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
                 ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "", "volume")}
                 ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "", "tonnage")}
-                ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(item.fleet_params)}</div>`) : ""}
+                ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(String(item.fleet_params).replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"))}</div>`) : ""}
                 ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
             </div>
 

@@ -179,7 +179,8 @@
             }
             if (cur) fleet.push(cur.join(" · "));
         }
-        out.fleet = fleet;
+        // «напівпричіпAC2803BX» — номер авто злипся з назвою
+        out.fleet = fleet.map((f) => f.replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"));
         // «Відгуки»: «09.09.2026  UA - RO  Хмельницький - Сучава» — маршрути, якими реально возив
         const routes = new Map();
         // Lardi копіює це злитно: «10.07.2024UA - GEКиїв - Тбілісі» — тому прив'язуємось до дати
@@ -231,7 +232,10 @@
             .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digits(v).slice(-9)).filter((v) => v.length === 9));
         const fresh = d.contacts.filter((x) => !have.has(digits(x.phone).slice(-9)));
         if (fresh.length) ch.push({ field: "contacts", label: "Нові телефони", old: "", new: fresh.map((x) => `${x.name ? x.name + ": " : ""}${x.phone}`).join("\n"), phones: fresh });
-        for (const n of [1, 2]) {
+        // «Телефон 2» = той самий номер, що й «Телефон 1» — пропонуємо прибрати повтор
+        const dup2 = digits(c.phone_1).slice(-9) && digits(c.phone_1).slice(-9) === digits(c.phone_2).slice(-9);
+        if (dup2) ch.push({ field: "dup_phone_2", label: "Повтор телефону", old: `${c.contact_person_2 || ""} ${c.phone_2 || ""}`.trim(), new: "прибрати (той самий номер, що й Телефон 1)" });
+        for (const n of dup2 ? [1] : [1, 2]) {
             const ph = digits(c[`phone_${n}`]).slice(-9);
             const nm = String(c[`contact_person_${n}`] || "").trim();
             if (!ph || (nm && !/^(власник|офіс)/i.test(nm))) continue;
@@ -353,6 +357,8 @@
                     if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
                     if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
                     if (list.length) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+                } else if (x.field === "dup_phone_2") {
+                    upd.phone_2 = null; upd.contact_person_2 = null;
                 } else if (x.field === "notes" || x.field === "notes_routes") {
                     upd.notes = [upd.notes ?? c.notes, x.field === "notes" ? x.new : x.value].filter(Boolean).join("\n");
                 } else upd[x.field] = x.value ?? x.new;
