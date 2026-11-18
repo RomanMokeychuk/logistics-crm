@@ -870,13 +870,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const SIG_DEF = { greet: "Best regards,", name: "", title: "", company: "GRANDAR LLC", phone: "", email: "", on: true };
     const sigGet = () => { try { return { ...SIG_DEF, ...JSON.parse(localStorage.getItem(SIG_KEY) || "{}") }; } catch (_) { return { ...SIG_DEF }; } };
     const sigRead = () => {
-        const o = { on: $("saSigOn").checked };
+        const o = { on: $("saSigOn").checked, ts: Date.now() };
         document.querySelectorAll("#saSig [data-sig]").forEach((el) => (o[el.dataset.sig] = el.value.trim()));
         return o;
     };
-    function sigShow() {
+    function sigShow(save) {
         const g = sigRead();
-        try { localStorage.setItem(SIG_KEY, JSON.stringify(g)); } catch (_) { /* без пам'яті */ }
+        if (save === true) try { localStorage.setItem(SIG_KEY, JSON.stringify(g)); } catch (_) { /* без пам'яті */ }
         $("saSigShort").textContent = g.on ? [g.name, g.title].filter(Boolean).join(" | ") || "заповніть ім'я" : "без підпису";
         const line = (t) => (t ? `<p>${escapeHtml(t)}</p>` : "");
         $("saSigPrev").innerHTML = g.on ? `${line(g.greet)}${line([g.name, g.title].filter(Boolean).join(" | "))}${line(g.company)}${line(g.phone)}${g.email ? `<p><u>${escapeHtml(g.email)}</u></p>` : ""}<img src="email-logo.png" alt="GRANDAR" width="96" />` : "";
@@ -889,8 +889,27 @@ document.addEventListener("DOMContentLoaded", async () => {
         sigShow();
         if (!g.name) $("saSig").open = true;
     }
-    $("saSig").addEventListener("input", sigShow);
-    $("saSigOn").addEventListener("change", sigShow);
+    // підпис зберігається у вашому профілі FURA — однаковий у Chrome, Safari і на телефоні
+    let sigT = 0;
+    const sigCloudSave = () => {
+        clearTimeout(sigT);
+        sigT = setTimeout(() => { sbClient.auth.updateUser({ data: { fura_sig: { ...sigRead(), ts: Date.now() } } }).catch(() => {}); }, 1500);
+    };
+    (async () => {
+        try {
+            const { data } = await sbClient.auth.getUser();
+            const c = data?.user?.user_metadata?.fura_sig;
+            const loc = sigGet();
+            if (c && (c.ts || 0) >= (loc.ts || 0) && (c.name || c.phone || c.title)) {
+                localStorage.setItem(SIG_KEY, JSON.stringify(c));
+                if (!box.classList.contains("hidden")) sigFill();
+            } else if (!c && (loc.name || loc.phone)) {
+                sbClient.auth.updateUser({ data: { fura_sig: { ...loc, ts: Date.now() } } }).catch(() => {}); // перенести підпис з цього браузера в профіль
+            }
+        } catch (_) { /* без мережі — лишається підпис цього браузера */ }
+    })();
+    $("saSig").addEventListener("input", () => { sigShow(true); sigCloudSave(); });
+    $("saSigOn").addEventListener("change", () => { sigShow(true); sigCloudSave(); });
     const showFiles = () => {
         $("saCmpFileList").innerHTML = files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
     };
@@ -900,7 +919,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const localPut = (extra = {}) => {
         try {
             localStorage.setItem(DRAFT, JSON.stringify({ to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value,
-                in_reply_to: inReplyTo, draft_uid: draft.uid, draft_folder: draft.folder, dirty, ...extra }));
+                in_reply_to: inReplyTo, quote: qText, draft_uid: draft.uid, draft_folder: draft.folder, dirty, ...extra }));
         } catch (_) { /* без пам'яті */ }
     };
     const savedMark = (t) => { const el = $("saCmpSaved"); if (el) el.textContent = t; };
@@ -908,7 +927,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         clearTimeout(dT);
         if (!dirty || !hasContent() || (status && !status.mail_reader)) return saving;
         dirty = false;
-        const payload = { action: "mail_draft", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, in_reply_to: inReplyTo || undefined };
+        const payload = { action: "mail_draft", to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value + (qText ? "\n\n\n" + qText : ""), in_reply_to: inReplyTo || undefined };
         savedMark("зберігаю…");
         const cur = draft; // саме цей лист (якщо тим часом відкрили інший — не переплутати)
         saving = saving.then(async () => {
@@ -983,6 +1002,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     sugBox.addEventListener("mousedown", (e) => { const b = e.target.closest("[data-sug]"); if (b) { e.preventDefault(); sugPick(Number(b.dataset.sug)); } });
     let inReplyTo = "";
+    // Попередній лист (відповідь / пересилання) — не в тексті, а окремо під підписом, як в Outlook
+    let qText = "";
+    form.body.insertAdjacentHTML("afterend", `<div class="sa-cmp-quote" id="saCmpQuote" hidden>
+        <button type="button" class="sa-cmp-qtoggle" data-q="toggle">··· попередній лист піде нижче вашого підпису</button>
+        <button type="button" class="sa-cmp-qrm" data-q="rm" title="Не додавати попередній лист">прибрати</button>
+        <pre class="sa-cmp-qtext" hidden></pre></div>`);
+    const qBox = $("saCmpQuote");
+    const qShow = () => { qBox.hidden = !qText; qBox.querySelector("pre").textContent = qText; };
+    qBox.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-q]"); if (!b) return;
+        if (b.dataset.q === "toggle") { const pre = qBox.querySelector("pre"); pre.hidden = !pre.hidden; }
+        if (b.dataset.q === "rm") { qText = ""; qShow(); saveDraft(); }
+    });
     // вікно листа — збоку внизу, як у Gmail: можна відкривати інші листи, згорнути «_» або розгорнути на весь екран
     const head = box.querySelector(".sa-cmp-head");
     $("saCmpFrom").insertAdjacentHTML("afterend", '<span class="sa-cmp-saved" id="saCmpSaved"></span>');
@@ -1097,6 +1129,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         try { d = JSON.parse(localStorage.getItem(DRAFT) || "{}"); } catch (_) { d = {}; }
         const v = Object.keys(pre).length ? pre : d; // відповідь / пересилання — без старої чернетки
         inReplyTo = v.in_reply_to || "";
+        qText = v.quote || "";
+        qShow();
         draft = { uid: Number(v.draft_uid) || 0, folder: v.draft_folder || "" };
         dirty = !!v.dirty;
         savedMark(draft.uid ? "з «Чернеток»" : "");
@@ -1172,7 +1206,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             const g = sigRead();
             clearTimeout(dT);
             await saving.catch(() => {});
-            const r = await api({ action: "compose", draft_uid: draft.uid || undefined, draft_folder: draft.folder || undefined, in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, attachments, signature: g.on ? g : null });
+            const r = await api({ action: "compose", draft_uid: draft.uid || undefined, draft_folder: draft.folder || undefined, in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, quote: qText || undefined, attachments, signature: g.on ? g : null });
             try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
             const hadDraft = draft.uid; draft = { uid: 0, folder: "" }; dirty = false;
             close();
@@ -1412,7 +1446,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             }).catch(() => {});
         }
     }
-    const quote = (m) => `\n\n\n-------- Вихідне повідомлення --------\nВід: ${m.from}\nДата: ${m.date ? new Date(m.date).toLocaleString("uk-UA") : ""}\nТема: ${m.subject}\n\n${String(m.text || "").slice(0, 8000)}`;
+    const plain = (m) => {
+        if (String(m.text || "").trim()) return String(m.text);
+        try { const d = new DOMParser().parseFromString(String(m.html || "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr|li|h\d)>/gi, "\n"), "text/html"); return d.body.textContent.replace(/\n{3,}/g, "\n\n"); } catch (_) { return ""; }
+    };
+    const quote = (m) => `-------- Вихідне повідомлення --------\nВід: ${m.from}\nДата: ${m.date ? new Date(m.date).toLocaleString("uk-UA") : ""}\nКому: ${m.to || ""}${m.cc ? `\nКопія: ${m.cc}` : ""}\nТема: ${m.subject}\n\n${plain(m).trim().slice(0, 12000)}`;
     async function act(kind, btn) {
         const m = ML.open;
         if (!m?.uid) return;
@@ -1420,9 +1458,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (kind === "reply" || kind === "replyall") {
             const mine = (status?.from || "").toLowerCase();
             const others = kind === "replyall" ? [m.to, m.cc].join(",").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)?.filter((x) => !mine.includes(x.toLowerCase())) || [] : [];
-            return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: quote(m), in_reply_to: m.message_id });
+            return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: "", quote: quote(m).trim(), in_reply_to: m.message_id });
         }
-        if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: quote(m) });
+        if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: "", quote: quote(m).trim().replace("Вихідне повідомлення", "Переслане повідомлення") });
         if (kind === "book") return openBook(guessContact(m));
         if (kind === "unread") {
             await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, flag: "unseen" }));
@@ -1546,7 +1584,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const fs = [...e.dataTransfer.files];
         const m = ML.open;
         // якщо відкритий лист — відповідь з цими файлами, інакше новий лист
-        if (m?.uid && m.from_email) window.furaCompose?.({ to: m.from_email, subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`, body: "", in_reply_to: m.message_id }, fs);
+        if (m?.uid && m.from_email) window.furaCompose?.({ to: m.from_email, subject: /^re:/i.test(m.subject) ? m.subject : `Re: ${m.subject}`, body: "", quote: quote(m), in_reply_to: m.message_id }, fs);
         else window.furaCompose?.({ to: "" }, fs);
     });
     $("mlWho").addEventListener("click", async (e) => {

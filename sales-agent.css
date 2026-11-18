@@ -678,3 +678,11 @@ body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: c
 .sa-pv-load { color: #e5e7eb; }
 body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, body.sa-pv-open [class*="furik"] { display: none !important; }
 @media (max-width: 760px) { .sa-pv-btn span { display: none; } .sa-pv-body { padding: 0 4px 8px; } }
+
+/* попередній лист у відповіді — окремо, під підписом */
+.sa-cmp-quote { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: #6b7280; }
+.sa-cmp-quote[hidden] { display: none; }
+.sa-cmp-qtoggle { border: 1px dashed #d1d5db; background: #f9fafb; border-radius: 8px; padding: 4px 10px; font: inherit; font-size: 12px; color: #6b7280; cursor: pointer; }
+.sa-cmp-qtoggle:hover { border-color: #d9a944; color: #a8781f; }
+.sa-cmp-qrm { border: 0; background: none; font: inherit; font-size: 12px; color: #9ca3af; text-decoration: underline; cursor: pointer; }
+.sa-cmp-qtext { flex: 1 1 100%; margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; font: 12px/1.45 Arial, sans-serif; color: #555; background: #fafafa; border-left: 3px solid #e5e7eb; padding: 8px 10px; border-radius: 4px; }
