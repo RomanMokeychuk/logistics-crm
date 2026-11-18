@@ -96,7 +96,9 @@
     const UA_MONTHS = { січня: 1, лютого: 2, березня: 3, квітня: 4, травня: 5, червня: 6, липня: 7, серпня: 8, вересня: 9, жовтня: 10, листопада: 11, грудня: 12 };
 
     function parseLardi(text) {
-        const T = String(text || "").replace(/\r/g, "");
+        const RAW = String(text || "").replace(/\r/g, "");
+        // посилання не розбираємо як текст (у них номер профілю, а не телефон)
+        const T = RAW.replace(/https?:\/\/\S+/g, (u) => (/profilelogo|avatar|logo|image/i.test(u) ? u : " "));
         const lines = T.split("\n").map((l) => l.replace(/\t+/g, " \t ").trim()).filter(Boolean);
         // «Мітка: значення» в одному рядку (через табуляцію) або в наступному рядку
         const val = (rx) => {
@@ -122,7 +124,7 @@
         // фото: якщо вставили адресу картинки
         const img = T.match(/https?:\/\/[^\s"']*lardi[^\s"']*(profilelogo|avatar|logo)[^\s"']*/i);
         out.photo = img ? img[0] : "";
-        const ref = T.match(/lardi-trans\.com\/(?:log\/)?user\/(\d{6,})/i);
+        const ref = RAW.match(/lardi-trans\.com\/(?:log\/)?user\/(\d{6,})/i);
         out.ref = ref ? ref[1] : "";
         // «Місто, область, Україна» на вкладці «Контакти» + вулиця під ним
         const addrLine = lines.findIndex((l) => /обл\.?,\s*(Україна|Украина)$/i.test(l));
@@ -145,7 +147,8 @@
                 if (before && isName(before)) name = before;
                 for (const p of ph) {
                     const d = digits(p);
-                    if (d.length < 10 || d.length > 13) continue;
+                    // лише схожі на телефон: +…, 380…, 0XX… (а не номер профілю чи ЄДРПОУ)
+                    if (d.length < 10 || d.length > 13 || !(/^\s*\+/.test(p) || /^380/.test(d) || (/^0\d{9}$/.test(d)))) continue;
                     const k = d.slice(-9);
                     if (seen.has(k)) continue;
                     seen.add(k);
@@ -279,7 +282,7 @@
                 ? `<div class="le-list">${changes.map((x) => `<label class="le-row"><input type="checkbox" data-f="${esc(x.field)}" checked><span class="le-lbl">${esc(x.label)}</span><span class="le-val">${x.old ? `<s>${esc(x.old)}</s> → ` : ""}${esc(x.new)}</span></label>`).join("")}</div>
                    <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля і нові телефони.</div>
                    <div class="le-acts"><button type="button" class="le-go" data-le="psave">Зберегти обране</button></div>`
-                : `<div class="le-ok">${ta.value.trim() ? "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A)." : ""}</div>`;
+                : `<div class="le-ok">${!ta.value.trim() ? "" : /^\s*(https?:\/\/\S+\s*)+$/.test(ta.value) ? "Ви вставили лише посилання. Потрібен сам <b>текст сторінки</b>: відкрийте вкладку в Lardi, натисніть <b>Cmd+A</b>, потім <b>Cmd+C</b> — і вставте сюди." : "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A)."}</div>`;
         };
         ta.addEventListener("paste", () => setTimeout(show, 30));
         box.querySelector("[data-le=parse]").addEventListener("click", show);
