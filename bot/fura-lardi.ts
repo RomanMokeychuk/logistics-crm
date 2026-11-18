@@ -956,6 +956,35 @@ async function enrichTick(limit: number) {
     return { ok: true, done, found, updated, left_unchecked: left ?? null };
 }
 
+/* Скріншот профілю Lardi → текст (Claude читає картинку). Далі текст розбирає сайт (lardi-enrich.js) */
+const AI_KEY = env("ANTHROPIC_API_KEY");
+const OCR_MODEL = env("LARDI_OCR_MODEL", "claude-sonnet-5-5");
+async function ocrScreens(body: Any) {
+    if (!AI_KEY) return { status: 400, data: { error: "Не задано ANTHROPIC_API_KEY у Supabase Secrets" } };
+    const imgs = (Array.isArray(body.images) ? body.images : []).slice(0, 4)
+        .filter((i: Any) => /^image\/(png|jpeg|webp|gif)$/.test(i?.media_type) && typeof i?.data === "string" && i.data.length < 7_000_000);
+    if (!imgs.length) return { status: 400, data: { error: "Немає картинки" } };
+    const prompt = `Це скріншот(и) профілю перевізника на сайті Lardi-Trans. Перепиши з них дані ПРОСТИМ ТЕКСТОМ, кожен пункт з нового рядка, нічого не вигадуй і не пропускай:
+- контакти: «Ім'я Прізвище +380XXXXXXXXX» (кожна особа з її телефоном в одному рядку; якщо телефонів кілька — кожен окремим рядком з тим самим ім'ям);
+- адреса: «Місто, Область обл., Україна» і в наступному рядку вулицю;
+- реєстраційні дані: «Мітка: значення» (ЄДРПОУ:, ПІБ керівника:, Область:, Місто:, Адреса:, Тип реєстрації:, Дата реєстрації на Ларді-Транс:, Профіль діяльності:);
+- автопарк: рядок «Усього авто N», далі кожна машина з нового рядка («Вантажівка VOLVO», «Тент», «Власний»…);
+- відгуки: для кожного відгуку рядок «дд.мм.рррр КОДИ_КРАЇН_ЗВІДКИ - КОДИ_КРАЇН_КУДИ Місто - Місто», напр. «09.09.2026 UA - RO Хмельницький - Сучава».
+Лише текст, без пояснень і без markdown.`;
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": AI_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+            model: OCR_MODEL, max_tokens: 4000,
+            messages: [{ role: "user", content: [...imgs.map((i: Any) => ({ type: "image", source: { type: "base64", media_type: i.media_type, data: i.data } })), { type: "text", text: prompt }] }],
+        }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { status: 502, data: { error: `Не вдалося прочитати скріншот (${res.status}: ${data?.error?.message || "помилка"})`.slice(0, 300) } };
+    const text = (data.content || []).filter((b: Any) => b.type === "text").map((b: Any) => b.text).join("").trim();
+    return { status: 200, data: { text } };
+}
+
 Deno.serve(async (req) => {
     if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
     if (req.method !== "POST") return new Response("FURA Lardi monitor is running");
@@ -1001,6 +1030,10 @@ Deno.serve(async (req) => {
             }
             case "carrier_enrich": {
                 const out = await carrierEnrich(body);
+                return json(out.status, out.data);
+            }
+            case "ocr": {
+                const out = await ocrScreens(body);
                 return json(out.status, out.data);
             }
             case "enrich_status": {

@@ -269,7 +269,8 @@
         const c = carrierById(id);
         if (!c) return;
         modal(`<div class="le-sub">1. Відкрийте профіль у Lardi (вкладки «Загальна інформація», «Контакти», «Мій автопарк», «Відгуки»).<br>2. На кожній вкладці: <b>Cmd+A</b>, <b>Cmd+C</b> — і вставте сюди <b>Cmd+V</b> (можна кілька вкладок одна під одною).<br>3. Фото: правою кнопкою на логотипі → «Копіювати адресу зображення» — і теж вставте сюди.</div>
-            <textarea class="le-paste" rows="9" placeholder="Вставте сюди текст сторінки профілю Lardi…"></textarea>
+            <textarea class="le-paste" rows="9" placeholder="Вставте сюди текст сторінки профілю Lardi або скріншот (Cmd+V)…"></textarea>
+            <div class="le-shots"><label class="le-link le-shotbtn">📷 Додати скріншот<input type="file" accept="image/*" multiple hidden></label><span class="le-shotnote">Скріншот у буфер: <b>Cmd+Ctrl+Shift+4</b> → виділити ділянку → тут <b>Cmd+V</b>. FURA сама прочитає текст зі знімка.</span></div>
             <div class="le-acts"><button type="button" class="le-go" data-le="parse">Розібрати</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>
             <div class="le-res"></div>`, "Вставити з Lardi");
         const ta = box.querySelector(".le-paste");
@@ -285,7 +286,41 @@
                    <div class="le-acts"><button type="button" class="le-go" data-le="psave">Зберегти обране</button></div>`
                 : `<div class="le-ok">${!ta.value.trim() ? "" : /^\s*(https?:\/\/\S+\s*)+$/.test(ta.value) ? "Ви вставили лише посилання. Потрібен сам <b>текст сторінки</b>: відкрийте вкладку в Lardi, натисніть <b>Cmd+A</b>, потім <b>Cmd+C</b> — і вставте сюди." : "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A)."}</div>`;
         };
-        ta.addEventListener("paste", () => setTimeout(show, 30));
+        // скріншоти: вставка з буфера або вибір файлу → FURA читає текст (Claude) і дописує в поле
+        const shrink = (file) => new Promise((ok, bad) => {
+            const img = new Image();
+            img.onload = () => {
+                const k = Math.min(1, 2000 / Math.max(img.width, img.height));
+                const cv = document.createElement("canvas");
+                cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+                cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+                URL.revokeObjectURL(img.src);
+                ok({ media_type: "image/jpeg", data: cv.toDataURL("image/jpeg", 0.9).split(",")[1] });
+            };
+            img.onerror = bad;
+            img.src = URL.createObjectURL(file);
+        });
+        async function readShots(files) {
+            files = [...files].filter((f) => /^image\//.test(f.type)).slice(0, 4);
+            if (!files.length) return false;
+            const res = box.querySelector(".le-res");
+            res.innerHTML = `<div class="le-load">📷 Читаю скріншот… (5–20 с)</div>`;
+            try {
+                const images = await Promise.all(files.map(shrink));
+                const r = await call({ action: "ocr", images });
+                ta.value = [ta.value.trim(), r.text || ""].filter(Boolean).join("\n");
+                show();
+            } catch (err) { res.innerHTML = `<div class="le-err">${esc(err.message)}</div>`; }
+            return true;
+        }
+        ta.addEventListener("paste", (e) => {
+            const files = [...(e.clipboardData?.items || [])].filter((i) => i.kind === "file").map((i) => i.getAsFile()).filter(Boolean);
+            if (files.length) { e.preventDefault(); readShots(files); return; }
+            setTimeout(show, 30);
+        });
+        ta.addEventListener("dragover", (e) => e.preventDefault());
+        ta.addEventListener("drop", (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); readShots(e.dataTransfer.files); } });
+        box.querySelector(".le-shotbtn input").addEventListener("change", (e) => { readShots(e.target.files); e.target.value = ""; });
         box.querySelector("[data-le=parse]").addEventListener("click", show);
         box.querySelector(".le-res").addEventListener("click", async (e) => {
             if (!e.target.closest("[data-le=psave]")) return;
@@ -333,6 +368,7 @@
     .le-paste{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:13px/1.45 inherit;font-family:inherit;resize:vertical}
     .le-paste:focus{outline:none;border-color:#d9a944;box-shadow:0 0 0 3px rgba(217,169,68,.18)}
     .le-res{display:flex;flex-direction:column;gap:10px}
+    .le-shots{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12.5px;color:#6b7280}.le-shotbtn{margin:0;cursor:pointer}
     @media (max-width:600px){.le-row{grid-template-columns:auto 1fr}.le-val{grid-column:2}}`;
     document.head.appendChild(css);
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", mount); else mount();
