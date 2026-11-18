@@ -264,12 +264,12 @@
         return ch;
     }
 
-    function pasteOpen(id) {
+    function pasteOpen(id, files) {
         const c = carrierById(id);
         if (!c) return;
         modal(`<div class="le-sub">1. Відкрийте профіль у Lardi (вкладки «Загальна інформація», «Контакти», «Мій автопарк», «Відгуки»).<br>2. На кожній вкладці: <b>Cmd+A</b>, <b>Cmd+C</b> — і вставте сюди <b>Cmd+V</b> (можна кілька вкладок одна під одною).<br>3. Фото: правою кнопкою на логотипі → «Копіювати адресу зображення» — і теж вставте сюди.</div>
             <textarea class="le-paste" rows="9" placeholder="Вставте сюди текст сторінки профілю Lardi або скріншот (Cmd+V)…"></textarea>
-            <div class="le-shots"><label class="le-link le-shotbtn">📷 Додати скріншот<input type="file" accept="image/*" multiple hidden></label><span class="le-shotnote">Скріншот у буфер: <b>Cmd+Ctrl+Shift+4</b> → виділити ділянку → тут <b>Cmd+V</b>. FURA сама прочитає текст зі знімка.</span></div>
+            <div class="le-shots"><label class="le-link le-shotbtn">📷 Додати скріншот<input type="file" accept="image/*" multiple hidden></label><span class="le-shotnote">Зробіть знімок <b>Cmd+Shift+4</b> і <b>перетягніть мініатюру</b> з кутика екрана сюди (не чекаючи, поки збережеться). Або <b>Cmd+Ctrl+Shift+4</b> → тут <b>Cmd+V</b>.</span></div>
             <div class="le-acts"><button type="button" class="le-go" data-le="parse">Розібрати</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>
             <div class="le-res"></div>`, "Вставити з Lardi");
         const ta = box.querySelector(".le-paste");
@@ -317,8 +317,12 @@
             if (files.length) { e.preventDefault(); readShots(files); return; }
             setTimeout(show, 30);
         });
-        ta.addEventListener("dragover", (e) => e.preventDefault());
-        ta.addEventListener("drop", (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); readShots(e.dataTransfer.files); } });
+        // мініатюру знімка (кутик екрана після Cmd+Shift+4) можна кинути будь-куди у вікно
+        const card = box.querySelector(".le-card");
+        card.addEventListener("dragover", (e) => { e.preventDefault(); card.classList.add("le-drop"); });
+        card.addEventListener("dragleave", (e) => { if (!card.contains(e.relatedTarget)) card.classList.remove("le-drop"); });
+        card.addEventListener("drop", (e) => { card.classList.remove("le-drop"); if (e.dataTransfer?.files?.length) { e.preventDefault(); e.stopPropagation(); readShots(e.dataTransfer.files); } });
+        if (files?.length) readShots(files);
         box.querySelector(".le-shotbtn input").addEventListener("change", (e) => { readShots(e.target.files); e.target.value = ""; });
         box.querySelector("[data-le=parse]").addEventListener("click", show);
         box.querySelector(".le-res").addEventListener("click", async (e) => {
@@ -346,6 +350,24 @@
     }
     window.furaParseLardi = parseLardi; // для перевірки
 
+    // Знімок можна кинути прямо на відкриту картку перевізника — вікно «Вставити з Lardi» відкриється саме
+    document.addEventListener("dragover", (e) => {
+        if (!e.target.closest?.("#carrierCardOverlay .carrier-card-modal") || ![...(e.dataTransfer?.types || [])].includes("Files")) return;
+        e.preventDefault();
+        document.querySelector("#carrierCardOverlay .carrier-card-modal")?.classList.add("le-drop");
+    });
+    document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.querySelector("#carrierCardOverlay .carrier-card-modal")?.classList.remove("le-drop"); });
+    document.addEventListener("drop", (e) => {
+        const m = e.target.closest?.("#carrierCardOverlay .carrier-card-modal");
+        document.querySelector("#carrierCardOverlay .carrier-card-modal")?.classList.remove("le-drop");
+        if (!m || !e.dataTransfer?.files?.length) return;
+        const imgs = [...e.dataTransfer.files].filter((f) => /^image\//.test(f.type));
+        if (!imgs.length) return;
+        e.preventDefault();
+        const id = curId();
+        if (id) pasteOpen(id, imgs);
+    });
+
     const css = document.createElement("style");
     css.textContent = `
     .le-ov{position:fixed;inset:0;z-index:2147483100;background:rgba(17,24,39,.45);display:flex;align-items:center;justify-content:center;padding:16px}
@@ -366,6 +388,7 @@
     .le-paste{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:13px/1.45 inherit;font-family:inherit;resize:vertical}
     .le-paste:focus{outline:none;border-color:#d9a944;box-shadow:0 0 0 3px rgba(217,169,68,.18)}
     .le-res{display:flex;flex-direction:column;gap:10px}
+    .le-drop{outline:3px dashed #d9a944;outline-offset:-6px}
     .le-shots{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12.5px;color:#6b7280}.le-shotbtn{margin:0;cursor:pointer}
     @media (max-width:600px){.le-row{grid-template-columns:auto 1fr}.le-val{grid-column:2}}`;
     document.head.appendChild(css);
