@@ -1390,6 +1390,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const inbox = ML.folders.find((f) => f.kind === "\\Inbox"), junk = ML.folders.find((f) => f.kind === "\\Junk");
         const n = (inbox?.unseen || 0) + (junk?.unseen || 0);
         $("cntMail").textContent = n ? String(n) : "";
+        if (inbox) window.furaSetMailUnseen?.(inbox.unseen || 0);
     }
     async function loadList() {
         if (ML.book) return;

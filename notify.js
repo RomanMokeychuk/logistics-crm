@@ -188,6 +188,7 @@
         answers: new Map(answersOf(r).map((a) => [String(a.logist_id), String(a.at || "")])),
         status: r.status,
         chosen: r.logistician_id ? String(r.logistician_id) : null,
+        sales: String(r.sales_id || ""),
     });
 
     const sameSnapshot = (a, b) =>
@@ -365,6 +366,22 @@
             .select("id, status, sales_id, logistician_id, logistician_ids, answers")
             .gte("created_at", since);
         (recent || []).forEach((r) => known.set(String(r.id), snapshot(r)));
+
+        // Лічильник у меню «Запити»: скільки запитів чекають саме на вас
+        //  • логіст — новий запит («Запит»), де ви серед логістів (або логістів ще не призначено), а ви ще не відповіли;
+        //  • Sales — ваш запит, на який логіст відповів, а ви ще не обрали варіант («Відповідь»).
+        const hasRole = (r) => (Array.isArray(me.roles) && me.roles.includes(r)) || me.role === r;
+        const paintBadge = () => {
+            const myId = String(me.id);
+            let n = 0;
+            known.forEach((k) => {
+                if (hasRole("logist") && k.status === "Запит" && (!k.logists.length || k.logists.includes(myId)) && !k.answers.has(myId)) n++;
+                else if (hasRole("sales") && k.sales === myId && k.status === "Відповідь") n++;
+            });
+            window.furaNavBadge?.("requests.html", n);
+        };
+        paintBadge();
+        setInterval(paintBadge, 3000);
 
         // Живий канал. Явно передаємо токен входу, щоб база віддавала
         // зміни саме цьому користувачу (з урахуванням RLS).

@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611182121";
+            css.href = "mobile.css?v=202611182125";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -326,16 +326,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611182121");
+        await addScript("helper.js?v=202611182125");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611182121";
+        css.href = "mobile.css?v=202611182125";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611182121");
+        addScript("mobile-ux.js?v=202611182125");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -480,12 +480,34 @@
         document.head.appendChild(s);
     }
 
+    /* ---------- Лічильники в меню: непрочитані листи (Пошта), запити, що чекають на вас (Запити) ---------- */
+    const NAV_BADGES = (() => { try { return JSON.parse(sessionStorage.getItem("fura_nav_badges") || "{}") || {}; } catch (e) { return {}; } })();
+    function paintNavBadges() {
+        document.querySelectorAll("aside.sidebar .fura-nav-item[href]").forEach((a) => {
+            if (!a.title) a.title = a.querySelector("span")?.textContent.trim() || ""; // підказка, коли меню згорнуте до значків
+            const n = Number(NAV_BADGES[a.getAttribute("href")]) || 0;
+            let b = a.querySelector(".fura-nav-badge");
+            if (!n) { b?.remove(); a.removeAttribute("data-badge"); return; }
+            if (!b) { b = document.createElement("b"); b.className = "fura-nav-badge"; a.appendChild(b); }
+            b.textContent = n > 99 ? "99+" : String(n);
+            a.setAttribute("data-badge", b.textContent); // для меню зі значками
+        });
+    }
+    window.furaNavBadge = (href, n) => {
+        n = Math.max(0, Number(n) || 0);
+        if ((NAV_BADGES[href] || 0) === n) return;
+        NAV_BADGES[href] = n;
+        try { sessionStorage.setItem("fura_nav_badges", JSON.stringify(NAV_BADGES)); } catch (e) { /* без пам'яті */ }
+        paintNavBadges();
+    };
+
     function init() {
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182121");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611182125");
         const label = buildSidebar();
+        paintNavBadges();
         keepSidebarScroll();
         buildTopbar(label);
         prefetchPages();
@@ -495,15 +517,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611182121");
+            addScript("global-search.js?v=202611182125");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611182121");
+            addScript("furik.js?v=202611182125");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611182121");
+            addScript("presence.js?v=202611182125");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611182121");
+            addScript("mail-watch.js?v=202611182125");
         }
     }
 

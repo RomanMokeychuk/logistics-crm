@@ -28,6 +28,20 @@
     }
     addEventListener("pagehide", () => { const l = ls.get(LOCK); if (l?.id === me) try { localStorage.removeItem(LOCK); } catch (_) { /* */ } });
 
+    // Лічильник у меню «Пошта» — непрочитані у Вхідних (спільний для всіх вкладок)
+    const UNSEEN = () => "fura_mail_unseen:" + (user || "");
+    window.furaSetMailUnseen = (n) => { if (user) ls.set(UNSEEN(), Number(n) || 0); window.furaNavBadge?.("mail.html", n); };
+    addEventListener("storage", (e) => { if (user && e.key === UNSEEN()) window.furaNavBadge?.("mail.html", Number(ls.get(UNSEEN())) || 0); });
+    async function countUnseen() {
+        const { data } = await client().functions.invoke("fura-sales", { body: { action: "mail_folders" } });
+        const inbox = (data?.folders || []).find((f) => f.kind === "\\Inbox");
+        if (inbox) window.furaSetMailUnseen(inbox.unseen || 0);
+    }
+    (async () => {
+        try { const { data } = await client().auth.getSession(); user = (data?.session?.user?.email || "").toLowerCase(); } catch (_) { /* */ }
+        if (user) window.furaNavBadge?.("mail.html", Number(ls.get(UNSEEN())) || 0);
+    })();
+
     const strip = (s) => String(s || "").replace(/<[^>]*>/g, "").replace(/["']/g, "").trim();
 
     async function check() {
@@ -46,6 +60,7 @@
             return;
         }
         const list = data?.list || [];
+        countUnseen().catch(() => {});
         const top = list.reduce((m, x) => Math.max(m, Number(x.uid) || 0), 0);
         const last = Number(ls.get(KEY)) || 0;
         if (!last) { ls.set(KEY, top); return; } // перший запуск — лише запам'ятовуємо
