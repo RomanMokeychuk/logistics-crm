@@ -622,18 +622,19 @@ const NB = (() => {
             : b.score - a.score);
         const total = items.length, trucksN = items.reduce((n, it) => n + it.trucks.length, 0);
         items.length = Math.min(items.length, QS.shown || 60);
-        const tg = (k, label) => `<label class="nb-qopt"><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
+        const tg = (k, label, tip) => `<label class="nb-qopt nb-qchip"${tip ? ` title="${esc(tip)}"` : ""}><input type="checkbox" data-qopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
         return `<div class="nb-qs">
             <div class="nb-qhead"><b>🚦 Машини з Черги в бік завантаження</b> <span class="nb-muted">перевізників: ${total} · машин: ${trucksN}</span></div>
+            <div class="nb-qbar">
             ${cpsBlock()}
-            <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "стоять у черзі")}${tg("passed", "щойно пройшли (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}</div>
-            <div class="nb-qopts">${tg("fura", "є у FURA")}${tg("deals", "були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}» (митні дані)`) : ""}${tg("fresh", "ще не в моїх запитах")}</div>
+            <div class="nb-qopts">${tg("empty", "порожні")}${tg("loaded", "з вантажем")}${tg("waiting", "у черзі", "Стоять у черзі")}${tg("passed", "пройшли ≤3 дн", "Щойно пройшли кордон (до 3 днів)")}${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}<span class="nb-qsep"></span>${tg("fura", "у FURA", "Є у FURA")}${tg("deals", "були угоди", "Були угоди з нами")}${(QS.goodsWords || []).length ? tg("goods", `возили «${esc(QS.goodsWords.join(", "))}»`, "Возили цей вантаж (митні дані)") : ""}${tg("fresh", "нові для мене", "Ще не в моїх запитах")}</div>
             <div class="nb-qopts nb-qsel">
                 <input class="nb-qq" data-qin="q" placeholder="Пошук: перевізник, ЄДРПОУ, номер…" value="${esc(o.q || "")}" />
-                <select data-qin="region"><option value="">Область перевізника: усі</option>${[...new Set([...(QS.fura?.values() || [])].map((c) => c.region_ukr).filter(Boolean))].sort().map((x) => `<option ${o.region === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
-                <select data-qin="minN"><option value="0">Машин: будь-скільки</option>${[2, 3, 5, 10].map((n) => `<option value="${n}" ${o.minN === n ? "selected" : ""}>від ${n} машин</option>`).join("")}</select>
+                <select data-qin="region" title="Область перевізника"><option value="">Область: усі</option>${[...new Set([...(QS.fura?.values() || [])].map((c) => c.region_ukr).filter(Boolean))].sort().map((x) => `<option ${o.region === x ? "selected" : ""}>${esc(x)}</option>`).join("")}</select>
+                <select data-qin="minN" title="Скільки машин у перевізника"><option value="0">Машин: усі</option>${[2, 3, 5, 10].map((n) => `<option value="${n}" ${o.minN === n ? "selected" : ""}>від ${n} машин</option>`).join("")}</select>
                 <select data-qin="within"><option value="0">В'їзд: будь-коли</option>${[[12, "до 12 год"], [24, "до 24 год"], [48, "до 2 днів"], [72, "до 3 днів"]].map(([n, l]) => `<option value="${n}" ${o.within === n ? "selected" : ""}>В'їзд: ${l}</option>`).join("")}</select>
-                <select data-qin="sort">${[["", "Порядок: рекомендовані"], ["many", "Більше машин"], ["soon", "Раніший в'їзд"], ["goods", "Возили цей вантаж"]].map(([v, l]) => `<option value="${v}" ${(o.sort || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+                <select data-qin="sort" title="Порядок">${[["", "Рекомендовані"], ["many", "Більше машин"], ["soon", "Раніший в'їзд"], ["goods", "Возили цей вантаж"]].map(([v, l]) => `<option value="${v}" ${(o.sort || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+            </div>
             </div>
             <div class="nb-qlist">${items.map((it) => {
                 const x = it.trucks[0];

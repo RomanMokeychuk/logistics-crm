@@ -339,3 +339,20 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-qpi:hover { background: #fdf9f0; }
 .nb-qpi em { font-style: normal; color: #9ca3af; font-size: 12px; }
 @media (max-width: 600px) { .nb-qptop { flex-wrap: wrap; } .nb-qptop input { flex-basis: 100%; } }
+
+/* «Машини з Черги»: пункти, фільтри й пошук — компактно, в один рядок */
+.nb-qbar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 10px; }
+.nb-qbar > .nb-qgo, .nb-qbar > .nb-qopts { display: contents; }
+.nb-qbar .nb-qdirty { flex-basis: 100%; order: 9; }
+.nb-qbar .nb-qcpbtn, .nb-qbar [data-qgo] { height: 32px; font-size: 12.5px; padding: 0 11px; }
+.nb-qchip { height: 30px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 999px; background: #fff; font-size: 12.5px; color: #4b5563; white-space: nowrap; user-select: none; }
+.nb-qchip input { display: none; }
+.nb-qchip:has(input:checked) { background: #fdf3d8; border-color: #e3bd63; color: #7a5410; font-weight: 600; }
+.nb-qchip:hover { border-color: #d9a944; }
+.nb-qsep { width: 1px; height: 22px; background: #eadfc4; margin: 0 2px; }
+.nb-qbar .nb-qsel input, .nb-qbar .nb-qsel select { height: 32px; font-size: 12.5px; padding: 0 8px; }
+.nb-qbar .nb-qsel input { min-width: 0; width: 200px; }
+.nb-qbar .nb-qsel select { max-width: 160px; }
+.nb-qbar .nb-qcpbtn { max-width: 210px; }
+.nb-qbar .nb-qsel select { max-width: 145px; }
+.nb-qbar .nb-qsel input { width: 180px; }
