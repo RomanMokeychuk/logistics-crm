@@ -750,6 +750,21 @@ async function carrierEnrich(body: Any) {
         }
     }
 
+    // Контакти із заявок цього перевізника (вантажі й авто) — ім'я + телефон, як у Lardi
+    for (const tb of ["lardi_trucks", "lardi_cargo"]) {
+        const { data: rows } = await db.from(tb).select("owner_face, owner_phone, seen_last").eq("owner_ref", Number(ref)).order("seen_last", { ascending: false }).limit(300);
+        for (const r of rows || []) {
+            for (const ph of String(r.owner_phone || "").split(/[,;]/)) {
+                const d = digitsOnly(ph);
+                if (d.length < 9) continue;
+                const key = d.slice(-9);
+                if (seen.has(key)) { const x = phones.find((p) => digitsOnly(p.phone).slice(-9) === key); if (x && !x.name && r.owner_face) x.name = String(r.owner_face).trim(); continue; }
+                seen.add(key);
+                phones.push({ name: String(r.owner_face || "").trim(), phone: d.length === 12 ? "+" + d : d.length === 10 ? "+38" + d : ph.trim() });
+            }
+        }
+    }
+
     // «Мій автопарк» у Lardi: беремо, якщо ключ дає цей метод
     const fleet: string[] = [];
     let fleetMass = 0, fleetVol = 0;
@@ -809,7 +824,7 @@ async function carrierEnrich(body: Any) {
 
     // Пропозиції змін: порожнє — заповнюємо; списки — доповнюємо; заповнене не чіпаємо
     const changes: Any[] = [];
-    const add = (field: string, label: string, val: string) => {
+    const add = (field: string, label: string, val: string) => { // eslint-disable-line
         const old = String(c[field] ?? "").trim();
         if (!val || !(field in c) || old === val) return;
         if (old && !["trailer_type", "destinations", "ukraine_directions", "extra_contacts", "fleet_params"].includes(field)) return;
@@ -863,6 +878,14 @@ async function carrierEnrich(body: Any) {
     const haveP = new Set([c.phone_1, c.phone_2, ...(Array.isArray(c.extra_contacts) ? c.extra_contacts.map((x: Any) => x?.phone) : [])]
         .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digitsOnly(v).slice(-9)).filter((v) => v.length === 9));
     const newPh = phones.filter((p) => !haveP.has(digitsOnly(p.phone).slice(-9)));
+    // телефон уже є, а підпису нема — підписуємо ім'ям з Lardi
+    for (const n of [1, 2]) {
+        const ph = digitsOnly(c[`phone_${n}`]).slice(-9);
+        const nm = String(c[`contact_person_${n}`] || "").trim();
+        if (!ph || (nm && !/^власник/i.test(nm))) continue;
+        const x = phones.find((p) => p.name && digitsOnly(p.phone).slice(-9) === ph);
+        if (x && x.name !== nm) changes.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
+    }
     if (newPh.length) changes.push({ field: "contacts", label: "Нові телефони", old: "", new: newPh.map((p) => `${p.name ? p.name + ": " : ""}${p.phone}`).join("; "), phones: newPh });
 
     if (body.apply) {
