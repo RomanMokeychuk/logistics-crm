@@ -561,7 +561,11 @@
     body.m-searching .fk, body.m-searching .fh-fab, body.m-searching .fura-fab { display: none !important; }
 
     /* шапка: без стрілок назад/вперед (на телефоні є жест «назад»), без «FURA /» */
-    .fura-nav-arrows { display: none !important; }
+    /* на телефоні — лише «назад» (у застосунку з екрана «Додому» іншої кнопки «назад» немає) */
+    .fura-nav-arrows { display: inline-flex !important; margin-right: 2px !important; }
+    .fura-nav-arrows #furaFwd { display: none !important; }
+    .fura-nav-arrows #furaBack { width: 40px !important; height: 40px !important; font-size: 20px !important; border-radius: 12px !important; }
+    .fura-nav-arrows #furaBack:disabled { display: none !important; }
     .fura-topbar { flex-wrap: wrap !important; }
     .fura-topbar .fura-left { order: 1; flex: 1 1 0 !important; }
     .fura-topbar > :not(.fura-left):not(.gs) { order: 2; }
