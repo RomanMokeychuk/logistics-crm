@@ -484,6 +484,17 @@ function extraContactsOf(item) {
 }
 
 // Список контактів у картці: кожен клікається для редагування + «Додати контакт»
+// Позначка в списку: чи перевірив перевізника бот Lardi
+function lardiCheckBadge(item) {
+    if (!item.lardi_checked_at) return "";
+    const when = formatDateTime(item.lardi_checked_at);
+    if (item.lardi_found) {
+        const r = item.lardi_rating != null && item.lardi_rating !== "" ? ` ★${escapeHtml(item.lardi_rating)}` : "";
+        return `<span class="lardi-chk lardi-chk-ok" title="Бот перевірив у Lardi ${escapeHtml(when)} — знайдено">L ✓${r}</span>`;
+    }
+    return `<span class="lardi-chk lardi-chk-no" title="Бот перевірив у Lardi ${escapeHtml(when)} — не знайдено">L ✗</span>`;
+}
+
 function contactsListHtml(item) {
     const rows = [];
     if (item.contact_person_1 || item.phone_1) rows.push(["c1", item.contact_person_1, item.phone_1]);
@@ -1181,7 +1192,7 @@ function renderCarriers() {
         <td>${destBadges}</td>
         <td>
           <div class="carrier-name-line"><strong>${escapeHtml(item.name || item.company || "—")}</strong>${profileLinkHtml}</div>
-          <div class="carrier-edrpou-line"><code>${escapeHtml(item.edrpou || "—")}</code></div>
+          <div class="carrier-edrpou-line"><code>${escapeHtml(item.edrpou || "—")}</code>${lardiCheckBadge(item)}</div>
         </td>
         <td>${item.region_ukr || "—"}</td>
         <td>${item.city || "—"}</td>

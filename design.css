@@ -1126,3 +1126,8 @@ tr.carrier-edited > td:first-child::after { content: "✏️"; }
 tr.carrier-edited > td { background: #fff1cc !important; }
 tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 @keyframes d-row-flash-gold { 0%, 35% { background: #ffe39a; } 100% { background: #fff7e3; } }
+
+/* Позначка «бот перевірив у Lardi» у списку перевізників */
+.lardi-chk { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 700; line-height: 1.5; vertical-align: middle; white-space: nowrap; cursor: help; }
+.lardi-chk-ok { background: #e7f6ee; color: #15803d; }
+.lardi-chk-no { background: #f1f5f9; color: #94a3b8; }
