@@ -873,14 +873,18 @@ function restoreCarriersView() {
     if (v.page) currentPage = v.page;
 }
 
+// Фільтр «Lardi» (перевірено ботом) — випадний список у шапці «Перевізники»
+const lardiFilter = () => document.getElementById("lardiChkFilter")?.value || "";
 function hasCarriersFilters() {
-    return !!(searchInput?.value.trim() || filterTrailer?.value || filterRegion?.value || Object.keys(activeFiltersState).length);
+    return !!(lardiFilter() || searchInput?.value.trim() || filterTrailer?.value || filterRegion?.value || Object.keys(activeFiltersState).length);
 }
 
 function resetCarriersFilters() {
     if (searchInput) searchInput.value = "";
     if (filterTrailer) filterTrailer.value = "";
     if (filterRegion) filterRegion.value = "";
+    const lf = document.getElementById("lardiChkFilter");
+    if (lf) { lf.value = ""; lf.classList.remove("on"); try { sessionStorage.removeItem("fura_lardi_chk"); } catch (e) { /* */ } }
     activeFiltersState = {};
     const gs = document.getElementById("gsInput");
     if (gs) gs.value = "";
@@ -1003,6 +1007,7 @@ function renderCarriers() {
     const searchQuery = searchInput?.value.trim() || "";
     const trailerFilterVal = filterTrailer?.value || "";
     const regionFilterVal = filterRegion?.value || "";
+    const lardiFilterVal = lardiFilter();
     const data = allCarriersCache;
 
     if (!carriersTableBody) return;
@@ -1027,6 +1032,12 @@ function renderCarriers() {
         const quadrant = (item.quadrant || "").toLowerCase();
         const notes = (item.notes || "").toLowerCase();
         const ukraineDirections = (item.ukraine_directions || "").toLowerCase();
+
+        // Фільтр «Lardi»: знайдено / не знайдено / ще не перевірено
+        if (lardiFilterVal) {
+            const st = !item.lardi_checked_at ? "none" : item.lardi_found ? "found" : "notfound";
+            if (lardiFilterVal === "checked" ? st === "none" : st !== lardiFilterVal) return false;
+        }
 
         // Пошук за загальним рядком
         if (searchQuery) {
@@ -2395,4 +2406,23 @@ function carrierPopupReady(id) {
     const body = document.getElementById("carrierCardBody");
     if (body) new MutationObserver(watch).observe(body, { childList: true, subtree: true });
     addEventListener("resize", later);
+})();
+
+(function lardiChkFilterInit() {
+    const host = document.querySelector(".carriers-tools");
+    if (!host || document.getElementById("lardiChkFilter")) return;
+    const sel = document.createElement("select");
+    sel.id = "lardiChkFilter";
+    sel.className = "lardi-chk-filter";
+    sel.title = "Чи перевірив перевізника бот у Lardi";
+    sel.innerHTML = `<option value="">Lardi: усі</option><option value="found">L ✓ знайдено в Lardi</option><option value="notfound">L ✗ не знайдено</option><option value="checked">перевірені (✓ і ✗)</option><option value="none">ще не перевірені</option>`;
+    try { sel.value = sessionStorage.getItem("fura_lardi_chk") || ""; } catch (e) { /* */ }
+    sel.addEventListener("change", () => {
+        try { sessionStorage.setItem("fura_lardi_chk", sel.value); } catch (e) { /* */ }
+        sel.classList.toggle("on", !!sel.value);
+        currentPage = 1;
+        renderCarriers();
+    });
+    sel.classList.toggle("on", !!sel.value);
+    host.prepend(sel);
 })();

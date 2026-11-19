@@ -1131,3 +1131,7 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 .lardi-chk { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; font-size: 11px; font-weight: 700; line-height: 1.5; vertical-align: middle; white-space: nowrap; cursor: help; }
 .lardi-chk-ok { background: #e7f6ee; color: #15803d; }
 .lardi-chk-no { background: #f1f5f9; color: #94a3b8; }
+
+.lardi-chk-filter { height: 40px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; font: inherit; font-size: 13px; color: #374151; cursor: pointer; }
+.lardi-chk-filter:not([value=""]) { }
+.lardi-chk-filter.on { border-color: #86efac; background: #f0fdf4; color: #15803d; font-weight: 600; }
