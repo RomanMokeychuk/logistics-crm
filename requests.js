@@ -757,6 +757,7 @@ function renderTypePicker(selected) {
  * ================================================================= */
 
 async function loadRequests() {
+    restoreReqView();
     const { data, error } = await sbClient
         .from("requests")
         .select("*")
@@ -773,6 +774,7 @@ async function loadRequests() {
 }
 
 function renderRequests() {
+    saveReqView();
     const query = (searchInput?.value || "").trim().toLowerCase();
 
     let rows = requestsCache.filter((r) => {
@@ -985,6 +987,35 @@ function updateSortIcons() {
 const EMPTY_LABEL = "(порожньо)";
 let activeFilters = {}; // { колонка: Set(обрані значення) }
 let activeFilterColumn = null;
+
+// Пам'ять фільтрів: після оновлення сторінки фільтри, пошук і сортування ті самі
+const REQ_VIEW_KEY = "fura_requests_view";
+let reqViewRestored = false;
+function saveReqView() {
+    if (!reqViewRestored) return;
+    try {
+        localStorage.setItem(REQ_VIEW_KEY, JSON.stringify({
+            search: searchInput?.value || "",
+            filters: Object.fromEntries(Object.entries(activeFilters).map(([k, v]) => [k, [...v]])),
+            sortCol: sortColumn,
+            sortAsc: sortAscending,
+        }));
+    } catch (e) { /* без пам'яті */ }
+}
+function restoreReqView() {
+    if (reqViewRestored) return;
+    reqViewRestored = true;
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(REQ_VIEW_KEY) || "null"); } catch (e) { /* немає */ }
+    if (!v) return;
+    if (searchInput && v.search) searchInput.value = v.search;
+    if (v.filters && typeof v.filters === "object") {
+        activeFilters = {};
+        Object.entries(v.filters).forEach(([k, arr]) => { if (Array.isArray(arr)) activeFilters[k] = new Set(arr); });
+    }
+    if (v.sortCol) { sortColumn = v.sortCol; sortAscending = !!v.sortAsc; }
+    try { updateFilterIcons(); } catch (e) { /* ще немає заголовків */ }
+}
 
 // Значення клітинки так, як його бачить користувач у таблиці
 function filterValue(r, col) {

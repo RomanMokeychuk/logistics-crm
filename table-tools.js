@@ -32,7 +32,11 @@
         const tbody = table.tBodies[0];
         const state = new Map(); // колонка → Set дозволених значень
         let pop = null;
-        const api = { reset() { state.clear(); apply(); paintIcons(); }, active: () => state.size > 0 };
+        // пам'ять фільтрів (після оновлення сторінки — ті самі)
+        const KEY = "fura_cf_" + location.pathname.split("/").pop() + "_" + (table.id || "t");
+        const save = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries([...state].map(([k, v]) => [k, [...v]])))); } catch (e) { /* без пам'яті */ } };
+        try { Object.entries(JSON.parse(localStorage.getItem(KEY) || "{}")).forEach(([k, arr]) => { if (Array.isArray(arr)) state.set(Number(k), new Set(arr)); }); } catch (e) { /* немає */ }
+        const api = { reset() { state.clear(); save(); apply(); paintIcons(); }, active: () => state.size > 0 };
         all.push(api);
 
         const ths = [...table.tHead.rows[0].cells];
@@ -109,6 +113,7 @@
                 if (a === "ok") {
                     const on = [...pop.querySelectorAll(".ff-opt input")].filter((b) => b.checked).map((b) => b.value);
                     if (on.length === vals.length) state.delete(ci); else state.set(ci, new Set(on));
+                    save();
                     close();
                     apply();
                     paintIcons();
@@ -127,6 +132,7 @@
         document.addEventListener("mousedown", (e) => { if (pop && !pop.contains(e.target) && !e.target.closest(".ff-icon")) close(); });
         document.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
         apply();
+        paintIcons();
     };
     window.furaColFiltersReset = () => all.forEach((a) => a.reset());
     window.furaColFiltersActive = () => all.some((a) => a.active());
