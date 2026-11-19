@@ -1057,7 +1057,7 @@ body, html { background-attachment: scroll !important; }
 @media (min-width: 901px) {
     .table-card.fura-tiles table { display: block; width: 100% !important; min-width: 0 !important; table-layout: auto !important; }
     /* шапка з фільтрами лишається — як смужка зверху */
-    .table-card.fura-tiles thead { display: block; position: sticky; top: 0; z-index: 3; background: #fbf6ec; box-shadow: 0 6px 12px -8px rgba(15, 23, 42, .18); }
+    .table-card.fura-tiles thead { display: block; position: sticky; top: 0; z-index: 20; background: #fbf6ec; box-shadow: 0 6px 12px -8px rgba(15, 23, 42, .18); }
     .table-card.fura-tiles thead tr { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 12px; }
     .table-card.fura-tiles thead th { display: block; width: auto !important; min-width: 0 !important; padding: 2px 0 !important; border: 0 !important; background: none !important; }
     .table-card.fura-tiles thead th:first-child, .table-card.fura-tiles thead th:last-child { display: none; }
