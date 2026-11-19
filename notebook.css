@@ -384,3 +384,7 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-qrows .nb-qmeta span { white-space: nowrap; }
 .nb-qrows .nb-qcount { margin-left: 4px; }
 .nb-qrows .nb-qitem { grid-template-columns: minmax(230px, 1.1fr) minmax(160px, 1fr) minmax(190px, 1fr) minmax(260px, 1.6fr) auto; }
+/* Список пунктів пропуску — у потоці картки (не обрізається, якщо картка має overflow:hidden) */
+.nb-qs .nb-qpanel { position: static; margin-top: 8px; width: 100%; max-width: 640px; box-shadow: 0 6px 20px rgba(15, 23, 42, .1); }
+.nb-qs .nb-qmsel:has(.nb-qpanel) { flex-basis: 100%; }
+.nb-qs .nb-qgo { flex-wrap: wrap; }
