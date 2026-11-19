@@ -1097,3 +1097,42 @@ document.addEventListener("DOMContentLoaded", async () => {
         document.querySelector("#ldSync").textContent = "";
     }
 });
+
+/* ================================================================= *
+ * Пауза автоматичного обходу перевізників у Lardi                    *
+ *  • кнопка «⏸ Пауза обходу» — на 1 год (або «▶ Продовжити»)         *
+ *  • поки ця сторінка відкрита й ви на ній — обхід сам чекає          *
+ * ================================================================= */
+(function () {
+    const btn = document.getElementById("ldPauseBtn");
+    if (!btn || typeof sbClient === "undefined") return;
+    let until = null;
+    const fmt = (d) => new Date(d).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" });
+    function paint() {
+        const on = until && new Date(until) > new Date();
+        btn.textContent = on ? `▶ Продовжити обхід (пауза до ${fmt(until)})` : "⏸ Пауза обходу";
+        btn.classList.toggle("ld-btn-main", !!on);
+        btn.title = on ? "Обхід перевізників у Lardi на паузі" : "Зупинити автоматичний обхід перевізників у Lardi на 1 годину";
+    }
+    async function load() {
+        const { data } = await sbClient.from("lardi_pause").select("paused_until").eq("id", 1).maybeSingle();
+        until = data?.paused_until || null;
+        paint();
+    }
+    btn.addEventListener("click", async () => {
+        const on = until && new Date(until) > new Date();
+        btn.disabled = true;
+        try {
+            const { data, error } = await sbClient.functions.invoke("fura-lardi", { body: { action: "pause", minutes: on ? 0 : 60 } });
+            if (error) { let m = ""; try { m = (await error.context?.json())?.error || ""; } catch (e) { /* */ } throw new Error(m || "Не вдалося"); }
+            until = data?.paused_until || null;
+            paint();
+        } catch (e) { alert(e.message); } finally { btn.disabled = false; }
+    });
+    // ви на сторінці «Ларді» — обхід не заважає (сигнал раз на 5 хв, поки вкладка на екрані)
+    const ping = () => { if (document.visibilityState === "visible") sbClient.functions.invoke("fura-lardi", { body: { action: "activity" } }).catch(() => {}); };
+    setTimeout(ping, 3000);
+    setInterval(ping, 5 * 60000);
+    setInterval(load, 60000);
+    load().catch(() => {});
+})();

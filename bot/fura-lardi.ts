@@ -942,7 +942,20 @@ async function carrierEnrich(body: Any, row: Any = null) {
 
 /* Обхід усіх перевізників FURA порціями (розклад): спершу ті, кого ще не перевіряли,
    далі — перевірені понад 7 днів тому. Записує одразу (лише порожнє й нове). */
+// Пауза обходу: вручну («⏸ Пауза») або поки людина сама працює з Lardi (15 хв після дії)
+const QUIET_MS = 15 * 60000;
+async function pauseState() {
+    const { data } = await db.from("lardi_pause").select("*").eq("id", 1).maybeSingle();
+    return data || null;
+}
+async function touchActivity() {
+    try { await db.from("lardi_pause").upsert({ id: 1, last_activity: new Date().toISOString() }); } catch { /* таблиці ще нема */ }
+}
 async function enrichTick(limit: number) {
+    const ps = await pauseState().catch(() => null);
+    const now = Date.now();
+    if (ps?.paused_until && new Date(ps.paused_until).getTime() > now) return { ok: true, skipped: `пауза до ${ps.paused_until}` };
+    if (ps?.last_activity && now - new Date(ps.last_activity).getTime() < QUIET_MS) return { ok: true, skipped: "людина працює з Lardi — чекаємо" };
     const week = new Date(Date.now() - 7 * 86400000).toISOString();
     const { data: list, error } = await db.from("carriers").select("*")
         .or(`lardi_checked_at.is.null,lardi_checked_at.lt.${week}`)
@@ -1027,7 +1040,18 @@ Deno.serve(async (req) => {
         const me = await staffFromRequest(req);
         if (!me) return json(403, { error: "Вас немає серед співробітників FURA" });
 
+        if (["run", "carrier_enrich", "ocr", "activity"].includes(body.action)) await touchActivity();
+
         switch (body.action) {
+            case "activity":
+                return json(200, { ok: true });
+            case "pause": {
+                const min = Math.max(0, Math.min(480, Number(body.minutes) || 0));
+                const until = min ? new Date(Date.now() + min * 60000).toISOString() : null;
+                const { error } = await db.from("lardi_pause").upsert({ id: 1, paused_until: until, paused_by: min ? (me.full_name || me.email || "") : null });
+                if (error) return json(500, { error: "Запустіть lardi_pause.sql у Supabase: " + error.message });
+                return json(200, { ok: true, paused_until: until });
+            }
             case "run":
             {
                 const cc = (v: unknown) => String(v || "").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 2);
