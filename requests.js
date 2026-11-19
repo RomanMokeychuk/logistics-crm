@@ -293,6 +293,20 @@ function requestState(r) {
         : "new";
 }
 
+// Колір запиту в списку (3 кольори):
+//  червоний — прострочено (понад 2 год без відповіді) або відмова (архів)
+//  зелений  — логіст дав прорахунок, чекаємо рішення Sales
+//  золотий  — Sales підтвердив (В роботі / Виконано)
+//  без кольору — щойно створений, логіст ще має час відповісти
+function requestColor(r) {
+    if (r.status === STATUS_REFUSED) return "red";
+    if (r.status === STATUS_CHOSEN || r.status === "Виконано") return "gold";
+    if (r.status === STATUS_QUOTE || (r.status && r.status !== STATUS_NEW)) return "green";
+    return requestState(r) === "overdue" ? "red" : "fresh";
+}
+const isArchived = (r) => r.status === STATUS_REFUSED;
+let showArchive = (() => { try { return sessionStorage.getItem("fura_req_archive") === "1"; } catch (e) { return false; } })();
+
 // Рядок під датою: таймер очікування або за скільки відповіли
 function timerHtml(r, state) {
     if (state === "answered") {
@@ -762,6 +776,7 @@ function renderRequests() {
     const query = (searchInput?.value || "").trim().toLowerCase();
 
     let rows = requestsCache.filter((r) => {
+        if (isArchived(r) !== showArchive) return false;
         if (!query) return true;
         const haystack = [
             r.client,
@@ -827,13 +842,13 @@ function renderRequests() {
     });
 
     updateSortIcons();
-    updateCountBar(rows.length, requestsCache.length);
+    updateCountBar(rows.length, requestsCache.filter((r) => isArchived(r) === showArchive).length);
 
     if (rows.length === 0) {
         tableBody.innerHTML = `<tr><td colspan="11" class="empty-row">${
             requestsCache.length
                 ? "Записи не знайдені за заданими критеріями"
-                : "Запитів ще немає"
+                : showArchive ? "В архіві поки порожньо — сюди потрапляють запити, які Sales скасував" : "Запитів ще немає"
         }</td></tr>`;
         return;
     }
@@ -842,7 +857,7 @@ function renderRequests() {
     rows.forEach((r, index) => {
         const state = requestState(r);
         const tr = document.createElement("tr");
-        tr.className = `clickable-row req-${state}${lastOpenedRequestId && String(r.id) === lastOpenedRequestId ? " req-last" : ""}`;
+        tr.className = `clickable-row req-${state} rq-c-${requestColor(r)}${lastOpenedRequestId && String(r.id) === lastOpenedRequestId ? " req-last" : ""}`;
         tr.dataset.reqId = r.id;
         tr.title = "Натисніть, щоб відкрити картку запиту";
 
@@ -864,7 +879,7 @@ function renderRequests() {
                 ${timerHtml(r, state)}
             </td>
             <td class="cell-actions">
-                <button class="btn-icon btn-icon-answer" data-action="answer" title="Відповідь логіста"><i class='bx bx-dollar-circle'></i></button>
+                ${isArchived(r) ? `<button class="btn-icon btn-icon-answer" data-action="restore" title="Повернути з архіву в роботу"><i class='bx bx-undo'></i></button>` : `<button class="btn-icon btn-icon-answer" data-action="answer" title="Відповідь логіста"><i class='bx bx-dollar-circle'></i></button>`}
                 <button class="btn-icon btn-icon-edit" data-action="edit" title="Редагувати"><i class='bx bx-edit'></i></button>
                 <button class="btn-icon text-danger" data-action="delete" title="Видалити"><i class='bx bx-trash'></i></button>
             </td>
@@ -879,6 +894,10 @@ function renderRequests() {
             }
             if (btn && btn.dataset.action === "edit") {
                 openRequestModal(r);
+                return;
+            }
+            if (btn && btn.dataset.action === "restore") {
+                restoreRequest(r.id);
                 return;
             }
             if (btn && btn.dataset.action === "answer") {
@@ -897,18 +916,19 @@ function updateCountBar(shown, total) {
     if (!bar) return;
 
     let text;
-    if (total === 0) text = "Запитів немає";
+    if (total === 0) text = showArchive ? "Архів порожній" : "Запитів немає";
     else if (shown === total) text = `Запитів: ${total}`;
     else text = `Показано: ${shown} з ${total}`;
 
     const hasFilters = Object.keys(activeFilters).length > 0;
 
     // Скільки зараз нових і прострочених — щоб логіст одразу бачив
-    const counts = { new: 0, overdue: 0 };
+    const counts = { fresh: 0, red: 0, green: 0, gold: 0, archive: 0 };
     requestsCache.forEach((r) => {
-        const s = requestState(r);
-        if (s in counts) counts[s]++;
+        if (isArchived(r)) return counts.archive++;
+        counts[requestColor(r)]++;
     });
+    paintArchiveBtn(counts.archive);
 
     bar.innerHTML =
         `<span>${escapeHtml(text)}</span>` +
@@ -916,9 +936,11 @@ function updateCountBar(shown, total) {
             ? ` <a class="reset-filters-link" id="resetFiltersLink"><i class='bx bx-x'></i> Скинути фільтри</a>`
             : "") +
         `<span class="req-legend">
-            <span class="legend-item"><span class="legend-dot dot-new"></span>Нові: ${counts.new}</span>
-            <span class="legend-item"><span class="legend-dot dot-overdue"></span>Понад 2 год без відповіді: ${counts.overdue}</span>
-            <span class="legend-item"><span class="legend-dot dot-answered"></span>Відповів логіст</span>
+${showArchive ? `<span class="legend-item"><span class="legend-dot dot-red"></span>Скасовані Sales (відмова): ${counts.archive}</span>` : `
+            <span class="legend-item"><span class="legend-dot dot-fresh"></span>Нові: ${counts.fresh}</span>
+            <span class="legend-item" title="Понад 2 год без відповіді"><span class="legend-dot dot-red"></span>Прострочені: ${counts.red}</span>
+            <span class="legend-item" title="Логіст дав прорахунок — чекаємо Sales"><span class="legend-dot dot-green"></span>Є прорахунок: ${counts.green}</span>
+            <span class="legend-item" title="Sales підтвердив — їдемо"><span class="legend-dot dot-gold"></span>Підтверджені: ${counts.gold}</span>`}
         </span>`;
 
     const resetLink = document.getElementById("resetFiltersLink");
@@ -2580,6 +2602,44 @@ async function offerAction(requestId, act, logistId, idx) {
     if (error) return alert("Помилка Supabase: " + error.message);
     await chatNote(requestId, note);
     reopenCard(requestId);
+}
+
+// Архів: запит, скасований Sales, повертаємо в роботу
+async function restoreRequest(requestId) {
+    const r = requestsCache.find((x) => String(x.id) === String(requestId));
+    if (!r || !isArchived(r)) return;
+    if (!confirm(`Повернути запит «${r.client || ""}» з архіву в роботу?`)) return;
+    const update = { status: getAnswers(r).length ? STATUS_QUOTE : STATUS_NEW, refusal_reason: null };
+    const { error } = await sbClient.from("requests").update(update).eq("id", r.id);
+    if (error) return alert("Помилка Supabase: " + error.message);
+    Object.assign(r, update);
+    await chatNote(r.id, "↩ Запит повернуто з архіву в роботу.").catch(() => {});
+    renderRequests();
+}
+
+// Кнопка «Архів» у шапці
+function paintArchiveBtn(n) {
+    let b = document.getElementById("reqArchiveBtn");
+    if (!b) {
+        const view = document.getElementById("reqView");
+        if (!view) return;
+        b = document.createElement("button");
+        b.type = "button";
+        b.id = "reqArchiveBtn";
+        b.className = "rq-archive-btn";
+        view.before(b);
+        b.addEventListener("click", () => {
+            showArchive = !showArchive;
+            try { sessionStorage.setItem("fura_req_archive", showArchive ? "1" : "0"); } catch (e) { /* без пам'яті */ }
+            renderRequests();
+        });
+    }
+    b.classList.toggle("on", showArchive);
+    b.title = showArchive ? "Повернутись до активних запитів" : "Запити, які Sales скасував (відмова)";
+    b.innerHTML = showArchive ? `<i class="bx bx-arrow-back"></i> Активні` : `<i class="bx bx-archive"></i> Архів${n ? ` <em>${n}</em>` : ""}`;
+    const h1 = document.querySelector(".rq-topbar h1");
+    if (h1) h1.textContent = showArchive ? "Архів запитів" : "Запити";
+    document.body.classList.toggle("rq-archive-mode", showArchive);
 }
 
 async function cancelChoice(requestId) {

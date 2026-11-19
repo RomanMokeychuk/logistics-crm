@@ -1083,9 +1083,10 @@ body, html { background-attachment: scroll !important; }
     .table-card.fura-tiles[data-title-col="0"] tbody td:nth-child(2)::before { display: block; }
     .table-card.fura-tiles tbody tr.ff-hidden { display: none !important; }
     /* колір стану — смужкою зліва */
-    .table-card.fura-tiles tbody tr.req-new { border-left: 4px solid #f59e0b; }
-    .table-card.fura-tiles tbody tr.req-overdue { border-left: 4px solid #ef4444; }
-    .table-card.fura-tiles tbody tr.req-answered { border-left: 4px solid #10b981; }
+    .table-card.fura-tiles tbody tr.rq-c-fresh { border-left: 4px solid #cbd5e1; }
+    .table-card.fura-tiles tbody tr.rq-c-red { border-left: 4px solid #ef4444; }
+    .table-card.fura-tiles tbody tr.rq-c-green { border-left: 4px solid #10b981; }
+    .table-card.fura-tiles tbody tr.rq-c-gold { border-left: 4px solid #d9a944; }
 }
 @media (max-width: 900px) { .fura-view { display: none; } }
 @media (min-width: 901px) {

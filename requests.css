@@ -158,36 +158,25 @@
 
 /* ===================== "Світлофор" запитів ===================== */
 
-/* Кольорова смужка зліва + легкий фон рядка */
-.requests-table tbody tr.req-new {
-    background-color: #fffbeb;
-}
-.requests-table tbody tr.req-new:hover {
-    background-color: #fef3c7;
-}
-.requests-table tbody tr.req-new td:first-child {
-    box-shadow: inset 4px 0 0 #f59e0b;
-}
+/* Кольорова смужка зліва + легкий фон рядка:
+   червоний — прострочено/відмова, зелений — є прорахунок, золотий — підтверджено */
+.requests-table tbody tr.rq-c-fresh td:first-child { box-shadow: inset 4px 0 0 #cbd5e1; }
+.requests-table tbody tr.rq-c-red { background-color: #fef2f2; }
+.requests-table tbody tr.rq-c-red:hover { background-color: #fee2e2; }
+.requests-table tbody tr.rq-c-red td:first-child { box-shadow: inset 4px 0 0 #ef4444; }
+.requests-table tbody tr.rq-c-green { background-color: #f0fdf4; }
+.requests-table tbody tr.rq-c-green:hover { background-color: #dcfce7; }
+.requests-table tbody tr.rq-c-green td:first-child { box-shadow: inset 4px 0 0 #10b981; }
+.requests-table tbody tr.rq-c-gold { background-color: #fdf6e3; }
+.requests-table tbody tr.rq-c-gold:hover { background-color: #f9ebc4; }
+.requests-table tbody tr.rq-c-gold td:first-child { box-shadow: inset 4px 0 0 #d9a944; }
 
-.requests-table tbody tr.req-overdue {
-    background-color: #fef2f2;
-}
-.requests-table tbody tr.req-overdue:hover {
-    background-color: #fee2e2;
-}
-.requests-table tbody tr.req-overdue td:first-child {
-    box-shadow: inset 4px 0 0 #ef4444;
-}
-
-.requests-table tbody tr.req-answered {
-    background-color: #f0fdf4;
-}
-.requests-table tbody tr.req-answered:hover {
-    background-color: #dcfce7;
-}
-.requests-table tbody tr.req-answered td:first-child {
-    box-shadow: inset 4px 0 0 #10b981;
-}
+/* Кнопка «Архів» у шапці */
+.rq-archive-btn { display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 14px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; color: #4b5563; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.rq-archive-btn:hover { border-color: #d9a944; color: #1f2937; }
+.rq-archive-btn em { font-style: normal; font-size: 12px; background: #fee2e2; color: #b91c1c; border-radius: 999px; padding: 1px 7px; }
+.rq-archive-btn.on { background: #1f2937; color: #fff; border-color: #1f2937; }
+body.rq-archive-mode #openRequestModalBtn { display: none; }
 
 /* Плашка "new" перед назвою клієнта */
 .new-badge {
@@ -258,8 +247,17 @@
     border-radius: 50%;
 }
 
-.dot-new {
-    background: #f59e0b;
+.dot-fresh {
+    background: #cbd5e1;
+}
+.dot-red {
+    background: #ef4444;
+}
+.dot-green {
+    background: #10b981;
+}
+.dot-gold {
+    background: #d9a944;
 }
 
 .dot-overdue {
