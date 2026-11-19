@@ -670,7 +670,9 @@ const normCountry = (v: string) => { const c = String(v || "").trim().toUpperCas
 const digitsOnly = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 const codeKey = (v: unknown) => digitsOnly(v).replace(/^0+/, "");
 
-async function lardiGet(path: string, tries = 3): Promise<Any | null> {
+// Ручна кнопка «З Lardi» — чекаємо терпляче (до ~1 хв), щоб не показувати помилку при короткій паузі Lardi
+let patient = false;
+async function lardiGet(path: string, tries = patient ? 5 : 3): Promise<Any | null> {
     requestCount++;
     let res: Response;
     try {
@@ -681,8 +683,8 @@ async function lardiGet(path: string, tries = 3): Promise<Any | null> {
     }
     const text = await res.text();
     // Lardi обмежує частоту (автоматичний обхід теж робить запити) — чекаємо і пробуємо ще
-    if ((res.status === 429 || res.status >= 500) && tries > 1) { await sleep(res.status === 429 ? 4000 : 1500); return lardiGet(path, tries - 1); }
-    if (res.status === 429) throw new LardiError(429, "Lardi просить зачекати (забагато запитів). Спробуйте за хвилину.");
+    if ((res.status === 429 || res.status >= 500) && tries > 1) { await sleep(res.status === 429 ? (patient ? [4000, 8000, 15000, 25000][Math.max(0, 5 - tries)] ?? 4000 : 4000) : 1500); return lardiGet(path, tries - 1); }
+    if (res.status === 429) throw new LardiError(429, "Lardi тимчасово обмежив запити від FURA (ліміт ключа). Спробуйте через 10–15 хв.");
     if (!res.ok) return null;
     try { return JSON.parse(text); } catch { return null; }
 }
@@ -1064,6 +1066,7 @@ Deno.serve(async (req) => {
                 return json(out.status, out.data);
             }
             case "carrier_enrich": {
+                patient = true;
                 const out = await carrierEnrich(body);
                 return json(out.status, out.data);
             }

@@ -31,7 +31,7 @@
     }
 
     async function run(id) {
-        modal(`<div class="le-load">Шукаю перевізника в Lardi…</div>`);
+        modal(`<div class="le-load">Шукаю перевізника в Lardi… Якщо Lardi попросить паузу — FURA сама почекає (до 1 хв).</div>`);
         let r;
         try { r = await call({ action: "carrier_enrich", carrier_id: id }); } catch (e) { return modal(`<div class="le-err">${esc(e.message)}</div>`); }
         if (!r.found) return modal(`<div class="le-err">${esc(r.message || "Не знайдено")}</div>`);
