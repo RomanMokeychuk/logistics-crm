@@ -672,6 +672,7 @@ const codeKey = (v: unknown) => digitsOnly(v).replace(/^0+/, "");
 
 // Ручна кнопка «З Lardi» — чекаємо терпляче (до ~1 хв), щоб не показувати помилку при короткій паузі Lardi
 let patient = false;
+let patientUntil = 0; // не чекаємо довше ~45 с на один клік, щоб вікно не «висіло»
 async function lardiGet(path: string, tries = patient ? 5 : 3): Promise<Any | null> {
     requestCount++;
     let res: Response;
@@ -683,6 +684,7 @@ async function lardiGet(path: string, tries = patient ? 5 : 3): Promise<Any | nu
     }
     const text = await res.text();
     // Lardi обмежує частоту (автоматичний обхід теж робить запити) — чекаємо і пробуємо ще
+    if (res.status === 429 && patient && Date.now() > patientUntil) throw new LardiError(429, "Lardi тимчасово обмежив запити від FURA (ліміт ключа). Спробуйте через 10–15 хв.");
     if ((res.status === 429 || res.status >= 500) && tries > 1) { await sleep(res.status === 429 ? (patient ? [4000, 8000, 15000, 25000][Math.max(0, 5 - tries)] ?? 4000 : 4000) : 1500); return lardiGet(path, tries - 1); }
     if (res.status === 429) throw new LardiError(429, "Lardi тимчасово обмежив запити від FURA (ліміт ключа). Спробуйте через 10–15 хв.");
     if (!res.ok) return null;
@@ -1067,6 +1069,7 @@ Deno.serve(async (req) => {
             }
             case "carrier_enrich": {
                 patient = true;
+                patientUntil = Date.now() + 45000;
                 const out = await carrierEnrich(body);
                 return json(out.status, out.data);
             }

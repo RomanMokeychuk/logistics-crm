@@ -33,7 +33,19 @@
     async function run(id) {
         modal(`<div class="le-load">Шукаю перевізника в Lardi… Якщо Lardi попросить паузу — FURA сама почекає (до 1 хв).</div>`);
         let r;
-        try { r = await call({ action: "carrier_enrich", carrier_id: id }); } catch (e) { return modal(`<div class="le-err">${esc(e.message)}</div>`); }
+        // поки Lardi думає — показуємо, що FURA чекає, і скільки вже минуло
+        const t0 = Date.now();
+        const tick = setInterval(() => {
+            const el = document.querySelector(".le-load");
+            if (!el) return clearInterval(tick);
+            const sec = Math.round((Date.now() - t0) / 1000);
+            if (sec >= 8) el.innerHTML = `Lardi просить паузу — FURA чекає і пробує ще раз… <b>${sec} с</b><br><small>Зазвичай до 1 хв. Можна закрити це вікно — нічого не зламається.</small>`;
+        }, 1000);
+        try {
+            r = await Promise.race([call({ action: "carrier_enrich", carrier_id: id }),
+                new Promise((_, rej) => setTimeout(() => rej(new Error("Lardi не відповів за 90 с. Ліміт ключа ще не відновився — спробуйте через 10–15 хв.")), 90000))]);
+        } catch (e) { clearInterval(tick); return modal(`<div class="le-err">${esc(e.message)}</div>`); }
+        clearInterval(tick);
         if (!r.found) return modal(`<div class="le-err">${esc(r.message || "Не знайдено")}</div>`);
         // автоматичний обхід міг уже записати дані в базу — картка в браузері старіша; підтягуємо свіжу
         if (!(r.changes || []).length) await refresh(id);
