@@ -969,6 +969,9 @@ body, html { background-attachment: scroll !important; }
     box-shadow: 0 2px 8px rgba(229, 72, 77, .45); font-style: normal;
 }
 .fura-nav-item.active .fura-nav-badge { background: #b4232a; }
+.fura-nav-badge.nb-green { background: #10b981; box-shadow: 0 2px 8px rgba(16, 185, 129, .45); }
+.fura-nav-item.active .fura-nav-badge.nb-green { background: #059669; }
+.fura-nav-badge.nb-red + .fura-nav-badge.nb-green { margin-left: 4px; }
 
 /* ===== Згорнуте меню: лишаються значки (як у Lardi), стрілка розгортає назад ===== */
 @media (min-width: 901px) {
@@ -990,6 +993,7 @@ body, html { background-attachment: scroll !important; }
     body.sidebar-collapsed .fura-nav-badge {
         position: absolute; top: 3px; right: 3px; margin: 0; min-width: 18px; height: 17px; padding: 0 5px; font-size: 10.5px; line-height: 17px;
     }
+    body.sidebar-collapsed .fura-nav-badge.nb-green { top: auto; bottom: 3px; margin: 0 !important; }
     body.sidebar-collapsed .fura-user { justify-content: center; padding-left: 0; padding-right: 0; }
     body.sidebar-collapsed .sidebar-toggle-btn, body.sidebar-collapsed #sidebarToggleBtn { left: 62px !important; }
     body.sidebar-collapsed:not([style*="visible"])::before { left: 76px; }

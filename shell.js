@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611191850";
+            css.href = "mobile.css?v=202611191852";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -401,16 +401,16 @@
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
         if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611191850");
+        await addScript("helper.js?v=202611191852");
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611191850";
+        css.href = "mobile.css?v=202611191852";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611191850");
+        addScript("mobile-ux.js?v=202611191852");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -560,12 +560,21 @@
     function paintNavBadges() {
         document.querySelectorAll("aside.sidebar .fura-nav-item[href]").forEach((a) => {
             if (!a.title) a.title = a.querySelector("span")?.textContent.trim() || ""; // підказка, коли меню згорнуте до значків
-            const n = Number(NAV_BADGES[a.getAttribute("href")]) || 0;
-            let b = a.querySelector(".fura-nav-badge");
-            if (!n) { b?.remove(); a.removeAttribute("data-badge"); return; }
-            if (!b) { b = document.createElement("b"); b.className = "fura-nav-badge"; a.appendChild(b); }
-            b.textContent = n > 99 ? "99+" : String(n);
-            a.setAttribute("data-badge", b.textContent); // для меню зі значками
+            const href = a.getAttribute("href");
+            // червоний — чекає на вас; зелений (лише «Запити») — ви відповіли, чекаємо Sales
+            [["", "red"], ["|green", "green"]].forEach(([suf, cls]) => {
+                const n = Number(NAV_BADGES[href + suf]) || 0;
+                let b = a.querySelector(`.fura-nav-badge.nb-${cls}`);
+                if (!n) { b?.remove(); return; }
+                if (!b) {
+                    b = document.createElement("b"); b.className = `fura-nav-badge nb-${cls}`;
+                    if (cls === "red" && a.querySelector(".nb-green")) a.querySelector(".nb-green").before(b); else a.appendChild(b);
+                }
+                b.textContent = n > 99 ? "99+" : String(n);
+                b.title = cls === "green" ? `${n} — є прорахунок, чекаємо відповіді Sales` : href === "requests.html" ? `${n} — чекають на вашу відповідь` : "";
+            });
+            const red = a.querySelector(".nb-red"), green = a.querySelector(".nb-green");
+            if (red || green) a.setAttribute("data-badge", (red || green).textContent); else a.removeAttribute("data-badge");
         });
     }
     window.furaNavBadge = (href, n) => {
@@ -580,7 +589,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611191850");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611191852");
         const label = buildSidebar();
         paintNavBadges();
         keepSidebarScroll();
@@ -592,15 +601,15 @@
         loadAssistant();
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611191850");
+            addScript("global-search.js?v=202611191852");
             // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611191850");
+            addScript("furik.js?v=202611191852");
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611191850");
+            addScript("presence.js?v=202611191852");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611191850");
+            addScript("mail-watch.js?v=202611191852");
         }
     }
 

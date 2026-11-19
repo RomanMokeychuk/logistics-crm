@@ -373,12 +373,15 @@
         const hasRole = (r) => (Array.isArray(me.roles) && me.roles.includes(r)) || me.role === r;
         const paintBadge = () => {
             const myId = String(me.id);
-            let n = 0;
+            let n = 0, g = 0;
             known.forEach((k) => {
                 if (hasRole("logist") && k.status === "Запит" && (!k.logists.length || k.logists.includes(myId)) && !k.answers.has(myId)) n++;
                 else if (hasRole("sales") && k.sales === myId && k.status === "Відповідь") n++;
+                // зелений: ви (логіст) дали прорахунок — чекаємо рішення Sales
+                else if (hasRole("logist") && k.status === "Відповідь" && k.answers.has(myId)) g++;
             });
             window.furaNavBadge?.("requests.html", n);
+            window.furaNavBadge?.("requests.html|green", g);
         };
         paintBadge();
         setInterval(paintBadge, 3000);
