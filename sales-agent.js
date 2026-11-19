@@ -1233,6 +1233,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             await saving.catch(() => {});
             const r = await api({ action: "compose", draft_uid: draft.uid || undefined, draft_folder: draft.folder || undefined, in_reply_to: inReplyTo || undefined, to: form.to.value, cc: form.cc.value, bcc: form.bcc.value, subject: form.subject.value, body: form.body.value, quote: qText || undefined, attachments, signature: g.on ? g : null });
             try { localStorage.removeItem(DRAFT); } catch (_) { /* без пам'яті */ }
+            window.furaMailAutoBook?.([{ _sent: true, to: form.to.value, cc: [form.cc.value, form.bcc.value].join(",") }]);
             const hadDraft = draft.uid; draft = { uid: 0, folder: "" }; dirty = false;
             close();
             if (hadDraft) window.dispatchEvent(new Event("fura-draft-saved"));
@@ -1405,6 +1406,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ML.list = res.flat().sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, ML.q ? 100 : 50 * paths.length);
         renderList();
         prefetch();
+        autoBook(ML.list);
     }
     const folderName = (fp) => { const f = ML.folders.find((x) => x.path === fp || (x.paths || []).includes(fp)) || {}; return (KIND[f.kind] || [f.name || fp])[0]; };
     // красиве завантаження: смужка зверху + «примарні» рядки листів, що переливаються
@@ -1468,6 +1470,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             api({ action: "mail_move", folder: fp, uid, flag: "seen" }).catch(() => {});
         }
         ML.open = { ...m, fp };
+        autoBook([{ ...m, fp }], true);
         // чернетка — відкриваємо у вікні листа, щоб дописати й надіслати
         if (kindOf(ML.folder) === "\\Drafts") {
             window.furaCompose?.({ to: m.to || "", cc: m.cc || "", bcc: m.bcc || "", subject: m.subject === "(без теми)" ? "" : m.subject, body: String(m.text || "").replace(/\s+$/, ""),
@@ -1826,7 +1829,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         },
     };
     window.furaMailBook = BOOK;
-    BOOK.load().then(() => { if (ML.folders.length) renderFolders(); }).catch(() => {});
+    BOOK.load().then(() => { if (ML.folders.length) renderFolders(); if (ML.list.length) autoBook(ML.list); }).catch(() => {});
     // з листа: ім'я, компанія за доменом, телефон і підпис з кінця тексту
     function guessContact(m) {
         const email = m.from_email || "";
@@ -1845,6 +1848,111 @@ document.addEventListener("DOMContentLoaded", async () => {
         const known = BOOK.byEmail(email);
         return known || { email, name, company, phone, signature: sig, position, note: "", _new: true };
     }
+    // ===== АВТОМАТИЧНО В «АДРЕСИ»: усі, кому пишемо і хто пише нам =====
+    // Нових — додаємо (ім'я + компанія). Наявних — лише дописуємо порожні поля, ваші правки не чіпаємо.
+    const NOAUTO = /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce|notifications?|newsletter|news|info-?noreply|robot|daemon)[@+._-]|@(.*\.)?(noreply|bounce|mailchimp|sendgrid|mandrillapp|amazonses)\./i;
+    const COMPANY_RX = /(\b(sp\.?\s*z\s*o\.?\s*o|sp\.?\s*k|s\.?\s*a|gmbh|ltd|llc|inc|s\.?r\.?o|ug|kg|bv|oy|ab|uab|sia|ou|srl|sas|sarl|corp|tov|tzov|fop|pp)\b\.?|(^|\s)(тов|тзов|фоп|пп|прат|ат|ооо|зао)(\s|$)|\b(logistics?|transport|trans|freight|cargo|spedition|forwarding)\b|логіст|транс)/i;
+    const kindAt = (fp) => (ML.folders.find((f) => f.path === fp || (f.paths || []).includes(fp)) || {}).kind || "";
+    const mineSet = () => new Set(String([status?.from, status?.mail_box].join(",")).toLowerCase().match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/g) || []);
+    function parseAddrs(src) {
+        const out = [];
+        const rx = /"([^"]*)"\s*<([^<>\s]+@[^<>\s]+)>|([^,;<>"]*?)\s*<([^<>\s]+@[^<>\s]+)>|([^\s,;<>"]+@[^\s,;<>"]+)/g;
+        let mm; const s = String(src || "");
+        while ((mm = rx.exec(s))) out.push({ email: (mm[2] || mm[4] || mm[5] || "").toLowerCase(), name: (mm[1] ?? mm[3] ?? "").replace(/^['\s]+|['\s]+$/g, "").trim() });
+        return out;
+    }
+    // «Іван Петренко | Trans Sp. z o.o.» → ім'я + компанія; «Trans Sp. z o.o.» → лише компанія
+    function splitName(display, email) {
+        let name = String(display || "").trim(), company = "";
+        if (!name || name.toLowerCase() === email) name = "";
+        const parts = name.split(/\s+[|/–—-]\s+|\s*,\s+(?=\S)/);
+        if (parts.length > 1 && COMPANY_RX.test(parts.slice(1).join(" "))) { company = parts.slice(1).join(" ").trim(); name = parts[0].trim(); }
+        else if (COMPANY_RX.test(name)) { company = name; name = ""; }
+        const dom = email.split("@")[1] || "";
+        if (!company && dom && !FREE.test(dom)) {
+            const lv = dom.split(".");
+            while (lv.length > 2 && /^(com|co|org|net|gov|in|kiev|kyiv|lviv|biz|edu)$/i.test(lv[lv.length - 2])) lv.pop();
+            company = (lv[lv.length - 2] || "").replace(/^./, (c) => c.toUpperCase());
+        }
+        return { name: name.slice(0, 120), company: company.slice(0, 160) };
+    }
+    // підпис внизу листа: телефон, посада, компанія
+    function sigOf(m) {
+        const txt = String(m.text || plain(m) || "").split(/\n\s*(?:-{3,}|_{5,}|>|From:|От:|Від:|Od:|Von:|De:|-------- |On .{5,80} wrote:|W dniu )/)[0];
+        const lines = txt.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        const at = lines.findIndex((l) => /^(best regards|kind regards|regards|br,?$|pozdrawiam|pozdrowienia|z poważaniem|з повагою|с уважением|mit freundlichen|cordialement|bien à vous|thanks|thank you|дякую|спасибо)/i.test(l));
+        if (at < 0) return null; // без «З повагою…» підпис не вгадуємо — щоб не записати сміття
+        const sl = lines.slice(at + 1).filter((l) => l.length < 120).slice(0, 12);
+        if (!sl.length) return null;
+        const sig = sl.join("\n");
+        const phone = ((sig.match(/(?:\+|00)\d[\d\s().-]{7,}\d/g) || [])[0] || "").trim();
+        const position = sl[1] && !/[@\d]/.test(sl[1]) && sl[1].length < 60 && !COMPANY_RX.test(sl[1]) ? sl[1] : "";
+        const company = sl.find((l) => COMPANY_RX.test(l) && !/[@]|www\.|https?:/i.test(l) && l.length < 80) || "";
+        return { signature: sig, phone, position, company };
+    }
+    const AUTO = { queue: new Map(), t: 0, busy: false };
+    function autoBook(msgs, withSig) {
+        if (!BOOK.loaded || BOOK.err) return;
+        const mine = mineSet();
+        (msgs || []).forEach((m) => {
+            const kind = kindAt(m.fp);
+            if (/Junk|Trash|Drafts/.test(kind)) return;
+            const sent = m._sent || kind === "\\Sent" || (m.from_email && mine.has(String(m.from_email).toLowerCase()));
+            const people = sent ? [...parseAddrs(m.to), ...parseAddrs(m.cc)] : [{ email: String(m.from_email || "").toLowerCase(), name: String(m.from || "").replace(/<[^>]*>/, "").trim() }];
+            const sig = withSig && !sent ? sigOf(m) : null;
+            people.forEach((p, i) => {
+                if (!p.email || !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(p.email) || mine.has(p.email) || NOAUTO.test(p.email)) return;
+                const v = { email: p.email, ...splitName(p.name, p.email) };
+                if (sig && i === 0) { v.phone = sig.phone; v.position = sig.position; v.signature = sig.signature; if (sig.company) v.company = sig.company; }
+                const prev = AUTO.queue.get(p.email) || {};
+                Object.keys(v).forEach((k) => { if (v[k] && !prev[k]) prev[k] = v[k]; });
+                if (sig && i === 0 && sig.company) prev.company = sig.company; // компанія з підпису точніша за домен
+                AUTO.queue.set(p.email, prev);
+            });
+        });
+        clearTimeout(AUTO.t);
+        AUTO.t = setTimeout(flushAuto, 1200);
+    }
+    async function flushAuto() {
+        if (AUTO.busy || !AUTO.queue.size) return;
+        AUTO.busy = true;
+        const items = [...AUTO.queue.values()]; AUTO.queue.clear();
+        const ins = [], upd = [];
+        items.forEach((v) => {
+            const k = BOOK.byEmail(v.email);
+            if (!k) return ins.push({ email: v.email, name: v.name || "", company: v.company || "", position: v.position || "", phone: v.phone || "", signature: v.signature || "", note: "" });
+            const ch = {};
+            ["name", "company", "position", "phone", "signature"].forEach((f) => { if (v[f] && !String(k[f] || "").trim()) ch[f] = v[f]; });
+            // компанія «з домену» (одне слово) → уточнюємо з підпису
+            if (v.signature && v.company && k.company && !k.signature && v.company !== k.company && !/\s/.test(k.company)) ch.company = v.company;
+            if (Object.keys(ch).length) upd.push([k, ch]);
+        });
+        let changed = false;
+        try {
+            for (let i = 0; i < ins.length; i += 200) {
+                const part = ins.slice(i, i + 200);
+                let { data, error } = await sbClient.from("mail_contacts").insert(part).select();
+                if (error) { // хтось уже додав одну з адрес — по одній
+                    data = [];
+                    for (const r of part) { const x = await sbClient.from("mail_contacts").insert(r).select().single(); if (x.data) data.push(x.data); }
+                }
+                (data || []).forEach((d) => { if (!BOOK.byEmail(d.email)) BOOK.list.push(d); });
+                changed = changed || !!(data || []).length;
+            }
+            for (const [k, ch] of upd) {
+                const { data } = await sbClient.from("mail_contacts").update(ch).eq("id", k.id).select().single();
+                if (data) { const j = BOOK.list.findIndex((c) => c.id === data.id); if (j >= 0) BOOK.list[j] = data; changed = true; }
+            }
+        } catch (_) { /* не критично: спробуємо з наступними листами */ }
+        AUTO.busy = false;
+        if (changed) {
+            BOOK.list.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, "uk"));
+            if (ML.folders.length) renderFolders();
+            if (ML.book) { renderBookList(); if (BOOK.sel?.id) { BOOK.sel = BOOK.list.find((c) => c.id === BOOK.sel.id) || BOOK.sel; } }
+        }
+        if (AUTO.queue.size) flushAuto();
+    }
+    window.furaMailAutoBook = autoBook;
     function bookFiltered() {
         const q = BOOK.q.toLowerCase();
         return !q ? BOOK.list : BOOK.list.filter((c) => [c.email, c.name, c.company, c.position, c.phone, c.note, c.signature].join(" ").toLowerCase().includes(q));
@@ -1853,7 +1961,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const list = bookFiltered();
         $("mlList").innerHTML = `<div class="sa-ml-head"><b>Адреси</b><span>${BOOK.list.length} контактів</span></div>
             <div class="sa-bk-bar"><input id="bkQ" type="search" placeholder="Пошук: e-mail, ім'я, компанія, телефон…" value="${escapeHtml(BOOK.q)}" /><button type="button" class="btn btn-primary" data-bk-new><i class="bx bx-plus"></i> Додати</button></div>
-            ${BOOK.err ? `<p class="ag-empty">${escapeHtml(BOOK.err)}</p>` : !list.length ? `<p class="ag-empty">${BOOK.q ? "Нічого не знайдено" : "Ще порожньо. Відкрийте лист і натисніть «В адреси» або «Додати»."}</p>` : ""}
+            ${BOOK.err ? `<p class="ag-empty">${escapeHtml(BOOK.err)}</p>` : !list.length ? `<p class="ag-empty">${BOOK.q ? "Нічого не знайдено" : "Ще порожньо. Адреси з листів (вхідних і надісланих) додаються сюди самі — або натисніть «Додати»."}</p>` : ""}
             ${list.map((c) => `<button type="button" class="sa-mi sa-bk-item ${BOOK.sel?.id === c.id ? "active" : ""}" data-bk="${c.id}">
                 ${avatar(c.name || c.email)}<div class="sa-mi-body"><div class="sa-mi-top"><span class="sa-mi-from">${escapeHtml(c.name || c.email)}</span><span class="sa-mi-date">${escapeHtml(c.company || "")}</span></div>
                 <div class="sa-mi-subj">${escapeHtml(c.email)}${c.note ? ` · ${escapeHtml(c.note)}` : ""}</div></div></button>`).join("")}`;
@@ -1942,7 +2050,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         loadFolders().catch(() => {});
         if (!ML.page && !ML.q && realPaths(ML.folder).length === 1) {
             const fp = realPaths(ML.folder)[0];
-            api({ action: "mail_list", folder: fp, limit: 50 }).then((r) => { if (r.list?.[0]?.uid !== ML.list[0]?.uid) { ML.list = (r.list || []).map((m) => ({ ...m, fp })); renderList(); } }).catch(() => {});
+            api({ action: "mail_list", folder: fp, limit: 50 }).then((r) => { if (r.list?.[0]?.uid !== ML.list[0]?.uid) { ML.list = (r.list || []).map((m) => ({ ...m, fp })); renderList(); autoBook(ML.list); } }).catch(() => {});
         }
     }, 120000);
     // якщо вкладка «Пошта» відкрита з минулого разу
