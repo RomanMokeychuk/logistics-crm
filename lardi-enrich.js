@@ -164,7 +164,7 @@
                     const k = d.slice(-9);
                     if (seen.has(k)) continue;
                     seen.add(k);
-                    contacts.push({ name, phone: normPhone(p) });
+                    contacts.push({ name: name.replace(/,(?=\S)/g, ", "), phone: normPhone(p) });
                 }
             } else if (isName(l)) name = l.replace(/,$/, "");
         }
@@ -194,6 +194,38 @@
             if (from.length > 40 || to.length > 40 || /\d{2}\.\d{2}/.test(from + to)) continue;
             const k = `${from}|${to}|${fromCc}|${toCc}`;
             routes.set(k, (routes.get(k) || 0) + 1);
+        }
+        // Заявки «Пошук транспорту» / «вантажів»: блоки, що починаються з «DE - UA» / «UA - BE, NL»
+        const PAIR = /^([A-Z]{2}(?:\s*,\s*[A-Z]{2})*)\s*-\s*([A-Z]{2}(?:\s*,\s*[A-Z]{2})*)$/;
+        const BODYRX = /^(тент|реф|рефрижератор|ізотерм|изотерм|цільномет|цельномет|платформа|контейнеровоз|автовоз|зерновоз|самоскид|бортов\S*|цистерна|мега|бус|мікроавтобус)(?=[\s,.]|$)/i;
+        out.places = []; out.specs = []; out.offers = 0;
+        for (let i = 0; i < lines.length; i++) {
+            const m = lines[i].match(PAIR);
+            if (!m) continue;
+            const from = m[1].split(",").map((x) => x.trim()), to = m[2].split(",").map((x) => x.trim());
+            let j = i + 1;
+            const end = Math.min(lines.length, i + 40);
+            while (j < end && !BODYRX.test(lines[j]) && !PAIR.test(lines[j])) j++;
+            if (j >= end || PAIR.test(lines[j])) continue;
+            out.offers++;
+            const spec = [lines[j]];
+            let k = j + 1;
+            const pl = [];
+            for (; k < end && !/^\d+(?:[.,]\d+)?\s*т\.?$/i.test(lines[k]) && !PAIR.test(lines[k]) && !PHONE.test(lines[k]); k++) pl.push(lines[k]);
+            for (; k < end && !PAIR.test(lines[k]) && !PHONE.test(lines[k]) && !/запит вартості|^\d[\d\s]*(грн|€|eur|usd|\$)/i.test(lines[k]); k++) spec.push(lines[k]);
+            out.specs.push(spec.join(" "));
+            const foreign = [...from, ...to].filter((c) => c !== "UA");
+            for (const raw of pl) {
+                const ob = (raw.match(/\(([^)]*обл[^)]*)\)/i) || [])[1];
+                const city = raw.replace(/\([^)]*\)/g, "").trim();
+                if (!city && !ob) continue;
+                if (ob || (from.includes("UA") || to.includes("UA")) && UA_OBL[city.toLowerCase()]) {
+                    out.places.push({ cc: "UA", city, ob: ob ? ob.replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase() + " ОБЛ." : "" });
+                } else if (foreign.length && !/будь-який|любой/i.test(city)) {
+                    out.places.push({ cc: from.find((c) => c !== "UA") || foreign[0], city });
+                }
+            }
+            i = k - 1;
         }
         out.routes = [...routes].map(([k, n]) => { const [from, to, fc, tc] = k.split("|"); return { from, to, fc, tc, n }; }).sort((a, b) => b.n - a.n);
         return out;
@@ -246,7 +278,7 @@
         }
         // Автопарк → розкладаємо по полях «Техніки»: Тип причепу, Об'єм, Тоннаж, Додатково (ADR, ЕКМТ…)
         // беремо і щойно вставлене, і те, що вже записано в «Автопарк» картки
-        const fleetAll = [...d.fleet, ...String(c.fleet_params || "").split("\n").filter((l) => !/^(Автопарк Lardi|Тягачів:)/i.test(l.trim()))]
+        const fleetAll = [...d.fleet, ...(d.specs || []), ...String(c.fleet_params || "").split("\n").filter((l) => !/^(Автопарк Lardi|Тягачів:)/i.test(l.trim()))]
             .map((l) => l.trim()).filter(Boolean);
         if (fleetAll.length) {
             const BODY = [[/тент/i, "ТЕНТ"], [/реф|рефрижератор/i, "РЕФ"], [/ізотерм/i, "ІЗОТЕРМ"], [/цільномет/i, "ЦІЛЬНОМЕТ"], [/платформ/i, "ПЛАТФОРМА"],
@@ -254,7 +286,7 @@
             const cur = String(c.trailer_type || "").split(/[;,]/).map((x) => x.trim().toUpperCase()).filter(Boolean);
             const add = [];
             fleetAll.forEach((f) => BODY.forEach(([rx, name]) => { if (rx.test(f) && !cur.includes(name) && !add.includes(name)) add.push(name); }));
-            if (add.length) ch.push({ field: "trailer_type", label: "Тип причепу (з автопарку)", old: cur.join("; "), new: [...cur, ...add].join("; "), added: add });
+            if (add.length) ch.push({ field: "trailer_type", label: "Тип причепу (з Lardi)", old: cur.join("; "), new: [...cur, ...add].join("; "), added: add });
             // перше число перед «т» — загальний тоннаж машини («46т. (23т. + 23т.)» → 46)
             const num = (x) => Number(String(x).replace(",", "."));
             const tons = fleetAll.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*т(?:\.|он|\b|(?=[\s(,]|$))/i) || [])[1]).filter(Boolean).map(num);
@@ -262,7 +294,7 @@
             const vols = fleetAll.map((f) => (f.match(/(\d+(?:[.,]\d+)?)\s*(?:м[²³23]|m[23]|куб)/i) || [])[1]).filter(Boolean).map(num);
             if (vols.length && !String(c.volume || "").trim()) ch.push({ field: "volume", label: "Об'єм, м³", old: "", new: String(Math.max(...vols)) });
             // дозволи: ADR (з класом), ЕКМТ, CMR, CMR-страхування, TIR, T1, санпаспорт
-            const PERM = [[/\bADR\s*([1-9](?:\.\d)?(?:\s*[,-]\s*[1-9])*)?/i, (m) => "ADR" + (m[1] ? " " + m[1].replace(/\s+/g, "") : "")],
+            const PERM = [[/(?<![A-Za-zА-Яа-яІіЇїЄєҐґ])(?:ADR|АДР)(?![A-Za-zА-Яа-яІіЇїЄєҐґ])\s*([1-9](?:\.\d)?(?:\s*[,-]\s*[1-9])*)?/i, (m) => "ADR" + (m[1] ? " " + m[1].replace(/\s+/g, "") : "")],
                 [/ЕКМТ|ЄКМТ|ECMT|EKMT|CEMT/i, () => "ЕКМТ"], [/CMR[-\s]*страхуван/i, () => "CMR-страхування"], [/\bCMR\b(?![-\s]*страх)/i, () => "CMR"],
                 [/\bTIR\b/i, () => "TIR"], [/\bT1\b/i, () => "T1"], [/санпаспорт|санітарн/i, () => "Санпаспорт"]];
             const perms = [];
@@ -280,31 +312,32 @@
             if (next !== String(c.fleet_params || "").trim()) ch.push({ field: "fleet_params", label: "Автопарк", old: "", new: d.fleet.join("\n"), value: next });
         }
         // маршрути з відгуків → напрямки (закордон: країна + місто; Україна: область)
-        if (d.routes.length) {
+        if (d.routes.length || d.places.length) {
             const cur = String(c.destinations || "").split(";").map((x) => x.trim()).filter(Boolean);
             const map = new Map();
             cur.forEach((e) => { const i = e.indexOf("-"); const cn = (typeof normCountryName === "function" ? normCountryName : (x) => x.trim().toUpperCase())(i >= 0 ? e.slice(0, i) : e); const rg = i >= 0 ? e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : []; map.set(cn, [...(map.get(cn) || []), ...rg]); });
             const before = JSON.stringify([...map]);
             const ua = new Set(String(c.ukraine_directions || "").split(";").map((x) => x.trim().toUpperCase()).filter(Boolean));
             const uaAdd = [];
-            for (const r of d.routes) {
-                for (const [cc, city] of [[r.fc, r.from], [r.tc, r.to]]) {
+            const pairs = [...d.routes.flatMap((r) => [[r.fc, r.from], [r.tc, r.to]]), ...d.places.map((p) => [p.cc, p.city, p.ob])];
+            {
+                for (const [cc, city, obExplicit] of pairs) {
                     if (cc === "UA") {
-                        const ob = UA_OBL[city.toLowerCase()];
+                        const ob = obExplicit || UA_OBL[String(city).toLowerCase()];
                         if (ob && !ua.has(ob)) { ua.add(ob); uaAdd.push(ob); }
                         continue;
                     }
                     const cn = COUNTRY_UA[cc];
                     if (!cn) continue;
                     const list = map.get(cn) || [];
-                    if (!list.some((x) => x.toLowerCase() === city.toLowerCase())) list.push(city);
+                    if (city && !list.some((x) => x.toLowerCase() === city.toLowerCase())) list.push(city);
                     map.set(cn, list);
                 }
             }
-            if (JSON.stringify([...map]) !== before) ch.push({ field: "destinations", label: "Напрямки закордон (з відгуків)", old: cur.join("; "), new: [...map].map(([cn, rg]) => (rg.length ? `${cn} - ${rg.join(", ")}` : cn)).join(";") });
-            if (uaAdd.length) ch.push({ field: "ukraine_directions", label: "Напрямки в Україні (з відгуків)", old: [...ua].filter((x) => !uaAdd.includes(x)).join("; "), new: [...ua].join(";") });
-            const top = d.routes.slice(0, 12).map((r) => `${r.from} → ${r.to} (${r.fc}→${r.tc})${r.n > 1 ? " ×" + r.n : ""}`).join("; ");
-            if (!/Маршрути з відгуків Lardi/.test(c.notes || "")) ch.push({ field: "notes_routes", label: "Маршрути з відгуків", old: "", new: top, value: `Маршрути з відгуків Lardi: ${top}` });
+            if (JSON.stringify([...map]) !== before) ch.push({ field: "destinations", label: d.routes.length ? "Напрямки закордон (з відгуків)" : "Напрямки закордон (із заявок)", old: cur.join("; "), new: [...map].map(([cn, rg]) => (rg.length ? `${cn} - ${rg.join(", ")}` : cn)).join(";") });
+            if (uaAdd.length) ch.push({ field: "ukraine_directions", label: d.routes.length ? "Напрямки в Україні (з відгуків)" : "Напрямки в Україні (із заявок)", old: [...ua].filter((x) => !uaAdd.includes(x)).join("; "), new: [...ua].join(";") });
+            const top = !d.routes.length ? "" : d.routes.slice(0, 12).map((r) => `${r.from} → ${r.to} (${r.fc}→${r.tc})${r.n > 1 ? " ×" + r.n : ""}`).join("; ");
+            if (top && !/Маршрути з відгуків Lardi/.test(c.notes || "")) ch.push({ field: "notes_routes", label: "Маршрути з відгуків", old: "", new: top, value: `Маршрути з відгуків Lardi: ${top}` });
         }
         const info = [d.regType, d.activity, d.regDate ? `у Lardi з ${d.regDate}` : ""].filter(Boolean).join(" · ");
         if (info && !/Lardi:/.test(c.notes || "")) ch.push({ field: "notes", label: "Нотатки", old: "", new: `Lardi: ${info}`, value: [c.notes, `Lardi: ${info}`].filter(Boolean).join("\n") });
