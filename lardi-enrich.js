@@ -214,7 +214,7 @@
             for (; k < end && !/^\d+(?:[.,]\d+)?\s*т\.?$/i.test(lines[k]) && !PAIR.test(lines[k]) && !PHONE.test(lines[k]); k++) pl.push(lines[k]);
             for (; k < end && !PAIR.test(lines[k]) && !PHONE.test(lines[k]) && !/запит вартості|^\d[\d\s]*(грн|€|eur|usd|\$)/i.test(lines[k]); k++) spec.push(lines[k]);
             out.specs.push(spec.join(" "));
-            const foreign = [...from, ...to].filter((c) => c !== "UA");
+            const foreign = [...from, ...to].filter((c) => c !== "UA" && c !== "BY" && c !== "RU");
             for (const raw of pl) {
                 const ob = (raw.match(/\(([^)]*обл[^)]*)\)/i) || [])[1];
                 const city = raw.replace(/\([^)]*\)/g, "").trim();
@@ -222,7 +222,7 @@
                 if (ob || (from.includes("UA") || to.includes("UA")) && UA_OBL[city.toLowerCase()]) {
                     out.places.push({ cc: "UA", city, ob: ob ? ob.replace(/\s*обл(\.|асть)?$/i, "").trim().toUpperCase() + " ОБЛ." : "" });
                 } else if (foreign.length && !/будь-який|любой/i.test(city)) {
-                    out.places.push({ cc: from.find((c) => c !== "UA") || foreign[0], city });
+                    out.places.push({ cc: from.find((c) => foreign.includes(c)) || foreign[0], city });
                 }
             }
             i = k - 1;
@@ -231,6 +231,7 @@
         return out;
     }
 
+    const BANNED_CC = new Set(["BY", "RU"]);
     const COUNTRY_UA = { PL: "ПОЛЬША", DE: "НІМЕЧЧИНА", LT: "ЛИТВА", LV: "ЛАТВІЯ", EE: "ЕСТОНІЯ", CZ: "ЧЕХІЯ", SK: "СЛОВАЧЧИНА", HU: "УГОРЩИНА", RO: "РУМУНІЯ", MD: "МОЛДОВА", BG: "БОЛГАРІЯ", TR: "ТУРЕЧЧИНА", AT: "АВСТРІЯ", IT: "ІТАЛІЯ", FR: "ФРАНЦІЯ", NL: "НІДЕРЛАНДИ", BE: "БЕЛЬГІЯ", ES: "ІСПАНІЯ", PT: "ПОРТУГАЛІЯ", DK: "ДАНІЯ", SE: "ШВЕЦІЯ", FI: "ФІНЛЯНДІЯ", NO: "НОРВЕГІЯ", CH: "ШВЕЙЦАРІЯ", GB: "ВЕЛИКОБРИТАНІЯ", GR: "ГРЕЦІЯ", SI: "СЛОВЕНІЯ", HR: "ХОРВАТІЯ", RS: "СЕРБІЯ", GE: "ГРУЗІЯ", AM: "ВІРМЕНІЯ", AZ: "АЗЕРБАЙДЖАН", KZ: "КАЗАХСТАН", UZ: "УЗБЕКИСТАН", LU: "ЛЮКСЕМБУРГ", IE: "ІРЛАНДІЯ", MK: "МАКЕДОНІЯ", AL: "АЛБАНІЯ", BA: "БОСНІЯ", BY: "БІЛОРУСЬ" };
     const OBL = {
         "ВІННИЦЬКА": "вінниця", "ВОЛИНСЬКА": "луцьк ковель володимир нововолинськ", "ДНІПРОПЕТРОВСЬКА": "дніпро кривий ріг кам'янське нікополь павлоград", "ДОНЕЦЬКА": "донецьк краматорськ слов'янськ маріуполь",
@@ -328,7 +329,7 @@
                         continue;
                     }
                     const cn = COUNTRY_UA[cc];
-                    if (!cn) continue;
+                    if (!cn || BANNED_CC.has(cc)) continue; // Білорусь і Росію не записуємо
                     const list = map.get(cn) || [];
                     if (city && !list.some((x) => x.toLowerCase() === city.toLowerCase())) list.push(city);
                     map.set(cn, list);

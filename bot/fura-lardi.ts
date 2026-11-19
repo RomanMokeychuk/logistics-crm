@@ -818,7 +818,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
     for (const t of tl) {
         String(t.body_types || "").split(/[;,]\s*/).map((b: string) => b.trim().toUpperCase()).filter(Boolean).forEach((b: string) => bodies.add(b.replace(/^ТЕНТОВАНИЙ$/, "ТЕНТ").replace(/^РЕФРИЖЕРАТОР$/, "РЕФ")));
         for (const [cc, rg, tw, zn] of [[t.from_country, t.from_region, t.from_town, t.from_zone], [t.to_country, t.to_region, t.to_town, t.to_zone]]) {
-            if (!cc || cc === "UA" || !LARDI_COUNTRY_UA[cc]) continue;
+            if (!cc || cc === "UA" || cc === "BY" || cc === "RU" || !LARDI_COUNTRY_UA[cc]) continue; // Білорусь і Росію не записуємо
             const name = LARDI_COUNTRY_UA[cc];
             countries.add(name);
             const set = places.get(name) || new Set<string>();
