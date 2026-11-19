@@ -53,9 +53,10 @@
                     ${r.note ? `<span class="eq-muted">${esc(r.note)}</span>` : ""}
                 </div>`).join("") +
                 `<div class="eq-muted eq-sm" style="margin-top:6px">Дані «Черги» на ${new Date(sync.synced_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
-            // одразу під шапкою картки — щоб було видно без прокрутки
+            // під основною інформацією (Основне / Контакти / Техніка / Напрямки)
+            const grid = body.querySelector(".card-grid");
             const head = body.querySelector(".card-header-block");
-            head ? head.after(box) : body.prepend(box);
+            grid ? grid.after(box) : head ? head.after(box) : body.prepend(box);
         } catch (e) {
             console.warn("FURA Черга в картці:", e);
         }

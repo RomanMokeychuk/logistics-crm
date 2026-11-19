@@ -77,7 +77,9 @@
             </div>` + rows.join("");
         const head = body.querySelector(".card-header-block");
         const eq = body.querySelector("#eqCardBox");
-        (eq || head) ? (eq || head).after(box) : body.prepend(box);
+        const grid = body.querySelector(".card-grid");
+        const at = eq || grid || head;
+        at ? at.after(box) : body.prepend(box);
 
         box.addEventListener("click", async (e) => {
             const b = e.target.closest("[data-reg-phone]");
