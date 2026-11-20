@@ -556,9 +556,9 @@ function renderDestinationsHtml(str) {
                     ? pair.substring(0, dashIndex).trim()
                     : pair.trim(),
             );
-            const region = escapeHtml(
-                dashIndex !== -1 ? pair.substring(dashIndex + 1).trim() : "",
-            );
+            const rawRegion = dashIndex !== -1 ? pair.substring(dashIndex + 1).trim() : "";
+            // прибираємо сміття, яке колись потрапило з заявок Lardi («бічне, верхнє», розміри, ПІБ…)
+            const region = escapeHtml(window.furaCleanPlaces ? window.furaCleanPlaces(rawRegion).join(", ") : rawRegion);
 
             if (country && region) {
                 return `

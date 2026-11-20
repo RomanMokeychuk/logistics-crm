@@ -119,6 +119,24 @@
     const VEH = /^(Вантажівка|Тягач|Напівпричіп|Причіп|Автопоїзд|Зчіпка|Бус|Мікроавтобус|Легковий|Truck|Tractor)/i;
     const UA_MONTHS = { січня: 1, лютого: 2, березня: 3, квітня: 4, травня: 5, червня: 6, липня: 7, серпня: 8, вересня: 9, жовтня: 10, листопада: 11, грудня: 12 };
 
+    // Назви місць з тексту заявки Lardi: відкидаємо спосіб завантаження, розміри, вагу, дозволи, ПІБ, ФОП…
+    const NOT_PLACE = /^(бічн|верхн|задн|боков|верхн|задн|зі? зняття|з повним|розтентув|повн\S* розтент|довжина|ширина|висота|об'?єм|запит вартості|ціна|оплата|готівк|безгот|ндс|пдв|фоп|тов|пп|ат|прат|фо-п|з\/м|ekmt|єкмт|екмт|cmr|tir|adr|адр|т1|t1|дозв|гідроборт|ремні|коники|палет|європалет|догруз|догрузка|часткове|окрема|будь-який|любой|по україні|вся україна)/i;
+    window.furaCleanPlaces = (raw) => cleanPlaces(raw, true);
+    function cleanPlaces(raw, lenient) {
+        const out = [];
+        for (let t of String(raw || "").split(/[,;]/)) {
+            t = t.replace(/\s+/g, " ").trim().replace(/^\d{2}[- ]?\d{3}\s+|^\d{4,6}\s+/, ""); // поштовий індекс
+            if (/^(довжина|ширина|висота|запит вартості)/i.test(t)) continue; // характеристики машини
+            if (!t || NOT_PLACE.test(t) || /^[\d.,\s]+[a-zа-яі³²/.\s]*$/i.test(t)) continue;
+            if (lenient) { if (!/(ович|івна|ївна|овна)$/i.test(t) && t.length <= 60 && !out.includes(t)) out.push(t); continue; } // вже збережене: прибираємо лише явне сміття
+            if (/\d/.test(t)) { const m = t.match(/^([^\d]{3,}?)\s+\d/); if (!m) continue; t = m[1].trim(); } // «Гдиня 81 кв.» → «Гдиня»
+            if (/(ович|івна|ївна|овна|евич|ьович)$/i.test(t) || /^[А-ЯІЇЄҐ][а-яіїєґ'’]+ [А-ЯІЇЄҐ][а-яіїєґ'’]+ [А-ЯІЇЄҐ][а-яіїєґ'’]+$/.test(t)) continue; // ПІБ
+            if (t.length > 40 || t.length < 2 || !/^[A-ZА-ЯІЇЄҐŁŚŻŹĆŃÓ]/.test(t)) continue;
+            if (!out.some((x) => x.toLowerCase() === t.toLowerCase())) out.push(t);
+        }
+        return out;
+    }
+
     function parseLardi(text) {
         const RAW = String(text || "").replace(/\r/g, "");
         // посилання не розбираємо як текст (у них номер профілю, а не телефон)
@@ -227,7 +245,7 @@
             for (; k < end && !PAIR.test(lines[k]) && !PHONE.test(lines[k]) && !/запит вартості|^\d[\d\s]*(грн|€|eur|usd|\$)/i.test(lines[k]); k++) spec.push(lines[k]);
             out.specs.push(spec.join(" "));
             const foreign = [...from, ...to].filter((c) => c !== "UA" && c !== "BY" && c !== "RU");
-            for (const raw of pl) {
+            for (const raw of pl.flatMap((x) => (/обл/i.test(x) ? [x] : cleanPlaces(x)))) {
                 const ob = (raw.match(/\(([^)]*обл[^)]*)\)/i) || [])[1];
                 const city = raw.replace(/\([^)]*\)/g, "").trim();
                 if (!city && !ob) continue;
@@ -328,8 +346,8 @@
         if (d.routes.length || d.places.length) {
             const cur = String(c.destinations || "").split(";").map((x) => x.trim()).filter(Boolean);
             const map = new Map();
-            cur.forEach((e) => { const i = e.indexOf("-"); const cn = (typeof normCountryName === "function" ? normCountryName : (x) => x.trim().toUpperCase())(i >= 0 ? e.slice(0, i) : e); const rg = i >= 0 ? e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean) : []; map.set(cn, [...(map.get(cn) || []), ...rg]); });
-            const before = JSON.stringify([...map]);
+            cur.forEach((e) => { const i = e.indexOf("-"); const cn = (typeof normCountryName === "function" ? normCountryName : (x) => x.trim().toUpperCase())(i >= 0 ? e.slice(0, i) : e); const rg = i >= 0 ? cleanPlaces(e.slice(i + 1), true) : []; map.set(cn, [...(map.get(cn) || []), ...rg]); });
+            const before = JSON.stringify(cur.map((e) => { const i = e.indexOf("-"); return i >= 0 ? [e.slice(0, i).trim(), e.slice(i + 1).split(",").map((x) => x.trim()).filter(Boolean)] : [e.trim(), []]; }));
             const ua = new Set(String(c.ukraine_directions || "").split(";").map((x) => x.trim().toUpperCase()).filter(Boolean));
             const uaAdd = [];
             const pairs = [...d.routes.flatMap((r) => [[r.fc, r.from], [r.tc, r.to]]), ...d.places.map((p) => [p.cc, p.city, p.ob])];
