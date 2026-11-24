@@ -667,3 +667,34 @@
     }
     .m-colf-reset[hidden] { display: none; }
 }
+
+/* ================================================================= *
+ * Телефон: компактні шапки сторінок і кнопки                          *
+ * ================================================================= */
+@media (max-width: 900px) {
+    .main-content .top-bar { flex-wrap: wrap !important; gap: 8px !important; align-items: center !important; }
+    .main-content .top-bar > .btn, .main-content .top-bar > button, .main-content .top-bar > a.btn,
+    .main-content .top-bar .btn, .nb-actions .nb-btn {
+        min-height: 40px !important; padding: 8px 12px !important; font-size: 13.5px !important; white-space: nowrap;
+    }
+    .nb-actions { display: flex !important; flex-wrap: wrap !important; gap: 8px !important; width: 100% !important; }
+    .nb-page .nb-head { flex-wrap: wrap !important; }
+    .nb-page .nb-head > .nb-search { flex: 1 1 100% !important; }
+    /* іконки «подзвонити / Viber / WhatsApp / Telegram» — переносяться, а не вилазять */
+    .fm-group { display: inline-flex !important; flex-wrap: wrap; margin-left: 4px !important; }
+    td .fm-group, .card-row-value .fm-group { margin: 4px 0 0 !important; }
+    .nb-toolbar2 { flex-wrap: wrap !important; }
+    .nb-chips { flex-wrap: nowrap !important; overflow-x: auto !important; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .nb-chips::-webkit-scrollbar { display: none; }
+    .nb-chips > * { flex: 0 0 auto !important; }
+    /* довгі слова й адреси не розпирають картки */
+    .table-card td, .card-row-value, .dv-value, .nb-card { overflow-wrap: anywhere; }
+    img, video, canvas, iframe { max-width: 100%; }
+}
+@media (max-width: 900px) {
+    /* «Скинути фільтри» — лише коли якийсь фільтр увімкнено */
+    .fura-reset-filters:not(.on) { display: none !important; }
+}
+@media (max-width: 900px) {
+    .table-card td .fm-group, .card-row-value .fm-group { display: flex !important; flex-wrap: wrap; margin: 6px 0 2px !important; }
+}

@@ -3,7 +3,7 @@
 //  • Коли натискаєте в пошук — усе зайве над ним ховається, видно лише пошук і результати.
 (function () {
     const mq = matchMedia("(max-width: 900px)");
-    const FILTERS = ".filters-bar, .sa-filters, .rop-filters, .cm-filters, .trips-filters, #ldForm";
+    const FILTERS = ".filters-bar, .sa-filters, .rop-filters, .cm-filters, .trips-filters, #ldForm, .nb-toolbar:not(.nb-toolbar2)";
     const SEARCH = 'input[type="search"], input.search-input, #gsInput, #ldQ, #eqQ, #cmSearch';
 
     function activeCount(box) {
