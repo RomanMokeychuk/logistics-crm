@@ -1559,9 +1559,22 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
         if (kind === "reply" || kind === "replyall") {
-            const mine = (status?.from || "").toLowerCase();
-            const others = kind === "replyall" ? [m.to, m.cc].join(",").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)?.filter((x) => !mine.includes(x.toLowerCase())) || [] : [];
-            return window.furaCompose?.({ to: m.from_email, cc: [...new Set(others)].filter((x) => x !== m.from_email).join(", "), subject: re(m.subject), body: "", quote: quote(m).trim(), in_reply_to: m.message_id });
+            const mine = [status?.from, status?.mail_box].join(",").toLowerCase();
+            const emails = (v) => String(v || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || [];
+            const notMe = (x) => !mine.includes(String(x).toLowerCase());
+            const uniq = (a) => [...new Map(a.map((x) => [x.toLowerCase(), x])).values()];
+            let to, cc;
+            if (!notMe(m.from_email || "")) {
+                // це ваш власний лист («Надіслані») — відповідаємо тим, кому ви його писали, а не собі
+                to = uniq(emails(m.to).filter(notMe));
+                cc = kind === "replyall" ? uniq(emails(m.cc).filter(notMe)) : [];
+                if (!to.length) { to = cc; cc = []; }
+            } else {
+                to = [m.from_email];
+                cc = kind === "replyall" ? uniq(emails([m.to, m.cc].join(",")).filter(notMe)) : [];
+            }
+            cc = cc.filter((x) => !to.some((t) => t.toLowerCase() === x.toLowerCase()));
+            return window.furaCompose?.({ to: to.join(", "), cc: cc.join(", "), subject: re(m.subject), body: "", quote: quote(m).trim(), in_reply_to: m.message_id });
         }
         if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: "", quote: quote(m).trim().replace("Вихідне повідомлення", "Переслане повідомлення"),
             remote: (m.attachments || []).map((a) => ({ fp: m.fp, uid: m.uid, part: a.part, name: a.name, type: a.type, size: a.size })) });
