@@ -732,10 +732,33 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
     const m = String(c.profile_url || "").match(/user\/(\d+)/);
     if (m) return { ref: m[1], user: null };
     const code = codeKey(c.edrpou);
-    for (const q of [c.edrpou, c.name].filter(Boolean)) {
+    // назва без «ТОВ», лапок тощо: ТОВ "АВАНТОС" → авантос
+    const core = normWords(String(c.name || "").replace(/(^|[\s"«(])(ТОВ|ПП|ФОП|ФО-П|ПрАТ|ПАТ|АТ|ТзОВ|LLC|ООО|SP\.? Z O\.?O\.?)(?=$|[\s"»),.])/gi, " ")).filter((w) => w.length > 2).join(" ");
+    const people = personNames(c).map((p) => normWords(p));
+    // у будь-якому тексті профілю (опис діяльності, назва, примітки) — наш ЄДРПОУ, назва ТОВ або повне ПІБ
+    const mentionsUs = (u: Any) => {
+        const txt = " " + normWords(walk(u).map(([, v]) => (typeof v === "string" ? v : "")).join(" ")).join(" ") + " ";
+        const digits = walk(u).map(([, v]) => digitsOnly(String(v ?? ""))).join(" ");
+        if (code && code.length >= 8 && (digits.includes(code) || txt.includes(" " + code + " "))) return "code";
+        if (core && core.length >= 4 && txt.includes(" " + core + " ")) return "name";
+        if (people.some((pw) => pw.length >= 3 && pw.every((w) => txt.includes(" " + w + " ")))) return "person";
+        return "";
+    };
+    for (const q of [...new Set([c.edrpou, c.name, core].filter(Boolean).map(String))]) {
         const r = await lardiGet(`/users/search?query=${encodeURIComponent(String(q))}&queryLimit=10`);
         const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || r?.result || []);
         if (!list.length) continue;
+        // профіль згадує нас в описі — навіть якщо зареєстрований на іншу особу (ФОП керівника тощо)
+        const mentioned = list.filter((u) => mentionsUs(u));
+        if (mentioned.length === 1 && !list.some((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code))) {
+            const u = mentioned[0];
+            const own = normWords(pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/)).join(" ");
+            const ref = u.refId ?? u.id ?? u.userId;
+            if (ref && core && !own.includes(core)) {
+                const why = mentionsUs(u);
+                return { ref: String(ref), user: u, via: { kind: "text", person: why === "code" ? `ЄДРПОУ ${c.edrpou} в описі профілю` : why === "name" ? `назву «${c.name}» в описі профілю` : "ПІБ з картки в описі профілю", name: pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
+            }
+        }
         // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один
         const byCode = code ? list.find((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code)) : null;
         // пошук за ЄДРПОУ, що дав рівно одну компанію, — це вона (Lardi шукає за кодом, але код не повертає)
@@ -754,7 +777,7 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
         // у назві профілю є всі слова ПІБ (прізвище, ім'я, по батькові)
         const hits = list.filter((u) => {
             const nw = normWords(pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/));
-            return pw.every((w) => nw.includes(w));
+            return pw.every((w) => nw.includes(w)) || (pw.length >= 3 && !!mentionsUs(u));
         });
         if (!hits.length) continue;
         const sameCity = hits.filter((u) => {
