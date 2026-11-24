@@ -258,6 +258,139 @@
     window.furaZoomImage = openViewer;
 
     /* ---------------------------------------------------------------- *
+     * 2б. PDF на телефоні: сторінки з текстом, який можна виділити,     *
+     *     і збільшення двома пальцями / кнопками − +                    *
+     * ---------------------------------------------------------------- */
+    const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+    const PDFJS_W = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    let pdfLibP = null;
+    const loadPdfLib = () =>
+        (pdfLibP ||= new Promise((res, rej) => {
+            if (window.pdfjsLib) return res(window.pdfjsLib);
+            const sc = document.createElement("script");
+            sc.src = PDFJS;
+            sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_W; res(window.pdfjsLib); };
+            sc.onerror = () => { pdfLibP = null; rej(new Error("Не вдалося завантажити переглядач PDF — перевірте інтернет")); };
+            document.head.appendChild(sc);
+        }));
+    async function pdfView(box, url) {
+        box.innerHTML = `<div class="mk-pdf"><div class="mk-pdf-bar">
+                <button type="button" data-z="-" aria-label="Зменшити">−</button><span class="mk-pdf-z">100%</span><button type="button" data-z="+" aria-label="Збільшити">+</button>
+                <span class="mk-pdf-n"></span></div>
+            <div class="mk-pdf-scroll"><div class="mk-pdf-pages"><p class="mk-pdf-load">Відкриваю PDF…</p></div></div></div>`;
+        const scroll = box.querySelector(".mk-pdf-scroll"), wrap = box.querySelector(".mk-pdf-pages");
+        let lib, doc;
+        try {
+            lib = await loadPdfLib();
+            doc = await lib.getDocument({ url }).promise;
+        } catch (e) {
+            wrap.innerHTML = `<p class="mk-pdf-load">${esc(e.message || e)}</p>`;
+            return;
+        }
+        box.querySelector(".mk-pdf-n").textContent = `${doc.numPages} стор.`;
+        const dpr = Math.min(window.devicePixelRatio || 1, 3);
+        let z = 1;
+        const base = () => Math.max(200, scroll.clientWidth - 12);
+        const pages = [];
+        wrap.innerHTML = "";
+        for (let n = 1; n <= doc.numPages; n++) {
+            const page = await doc.getPage(n);
+            const vp1 = page.getViewport({ scale: 1 });
+            const el = document.createElement("div");
+            el.className = "mk-pdf-page";
+            el.dataset.n = n;
+            wrap.appendChild(el);
+            pages.push({ page, vp1, el, drawn: 0 });
+        }
+        const layout = () => {
+            for (const p of pages) {
+                const w = base() * z;
+                p.el.style.width = w + "px";
+                p.el.style.height = (w * p.vp1.height) / p.vp1.width + "px";
+            }
+            box.querySelector(".mk-pdf-z").textContent = Math.round(z * 100) + "%";
+        };
+        async function draw(p) {
+            const cssW = base() * z;
+            if (p.drawn === cssW) return;
+            p.drawn = cssW;
+            const scale = cssW / p.vp1.width;
+            const vp = p.page.getViewport({ scale });
+            // не більше ~4000 px по ширині — щоб телефон не «падав» на великому збільшенні
+            const q = Math.min(dpr, 4000 / vp.width);
+            const cv = document.createElement("canvas");
+            cv.width = Math.floor(vp.width * q);
+            cv.height = Math.floor(vp.height * q);
+            await p.page.render({ canvasContext: cv.getContext("2d"), viewport: vp, transform: q !== 1 ? [q, 0, 0, q, 0, 0] : null }).promise;
+            if (p.drawn !== cssW) return;
+            const tl = document.createElement("div");
+            tl.className = "textLayer";
+            tl.style.setProperty("--scale-factor", scale);
+            try {
+                await lib.renderTextLayer({ textContentSource: await p.page.getTextContent(), container: tl, viewport: vp, textDivs: [] }).promise;
+            } catch (e) { /* без тексту — лише картинка */ }
+            if (p.drawn !== cssW) return;
+            p.el.replaceChildren(cv, tl);
+        }
+        const io = new IntersectionObserver((ents) => ents.forEach((en) => { if (en.isIntersecting) draw(pages[en.target.dataset.n - 1]); }), { root: scroll, rootMargin: "600px 0px" });
+        layout();
+        pages.forEach((p) => io.observe(p.el));
+        const redrawVisible = () => {
+            const top = scroll.scrollTop - 600, bot = scroll.scrollTop + scroll.clientHeight + 600;
+            pages.forEach((p) => { const o = p.el.offsetTop; if (o + p.el.offsetHeight > top && o < bot) draw(p); });
+        };
+        // новий масштаб так, щоб точка (cx, cy) екрана лишилась на місці
+        const setZoom = (nz, cx = scroll.clientWidth / 2, cy = scroll.clientHeight / 2) => {
+            nz = Math.max(1, Math.min(5, nz));
+            const k = nz / z;
+            const sx = (scroll.scrollLeft + cx) * k - cx, sy = (scroll.scrollTop + cy) * k - cy;
+            z = nz;
+            layout();
+            scroll.scrollLeft = sx;
+            scroll.scrollTop = sy;
+            redrawVisible();
+        };
+        box.querySelector(".mk-pdf-bar").addEventListener("click", (e) => {
+            const b = e.target.closest("[data-z]");
+            if (b) setZoom(z * (b.dataset.z === "+" ? 1.4 : 1 / 1.4));
+        });
+        // двома пальцями: під час жесту — плавне CSS-збільшення, після — перемальовування чітко
+        let pinch = null;
+        const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+        scroll.addEventListener("touchstart", (e) => {
+            if (e.touches.length !== 2) return;
+            const r = scroll.getBoundingClientRect();
+            pinch = { d: dist(e.touches), cx: (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, cy: (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top, k: 1 };
+            wrap.style.transformOrigin = `${scroll.scrollLeft + pinch.cx}px ${scroll.scrollTop + pinch.cy}px`;
+        }, { passive: true });
+        scroll.addEventListener("touchmove", (e) => {
+            if (!pinch || e.touches.length !== 2) return;
+            e.preventDefault();
+            pinch.k = Math.max(1 / z, Math.min(5 / z, dist(e.touches) / pinch.d));
+            wrap.style.transform = `scale(${pinch.k})`;
+        }, { passive: false });
+        scroll.addEventListener("touchend", () => {
+            if (!pinch) return;
+            const p = pinch;
+            pinch = null;
+            wrap.style.transform = "";
+            setZoom(z * p.k, p.cx, p.cy);
+        });
+        // подвійний дотик: збільшити / повернути
+        let last = 0;
+        scroll.addEventListener("click", (e) => {
+            const now = Date.now();
+            if (now - last < 300 && !String(getSelection?.() || "")) {
+                const r = scroll.getBoundingClientRect();
+                setZoom(z > 1.05 ? 1 : 2.2, e.clientX - r.left, e.clientY - r.top);
+                last = 0;
+            } else last = now;
+        });
+        addEventListener("resize", () => { layout(); redrawVisible(); });
+    }
+    window.furaPdfView = pdfView;
+
+    /* ---------------------------------------------------------------- *
      * 3. Нижня панель на телефоні                                      *
      * ---------------------------------------------------------------- */
     const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
@@ -357,6 +490,21 @@
     .mk-v-top > * { pointer-events: auto; }
     .mk-v-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; font-size: 24px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
     .mk-v-hint { color: rgba(255,255,255,.75); font-size: 12.5px; }
+    .sa-pv-body:has(.mk-pdf) { display: block; overflow: hidden; padding: 0 6px 6px; }
+    .mk-pdf { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+    .mk-pdf-bar { display: flex; align-items: center; gap: 6px; padding: 4px 2px 8px; color: #fff; }
+    .mk-pdf-bar button { width: 40px; height: 36px; border-radius: 9px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff; font-size: 22px; line-height: 1; }
+    .mk-pdf-z { min-width: 48px; text-align: center; font-size: 13px; }
+    .mk-pdf-n { margin-left: auto; font-size: 13px; color: #cbd5e1; }
+    .mk-pdf-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
+    .mk-pdf-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 6px 20px; width: max-content; min-width: 100%; box-sizing: border-box; }
+    .mk-pdf-page { position: relative; background: #fff; border-radius: 4px; overflow: hidden; margin: 0 auto; }
+    .mk-pdf-page canvas { display: block; width: 100%; height: 100%; }
+    .mk-pdf-load { color: #e5e7eb; padding: 20px; }
+    .mk-pdf .textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-align: initial; opacity: 1; z-index: 2; -webkit-text-size-adjust: none; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; }
+    .mk-pdf .textLayer span, .mk-pdf .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+    .mk-pdf .textLayer ::selection { background: rgba(37, 99, 235, .35); }
+    .mk-pdf .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
     .mk-sheet { position: fixed; inset: 0; z-index: 2147483600; background: rgba(15,23,42,.45); display: flex; align-items: flex-end; justify-content: center; }
     .mk-sheet-card { width: 100%; max-width: 480px; background: #fff; border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
     .mk-sheet-name { font-weight: 700; color: #1f2937; display: flex; gap: 8px; align-items: center; word-break: break-all; }

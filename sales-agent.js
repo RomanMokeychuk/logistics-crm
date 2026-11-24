@@ -1809,6 +1809,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (PV.m !== m || PV.i !== i) return;
             PV.f = f;
             if (f.kind === "img") body.innerHTML = `<img src="${f.url}" alt="">`;
+            else if (f.kind === "pdf" && window.furaPdfView && matchMedia("(max-width: 900px), (pointer: coarse)").matches) window.furaPdfView(body, f.url);
             else if (f.kind === "pdf") body.innerHTML = `<iframe src="${f.url}#view=FitH" title="PDF"></iframe>`;
             else if (f.kind === "txt") body.innerHTML = `<pre>${escapeHtml(await (await fetch(f.url)).text())}</pre>`;
             else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут — натисніть «Завантажити».</p>`;
