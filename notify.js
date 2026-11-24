@@ -266,6 +266,16 @@
             });
         }
 
+        // 4. Я — логіст цього запиту, а Sales відповів: клієнт відмовився або обрав іншого логіста
+        const amLogist = idsOf(r).map(String).includes(myId) || answersOf(r).some((a) => String(a.logist_id) === myId);
+        if (type === "UPDATE" && amLogist && String(r.sales_id || "") !== myId && before) {
+            if (r.status === "Відмова" && before.status !== "Відмова") {
+                notify({ kind: "chat", icon: "❌", title: "Sales: клієнт відмовився", text: `${head}${r.refusal_reason ? `<br>Причина: ${esc(r.refusal_reason)}` : ""}`, requestId: r.id });
+            } else if (r.status === STATUS_CHOSEN && String(r.logistician_id || "") !== myId && before.status !== STATUS_CHOSEN) {
+                notify({ kind: "chat", icon: "🤝", title: "Sales обрав інший варіант", text: `${head}${r.logistician ? `<br>Обрано: ${esc(r.logistician)}` : ""}`, requestId: r.id });
+            }
+        }
+
         refreshPage();
     }
 

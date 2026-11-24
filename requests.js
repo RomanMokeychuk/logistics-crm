@@ -1987,7 +1987,7 @@ function chatSectionHtml(r) {
             </form>`
         : `<div class="req-chat-empty">Sales обрав іншого логіста — переписка по цьому запиту тепер тільки з ним.</div>`;
     return `<div class="card-section req-chat" style="margin-top:16px">
-            <div class="card-section-title"><i class='bx bx-chat'></i> ${title}</div>
+            <div class="card-section-title"><i class='bx bx-chat'></i> ${title} <span class="rq-sec-info" id="chatInfo"></span></div>
             ${hint}${body}
         </div>`;
 }
@@ -2003,11 +2003,52 @@ function chatTime(iso) {
     return today ? t : `${d.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })} ${t}`;
 }
 
+// Непрочитані повідомлення: пам'ятаємо на цьому комп'ютері, що ви вже бачили (час останнього)
+const CHAT_SEEN_KEY = "fura_chat_seen";
+const chatSeenGet = () => { try { return JSON.parse(localStorage.getItem(CHAT_SEEN_KEY) || "{}") || {}; } catch (e) { return {}; } };
+function paintChatInfo() {
+    const el = document.getElementById("chatInfo");
+    if (!el || !chatRequestId) return;
+    const sec = el.closest(".card-section");
+    const open = sec && !sec.classList.contains("rc-collapsed");
+    const myId = String(currentStaff?.id || "");
+    const seen = chatSeenGet();
+    const last = chatMessages[chatMessages.length - 1];
+    if (open && last) {
+        // блок відкритий — усе, що в ньому, вважаємо прочитаним
+        if (String(seen[chatRequestId] || "") < String(last.created_at)) {
+            seen[chatRequestId] = last.created_at;
+            const keys = Object.keys(seen);
+            if (keys.length > 500) keys.slice(0, keys.length - 500).forEach((k) => delete seen[k]);
+            try { localStorage.setItem(CHAT_SEEN_KEY, JSON.stringify(seen)); } catch (e) { /* */ }
+        }
+    }
+    const since = String(seen[chatRequestId] || "");
+    const unread = chatMessages.filter((m) => String(m.author_id) !== myId && String(m.created_at) > since);
+    if (unread.length) {
+        const u = unread[unread.length - 1];
+        const prev = String(u.text || "").replace(/\s+/g, " ").slice(0, 60);
+        el.className = "rq-sec-info rq-info-msg";
+        el.innerHTML = `💬 ${unread.length} ${unread.length === 1 ? "нове повідомлення" : unread.length < 5 ? "нові повідомлення" : "нових повідомлень"} · <b>${escapeHtml(u.author_name || "")}</b>: ${escapeHtml(prev)}${String(u.text || "").length > 60 ? "…" : ""}`;
+    } else if (chatMessages.length) {
+        el.className = "rq-sec-info";
+        el.innerHTML = `${chatMessages.length} повідомл. · останнє ${chatTime(last.created_at)} від ${escapeHtml(last.author_name || "—")}`;
+    } else {
+        el.className = "rq-sec-info";
+        el.textContent = "повідомлень немає";
+    }
+}
+// відкрили блок «Переписка» — позначаємо прочитаним
+document.addEventListener("click", (e) => {
+    if (e.target.closest("#requestCardBody .req-chat .rc-head")) setTimeout(paintChatInfo, 0);
+});
+
 function renderChat() {
     const list = document.getElementById("reqChatList");
     if (!list) return;
     if (!chatMessages.length) {
         list.innerHTML = `<div class="req-chat-empty">Повідомлень ще немає. Поставте питання — його побачать Sales і логісти запиту (і в Telegram).</div>`;
+        paintChatInfo();
         return;
     }
     const myId = String(currentStaff?.id || "");
@@ -2024,6 +2065,7 @@ function renderChat() {
         .join("");
     list.scrollTop = list.scrollHeight;
     loadChatThumbs(list);
+    paintChatInfo();
 }
 
 /* ---- Вкладення в переписці: картинки й файли (сховище request-files) ---- */
@@ -2408,6 +2450,33 @@ function matchLinkHtml(r) {
 }
 
 // Блок "Відповіді логістів" в картці запиту
+// Коротко в заголовку «Відповідь логіста» — видно, навіть коли блок згорнутий
+function answerInfoHtml(r, answers) {
+    const priceOf = (a, i) => {
+        const offers = (a?.offers || []).filter((o) => o && o.price && !o.rejected);
+        const o = i != null ? (a?.offers || [])[i] : offers[0];
+        return o && o.price ? `${o.price} ${o.currency || ""}`.trim() : "";
+    };
+    const withContent = answers.filter((a) => (a.offers || []).length || a.notes);
+    let cls = "wait", txt = "";
+    if (r.status === "Відмова") {
+        cls = "bad";
+        txt = `❌ Клієнт відмовився${r.refusal_reason ? `: ${escapeHtml(r.refusal_reason)}` : ""}`;
+    } else if (isChosen(r)) {
+        const a = answers.find((x) => String(x.logist_id) === String(r.logistician_id));
+        const p = a ? priceOf(a, chosenOfferIndex(r, a)) : "";
+        cls = "ok";
+        txt = `🤝 Sales обрав: ${escapeHtml(r.logistician || a?.logist || "логіста")}${p ? ` · <b>${escapeHtml(p)}</b>` : ""}`;
+    } else if (withContent.length) {
+        const prices = withContent.map((a) => priceOf(a)).filter(Boolean);
+        cls = "new";
+        txt = `✅ ${withContent.length === 1 ? `${escapeHtml(withContent[0].logist || "Логіст")} відповів` : `Відповіли ${withContent.length} логісти`}${prices.length ? ` · <b>${escapeHtml(prices.slice(0, 3).join(" / "))}</b>` : ""} — чекаємо рішення Sales`;
+    } else {
+        txt = "⏳ Чекає відповіді логіста";
+    }
+    return `<span class="rq-sec-info rq-info-${cls}">${txt}</span>`;
+}
+
 function answerSectionHtml(r) {
     const answers = getAnswers(r);
     const mine = currentStaff
@@ -2460,6 +2529,7 @@ function answerSectionHtml(r) {
         <div class="card-section answer-section">
             <div class="card-section-title answer-section-title">
                 <span><i class='bx bx-dollar-circle'></i> ${title}</span>
+                ${answerInfoHtml(r, answers)}
                 ${window.furaQueueMatch ? window.furaQueueMatch.buttonHtml(r) : ""}
                 ${matchLinkHtml(r)}
                 <button type="button" class="btn-answer" id="openAnswerFromCardBtn">
