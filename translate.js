@@ -220,7 +220,7 @@ const TR = (() => {
         if (!ls.length && Array.isArray(data?.blocks)) ls = data.blocks.flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || []));
         return ls
             .map((l) => ({ text: String(l.text || "").replace(/\s+/g, " ").trim(), b: l.bbox, conf: l.confidence ?? 100 }))
-            .filter((l) => l.b && l.text && l.conf >= 35 && /\p{L}{2,}/u.test(l.text) && l.b.x1 - l.b.x0 > 6 && l.b.y1 - l.b.y0 > 5);
+            .filter((l) => l.b && l.text && l.conf >= 25 && /\p{L}{2,}/u.test(l.text) && l.b.x1 - l.b.x0 > 6 && l.b.y1 - l.b.y0 > 5);
     }
     // колір фону (по краях рамки) і колір літер (найдальший від фону всередині)
     function colorsAt(ctx, b, W, H) {
@@ -247,6 +247,33 @@ const TR = (() => {
         const fg = bd > 60 ? best : lum(bg) > 128 ? [20, 20, 20] : [245, 245, 245];
         return { bg: `rgb(${bg})`, fg: `rgb(${fg})` };
     }
+
+    // Розпізнавання сторінки: збільшуємо дрібний текст, сірий фон → чіткіше;
+    // 2 проходи: звичайний (цілі рядки й абзаци) + «розкиданий текст» (клітинки таблиць, підписи)
+    async function ocrPage(worker, src, onPart) {
+        const k = Math.max(1, Math.min(3, 2400 / src.width));
+        const c = document.createElement("canvas");
+        c.width = Math.round(src.width * k); c.height = Math.round(src.height * k);
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.imageSmoothingQuality = "high";
+        ctx.filter = "grayscale(1) contrast(1.25)";
+        ctx.drawImage(src, 0, 0, c.width, c.height);
+        const scale = (l) => ({ ...l, b: { x0: l.b.x0 / k, y0: l.b.y0 / k, x1: l.b.x1 / k, y1: l.b.y1 / k } });
+        onPart(0);
+        await worker.setParameters({ tessedit_pageseg_mode: "3", preserve_interword_spaces: "1" });
+        const a = linesOf((await worker.recognize(c, {}, { blocks: true, text: true })).data).map(scale);
+        onPart(1);
+        await worker.setParameters({ tessedit_pageseg_mode: "11" });
+        const b = linesOf((await worker.recognize(c, {}, { blocks: true, text: true })).data).map(scale);
+        // додаємо з 2-го проходу те, чого не було в 1-му (не перекривається)
+        const area = (q) => Math.max(0, q.x1 - q.x0) * Math.max(0, q.y1 - q.y0);
+        const over = (p, q) => area({ x0: Math.max(p.x0, q.x0), y0: Math.max(p.y0, q.y0), x1: Math.min(p.x1, q.x1), y1: Math.min(p.y1, q.y1) });
+        const out = [...a];
+        b.forEach((l) => { if (!out.some((m) => over(m.b, l.b) > 0.3 * Math.min(area(m.b), area(l.b)))) out.push(l); });
+        // великі «рядки» на всю таблицю (рамки) — відкидаємо
+        return out.filter((l) => l.b.y1 - l.b.y0 < src.height * 0.2).sort((p, q) => p.b.y0 - q.b.y0 || p.b.x0 - q.b.x0);
+    }
+
     function paintPage(src, lines, tr) {
         const c = document.createElement("canvas");
         c.width = src.width; c.height = src.height;
@@ -302,10 +329,14 @@ const TR = (() => {
                 const pre = pages.length > 1 ? `Сторінка ${p + 1} з ${pages.length}: ` : "";
                 const base = 15 + per * p;
                 say(pre + "розпізнаю текст…");
-                onOcrLog = (m) => { if (m.status === "recognizing text") prog(base + per * 0.6 * (m.progress || 0), `${pre}розпізнаю текст… ${Math.round((m.progress || 0) * 100)}%`); };
-                const { data } = await worker.recognize(pages[p], {}, { blocks: true, text: true });
+                let part = 0;
+                onOcrLog = (m) => {
+                    if (m.status !== "recognizing text") return;
+                    const f = (part + (m.progress || 0)) / 2;
+                    prog(base + per * 0.6 * f, `${pre}розпізнаю текст… ${Math.round(f * 100)}%`);
+                };
+                const lines = await ocrPage(worker, pages[p], (n) => { part = n; });
                 onOcrLog = null;
-                const lines = linesOf(data);
                 if (!lines.length) { prog(base + per); done.push({ src: pages[p], res: pages[p], n: 0 }); continue; }
                 prog(base + per * 0.6, `${pre}перекладаю ${lines.length} рядків…`);
                 stopEst = progEstimate(base + per * 0.6, base + per, 4 + lines.length / 25);
