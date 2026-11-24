@@ -1883,11 +1883,11 @@ function openRequestCard(id) {
             </div>
         </div>
 
-        <div id="routeMapBox" style="margin-top:16px"></div>
+        ${answerSectionHtml(r)}
 
         ${chatSectionHtml(r)}
 
-        ${answerSectionHtml(r)}
+        <div id="routeMapBox" style="margin-top:16px"></div>
 
         <div class="card-section rq-people">
             <div class="card-section-title"><span><i class='bx bx-group'></i> Відповідальні</span></div>
