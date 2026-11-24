@@ -1854,7 +1854,7 @@ function openRequestCard(id) {
 
         <div class="card-section rq-details">
             <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span>
-                <button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button>
+                <span class="rq-title-acts">${currentStaff && hasRole(currentStaff, ["logist", "head", "admin"]) ? `<button type="button" class="btn-answer rq-carrier-text rq-bc-btn" id="carrierBcBtn" title="Розіслати цей запит перевізникам у Viber (без клієнта і цін)"><i class='bx bxl-viber'></i> Розіслати перевізникам</button>` : ""}<button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button></span>
             </div>
             <div class="rq-grid">
                 <div class="rq-group">
@@ -1921,6 +1921,7 @@ function openRequestCard(id) {
         );
 
     document.getElementById("carrierTextBtn")?.addEventListener("click", () => openCarrierText(r));
+    document.getElementById("carrierBcBtn")?.addEventListener("click", () => window.furaBroadcast?.open({ kind: "carriers", request: r }));
     document.getElementById("refuseFromCardBtn")?.addEventListener("click", () => openRefusalModal(r.id));
     document.getElementById("cancelChoiceBtn")?.addEventListener("click", () => cancelChoice(r.id));
     document.querySelectorAll("#requestCardBody [data-offer-act]").forEach((b) =>

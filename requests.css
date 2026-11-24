@@ -1344,3 +1344,5 @@ body.rq-archive-mode #openRequestModalBtn { display: none; }
     .rq-head-search { order: 3; flex-basis: 100%; max-width: none; }
 }
 
+.rq-title-acts { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.rq-bc-btn { background: #f5f3ff !important; border-color: #ddd6fe !important; color: #6d28d9 !important; }
