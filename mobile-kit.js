@@ -242,7 +242,8 @@
             if (p.length === 2) {
                 start = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2, x, y };
             } else if (p.length === 1) {
-                if (e.pointerType !== "touch" || s > 1) { try { stage.setPointerCapture(e.pointerId); } catch (er) { /* */ } }
+                // збільшено — тягнемо картинку (без виділення); 100% — лишаємо виділення тексту (Live Text у Safari / iPhone)
+                if (s > 1) { e.preventDefault(); try { stage.setPointerCapture(e.pointerId); } catch (er) { /* */ } }
                 start = { px: e.clientX, py: e.clientY, x, y };
                 const now = Date.now();
                 if (now - lastTap < 280 && !pdfSel()) {
@@ -665,7 +666,7 @@
     .mk-z { min-width: 46px; text-align: center; font-size: 13px; }
     .mk-iv-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; }
     .mk-iv-wrap { position: relative; max-width: 100%; max-height: 100%; transform-origin: center center; will-change: transform; display: inline-block; line-height: 0; }
-    .mk-iv-img { user-select: none; -webkit-user-select: none; display: block; max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; -webkit-user-drag: none; }
+    .mk-iv-img { -webkit-user-select: auto; user-select: auto; display: block; max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; -webkit-user-drag: none; }
     .sa-pv-body .mk-iv-img { max-height: calc(100vh - 150px); }
     .mk-iv-msg { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3; background: rgba(17,24,39,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; max-width: 90%; text-align: center; line-height: 1.35; }
     .mk-iv-msg[hidden] { display: none; }
