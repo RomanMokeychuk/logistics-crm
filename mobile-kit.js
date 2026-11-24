@@ -119,52 +119,52 @@
      *    розпізнати текст на фото / скані, щоб його можна було виділити *
      * ---------------------------------------------------------------- */
     const loadJs = (src) => new Promise((res, rej) => {
-        if (document.querySelector(`script[src="${src}"]`) && (src !== TESS || window.Tesseract)) return res();
+        if (document.querySelector(`script[src="${src}"]`)) return res();
         const sc = document.createElement("script");
         sc.src = src;
         sc.onload = res;
         sc.onerror = () => rej(new Error("Не вдалося завантажити модуль — перевірте інтернет"));
         document.head.appendChild(sc);
     });
-    // ---- Розпізнавання тексту (Tesseract) ----
-    const TESS = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
-    let ocrP = null;
-    const ocrWorker = () => (ocrP ||= loadJs(TESS).then(() => window.Tesseract.createWorker(["ukr", "eng", "rus"], 1)).catch((e) => { ocrP = null; throw e; }));
-    // рядки тексту з картинки/полотна; координати — у пікселях джерела
-    async function ocrLines(src) {
+    // ---- Розпізнавання тексту: Claude читає фото / скан як людина (fura-assistant → ocr) ----
+    // полотно / картинка → JPEG base64 (не більше 2000 px по довшій стороні)
+    function jpegOf(src) {
         const W = src.naturalWidth || src.width, H = src.naturalHeight || src.height;
-        const k = Math.max(1, Math.min(3, 2800 / W));
+        const k = Math.min(1, 2000 / Math.max(W, H));
         const c = document.createElement("canvas");
         c.width = Math.round(W * k);
         c.height = Math.round(H * k);
-        const ctx = c.getContext("2d", { willReadFrequently: true });
-        ctx.filter = "grayscale(1) contrast(1.3)";
+        const ctx = c.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, c.width, c.height);
         ctx.drawImage(src, 0, 0, c.width, c.height);
-        const w = await ocrWorker();
-        const { data } = await w.recognize(c);
-        let ls = Array.isArray(data?.lines) && data.lines.length ? data.lines : [];
-        if (!ls.length && Array.isArray(data?.blocks)) ls = data.blocks.flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || []));
-        return {
-            W, H,
-            lines: ls
-                .map((l) => ({ text: String(l.text || "").replace(/\s+/g, " ").trim(), b: l.bbox, conf: l.confidence ?? 100 }))
-                .filter((l) => l.b && l.text && l.conf >= 20)
-                .map((l) => ({ text: l.text, x0: l.b.x0 / k, y0: l.b.y0 / k, x1: l.b.x1 / k, y1: l.b.y1 / k })),
-        };
+        return c.toDataURL("image/jpeg", 0.88).split(",")[1];
     }
-    // прозорий шар тексту поверх картинки — для виділення й копіювання
-    function ocrLayer(host, res) {
-        host.querySelector(".mk-ocr")?.remove();
-        const L = document.createElement("div");
-        L.className = "mk-ocr";
-        L.innerHTML = res.lines
-            .map((l) => {
-                const h = ((l.y1 - l.y0) / res.H) * 100;
-                return `<span style="left:${(l.x0 / res.W) * 100}%;top:${(l.y0 / res.H) * 100}%;width:${((l.x1 - l.x0) / res.W) * 100}%;height:${h}%;font-size:${h * 0.82}cqh">${esc(l.text)}\n</span>`;
-            })
-            .join("");
-        host.appendChild(L);
-        return res.lines.length;
+    async function aiText(sources) {
+        const db = typeof sbClient !== "undefined" ? sbClient : null;
+        if (!db) throw new Error("немає з'єднання з FURA");
+        const images = sources.map((x) => ({ type: "image/jpeg", data: jpegOf(x) }));
+        const { data, error } = await db.functions.invoke("fura-assistant", { body: { action: "ocr", images } });
+        if (error) {
+            let m = error.message;
+            try { m = (await error.context?.json?.())?.error || m; } catch (e) { /* */ }
+            throw new Error(m);
+        }
+        if (data?.error) throw new Error(data.error);
+        return String(data?.text || "").trim() + (data?.cut ? "\n\n[…текст дуже довгий — показано не все]" : "");
+    }
+    // картинка за адресою → елемент, з якого можна читати пікселі
+    async function drawable(img, src) {
+        try {
+            const c = document.createElement("canvas");
+            c.width = 1; c.height = 1;
+            c.getContext("2d").drawImage(img, 0, 0, 1, 1);
+            c.getContext("2d").getImageData(0, 0, 1, 1);
+            return img;
+        } catch (e) {
+            const blob = await (await fetch(src)).blob();
+            return await createImageBitmap(blob);
+        }
     }
     const pdfSel = () => String(getSelection?.() || "");
     // Увесь розпізнаний текст — окремим списком: виділити будь-що або «Скопіювати все»
@@ -175,7 +175,7 @@
         sh.innerHTML = `<div class="mk-tsheet-card">
             <div class="mk-tsheet-head"><b>Розпізнаний текст</b>
                 <button type="button" data-ts="copy">Скопіювати все</button><button type="button" data-ts="x" aria-label="Закрити">✕</button></div>
-            <div class="mk-tsheet-hint">Виділіть потрібне (утримуйте палець на слові) або скопіюйте все. Перевіряйте цифри — розпізнавання з фото може помилятися.</div>
+            <div class="mk-tsheet-hint">Виділіть потрібне (утримуйте палець на слові) або скопіюйте все. Номери й VIN звіряйте з документом.</div>
             <pre class="mk-tsheet-text"></pre></div>`;
         sh.querySelector(".mk-tsheet-text").textContent = text || "Тексту не знайшов";
         sh.addEventListener("click", async (e) => {
@@ -188,7 +188,6 @@
         });
         document.body.appendChild(sh);
     }
-    const linesText = (res) => res.lines.map((l) => l.text).join("\n");
 
     // ---- Фото: збільшення, зсув, поворот, текст ----
     function imgView(box, src, opts = {}) {
@@ -197,8 +196,7 @@
                 ${opts.onClose ? `<button type="button" data-iv="close" aria-label="Закрити"><i class="bx bx-x"></i></button>` : ""}
                 <button type="button" data-iv="-" aria-label="Зменшити">−</button><span class="mk-z">100%</span><button type="button" data-iv="+" aria-label="Збільшити">+</button>
                 <button type="button" data-iv="rot" aria-label="Повернути"><i class="bx bx-rotate-right"></i></button>
-                <button type="button" data-iv="ocr" class="mk-ocr-btn" title="Розпізнати текст на фото, щоб його можна було виділити й скопіювати"><b>T</b> Текст</button>
-                <button type="button" data-iv="list" class="mk-list-btn" title="Весь розпізнаний текст списком — скопіювати" hidden><i class="bx bx-copy"></i></button>
+                <button type="button" data-iv="ocr" class="mk-ocr-btn" title="Розпізнати текст на фото — виділити й скопіювати"><b>T</b> Текст</button>
                 ${opts.save ? `<button type="button" data-iv="save" aria-label="Зберегти або надіслати"><i class="bx bx-share"></i></button>` : ""}
             </div>
             <div class="mk-iv-stage"><div class="mk-iv-wrap"><img class="mk-iv-img" alt="" draggable="false" crossorigin="anonymous" /></div></div>
@@ -206,7 +204,7 @@
         const stage = box.querySelector(".mk-iv-stage"), wrap = box.querySelector(".mk-iv-wrap"), img = box.querySelector(".mk-iv-img"), msg = box.querySelector(".mk-iv-msg");
         img.onerror = () => { if (img.crossOrigin) { img.removeAttribute("crossorigin"); img.src = src; } };
         img.src = src;
-        let s = 1, x = 0, y = 0, rot = 0, textMode = false, lastRes = null;
+        let s = 1, x = 0, y = 0, rot = 0, lastText = null;
         const fit = () => {
             // повернуто на 90/270 — вписуємо «лежачу» картинку в екран
             if (rot % 180 === 0) return 1;
@@ -239,13 +237,12 @@
         let start = null, lastTap = 0;
         stage.addEventListener("pointerdown", (e) => {
             // у режимі «Текст» одним пальцем / мишею — виділяємо текст, а не тягнемо
-            if (textMode && e.target.closest(".mk-ocr span") && e.pointerType !== "touch") return;
             pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const p = [...pts.values()];
             if (p.length === 2) {
                 start = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2, x, y };
             } else if (p.length === 1) {
-                if (!textMode) { try { stage.setPointerCapture(e.pointerId); } catch (er) { /* */ } }
+                if (e.pointerType !== "touch" || s > 1) { try { stage.setPointerCapture(e.pointerId); } catch (er) { /* */ } }
                 start = { px: e.clientX, py: e.clientY, x, y };
                 const now = Date.now();
                 if (now - lastTap < 280 && !pdfSel()) {
@@ -263,7 +260,7 @@
                 const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
                 s = start.s; x = start.x + (cx - start.cx); y = start.y + (cy - start.cy);
                 zoomAt(start.s * (d / start.d), cx, cy, false);
-            } else if (p.length === 1 && start && "px" in start && s > 1 && !textMode) {
+            } else if (p.length === 1 && start && "px" in start && s > 1) {
                 x = start.x + (e.clientX - start.px);
                 y = start.y + (e.clientY - start.py);
                 apply(false);
@@ -290,24 +287,18 @@
             if (k === "+" || k === "-") return zoomAt(s * (k === "+" ? 1.4 : 1 / 1.4), sr.left + sr.width / 2, sr.top + sr.height / 2, true);
             if (k === "rot") { rot = (rot + 90) % 360; s = 1; x = 0; y = 0; return apply(true); }
             if (k === "save") return opts.save?.();
-            if (k === "list") return textSheet(lastRes ? linesText(lastRes) : "");
             if (k === "ocr") {
-                if (textMode) { textMode = false; b.classList.remove("on"); wrap.querySelector(".mk-ocr")?.remove(); box.classList.remove("mk-text"); return; }
+                if (lastText != null) return textSheet(lastText);
                 b.disabled = true;
-                say("Розпізнаю текст… (перший раз — до хвилини)");
+                say("Розпізнаю текст… (кілька секунд)");
                 try {
                     if (!img.complete) await new Promise((r) => img.addEventListener("load", r, { once: true }));
-                    const res = lastRes || (await ocrLines(img));
-                    lastRes = res;
-                    const n = ocrLayer(wrap, res);
-                    box.querySelector('[data-iv="list"]').hidden = !n;
-                    textMode = true;
-                    b.classList.add("on");
-                    box.classList.add("mk-text");
-                    say(n ? `Готово: ${touch.matches ? "утримуйте палець на тексті" : "виділяйте мишею"} або натисніть ⧉ — увесь текст списком` : "Тексту не знайшов");
-                    setTimeout(() => say(""), 3500);
+                    lastText = await aiText([await drawable(img, src)]);
+                    say("");
+                    textSheet(lastText);
                 } catch (err) {
-                    say(/tainted|cross-origin|SecurityError/i.test(String(err?.message || err)) ? "Це фото не можна розпізнати тут — відкрийте його в 🌐 Перекладачі" : "Не вдалося: " + (err?.message || err));
+                    say("Не вдалося розпізнати: " + (err?.message || err));
+                    setTimeout(() => say(""), 5000);
                 } finally { b.disabled = false; }
             }
         });
@@ -386,8 +377,7 @@
         box.innerHTML = `<div class="mk-pdf"><div class="mk-bar2">
                 <button type="button" data-z="-" aria-label="Зменшити">−</button><span class="mk-z">100%</span><button type="button" data-z="+" aria-label="Збільшити">+</button>
                 <button type="button" data-z="rot" aria-label="Повернути"><i class="bx bx-rotate-right"></i></button>
-                <button type="button" data-z="ocr" class="mk-ocr-btn" title="Розпізнати текст на сканах, щоб його можна було виділити"><b>T</b> Текст</button>
-                <button type="button" data-z="list" class="mk-list-btn" title="Увесь текст документа списком — скопіювати"><i class="bx bx-copy"></i></button>
+                <button type="button" data-z="ocr" class="mk-ocr-btn" title="Увесь текст документа — виділити й скопіювати (скани розпізнаються)"><b>T</b> Текст</button>
                 <span class="mk-pdf-n"></span></div>
             <div class="mk-iv-msg" hidden></div>
             <div class="mk-pdf-scroll"><div class="mk-pdf-pages"><p class="mk-pdf-load">Відкриваю PDF…</p></div></div></div>`;
@@ -403,7 +393,7 @@
         }
         box.querySelector(".mk-pdf-n").textContent = `${doc.numPages} стор.`;
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
-        let z = 1, rot = 0, ocrOn = false;
+        let z = 1, rot = 0, docText = null;
         const base = () => Math.max(200, scroll.clientWidth - 12);
         const pages = [];
         wrap.innerHTML = "";
@@ -425,7 +415,7 @@
             box.querySelector(".mk-z").textContent = Math.round(z * 100) + "%";
         };
         async function draw(p) {
-            const cssW = base() * z, key = cssW + "|" + rot + "|" + ocrOn;
+            const cssW = base() * z, key = cssW + "|" + rot;
             if (p.drawn === key) return;
             p.drawn = key;
             const v1 = vp1(p), scale = cssW / v1.width;
@@ -447,21 +437,28 @@
             } catch (e) { /* без тексту — лише картинка */ }
             if (p.drawn !== key) return;
             p.hasText = items > 3;
-            p.el.replaceChildren(cv, tl);
-            // скан без тексту: розпізнаємо (один раз на сторінку; шар у відсотках — підходить для будь-якого збільшення)
-            if (ocrOn && !p.hasText) {
-                if (!p.ocr || p.ocr.rot !== rot) {
-                    say(`Розпізнаю текст: сторінка ${p.el.dataset.n}… (перший раз — до хвилини)`);
-                    try { p.ocr = { rot, res: await ocrLines(await ocrCanvas(p)) }; } catch (e) { say("Не вдалося розпізнати: " + (e?.message || e)); return; }
-                    say("");
+            if (!p.hasText) tl.style.pointerEvents = "none";
+            // сторінку показуємо картинкою — на iPhone на ній працює «Живий текст» (утримати палець на тексті)
+            let view = cv;
+            try {
+                const blob = await new Promise((r) => cv.toBlob(r, "image/jpeg", 0.9));
+                if (blob && p.drawn === key) {
+                    view = new Image();
+                    view.className = "mk-pdf-img";
+                    view.alt = "";
+                    view.src = URL.createObjectURL(blob);
+                    await view.decode().catch(() => {});
+                    if (p.url) URL.revokeObjectURL(p.url);
+                    p.url = view.src;
                 }
-                if (p.drawn === key) ocrLayer(p.el, p.ocr.res);
-            }
-            if (p.el.dataset.n === "1" && !p.hasText && !ocrOn) box.querySelector('[data-z="ocr"]').classList.add("hint");
+            } catch (e) { view = cv; }
+            if (p.drawn !== key) return;
+            p.el.replaceChildren(view, tl);
+            if (p.el.dataset.n === "1" && !p.hasText) box.querySelector('[data-z="ocr"]').classList.add("hint");
         }
-        // окреме чітке зображення сторінки для розпізнавання (~2800 px завширшки)
-        async function ocrCanvas(p) {
-            const v1 = vp1(p), scale = Math.min(4, 2800 / v1.width);
+        // сторінка для розпізнавання (~2000 px завширшки)
+        async function pageCanvas(p) {
+            const v1 = vp1(p), scale = Math.min(3, 2000 / v1.width);
             const vp = p.page.getViewport({ scale, rotation: (p.page.rotate + rot) % 360 });
             const c = document.createElement("canvas");
             c.width = Math.floor(vp.width);
@@ -472,24 +469,31 @@
             await p.page.render({ canvasContext: ctx, viewport: vp }).promise;
             return c;
         }
-        // увесь текст документа: справжній текст PDF, а для сканів — розпізнаний
+        // увесь текст: справжній текст PDF; якщо це скан — розпізнає Claude
         async function allText(btn) {
-            const out = [];
-            for (const p of pages) {
-                const tc = await p.page.getTextContent().catch(() => null);
-                const real = (tc?.items || []).map((i) => i.str + (i.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+\n/g, "\n").trim();
-                if (real.replace(/\s/g, "").length > 20) { out.push(real); continue; }
-                if (!p.ocr || p.ocr.rot !== rot) {
-                    btn.disabled = true;
-                    say(`Розпізнаю сторінку ${p.el.dataset.n} з ${pages.length}… (перший раз — до хвилини)`);
-                    try { p.ocr = { rot, res: await ocrLines(await ocrCanvas(p)) }; } catch (e) { say("Не вдалося: " + (e?.message || e)); btn.disabled = false; return; }
+            if (docText != null) return textSheet(docText);
+            btn.disabled = true;
+            try {
+                const real = [];
+                for (const p of pages) {
+                    const tc = await p.page.getTextContent().catch(() => null);
+                    real.push((tc?.items || []).map((i) => i.str + (i.hasEOL ? "\n" : " ")).join("").replace(/[ \t]+\n/g, "\n").trim());
                 }
-                out.push(linesText(p.ocr.res));
-            }
-            btn.disabled = false;
-            say("");
-            textSheet(out.map((t, i) => (pages.length > 1 ? `— Сторінка ${i + 1} —\n` : "") + t).join("\n\n"));
-            if (ocrOn) redrawVisible();
+                const scans = pages.filter((p, i) => real[i].replace(/\s/g, "").length < 30).slice(0, 12);
+                let ai = "";
+                if (scans.length) {
+                    say(`Розпізнаю текст${scans.length > 1 ? ` (${scans.length} стор.)` : ""}… (кілька секунд)`);
+                    ai = await aiText(await Promise.all(scans.map(pageCanvas)));
+                }
+                docText = scans.length === pages.length
+                    ? ai
+                    : pages.map((p, i) => (pages.length > 1 ? `— Сторінка ${i + 1} —\n` : "") + (scans.includes(p) ? "(скан — див. розпізнаний текст нижче)" : real[i])).join("\n\n") + (ai ? "\n\n— Розпізнані скани —\n" + ai : "");
+                say("");
+                textSheet(docText);
+            } catch (e) {
+                say("Не вдалося: " + (e?.message || e));
+                setTimeout(() => say(""), 5000);
+            } finally { btn.disabled = false; }
         }
         const io = new IntersectionObserver((ents) => ents.forEach((en) => { if (en.isIntersecting) draw(pages[en.target.dataset.n - 1]); }), { root: scroll, rootMargin: "600px 0px" });
         layout();
@@ -513,14 +517,7 @@
             if (!b) return;
             if (b.dataset.z === "+" || b.dataset.z === "-") return setZoom(z * (b.dataset.z === "+" ? 1.4 : 1 / 1.4));
             if (b.dataset.z === "rot") { rot = (rot + 90) % 360; layout(); scroll.scrollTop = 0; return redrawVisible(); }
-            if (b.dataset.z === "list") return allText(b);
-            if (b.dataset.z === "ocr") {
-                ocrOn = !ocrOn;
-                b.classList.toggle("on", ocrOn);
-                b.classList.remove("hint");
-                if (!ocrOn) pages.forEach((p) => p.el.querySelector(".mk-ocr")?.remove());
-                redrawVisible();
-            }
+            if (b.dataset.z === "ocr") return allText(b);
         });
         // Ctrl + колесо / щипок на тачпаді (комп'ютер)
         scroll.addEventListener("wheel", (e) => {
@@ -659,9 +656,9 @@
     .mk-bar2 [data-iv="close"] { margin-right: auto; order: -1; }
     .mk-bar2 [data-iv="save"] { margin-left: auto; }
     .mk-z { min-width: 46px; text-align: center; font-size: 13px; }
-    .mk-iv-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .mk-iv-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; }
     .mk-iv-wrap { position: relative; max-width: 100%; max-height: 100%; transform-origin: center center; will-change: transform; display: inline-block; line-height: 0; }
-    .mk-iv-img { display: block; max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; -webkit-user-drag: none; }
+    .mk-iv-img { user-select: none; -webkit-user-select: none; display: block; max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; -webkit-user-drag: none; }
     .sa-pv-body .mk-iv-img { max-height: calc(100vh - 150px); }
     .mk-iv-msg { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3; background: rgba(17,24,39,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; max-width: 90%; text-align: center; line-height: 1.35; }
     .mk-iv-msg[hidden] { display: none; }
@@ -676,8 +673,10 @@
     .mk-pdf-n { margin-left: auto; font-size: 13px; color: #cbd5e1; }
     .mk-pdf-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
     .mk-pdf-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 6px 20px; width: max-content; min-width: 100%; box-sizing: border-box; }
-    .mk-pdf-page { position: relative; background: #fff; border-radius: 4px; overflow: hidden; margin: 0 auto; user-select: none; -webkit-user-select: none; }
-    .mk-pdf-page canvas { display: block; width: 100%; height: 100%; }
+    .mk-pdf-page { position: relative; background: #fff; border-radius: 4px; overflow: hidden; margin: 0 auto; }
+    .mk-pdf-page canvas, .mk-pdf-page .mk-pdf-img { display: block; width: 100%; height: 100%; }
+    /* iPhone / iPad: «Живий текст» на фото — утримати палець на тексті */
+    @media (pointer: coarse) { .mk-iv-img, .mk-pdf-img { -webkit-touch-callout: default; -webkit-user-select: auto; user-select: auto; } }
     .mk-pdf-load { color: #e5e7eb; padding: 20px; }
     .mk-pdf .textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-align: initial; opacity: 1; z-index: 2; -webkit-text-size-adjust: none; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; }
     .mk-pdf .textLayer span, .mk-pdf .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; -webkit-user-select: text; }
