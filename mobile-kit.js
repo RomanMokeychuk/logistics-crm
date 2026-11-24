@@ -394,11 +394,18 @@
         box.querySelector(".mk-pdf-n").textContent = `${doc.numPages} стор.`;
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
         let z = 1, rot = 0, docText = null;
-        const base = () => Math.max(200, scroll.clientWidth - 12);
+        // 100% = сторінка вміщується на екран: на телефоні — по ширині, на комп'ютері — не ширше 1000 px і по висоті вікна
+        let aspect = 1.414;
+        const base = () => {
+            const w = scroll.clientWidth - 12;
+            if (w < 700) return Math.max(200, w);
+            return Math.max(320, Math.min(w, 1000, (scroll.clientHeight - 16) / aspect));
+        };
         const pages = [];
         wrap.innerHTML = "";
         for (let n = 1; n <= doc.numPages; n++) {
             const page = await doc.getPage(n);
+            if (n === 1) { const v = page.getViewport({ scale: 1 }); aspect = v.height / v.width; }
             const el = document.createElement("div");
             el.className = "mk-pdf-page";
             el.dataset.n = n;
