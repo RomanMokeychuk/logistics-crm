@@ -184,6 +184,32 @@ async function actSend(me: Any, body: Any) {
     return json(200, { id: b.id, total: list.length, sent, failed, skipped, test: TEST });
 }
 
+// «Тест собі»: той самий текст — на один номер (ваш), до 10 разів на день
+async function actSendTest(me: Any, body: Any) {
+    const phone = normPhone(body.phone);
+    if (!phone) return json(400, { error: "Вкажіть свій український мобільний номер (напр. 067 123 45 67)." });
+    const text = String(body.text || "").trim().slice(0, 1000);
+    if (text.length < 10) return json(400, { error: "Напишіть текст розсилки." });
+    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { count } = await db.from("broadcasts").select("id", { count: "exact", head: true }).eq("staff_id", String(me.id)).eq("status", "selftest").gte("created_at", since);
+    if ((count || 0) >= 10) return json(400, { error: "Тест собі — не більше 10 разів на день." });
+    const { data: b } = await db.from("broadcasts").insert({
+        staff_id: String(me.id), staff_email: me.email, staff_name: me.full_name, kind: body.kind === "clients" ? "clients" : "carriers",
+        text, total: 1, test: TEST, status: "selftest",
+    }).select().single();
+    let upd: Any = { status: "test" };
+    if (!TEST) {
+        try { const r = await ksSend(phone, text); upd = r.id ? { status: "sent", msg_id: r.id } : { status: "failed", error: r.error }; }
+        catch (e) { upd = { status: "failed", error: String((e as Error).message || e).slice(0, 200) }; }
+    }
+    if (b) {
+        await db.from("broadcast_recipients").insert({ broadcast_id: b.id, name: "Тест собі", phone, ...upd });
+        await db.from("broadcasts").update({ sent: upd.status === "failed" ? 0 : 1, failed: upd.status === "failed" ? 1 : 0 }).eq("id", b.id);
+    }
+    if (upd.status === "failed") return json(400, { error: "Київстар не прийняв повідомлення: " + (upd.error || "") });
+    return json(200, { ok: true, test: TEST, id: b?.id });
+}
+
 async function actStatus(me: Any, body: Any) {
     const id = Number(body.id);
     const { data: b } = await db.from("broadcasts").select("*").eq("id", id).maybeSingle();
@@ -221,6 +247,7 @@ Deno.serve(async (req) => {
         switch (body.action) {
             case "config": return json(200, { test: TEST, sender: KS_SENDER || null, max: MAX_PER_BROADCAST, daily: DAILY_LIMIT, roles: rolesOf(me), boss: isBoss(me) });
             case "send": return await actSend(me, body);
+            case "send_test": return await actSendTest(me, body);
             case "status": return await actStatus(me, body);
             case "optout": return await actOptout(me, body);
             default: return json(400, { error: "unknown action" });

@@ -127,9 +127,31 @@
             box.querySelector(".bc-len").textContent = `${n} / 1000 символів`;
             box.querySelector(".bc-len").classList.toggle("over", n > 1000);
         };
+        box.querySelector(".bc-self")?.addEventListener("click", () => selfTest(box));
         box.querySelector(".bc-text").addEventListener("input", upd);
         box.querySelector(".bc-sign").addEventListener("input", (e) => { try { localStorage.setItem(SIGN_KEY, e.target.value); } catch (err) { /* */ } upd(); });
         upd();
+    }
+
+
+    async function selfTest(box) {
+        const text = fullText(box);
+        if (text.length < 10) return alert("Напишіть текст розсилки.");
+        let my = "";
+        try { my = localStorage.getItem("fura_bc_myphone") || ""; } catch (e) { /* */ }
+        if (!my) my = (box.querySelector(".bc-sign").value.match(/(?:\+?38)?0\d[\d\s()-]{7,}\d/) || [""])[0];
+        const ph = prompt("На який ваш номер надіслати тест у Viber?", my);
+        if (!ph) return;
+        if (!normPhone(ph)) return alert("Потрібен український мобільний номер, напр. 067 123 45 67.");
+        try { localStorage.setItem("fura_bc_myphone", ph); } catch (e) { /* */ }
+        const b = box.querySelector(".bc-self");
+        b.disabled = true; b.textContent = "Надсилаю…";
+        try {
+            const kind = root?.querySelector(".bc-head b")?.textContent.includes("клієнт") ? "clients" : "carriers";
+            const r = await call({ action: "send_test", phone: ph, text, kind });
+            alert(r.test ? "🧪 Тестовий режим: Київстар ще не підключено, тому у Viber нічого не прийде.\nКоли додасте ключі Київстару в Supabase Secrets — тест прийде вам у Viber." : `✅ Надіслано на ${fmtPhone(normPhone(ph))}. Перевірте Viber (зазвичай за кілька секунд).`);
+        } catch (e) { alert(e.message); }
+        b.disabled = false; b.textContent = "📱 Тест собі";
     }
 
     async function doSend(box, kind, ui, extra) {
@@ -185,7 +207,8 @@
             </section>
             <section class="bc-col">${textHtml(text, "без клієнта і ціни — як «Текст перевізнику»")}
                 <div class="bc-foot"><span class="bc-muted">Відповідати будуть дзвінком або повідомленням вам — за підписом.</span>
-                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></div>
+                <span class="bc-btns"><button type="button" class="bc-btn-s bc-self" title="Надіслати цей текст лише на свій номер — подивитись, як виглядатиме у Viber">📱 Тест собі</button>
+                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></span></div>
             </section></div>`;
         bindText(body);
         body.querySelector(".bc-list").innerHTML = `<div class="bc-empty">Підбираю перевізників…</div>`;
@@ -260,7 +283,8 @@
             </section>
             <section class="bc-col">${textHtml("", "напр. вільні машини, нові напрямки, акція")}
                 <div class="bc-foot"><span class="bc-muted">Відповідати будуть дзвінком або повідомленням вам — за підписом.</span>
-                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></div>
+                <span class="bc-btns"><button type="button" class="bc-btn-s bc-self" title="Надіслати цей текст лише на свій номер — подивитись, як виглядатиме у Viber">📱 Тест собі</button>
+                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></span></div>
             </section></div>`;
         bindText(body);
         const { data: { user } } = await client().auth.getUser();
@@ -372,6 +396,7 @@
     .bc-text { min-height: 260px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
     .bc-len { font-size: 12px; color: #9ca3af; text-align: right; }
     .bc-len.over { color: #b42318; font-weight: 700; }
+    .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
     .bc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
     .bc-muted { color: #6b7280; font-size: 12.5px; }
     .bc-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 1px solid #7c3aed; border-radius: 11px; background: linear-gradient(180deg, #8b5cf6, #7c3aed); color: #fff; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
