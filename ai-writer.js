@@ -194,10 +194,10 @@
 
     const css = document.createElement("style");
     css.textContent = `
-    .aiw-btn { position: fixed; z-index: 4000; width: 28px; height: 26px; border: 1px solid #ecd9a8; border-radius: 8px; background: linear-gradient(180deg, #fff8e6, #f6e3b0); font-size: 14px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(120, 90, 20, .18); padding: 0; }
+    .aiw-btn { position: fixed; z-index: 2147483600; width: 28px; height: 26px; border: 1px solid #ecd9a8; border-radius: 8px; background: linear-gradient(180deg, #fff8e6, #f6e3b0); font-size: 14px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(120, 90, 20, .18); padding: 0; }
     .aiw-btn:hover { background: linear-gradient(180deg, #f2d27f, #d9a944); }
     .aiw-btn[hidden] { display: none; }
-    .aiw-pop { position: fixed; z-index: 4001; max-height: min(70vh, 640px); display: flex; flex-direction: column; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 18px 50px rgba(15, 23, 42, .25); font-size: 13.5px; color: #1f2937; }
+    .aiw-pop { position: fixed; z-index: 2147483601; max-height: min(70vh, 640px); display: flex; flex-direction: column; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 18px 50px rgba(15, 23, 42, .25); font-size: 13.5px; color: #1f2937; }
     .aiw-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid #f1f1f1; }
     .aiw-head b { flex: 1; font-size: 14px; }
     .aiw-lang { height: 28px; border: 1px solid #e5e7eb; border-radius: 8px; font: inherit; font-size: 12.5px; padding: 0 6px; background: #fff; }
