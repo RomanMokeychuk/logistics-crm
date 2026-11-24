@@ -54,7 +54,7 @@
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "aiw-btn";
-    btn.innerHTML = "✨";
+    btn.innerHTML = "✨ <span>ШІ</span>";
     btn.title = "Помічник тексту: виправити помилки і 3 варіанти (простий / напівофіційний / офіційний)";
     btn.hidden = true;
     let cur = null; // поле, біля якого кнопка
@@ -65,8 +65,8 @@
         const r = cur.getBoundingClientRect();
         if (!r.width || !r.height) { btn.hidden = true; return; }
         btn.hidden = false;
-        btn.style.top = `${Math.max(4, r.bottom - 30)}px`;
-        btn.style.left = `${Math.min(innerWidth - 34, r.right - 32)}px`;
+        btn.style.top = `${Math.max(4, r.bottom - 32)}px`;
+        btn.style.left = `${Math.max(4, r.left + 8)}px`; // зліва внизу поля
     }
     function attachTo(ta) {
         clearTimeout(hideT);
@@ -99,7 +99,7 @@
         let top = r.top - h - 8;
         if (top < 8) top = Math.min(innerHeight - h - 8, r.bottom + 8);
         pop.style.top = `${Math.max(8, top)}px`;
-        pop.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.right - w))}px`;
+        pop.style.left = `${Math.max(8, Math.min(innerWidth - w - 8, r.left))}px`;
     }
     function closePop() { pop?.remove(); pop = null; }
 
@@ -194,7 +194,7 @@
 
     const css = document.createElement("style");
     css.textContent = `
-    .aiw-btn { position: fixed; z-index: 2147483600; width: 28px; height: 26px; border: 1px solid #ecd9a8; border-radius: 8px; background: linear-gradient(180deg, #fff8e6, #f6e3b0); font-size: 14px; line-height: 1; cursor: pointer; box-shadow: 0 2px 8px rgba(120, 90, 20, .18); padding: 0; }
+    .aiw-btn { position: fixed; z-index: 2147483600; height: 26px; display: inline-flex; align-items: center; gap: 4px; padding: 0 9px !important; color: #5a4310; font: 700 12px/1 Inter, system-ui, sans-serif; border: 1px solid #ecd9a8; border-radius: 8px; background: linear-gradient(180deg, #fff8e6, #f6e3b0); font-size: 14px; cursor: pointer; box-shadow: 0 2px 8px rgba(120, 90, 20, .18); }
     .aiw-btn:hover { background: linear-gradient(180deg, #f2d27f, #d9a944); }
     .aiw-btn[hidden] { display: none; }
     .aiw-pop { position: fixed; z-index: 2147483601; max-height: min(70vh, 640px); display: flex; flex-direction: column; background: #fff; border: 1px solid #e5e7eb; border-radius: 14px; box-shadow: 0 18px 50px rgba(15, 23, 42, .25); font-size: 13.5px; color: #1f2937; }
