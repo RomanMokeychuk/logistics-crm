@@ -42,7 +42,24 @@ const EQ = (() => {
         return hit ? `${hit} ОБЛ.` : s.replace(/\uFFFD/g, "");
     }
     const regionOf = (code) => fixRegion((FURA.get(codeKey(code)) || {}).region || "");
-    const regionHtml = (code) => (regionOf(code) ? `<div class="eq-sm eq-region">📍 ${esc(regionOf(code))}</div>` : "");
+    // місто з картки (або пов'язаної компанії), якщо області немає
+    const placeOf = (code) => {
+        const f = FURA.get(codeKey(code));
+        if (!f) return "";
+        const reg = regionOf(code), city = String(f.city || "").split(",")[0].trim();
+        if (reg || city) return [city, reg].filter(Boolean).join(", ");
+        const m = (GROUPS.get(f.group) || []).find((x) => x.id !== f.id && (x.region || x.city));
+        return m ? [String(m.city || "").split(",")[0].trim(), fixRegion(m.region)].filter(Boolean).join(", ") : "";
+    };
+    const regionHtml = (code) => (placeOf(code) ? `<div class="eq-sm eq-region">📍 ${esc(placeOf(code))}</div>` : "");
+    const groupText = (code) => { const f = FURA.get(codeKey(code)); return f?.group ? (GROUPS.get(f.group) || []).map((x) => `${x.name} ${x.edrpou}`).join(" ") : ""; };
+    // 🔗 інші компанії того самого власника (carriers.group_id)
+    const groupHtml = (code) => {
+        const f = FURA.get(codeKey(code));
+        const others = f?.group ? (GROUPS.get(f.group) || []).filter((x) => x.id !== f.id) : [];
+        if (!others.length) return "";
+        return `<div class="eq-sm eq-group" title="Пов'язані компанії — той самий власник">🔗 ${others.map((x) => `<a href="index.html?open=${encodeURIComponent(x.id)}" data-carrier-card="${esc(x.id)}" class="eq-glink">${esc(x.name)}</a>${x.edrpou ? ` <span class="eq-mono">${esc(x.edrpou)}</span>` : ""}`).join(", ")}</div>`;
+    };
     // Пошук не залежить від розкладки: кирилична «АТ4287СА» = латинська «AT4287CA»
     const LOOK = { а: "a", в: "b", е: "e", і: "i", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", х: "x", у: "y" };
     const norm = (s) => String(s || "").toLowerCase().replace(/[\s\-]/g, "").replace(/[авеікмнорстху]/g, (c) => LOOK[c]);
@@ -53,6 +70,7 @@ const EQ = (() => {
     let ROWS = [];
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
+    let GROUPS = new Map(); // group_id -> [компанії групи]
     const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], oblast: [], page: 0, sort: "entry" };
     // «Стали в чергу» — проміжки, що не перетинаються, тому можна обирати кілька
     const FRESH = [
@@ -159,13 +177,17 @@ const EQ = (() => {
     async function loadFura() {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
-        const parts = await Promise.all(
-            Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select("id, name, edrpou, region_ukr, logo_url, tonnage, volume").range(i * 1000, i * 1000 + 999)),
-        );
+        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume";
+        const get = (cols) => Promise.all(Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select(cols).range(i * 1000, i * 1000 + 999)));
+        let parts = await get(COLS + ", group_id");
+        if (parts.some((p) => p.error)) parts = await get(COLS); // ще не запущено carriers_group.sql
         FURA = new Map();
+        GROUPS = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            if (k && !FURA.has(k)) FURA.set(k, { id: c.id, name: c.name, region: c.region_ukr || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "" });
+            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "" };
+            if (k && !FURA.has(k)) FURA.set(k, row);
+            if (row.group) (GROUPS.get(row.group) || GROUPS.set(row.group, []).get(row.group)).push(row);
         }));
     }
 
@@ -438,7 +460,7 @@ const EQ = (() => {
             if (st.isNew && !r.is_new) return false;
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
-            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, regionOf(r.edrpou)].join(" ")).includes(q)) return false;
+            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q)) return false;
             if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
                 if (!t) return false;
@@ -571,7 +593,7 @@ const EQ = (() => {
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
-                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}${r.edrpou && !FURA.has(codeKey(r.edrpou)) ? `<div class="eq-add-wrap">${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</div>` : ""}</td>
+                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}${groupHtml(r.edrpou)}${r.edrpou && !FURA.has(codeKey(r.edrpou)) ? `<div class="eq-add-wrap">${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</div>` : ""}</td>
                 <td>${esc(r.boss || "—")}</td>
             </tr>`).join("") || `<tr><td colspan="8" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Машин: ${list.length.toLocaleString("uk-UA")}`;
@@ -595,7 +617,7 @@ const EQ = (() => {
         $("#eqTable").innerHTML =
             `<thead><tr><th>Перевізник</th><th>ЄДРПОУ</th><th>Керівник</th><th>Машин</th><th>Пункти</th><th>Найближчий в'їзд</th><th>Кузови</th><th>FURA</th></tr></thead><tbody>` +
             (rows.map((c) => `<tr>
-                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}${regionHtml(c.code)}</td>
+                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}${regionHtml(c.code)}${groupHtml(c.code)}</td>
                 <td class="eq-mono">${esc(c.code)}</td>
                 <td>${esc(c.boss || "—")}</td>
                 <td title="${esc(c.trucks.join("\n"))}"><b>${c.trucks.length}</b><div class="eq-muted eq-sm eq-clip eq-mono">${esc(c.trucks.slice(0, 2).join(", "))}${c.trucks.length > 2 ? "…" : ""}</div></td>

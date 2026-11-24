@@ -166,3 +166,7 @@
     .eq-toolbar { flex-wrap: wrap; }
     .eq-toolbar .eq-kpis { flex-basis: 100%; justify-content: flex-start; margin: 0 !important; }
 }
+.eq-group { margin-top: 3px; color: #6b4e12; line-height: 1.35; }
+.eq-group .eq-glink { color: #8a6412; font-weight: 600; text-decoration: none; border-bottom: 1px dashed #d9a944; }
+.eq-group .eq-glink:hover { color: #5b3f08; }
+.eq-group .eq-mono { color: #9ca3af; font-size: 11px; }
