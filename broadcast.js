@@ -192,7 +192,7 @@
 
         let ui = null;
         async function load() {
-            let qb = client().from("carriers").select("id, name, company, edrpou, phone_1, phone_2, region_ukr, city, trailer_type, destinations, lardi_found, lardi_rating").limit(1500);
+            let qb = client().from("carriers").select("id, name, edrpou, phone_1, phone_2, region_ukr, city, trailer_type, destinations, lardi_found, lardi_rating").limit(1500);
             if (country) {
                 const alts = [country, ...Object.keys(ALIAS).filter((k) => ALIAS[k] === country)];
                 qb = qb.or(alts.map((a) => `destinations.ilike.%${a.replace(/[,()]/g, " ")}%`).join(","));
@@ -203,7 +203,7 @@
             const { data, error } = await qb;
             if (error) { body.querySelector(".bc-list").innerHTML = `<div class="bc-empty">Помилка: ${esc(error.message)}</div>`; return; }
             const items = (data || []).map((c) => ({
-                id: c.id, name: c.name || c.company || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2),
+                id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2),
                 sub: [c.region_ukr, c.trailer_type, c.lardi_rating ? `Lardi ★${c.lardi_rating}` : ""].filter(Boolean).join(" · "),
                 score: (c.lardi_found ? 2 : 0) + Number(c.lardi_rating || 0) / 10,
             })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "uk"));
@@ -228,12 +228,12 @@
             ft = setTimeout(async () => {
                 const d = v.replace(/\D/g, "");
                 const s = v.replace(/[,()%]/g, " ");
-                const ors = [`name.ilike.%${s}%`, `company.ilike.%${s}%`, `edrpou.ilike.%${s}%`];
+                const ors = [`name.ilike.%${s}%`, `edrpou.ilike.%${s}%`];
                 if (d.length >= 5) ors.push(`phone_1.ilike.%${d.slice(-9)}%`, `phone_2.ilike.%${d.slice(-9)}%`);
-                const { data } = await client().from("carriers").select("id, name, company, edrpou, phone_1, phone_2, region_ukr, trailer_type").or(ors.join(",")).limit(8);
+                const { data } = await client().from("carriers").select("id, name, edrpou, phone_1, phone_2, region_ukr, trailer_type").or(ors.join(",")).limit(8);
                 sugg.hidden = false;
-                sugg.innerHTML = (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || c.company || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
-                    <b>${esc(c.name || c.company)}</b> <small>${esc(c.edrpou || "")} · ${esc(fmtPhone(normPhone(c.phone_1) || normPhone(c.phone_2)) || "немає мобільного")}</small></button>`).join("") || `<div class="bc-empty">Не знайдено</div>`;
+                sugg.innerHTML = (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
+                    <b>${esc(c.name)}</b> <small>${esc(c.edrpou || "")} · ${esc(fmtPhone(normPhone(c.phone_1) || normPhone(c.phone_2)) || "немає мобільного")}</small></button>`).join("") || `<div class="bc-empty">Не знайдено</div>`;
             }, 250);
         });
         sugg.addEventListener("click", (e) => {

@@ -106,11 +106,11 @@ async function targets(me: Any, kind: string, ids: string[]): Promise<{ target_i
     const out: { target_id: string; name: string; phone: string }[] = [];
     if (kind === "carriers") {
         for (let i = 0; i < ids.length; i += 200) {
-            const { data } = await db.from("carriers").select("id, name, company, phone_1, phone_2, contact_person_1, contact_person_2").in("id", ids.slice(i, i + 200));
+            const { data } = await db.from("carriers").select("id, name, phone_1, phone_2, contact_person_1, contact_person_2").in("id", ids.slice(i, i + 200));
             (data || []).forEach((c: Any) => {
                 // одне повідомлення на перевізника: перший робочий номер
                 const p = normPhone(c.phone_1) || normPhone(c.phone_2);
-                if (p) out.push({ target_id: String(c.id), name: String(c.name || c.company || ""), phone: p });
+                if (p) out.push({ target_id: String(c.id), name: String(c.name || ""), phone: p });
             });
         }
     } else {
