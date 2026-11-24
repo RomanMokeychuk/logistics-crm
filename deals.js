@@ -188,7 +188,7 @@ function renderDeals() {
         if (activeState && dealState(d) !== activeState) return false;
         if (!q) return true;
         return [
-            d.number, d.client, d.cargo, d.carrier_name, d.carrier_edrpou, d.truck_plate, d.trailer_plate, d.driver_name,
+            d.number, d.baf_number, d.client, d.cargo, d.shipper, d.consignee, d.carrier_name, d.carrier_edrpou, d.truck_plate, d.trailer_plate, d.driver_name,
             d.driver_phone, d.load_country, d.load_address, d.unload_country, d.unload_address, d.border_crossing,
             d.logist_name, d.sales, d.notes,
         ]
@@ -209,7 +209,7 @@ function renderDeals() {
         const tr = document.createElement("tr");
         tr.className = "clickable-row";
         tr.innerHTML = `
-            <td class="deal-num">№ ${escapeHtml(d.number)}${d.deal_type ? `<div class="deal-type-mini">${escapeHtml(d.deal_type)}</div>` : ""}${d.copied_from ? `<div class="lead-sub">копія № ${escapeHtml(d.copied_from)}</div>` : ""}</td>
+            <td class="deal-num">№ ${escapeHtml(d.number)}${d.deal_type ? `<div class="deal-type-mini">${escapeHtml(d.deal_type)}${d.transit ? " · транзит" : ""}</div>` : ""}${d.baf_number ? `<div class="deal-baf-mini" title="Номер у BAF${d.baf_status ? " · " + escapeHtml(d.baf_status) : ""}">BAF ${escapeHtml(d.baf_number)}</div>` : d.baf_state === "queued" ? `<div class="deal-baf-mini wait">→ BAF</div>` : d.baf_state === "error" ? `<div class="deal-baf-mini bad">BAF: помилка</div>` : ""}${d.copied_from ? `<div class="lead-sub">копія № ${escapeHtml(d.copied_from)}</div>` : ""}</td>
             <td>${stateBadge(d)}${tripMini(d)}</td>
             <td><strong>${escapeHtml(d.client) || "—"}</strong>${d.cargo ? `<div class="lead-sub">${escapeHtml(d.cargo)}</div>` : ""}</td>
             <td class="deal-route">
@@ -515,15 +515,19 @@ const listView = $("dealsListView");
 const detailView = $("dealDetailView");
 let detailTab = "auto";
 
+// Вкладки — як у BAF: «Общая информация», «План / Калькуляция», «Файлы» (+ своє: трекінг, рахунки з BAF)
 const DEAL_TABS = [
-    { key: "auto", label: "Дані авто" },
-    { key: "calc", label: "Розрахунок" },
+    { key: "auto", label: "Загальна інформація" },
+    { key: "calc", label: "План / Калькуляція" },
+    { key: "files", label: "Файли і договори" },
     { key: "track", label: "Трекінг" },
-    { key: "inv", label: "Рахунки" },
-    { key: "inv_in", label: "Вхідні рахунки" },
-    { key: "files", label: "Файли та примітки" },
+    { key: "inv", label: "Рахунки (BAF)" },
     { key: "act", label: "Активності" },
 ];
+const PAY_FORMS = ["Безготівковий", "Безготівковий з ПДВ", "Безготівковий без ПДВ", "Готівка", "Передоплата", "Відстрочка платежу"];
+const FILE_KINDS = ["Договір-заявка", "CMR", "Рахунок / акт", "Митні документи", "Фото", "Інше"];
+const DEAL_BUCKET = "deal-files";
+const CLIENT_BUCKET = "client-docs";
 
 const FLAGS = [
     ["paid_by_client", "Оплата від клієнта"],
@@ -609,15 +613,19 @@ function rowCalc(r) {
     const outUe = num(r.out_fx) ? outSum / num(r.out_fx) : 0;
     return { inSum, outSum, inUe, outUe };
 }
+// Сума без ПДВ: «З ПДВ 20%» → ділимо на 1,2 (як «Прибыль без НДС» у BAF)
+const exVat = (sum, vat) => (/20/.test(String(vat || "")) ? sum / 1.2 : sum);
 function calcTotals(d) {
     const rows = Array.isArray(d.services) ? d.services : [];
-    let income = 0, expense = 0;
+    let income = 0, expense = 0, incomeNoVat = 0, expenseNoVat = 0;
     rows.forEach((r) => {
         const c = rowCalc(r);
         income += c.inUe;
         expense += c.outUe;
+        incomeNoVat += exVat(c.inUe, r.in_vat);
+        expenseNoVat += exVat(c.outUe, r.out_vat);
     });
-    return { income, expense, profit: income - expense };
+    return { income, expense, profit: income - expense, profitNoVat: incomeNoVat - expenseNoVat };
 }
 
 // Курс НБУ (скільки валюти за 1 долар); якщо не вдалося — вводиться вручну
@@ -654,7 +662,7 @@ let calcDealRef = null;
 const loadNbu = () => nbuFor(calcDealRef?.calc_date);
 
 function newServiceRow(d, title) {
-    return { title: title || "", qty: 1, in_rate: "", in_vat: "Без ПДВ", in_cur: "EUR", in_fx: "", in_pay: "", out_rate: "", out_vat: "Без ПДВ", out_cur: "EUR", out_fx: "", out_pay: "", note: "" };
+    return { title: title || "", qty: 1, in_rate: "", in_vat: "Без ПДВ", in_cur: "EUR", in_fx: "", in_pay: "", out_rate: "", out_vat: "Без ПДВ", out_cur: "EUR", out_fx: "", out_pay: "", supplier: "", note: "" };
 }
 
 let calcSaveTimer = null;
@@ -673,13 +681,17 @@ function updateProfitKpis(d) {
         $("dvCalcProfit").textContent = usd(t.profit);
         $("dvCalcProfit").classList.toggle("neg", t.profit < 0);
     }
+    if ($("dvCalcProfitNoVat")) {
+        $("dvCalcProfitNoVat").textContent = usd(t.profitNoVat);
+        $("dvCalcProfitNoVat").classList.toggle("neg", t.profitNoVat < 0);
+    }
 }
 
 function renderCalc(d, box) {
     const e = escapeHtml;
     calcDealRef = d;
     if (!Array.isArray(d.services) || !d.services.length) d.services = [newServiceRow(d, "")];
-    const sel = (list, v, cls, f, ph) => `<select class="cc-in ${cls || ""}" data-c="${f}">${optList(list, v, ["title", "in_pay", "out_pay"].includes(f) ? "— оберіть —" : undefined)}</select>`;
+    const sel = (list, v, cls, f, ph) => `<select class="cc-in ${cls || ""}" data-c="${f}">${optList(list, v, ["title", "in_pay", "out_pay"].includes(f) ? "— оберіть —" : ["in_vat", "out_vat"].includes(f) ? "—" : undefined)}</select>`;
     const inp = (v, f, cls, ph) => `<input class="cc-in ${cls || ""}" data-c="${f}" value="${e(v ?? "")}" ${ph ? `placeholder="${ph}"` : ""} />`;
     const rowsHtml = d.services
         .map((r, i) => {
@@ -702,6 +714,7 @@ function renderCalc(d, box) {
                 <td class="cc-out-side">${inp(fmtRate(r.out_fx), "out_fx", "cc-num cc-fx", "курс")}</td>
                 <td class="cc-out-side cc-sum cc-ue cc-red" data-o="outUe">${fmt2(c.outUe)}</td>
                 <td class="cc-out-side">${sel(PAY_ACCOUNTS.map((a) => a.name), r.out_pay, "cc-pay", "out_pay")}</td>
+                <td class="cc-out-side"><input class="cc-in cc-supplier" data-c="supplier" list="ccSupplierList" value="${e(r.supplier || "")}" placeholder="${num(r.out_rate) ? e(d.carrier_name || "Постачальник") : ""}" title="Кому платимо (порожньо — перевізник угоди)" /></td>
                 <td>${inp(r.note, "note", "cc-note", "Примітка")}</td>
                 <td><button type="button" class="cc-del" data-del="${i}" title="Видалити рядок">✕</button></td>
             </tr>`;
@@ -710,7 +723,7 @@ function renderCalc(d, box) {
     const t = calcTotals(d);
     box.innerHTML = `
         <div class="dv-block-head">
-            <div class="dv-block-title">Послуги перевезення</div>
+            <div class="dv-block-title">План / Калькуляція <small class="dv-muted">— як у BAF: дохід від клієнта і витрати постачальникам</small></div>
             <button type="button" class="dv-ghost dv-ghost-right" id="ccAdd">+ Додати рядок</button>
         </div>
         <div class="dv-grid dv-grid-calc">
@@ -723,25 +736,26 @@ function renderCalc(d, box) {
                     <tr class="cc-group">
                         <th colspan="3"></th>
                         <th colspan="7" class="cc-in-side">Дохід</th>
-                        <th colspan="7" class="cc-out-side">Витрати</th>
+                        <th colspan="8" class="cc-out-side">Витрати</th>
                         <th colspan="2"></th>
                     </tr>
                     <tr>
                         <th>№</th><th>Стаття доходу</th><th>Кіл.</th>
                         <th class="cc-in-side">Ставка</th><th class="cc-in-side">ПДВ</th><th class="cc-in-side">Дохід</th><th class="cc-in-side">Вал.</th><th class="cc-in-side">Курс</th><th class="cc-in-side">Дохід УЕ</th><th class="cc-in-side">Вид оплати</th>
-                        <th class="cc-out-side">Ставка</th><th class="cc-out-side">ПДВ</th><th class="cc-out-side">Витрати</th><th class="cc-out-side">Вал.</th><th class="cc-out-side">Курс</th><th class="cc-out-side">Витрати УЕ</th><th class="cc-out-side">Вид оплати</th>
+                        <th class="cc-out-side">Ставка</th><th class="cc-out-side">ПДВ</th><th class="cc-out-side">Витрати</th><th class="cc-out-side">Вал.</th><th class="cc-out-side">Курс</th><th class="cc-out-side">Витрати УЕ</th><th class="cc-out-side">Вид оплати</th><th class="cc-out-side">Постачальник</th>
                         <th>Примітка</th><th></th>
                     </tr>
                 </thead>
                 <tbody>${rowsHtml}</tbody>
             </table>
+            <datalist id="ccSupplierList">${[d.carrier_name, ...new Set(d.services.map((r) => r.supplier).filter(Boolean))].filter(Boolean).map((v) => `<option value="${e(v)}"></option>`).join("")}</datalist>
 
         </div>
         <div class="dv-totals">
             <div class="dv-kpi"><div class="dv-label">Всього дохід</div><div class="dv-kpi-v" id="dvCalcIncome">${usd(t.income)}</div></div>
             <div class="dv-kpi"><div class="dv-label">Всього витрати</div><div class="dv-kpi-v cc-red" id="dvCalcExpense">${usd(t.expense)}</div></div>
-            <div class="dv-kpi"><div class="dv-label">Профіт</div><div class="dv-kpi-v green ${t.profit < 0 ? "neg" : ""}" id="dvCalcProfit">${usd(t.profit)}</div></div>
-            <button class="dv-invoice" disabled title="Скоро">Виставити рахунок на послуги</button>
+            <div class="dv-kpi"><div class="dv-label">Прибуток</div><div class="dv-kpi-v green ${t.profit < 0 ? "neg" : ""}" id="dvCalcProfit">${usd(t.profit)}</div></div>
+            <div class="dv-kpi"><div class="dv-label">Прибуток без ПДВ</div><div class="dv-kpi-v green ${t.profitNoVat < 0 ? "neg" : ""}" id="dvCalcProfitNoVat">${usd(t.profitNoVat)}</div></div>
         </div>`;
 
     bindFields(box, d);
@@ -1018,7 +1032,11 @@ function flashSaved(text, bad = false) {
 }
 
 // Зберегти зміну одразу в базу і оновити шапку (маршрут, статус)
+// Поля, зміна яких після передачі в BAF — ставить угоду в чергу на оновлення в BAF
+const BAF_SKIP = new Set(["notes", "files", "paid_by_client", "paid_to_carrier", "originals_from_client", "originals_from_carrier", "confirmed_cfo"]);
 async function saveDeal(d, patch) {
+    if (d.baf_number && d.baf_state === "sent" && !Object.keys(patch).some((k) => k.startsWith("baf_")) && Object.keys(patch).some((k) => !BAF_SKIP.has(k)))
+        Object.assign(patch, { baf_state: "queued", baf_queued_at: new Date().toISOString() });
     flashSaved("Зберігаю…");
     const { error } = await sbClient.from("deals").update(patch).eq("id", d.id);
     if (error) {
@@ -1031,6 +1049,7 @@ async function saveDeal(d, patch) {
     if ($("dvRoute")) $("dvRoute").textContent = `${shortPlace(d.load_country, d.load_address)} → ${shortPlace(d.unload_country, d.unload_address)}`;
     if ($("dvState")) $("dvState").innerHTML = stateBadge(d);
     flashSaved("Збережено ✓");
+    paintBaf(d);
     syncTrip(d, patch);
     return true;
 }
@@ -1044,6 +1063,11 @@ function bindFields(root, d) {
             if (el.dataset.phone && v) v = cleanPhone(v);
             if (el.value !== v) el.value = v;
             const f = el.dataset.f;
+            if (el.dataset.int) {
+                const n = v === "" ? null : Math.max(0, Math.round(num(v)));
+                if ((d[f] ?? null) === n) return;
+                return saveDeal(d, { [f]: f === "trucks_qty" ? n || 1 : n });
+            }
             if ((d[f] ?? "") === v) return;
             saveDeal(d, { [f]: v || null });
         }),
@@ -1104,6 +1128,78 @@ function bindSide(d) {
         const patch = { logist_id: s?.id || null, logist_name: s?.full_name || null };
         if (s?.phone) patch.logist_phone = cleanPhone(s.phone);
         if (await saveDeal(d, patch)) $("dvLogistAv").textContent = initials(s?.full_name) || "?";
+    });
+    $("dvOpManager").addEventListener("change", async (ev) => {
+        const s = nameOf(ev.target.value);
+        if (await saveDeal(d, { opmanager_id: s?.id || null, opmanager_name: s?.full_name || null })) $("dvOpAv").textContent = initials(s?.full_name) || "?";
+    });
+    bindBool(side, d);
+    bindBaf(d);
+}
+
+// Галочки (Транзит, Є документи) — одразу в базу
+function bindBool(root, d) {
+    root.querySelectorAll("[data-bool]").forEach((cb) =>
+        cb.addEventListener("change", async () => {
+            if (!(await saveDeal(d, { [cb.dataset.bool]: cb.checked }))) cb.checked = !cb.checked;
+        }),
+    );
+}
+
+/* ---------------- BAF: передача угоди в 1С (BAF) ---------------- */
+// Що треба заповнити, щоб угоду можна було передати в BAF
+function bafMissing(d) {
+    const miss = [];
+    if (!d.lead_id) miss.push("клієнт (з Лідів)");
+    if (!d.carrier_id) miss.push("перевізник (з реєстру)");
+    if (!d.deal_type) miss.push("вид (Імпорт / Експорт)");
+    if (!d.cargo) miss.push("вантаж");
+    if (!d.load_address || !d.unload_address) miss.push("пункт відправлення і призначення");
+    if (!d.sales_id) miss.push("менеджер (Sales)");
+    const rows = Array.isArray(d.services) ? d.services : [];
+    if (!rows.some((r) => r.title && (num(r.in_rate) || num(r.out_rate)))) miss.push("план / калькуляція (хоча б один рядок)");
+    if (rows.some((r) => (num(r.in_rate) || num(r.out_rate)) && !r.title)) miss.push("стаття доходу в кожному рядку калькуляції");
+    return miss;
+}
+function bafBoxHtml(d) {
+    const e = escapeHtml;
+    const when = (v) => (v ? new Date(v).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
+    if (d.baf_state === "error")
+        return `<div class="dv-baf bad"><div class="dv-baf-t"><i class="bx bx-error-circle"></i> BAF: помилка</div>
+            <div class="dv-baf-s">${e(d.baf_error || "BAF не прийняв угоду")}</div>
+            <button type="button" class="dv-baf-btn" data-baf="send">Передати ще раз</button></div>`;
+    if (d.baf_state === "queued")
+        return `<div class="dv-baf wait"><div class="dv-baf-t"><i class="bx bx-time-five"></i> ${d.baf_number ? `BAF № ${e(d.baf_number)} — зміни чекають` : "Чекає передачі в BAF"}</div>
+            <div class="dv-baf-s">BAF забере угоду автоматично за кілька хвилин${d.baf_queued_at ? ` · з ${when(d.baf_queued_at)}` : ""}</div>
+            ${d.baf_number ? "" : `<button type="button" class="dv-baf-btn ghost" data-baf="cancel">Скасувати передачу</button>`}</div>`;
+    if (d.baf_number)
+        return `<div class="dv-baf ok"><div class="dv-baf-t"><i class="bx bx-check-circle"></i> BAF № ${e(d.baf_number)}</div>
+            <div class="dv-baf-s">${d.baf_status ? `Статус: <b>${e(d.baf_status)}</b> · ` : ""}${d.baf_synced_at ? `оновлено ${when(d.baf_synced_at)}` : ""}</div></div>`;
+    const miss = bafMissing(d);
+    return `<div class="dv-baf"><div class="dv-baf-t"><i class="bx bx-transfer-alt"></i> Ще не в BAF</div>
+        ${miss.length ? `<div class="dv-baf-s">Щоб передати, заповніть: ${miss.map(e).join(", ")}</div>` : `<div class="dv-baf-s">Усе заповнено — можна передавати бухгалтерії</div>`}
+        <button type="button" class="dv-baf-btn" data-baf="send" ${miss.length ? "disabled" : ""}>Передати в BAF</button></div>`;
+}
+function paintBaf(d) {
+    const box = $("dvBaf");
+    if (!box) return;
+    box.innerHTML = bafBoxHtml(d);
+}
+function bindBaf(d) {
+    const box = $("dvBaf");
+    if (!box || box.dataset.bound) return;
+    box.dataset.bound = "1";
+    box.addEventListener("click", async (ev) => {
+        const b = ev.target.closest("[data-baf]");
+        if (!b || b.disabled) return;
+        if (b.dataset.baf === "send") {
+            const miss = bafMissing(d);
+            if (miss.length) return alert("Заповніть: " + miss.join(", "));
+            if (!confirm(`Передати угоду № ${d.number} в BAF?\n\nПрограма BAF забере її автоматично і створить «Сделку» з цими даними та калькуляцією.`)) return;
+            await saveDeal(d, { baf_state: "queued", baf_queued_at: new Date().toISOString(), baf_error: null });
+        }
+        if (b.dataset.baf === "cancel") await saveDeal(d, { baf_state: "none", baf_queued_at: null });
+        paintBaf(d);
     });
 }
 
@@ -1167,6 +1263,8 @@ function closeDealCard(fromHistory = false) {
     detailView.hidden = true;
     detailView.innerHTML = "";
     listView.hidden = false;
+    renderTabs();
+    renderDeals();
     if (fromHistory !== true && location.search) history.pushState(null, "", location.pathname);
     window.furaSetCrumbs?.(["Угоди"]);
 }
@@ -1190,26 +1288,35 @@ function renderDealView(d) {
         <div class="dv-layout">
             <aside class="dv-side">
                 <div class="dv-sec-title">Угода</div>
-                <div class="dv-field"><div class="dv-label">Тип угоди</div>
-                    <select class="dv-in" data-f="deal_type">${optList(DEAL_TYPES, d.deal_type, "Оберіть…")}</select></div>
+                <div id="dvBaf">${bafBoxHtml(d)}</div>
+                <div class="dv-field"><div class="dv-label">Вид <small>(Імпорт / Експорт)</small></div>
+                    <div class="dv-two-inline">
+                        <select class="dv-in" data-f="deal_type">${optList(DEAL_TYPES, d.deal_type, "Оберіть…")}</select>
+                        <label class="dv-check"><input type="checkbox" data-bool="transit" ${d.transit ? "checked" : ""}/> Транзит</label>
+                    </div></div>
                 <div class="dv-field deal-pick"><div class="dv-label">Клієнт <i class='req'>*</i>
                     ${d.lead_id ? `<a href="clients.html?open=${e(d.lead_id)}" class="dv-mini-link" title="Відкрити картку клієнта"><i class="bx bx-link-external"></i></a>` : ""}</div>
                     <input class="dv-in" id="dvClient" value="${e(d.client || "")}" placeholder="Почніть вводити назву або ЄДРПОУ…" autocomplete="off" />
                     <div class="deal-suggest" id="dvClientSg" hidden></div></div>
-                <div class="dv-field"><div class="dv-label">Договір</div>
+                <div class="dv-field"><div class="dv-label">Договір з клієнтом</div>
                     <input class="dv-in" data-f="contract" value="${e(d.contract || "")}" placeholder="№ і дата договору" /></div>
                 <div class="dv-field deal-pick"><div class="dv-label">Перевізник <i class='req'>*</i> <small>(з реєстру)</small>
                     ${d.carrier_id ? `<a href="#" data-carrier-card="${e(d.carrier_id)}" class="dv-mini-link" title="Відкрити картку перевізника"><i class="bx bx-link-external"></i></a>` : ""}</div>
                     <input class="dv-in" id="dvCarrier" value="${e(d.carrier_name || "")}" placeholder="Назва або ЄДРПОУ перевізника…" autocomplete="off" />
                     <span class="dv-code" id="dvCarrierCode">${e(d.carrier_edrpou || "")}</span>
                     <div class="deal-suggest" id="dvCarrierSg" hidden></div></div>
+                <div class="dv-field"><div class="dv-label">Договір з перевізником</div>
+                    <input class="dv-in" data-f="carrier_contract" value="${e(d.carrier_contract || "")}" placeholder="№ і дата договору" /></div>
                 <div class="dv-sec-title dv-sec-gap">Відповідальні</div>
-                <div class="dv-field"><div class="dv-label">Sales manager</div>
+                <div class="dv-field"><div class="dv-label">Менеджер <small>(Sales)</small></div>
                     <div class="dv-person"><span class="dv-avatar" id="dvSalesAv">${e(initials(d.sales) || "?")}</span>
                     <select class="dv-in" id="dvSales">${staffOpts(["sales", "head"], d.sales_id, d.sales)}</select></div></div>
-                <div class="dv-field"><div class="dv-label">Логіст</div>
+                <div class="dv-field"><div class="dv-label">Помічник <small>(логіст)</small></div>
                     <div class="dv-person"><span class="dv-avatar" id="dvLogistAv">${e(initials(d.logist_name) || "?")}</span>
                     <select class="dv-in" id="dvLogist">${staffOpts(["logist"], d.logist_id, d.logist_name)}</select></div></div>
+                <div class="dv-field"><div class="dv-label">Оперативний менеджер</div>
+                    <div class="dv-person"><span class="dv-avatar" id="dvOpAv">${e(initials(d.opmanager_name) || "?")}</span>
+                    <select class="dv-in" id="dvOpManager">${staffOpts(["logist", "sales", "head", "admin", "accountant"], d.opmanager_id, d.opmanager_name)}</select></div></div>
             </aside>
 
             <div class="dv-main">
@@ -1280,12 +1387,25 @@ function renderTab(d) {
                 <div></div>
             </div>
             <div class="dv-block-title">Вантаж</div>
-            <div class="dv-grid dv-grid-cargo">
-                <div class="dv-field"><div class="dv-label">Назва вантажу</div>
-                    <input class="dv-in" data-f="cargo" value="${e(d.cargo || "")}" placeholder="наприклад: обладнання на палетах, 20 т" /></div>
+            <div class="dv-grid dv-grid-4">
+                <div class="dv-field"><div class="dv-label">Вантаж</div>
+                    <input class="dv-in" data-f="cargo" value="${e(d.cargo || "")}" placeholder="наприклад: маргарин, 20 т" /></div>
+                <div class="dv-field"><div class="dv-label">Код (УКТЗЕД)</div>
+                    <input class="dv-in" data-f="cargo_code" value="${e(d.cargo_code || "")}" placeholder="необов'язково" /></div>
+                <div class="dv-field"><div class="dv-label">Кількість авто</div>
+                    <input class="dv-in" type="number" min="1" data-f="trucks_qty" data-int="1" value="${e(d.trucks_qty ?? 1)}" /></div>
                 <div class="dv-field"><div class="dv-label">Тип причепу</div>
                     <select class="dv-in dv-trailer-in" data-f="trailer_type">${optList(trailerTypes, d.trailer_type, "Оберіть…")}</select></div>
-                <div></div>
+            </div>
+            <div class="dv-block-title">Вантажовідправник і вантажоодержувач</div>
+            <div class="dv-grid dv-grid-cargo">
+                <div class="dv-field"><div class="dv-label">Вантажовідправник</div>
+                    <input class="dv-in" data-f="shipper" value="${e(d.shipper || "")}" placeholder="Назва компанії" /></div>
+                <div class="dv-field"><div class="dv-label">Вантажоодержувач</div>
+                    <input class="dv-in" data-f="consignee" value="${e(d.consignee || "")}" placeholder="Назва компанії" /></div>
+                <div class="dv-field"><div class="dv-label">Форма розрахунку</div>
+                    <input class="dv-in" data-f="pay_form" list="dvPayForms" value="${e(d.pay_form || "")}" placeholder="Оберіть або впишіть" />
+                    <datalist id="dvPayForms">${PAY_FORMS.map((v) => `<option value="${e(v)}"></option>`).join("")}</datalist></div>
             </div>
             <div class="dv-block-title">Логіст перевізника</div>
             <div class="dv-grid dv-grid-cargo">
@@ -1296,6 +1416,17 @@ function renderTab(d) {
                 <div></div>
             </div>
             <div class="dv-block-title">Маршрут</div>
+            <div class="dv-route-wrap">
+            <div class="dv-grid dv-grid-4 dv-route-extra">
+                <div class="dv-field"><div class="dv-label">Відстань, км</div>
+                    <input class="dv-in" type="number" min="0" data-f="route_km" data-int="1" value="${e(d.route_km ?? "")}" placeholder="0" /></div>
+                <div class="dv-field"><div class="dv-label">Дата митного оформлення</div>
+                    <input type="date" class="dv-in" data-f="customs_date" value="${e(String(d.customs_date || "").slice(0, 10))}" /></div>
+                <div class="dv-field"><div class="dv-label">Подача клієнту</div>
+                    <input type="date" class="dv-in" data-f="client_supply" value="${e(String(d.client_supply || "").slice(0, 10))}" /></div>
+                <div class="dv-field"><div class="dv-label">Дата виконання робіт</div>
+                    <input type="date" class="dv-in" data-f="work_date" value="${e(String(d.work_date || "").slice(0, 10))}" /></div>
+            </div>
             <div class="dv-route-cards">
                 <div class="dv-rc">
                     <div class="dv-rc-title"><i class="dot blue"></i> Завантаження</div>
@@ -1327,8 +1458,17 @@ function renderTab(d) {
                     <div class="dv-rc-row"><span>План</span><input type="date" class="dv-in dv-date" data-f="unload_date_plan" value="${e(String(d.unload_date_plan || "").slice(0, 10))}" /></div>
                     <div class="dv-rc-row"><span>Факт</span><input type="date" class="dv-in dv-date" data-f="unload_date" value="${e(String(d.unload_date || "").slice(0, 10))}" /></div>
                 </div>
+            </div>
+            </div>
+            <div class="dv-block-title">Документи</div>
+            <div class="dv-grid dv-grid-cargo">
+                <div class="dv-field"><div class="dv-label">Є документи</div>
+                    <div class="dv-two-inline"><label class="dv-check"><input type="checkbox" data-bool="has_docs" ${d.has_docs ? "checked" : ""}/> так</label>
+                    <input type="date" class="dv-in" data-f="docs_date" value="${e(String(d.docs_date || "").slice(0, 10))}" title="Дата" /></div></div>
+                <div></div><div></div>
             </div>`;
         bindFields(box, d);
+        bindBool(box, d);
         makeCollapsible(box);
         $("dvPlates").addEventListener("change", (ev) => {
             const [truck, trailer] = ev.target.value.toUpperCase().replace(/\s+/g, "").split(/[\/\\|,;]+/);
@@ -1369,23 +1509,12 @@ function renderTab(d) {
         renderTrackTab(d, box);
         return;
     }
-    if (detailTab === "inv" || detailTab === "inv_in") {
-        box.innerHTML = `<div class="dv-dev"><i class="bx bx-time-five"></i> Розділ «${detailTab === "inv" ? "Рахунки" : "Вхідні рахунки"}» у розробці.</div>`;
+    if (detailTab === "inv") {
+        renderInvoices(d, box);
         return;
     }
     if (detailTab === "files") {
-        box.innerHTML = `
-            <div class="dv-block-title">Примітки</div>
-            <textarea id="dvNotes" class="dv-notes" rows="5" placeholder="Що важливо по угоді...">${e(d.notes || "")}</textarea>
-            <div class="dv-notes-bar"><button type="button" class="btn btn-primary" id="dvNotesSave">Зберегти примітку</button><span id="dvNotesMsg"></span></div>
-            <div class="dv-block-title">Файли</div>
-            <div class="dv-dev"><i class="bx bx-time-five"></i> Завантаження файлів у розробці. Фото CMR від водія — у вкладці «Трекінг».</div>`;
-        $("dvNotesSave").addEventListener("click", async () => {
-            const notes = $("dvNotes").value.trim() || null;
-            const { error } = await sbClient.from("deals").update({ notes }).eq("id", d.id);
-            $("dvNotesMsg").textContent = error ? "Помилка: " + error.message : "Збережено ✓";
-            if (!error) d.notes = notes;
-        });
+        renderFilesTab(d, box);
         return;
     }
     if (detailTab === "act") {
@@ -1401,6 +1530,202 @@ function renderTab(d) {
             .map(([at, t, sub]) => `<li><span class="dv-act-dot"></span><div><b>${e(t)}</b>${sub ? `<div class="dv-sub">${e(sub)}</div>` : ""}</div><span class="dv-act-time">${fmtDate(String(at).slice(0, 10))}</span></li>`)
             .join("")}</ul>`;
     }
+}
+
+/* ---------- Рахунки — приходять з BAF (виставляє бухгалтерія) ---------- */
+function renderInvoices(d, box) {
+    const e = escapeHtml;
+    const list = Array.isArray(d.baf_invoices) ? d.baf_invoices : [];
+    if (!list.length) {
+        box.innerHTML = `<div class="dv-dev"><i class="bx bx-receipt"></i> ${d.baf_number
+            ? "Рахунків по цій угоді в BAF ще немає. Щойно бухгалтерія їх виставить — вони з'являться тут."
+            : "Рахунки виставляє бухгалтерія в BAF. Передайте угоду в BAF (кнопка зліва) — і рахунки та оплати з'являться тут автоматично."}</div>`;
+        return;
+    }
+    const sum = (v, c) => `${fmt2(v)} ${e(c || "")}`;
+    box.innerHTML = `
+        <div class="dv-block-title">Рахунки з BAF</div>
+        <div class="cc-wrap"><table class="cc-table dv-inv-table">
+            <thead><tr><th>Тип</th><th>№</th><th>Дата</th><th>Контрагент</th><th>Сума</th><th>Оплачено</th><th>Статус</th></tr></thead>
+            <tbody>${list.map((x) => `<tr>
+                <td>${x.direction === "in" ? "Вхідний (від постачальника)" : "Вихідний (клієнту)"}</td>
+                <td>${e(x.number || "")}</td>
+                <td>${fmtDate(x.date)}</td>
+                <td>${e(x.counterparty || "")}</td>
+                <td class="cc-sum">${sum(x.amount, x.currency)}</td>
+                <td class="cc-sum">${sum(x.paid, x.currency)}</td>
+                <td>${num(x.paid) >= num(x.amount) && num(x.amount) ? `<span class="deal-state deal-st-done">Оплачено</span>` : num(x.paid) ? `<span class="deal-state deal-st-road">Частково</span>` : `<span class="deal-state deal-st-plan">Не оплачено</span>`}</td>
+            </tr>`).join("")}</tbody>
+        </table></div>
+        ${d.profit_fact_usd != null ? `<div class="dv-totals"><div class="dv-kpi"><div class="dv-label">Фактичний прибуток (BAF)</div><div class="dv-kpi-v green">${usd(d.profit_fact_usd)}</div></div></div>` : ""}`;
+}
+
+/* ---------- Файли і договори ----------
+ * Як у BAF: договір належить контрагенту (клієнту / перевізнику) і підтягується в кожну його угоду.
+ *   Договір з клієнтом     → картка клієнта (Ліди, сховище client-docs)
+ *   Договір з перевізником → картка перевізника (сховище deal-files, папка carriers/)
+ *   Інші файли угоди       → сама угода (сховище deal-files)
+ */
+const fileIcon = (n) => (/\.pdf$/i.test(n) ? "bxs-file-pdf" : /\.(jpe?g|png|webp|heic)$/i.test(n) ? "bx-image" : "bx-file");
+function fileListHtml(files, scope) {
+    const e = escapeHtml;
+    if (!files.length) return `<div class="dv-sub dv-nofiles">Файлів ще немає</div>`;
+    return files
+        .map((f, i) => `<div class="dv-file">
+            <i class="bx ${fileIcon(f.name)}"></i>
+            <a href="#" data-fopen="${scope}:${i}" title="Відкрити">${e(f.name)}</a>
+            ${f.kind ? `<span class="dv-file-kind">${e(f.kind)}</span>` : ""}
+            <span class="dv-sub">${f.uploaded_at ? fmtDate(String(f.uploaded_at).slice(0, 10)) : ""}${f.by ? ` · ${e(f.by)}` : ""}</span>
+            <button type="button" class="btn-icon" data-fdel="${scope}:${i}" title="Видалити файл"><i class="bx bx-trash"></i></button>
+        </div>`)
+        .join("");
+}
+async function uploadTo(bucket, prefix, fileList) {
+    const out = [];
+    for (const file of fileList) {
+        if (file.size > 25 * 1024 * 1024) {
+            alert(`«${file.name}» більший за 25 МБ — зменшіть файл.`);
+            continue;
+        }
+        const safe = file.name.replace(/[^\w.\-]+/g, "_").slice(-80);
+        const path = `${prefix}/${Date.now()}_${safe}`;
+        const { error } = await sbClient.storage.from(bucket).upload(path, file, { contentType: file.type || undefined });
+        if (error) {
+            alert(/bucket|not found/i.test(error.message || "")
+                ? "Сховище файлів ще не створене: один раз запустіть deals_baf.sql у Supabase."
+                : `Не вдалося завантажити «${file.name}»: ${error.message}`);
+            continue;
+        }
+        out.push({ path, bucket, name: file.name, size: file.size, uploaded_at: new Date().toISOString(), by: currentStaff?.full_name || null });
+    }
+    return out;
+}
+async function openStored(f, fallbackBucket) {
+    const win = window.open("", "_blank");
+    const { data, error } = await sbClient.storage.from(f.bucket || fallbackBucket).createSignedUrl(f.path, 600);
+    if (error || !data?.signedUrl) {
+        win?.close();
+        return alert("Не вдалося відкрити файл: " + (error?.message || ""));
+    }
+    if (win) win.location = data.signedUrl;
+    else location.href = data.signedUrl;
+}
+
+async function renderFilesTab(d, box) {
+    const e = escapeHtml;
+    box.innerHTML = `<div class="dv-dev"><i class="bx bx-loader-alt bx-spin"></i> Завантажую файли…</div>`;
+    const [lr, cr] = await Promise.all([
+        d.lead_id ? sbClient.from("leads").select("id, name, contract_no, contract_date, contract_files").eq("id", d.lead_id).maybeSingle() : { data: null },
+        d.carrier_id ? sbClient.from("carriers").select("id, name, contract_no, contract_date, contract_files").eq("id", d.carrier_id).maybeSingle() : { data: null },
+    ]);
+    if (detailTab !== "files" || $("dvTabBody") !== box) return;
+    const lead = lr.data, carrier = cr.data;
+    const cfErr = cr.error && /contract/i.test(cr.error.message || "");
+    const list = (x) => (Array.isArray(x?.contract_files) ? x.contract_files : []);
+    const dealFiles = Array.isArray(d.files) ? d.files : [];
+    const party = (title, who, rec, scope, link, hint) => `
+        <div class="dv-party">
+            <div class="dv-party-head"><b>${title}</b>${who ? ` · ${link}` : ""}</div>
+            ${!who ? `<div class="dv-sub">${hint}</div>` : `
+            <div class="dv-grid dv-grid-cargo">
+                <div class="dv-field"><div class="dv-label">№ договору</div><input class="dv-in" data-cf="${scope}:contract_no" value="${e(rec?.contract_no || "")}" placeholder="наприклад: 206" /></div>
+                <div class="dv-field"><div class="dv-label">Дата договору</div><input type="date" class="dv-in" data-cf="${scope}:contract_date" value="${e(String(rec?.contract_date || "").slice(0, 10))}" /></div>
+                <div></div>
+            </div>
+            <div class="dv-files" data-flist="${scope}">${fileListHtml(list(rec), scope)}</div>
+            <label class="dv-upload"><i class="bx bx-upload"></i> Додати підписаний договір (PDF / фото)
+                <input type="file" multiple hidden data-fup="${scope}" accept=".pdf,image/*,.doc,.docx" /></label>`}
+        </div>`;
+    box.innerHTML = `
+        <div class="dv-block-title">Договори <small class="dv-muted">— зберігаються в картці контрагента і підтягуються в усі його угоди (як у BAF)</small></div>
+        <div class="dv-parties">
+            ${party("Договір з клієнтом", lead, lead, "lead", `<a href="clients.html?open=${e(d.lead_id)}">${e(lead?.name || d.client || "")}</a>`, "Спершу оберіть клієнта зліва.")}
+            ${cfErr ? `<div class="dv-party"><div class="dv-party-head"><b>Договір з перевізником</b></div><div class="dv-sub">Один раз запустіть <b>deals_baf.sql</b> у Supabase — і тут можна буде додати договір перевізника.</div></div>`
+                : party("Договір з перевізником", carrier, carrier, "carrier", `<a href="#" data-carrier-card="${e(d.carrier_id)}">${e(carrier?.name || d.carrier_name || "")}</a>`, "Спершу оберіть перевізника зліва.")}
+        </div>
+        <div class="dv-block-title">Файли угоди</div>
+        <div class="dv-files" data-flist="deal">${fileListHtml(dealFiles, "deal")}</div>
+        <div class="dv-upload-row">
+            <select class="dv-in" id="dvFileKind">${FILE_KINDS.map((k) => `<option>${k}</option>`).join("")}</select>
+            <label class="dv-upload"><i class="bx bx-upload"></i> Додати файл
+                <input type="file" multiple hidden data-fup="deal" /></label>
+            <span class="dv-sub">або перетягніть файли сюди</span>
+        </div>
+        <div class="dv-block-title">Примітки</div>
+        <textarea id="dvNotes" class="dv-notes" rows="4" placeholder="Що важливо по угоді...">${e(d.notes || "")}</textarea>
+        <div class="dv-notes-bar"><button type="button" class="btn btn-primary" id="dvNotesSave">Зберегти примітку</button><span id="dvNotesMsg"></span></div>`;
+
+    const recOf = (scope) => (scope === "lead" ? lead : scope === "carrier" ? carrier : null);
+    const tableOf = (scope) => (scope === "lead" ? "leads" : "carriers");
+    const filesOf = (scope) => (scope === "deal" ? dealFiles : list(recOf(scope)));
+    const repaint = (scope) => {
+        const el = box.querySelector(`[data-flist="${scope}"]`);
+        if (el) el.innerHTML = fileListHtml(filesOf(scope), scope);
+    };
+    const saveFiles = async (scope, next) => {
+        if (scope === "deal") {
+            if (await saveDeal(d, { files: next })) dealFiles.splice(0, dealFiles.length, ...next);
+        } else {
+            const rec = recOf(scope);
+            const { error } = await sbClient.from(tableOf(scope)).update({ contract_files: next }).eq("id", rec.id);
+            if (error) return alert("Не вдалося зберегти: " + error.message);
+            rec.contract_files = next;
+        }
+        repaint(scope);
+    };
+    // № і дата договору → у картку контрагента і в угоду (текстом «№ 206 від 21.10.2026»)
+    box.querySelectorAll("[data-cf]").forEach((el) =>
+        el.addEventListener("change", async () => {
+            const [scope, field] = el.dataset.cf.split(":");
+            const rec = recOf(scope);
+            const v = el.value.trim() || null;
+            const { error } = await sbClient.from(tableOf(scope)).update({ [field]: v }).eq("id", rec.id);
+            if (error) return alert("Не вдалося зберегти: " + error.message);
+            rec[field] = v;
+            const txt = rec.contract_no ? `№ ${rec.contract_no}${rec.contract_date ? ` від ${fmtDate(rec.contract_date)}` : ""}` : null;
+            await saveDeal(d, { [scope === "lead" ? "contract" : "carrier_contract"]: txt });
+            const side = detailView.querySelector(`.dv-side [data-f="${scope === "lead" ? "contract" : "carrier_contract"}"]`);
+            if (side) side.value = txt || "";
+        }),
+    );
+    const doUpload = async (scope, fl) => {
+        if (!fl.length) return;
+        const target = box.querySelector(`[data-flist="${scope}"]`);
+        target?.insertAdjacentHTML("beforeend", `<div class="dv-sub dv-uploading"><i class="bx bx-loader-alt bx-spin"></i> Завантаження…</div>`);
+        const added = scope === "deal"
+            ? (await uploadTo(DEAL_BUCKET, `deals/${d.id}`, fl)).map((f) => ({ ...f, kind: $("dvFileKind")?.value || "Інше" }))
+            : await uploadTo(scope === "lead" ? CLIENT_BUCKET : DEAL_BUCKET, scope === "lead" ? String(lead.id) : `carriers/${carrier.id}`, fl);
+        if (added.length) await saveFiles(scope, [...filesOf(scope), ...added]);
+        else repaint(scope);
+    };
+    box.querySelectorAll("[data-fup]").forEach((inp) => inp.addEventListener("change", () => doUpload(inp.dataset.fup, [...inp.files]).then(() => (inp.value = ""))));
+    box.addEventListener("dragover", (ev) => ev.preventDefault());
+    box.addEventListener("drop", (ev) => {
+        ev.preventDefault();
+        const scope = ev.target.closest(".dv-party")?.querySelector("[data-fup]")?.dataset.fup || "deal";
+        doUpload(scope, [...(ev.dataTransfer?.files || [])]);
+    });
+    box.addEventListener("click", async (ev) => {
+        const o = ev.target.closest("[data-fopen]");
+        const del = ev.target.closest("[data-fdel]");
+        if (o) {
+            ev.preventDefault();
+            const [scope, i] = o.dataset.fopen.split(":");
+            openStored(filesOf(scope)[Number(i)], scope === "lead" ? CLIENT_BUCKET : DEAL_BUCKET);
+        }
+        if (del) {
+            const [scope, i] = del.dataset.fdel.split(":");
+            const f = filesOf(scope)[Number(i)];
+            if (!confirm(`Видалити файл «${f.name}»?`)) return;
+            await sbClient.storage.from(f.bucket || (scope === "lead" ? CLIENT_BUCKET : DEAL_BUCKET)).remove([f.path]);
+            await saveFiles(scope, filesOf(scope).filter((_, k) => k !== Number(i)));
+        }
+    });
+    $("dvNotesSave").addEventListener("click", async () => {
+        const notes = $("dvNotes").value.trim() || null;
+        const ok = await saveDeal(d, { notes });
+        $("dvNotesMsg").textContent = ok ? "Збережено ✓" : "Не збережено";
+    });
 }
 
 /* ---------- Трекінг: рейс із розділу «Рейси» всередині угоди ---------- */

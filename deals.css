@@ -1199,3 +1199,48 @@ select.cc-pay {
 .dv-rc-arrow {
     align-self: center;
 }
+
+/* ===== Угоди як у BAF ===== */
+.dv-muted { font-weight: 500; color: #8a919c; font-size: 12px; text-transform: none; letter-spacing: 0; }
+.dv-two-inline { display: flex; align-items: center; gap: 10px; }
+.dv-two-inline > .dv-in { flex: 1; min-width: 0; }
+.dv-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #374151; white-space: nowrap; cursor: pointer; }
+.dv-route-extra { margin-bottom: 12px; }
+
+.dv-baf { border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; margin: 4px 0 12px; background: #fafafa; }
+.dv-baf-t { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 6px; color: #374151; }
+.dv-baf-t i { font-size: 17px; }
+.dv-baf-s { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.4; }
+.dv-baf.ok { background: #f0fbf4; border-color: #bfe8cd; } .dv-baf.ok .dv-baf-t { color: #15803d; }
+.dv-baf.wait { background: #fff8e8; border-color: #f1dca4; } .dv-baf.wait .dv-baf-t { color: #8a6412; }
+.dv-baf.bad { background: #fff1f1; border-color: #f5c2c2; } .dv-baf.bad .dv-baf-t { color: #b91c1c; }
+.dv-baf-btn { margin-top: 8px; width: 100%; border: 0; border-radius: 9px; padding: 8px 10px; font: inherit; font-weight: 600; font-size: 13px; cursor: pointer; background: linear-gradient(135deg, #d9a944, #b8862a); color: #fff; }
+.dv-baf-btn:disabled { background: #e5e7eb; color: #9ca3af; cursor: not-allowed; }
+.dv-baf-btn.ghost { background: #fff; color: #6b7280; border: 1px solid #e5e7eb; }
+
+.deal-baf-mini { display: inline-block; margin-top: 3px; font-size: 11px; font-weight: 700; color: #15803d; background: #ecfdf3; border-radius: 6px; padding: 1px 6px; }
+.deal-baf-mini.wait { color: #8a6412; background: #fff6df; }
+.deal-baf-mini.bad { color: #b91c1c; background: #fff1f1; }
+
+.cc-supplier { min-width: 150px; }
+
+.dv-parties { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 8px; }
+@media (max-width: 1100px) { .dv-parties { grid-template-columns: 1fr; } }
+.dv-party { border: 1px solid #ece7dc; border-radius: 12px; padding: 12px 14px; background: #fffdf8; }
+.dv-party .dv-grid-cargo { grid-template-columns: 1fr 1fr; }
+.dv-party .dv-grid-cargo > div:empty { display: none; }
+.dv-party-head { font-size: 14px; margin-bottom: 8px; }
+.dv-party-head a { color: #8a6412; }
+.dv-files { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.dv-file { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid #eef0f3; border-radius: 9px; background: #fff; font-size: 13px; }
+.dv-file > i { font-size: 20px; color: #d9534f; }
+.dv-file > i.bx-image { color: #2563eb; } .dv-file > i.bx-file { color: #6b7280; }
+.dv-file a { font-weight: 600; color: #1f2937; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46%; }
+.dv-file .btn-icon { margin-left: auto; }
+.dv-file-kind { font-size: 11px; font-weight: 700; color: #8a6412; background: #fff3d6; border-radius: 6px; padding: 1px 7px; white-space: nowrap; }
+.dv-sub { font-size: 12px; color: #8a919c; }
+.dv-nofiles { padding: 4px 0; }
+.dv-upload { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 600; color: #8a6412; border: 1px dashed #d9a944; border-radius: 9px; padding: 7px 12px; background: #fffaf0; }
+.dv-upload:hover { background: #fff3d6; }
+.dv-upload-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.dv-upload-row select { width: auto; min-width: 170px; }

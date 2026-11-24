@@ -276,7 +276,7 @@ function bindFiles(c) {
             ev.preventDefault();
             const f = files[Number(open.dataset.file)];
             const win = window.open("", "_blank");
-            const { data, error } = await sbClient.storage.from(FILE_BUCKET).createSignedUrl(f.path, 600);
+            const { data, error } = await sbClient.storage.from(f.bucket || FILE_BUCKET).createSignedUrl(f.path, 600);
             if (error || !data?.signedUrl) {
                 win?.close();
                 return alert("Не вдалося відкрити файл: " + (error?.message || ""));
@@ -287,7 +287,7 @@ function bindFiles(c) {
         if (del) {
             const f = files[Number(del.dataset.fileDel)];
             if (!confirm(`Видалити файл «${f.name}»?`)) return;
-            await sbClient.storage.from(FILE_BUCKET).remove([f.path]);
+            await sbClient.storage.from(f.bucket || FILE_BUCKET).remove([f.path]);
             const next = files.filter((_, i) => i !== Number(del.dataset.fileDel));
             const { error } = await sbClient.from("leads").update({ contract_files: next }).eq("id", c.id);
             if (error) return alert("Не вдалося зберегти: " + error.message);
