@@ -1486,6 +1486,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <button type="button" class="btn btn-secondary" data-mr="fwd"><i class="bx bx-share"></i> Переслати</button>
                 ${junk ? '<button type="button" class="btn btn-primary" data-mr="notspam"><i class="bx bx-check"></i> Не спам</button>' : pathOf("\\Junk") ? '<button type="button" class="btn btn-secondary" data-mr="spam" title="У спам"><i class="bx bx-error-circle"></i></button>' : ""}
                 <button type="button" class="btn btn-secondary" data-mr="unread" title="Позначити непрочитаним"><i class="bx bx-envelope"></i></button>
+                <button type="button" class="btn btn-secondary" data-mr="tr" title="Перекласти лист українською (у «Перекладачі»)"><i class="bx bx-world"></i> Перекласти</button>
                 <button type="button" class="btn btn-secondary" data-mr="book" title="Зберегти відправника в «Адреси»"><i class="bx bx-book-add"></i> ${BOOK.byEmail(m.from_email) ? "В адресах" : "В адреси"}</button>
                 ${pathOf("\\Trash") && kindOf(ML.folder) !== "\\Trash" ? '<button type="button" class="btn btn-secondary" data-mr="trash" title="Видалити"><i class="bx bx-trash"></i></button>' : ""}
             </div>
@@ -1551,6 +1552,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         const m = ML.open;
         if (!m?.uid) return;
         const re = (s) => (/^re:/i.test(s) ? s : `Re: ${s}`);
+        if (kind === "tr") {
+            const t = [m.subject ? `Тема: ${m.subject}` : "", String(m.text || plain(m) || "").trim()].filter(Boolean).join("\n\n").slice(0, 25000);
+            try { localStorage.setItem("fura_tr_in", t); } catch (_) { /* */ }
+            window.open("translate.html", "_blank");
+            return;
+        }
         if (kind === "reply" || kind === "replyall") {
             const mine = (status?.from || "").toLowerCase();
             const others = kind === "replyall" ? [m.to, m.cc].join(",").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi)?.filter((x) => !mine.includes(x.toLowerCase())) || [] : [];

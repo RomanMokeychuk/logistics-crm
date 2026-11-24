@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="uk">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>FURA — Перекладач</title>
+        <style>
+            body {
+                visibility: hidden;
+            }
+        </style>
+        <link rel="icon" href="favicon.ico?v=3" sizes="any" />
+        <link rel="icon" href="logo.svg?v=3" type="image/svg+xml" />
+        <link rel="apple-touch-icon" href="apple-touch-icon.png?v=3" />
+        <link rel="manifest" href="manifest.webmanifest" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="FURA" />
+        <link rel="preconnect" href="https://prbfscwmemshwigiftha.supabase.co" crossorigin />
+        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+        <link rel="preconnect" href="https://unpkg.com" crossorigin />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
+        <link rel="stylesheet" href="style.css?v=202611240755" />
+        <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+        <link rel="stylesheet" href="theme.css?v=202611240755" />
+        <link rel="stylesheet" href="translate.css?v=202611240755" />
+        <link rel="stylesheet" href="design.css?v=202611240755" />
+    </head>
+    <body>
+        <aside class="sidebar"></aside>
+        <script>/* FURA: меню з пам'яті вкладки — одразу, без «блимання» (shell.js потім оновить його) */try{var a=document.querySelector("aside.sidebar"),h=sessionStorage.getItem("fura_sb");if(a&&h&&innerWidth>900){a.innerHTML=h;a.classList.add("fura-sidebar");var p=(location.pathname.split("/").pop()||"index.html").toLowerCase();a.querySelectorAll(".fura-nav-item.active").forEach(function(x){x.classList.remove("active")});var l=a.querySelector('.fura-nav-item[href="'+p+'"]');if(l)l.classList.add("active");var n=a.querySelector(".fura-nav");if(n)n.scrollTop=+sessionStorage.getItem("fura_nav_scroll")||0}}catch(e){}</script>
+
+        <button type="button" id="sidebarToggleBtn" class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Сховати/показати бічну панель">
+            <i class="bx bx-chevron-left"></i>
+        </button>
+
+        <main class="main-content tr-page">
+            <header class="tr-head">
+                <h1>Перекладач</h1>
+                <span class="tr-sub">текст, фото або PDF — переклад одразу тут, у FURA</span>
+            </header>
+
+            <div class="tr-grid">
+                <section class="tr-card">
+                    <div class="tr-bar">
+                        <b>Оригінал</b>
+                        <span class="tr-muted">мова визначиться сама</span>
+                        <label class="tr-file-btn"><i class="bx bx-paperclip"></i> PDF або фото<input type="file" id="trFile" accept="application/pdf,image/png,image/jpeg,image/gif,image/webp" hidden /></label>
+                    </div>
+                    <div class="tr-drop" id="trDrop">
+                        <div class="tr-att" id="trAtt" hidden></div>
+                        <textarea id="trText" placeholder="Вставте текст для перекладу…&#10;&#10;Або вставте скріншот (Cmd+V), або перетягніть сюди PDF чи фото."></textarea>
+                        <div class="tr-drop-hint">Відпустіть, щоб додати файл</div>
+                    </div>
+                    <div class="tr-foot">
+                        <label class="tr-to">Перекласти на
+                            <select id="trTo">
+                                <option value="українська">🇺🇦 Українська</option>
+                                <option value="англійська">🇬🇧 English</option>
+                                <option value="польська">🇵🇱 Polski</option>
+                                <option value="російська">Русский</option>
+                                <option value="німецька">🇩🇪 Deutsch</option>
+                                <option value="румунська">🇷🇴 Română</option>
+                                <option value="литовська">🇱🇹 Lietuvių</option>
+                                <option value="чеська">🇨🇿 Čeština</option>
+                                <option value="словацька">🇸🇰 Slovenčina</option>
+                                <option value="угорська">🇭🇺 Magyar</option>
+                                <option value="турецька">🇹🇷 Türkçe</option>
+                                <option value="болгарська">🇧🇬 Български</option>
+                                <option value="грузинська">🇬🇪 ქართული</option>
+                                <option value="італійська">🇮🇹 Italiano</option>
+                                <option value="французька">🇫🇷 Français</option>
+                                <option value="іспанська">🇪🇸 Español</option>
+                            </select>
+                        </label>
+                        <button type="button" class="tr-clear" id="trClear">Очистити</button>
+                        <button type="button" class="tr-go" id="trGo"><i class="bx bx-transfer-alt"></i> Перекласти <kbd>⌘↵</kbd></button>
+                    </div>
+                </section>
+
+                <section class="tr-card">
+                    <div class="tr-bar">
+                        <b>Переклад</b>
+                        <span class="tr-muted" id="trFrom"></span>
+                        <button type="button" class="tr-copy" id="trCopy" disabled><i class="bx bx-copy"></i> Копіювати</button>
+                    </div>
+                    <div class="tr-out" id="trOut"><div class="tr-empty">Тут з'явиться переклад.</div></div>
+                </section>
+            </div>
+        </main>
+
+        <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+        <script src="translate.js?v=202611240755"></script>
+        <script src="shell.js?v=202611240755"></script>
+        <script src="notify.js?v=202611240755"></script>
+        <script src="lock.js?v=202611240755"></script>
+    </body>
+</html>
