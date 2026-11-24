@@ -14,7 +14,10 @@
     if (window.furaBroadcast) return;
     const client = () => (typeof sbClient !== "undefined" ? sbClient : null);
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
-    const PRICE = 1.75; // грн за повідомлення (орієнтовно, реклама у Viber)
+    // орієнтовна ціна за 1 повідомлення: рекламне ≈1,75 грн, сервісне (за погодженим шаблоном) ≈0,85 грн
+    const PRICES = { promo: 1.75, service: 0.85 };
+    let msgType = (() => { try { return localStorage.getItem("fura_bc_type") || "promo"; } catch (e) { return "promo"; } })();
+    const price = () => PRICES[msgType] || PRICES.promo;
     const SIGN_KEY = "fura_bc_sign";
     const normPhone = (v) => {
         let d = String(v ?? "").replace(/\D/g, "");
@@ -79,7 +82,7 @@
                 <span class="bc-nm"><b>${esc(x.name || "—")}</b><small>${esc(x.sub || "")}</small></span>
                 <span class="bc-ph">${x.phone ? fmtPhone(x.phone) : "немає мобільного"}</span></label>`).join("") : `<div class="bc-empty">${esc(opt.empty || "Нікого не знайдено")}</div>`;
             const n = sel.size;
-            box.querySelector(".bc-count").innerHTML = `Обрано <b>${n}</b> з ${items.filter((x) => x.phone).length} · ≈ ${Math.round(n * PRICE)} грн`;
+            box.querySelector(".bc-count").innerHTML = `Обрано <b>${n}</b> з ${items.filter((x) => x.phone).length} · ≈ ${(n * price()).toFixed(n * price() < 100 ? 1 : 0)} грн`;
             opt.onChange?.(n);
         };
         box.querySelector(".bc-list").addEventListener("change", (e) => {
@@ -89,6 +92,7 @@
             paint();
         });
         box.querySelector(".bc-q").addEventListener("input", (e) => { q = e.target.value.trim(); paint(); });
+        box.querySelector("[data-top]").onclick = () => { sel.clear(); items.filter((x) => x.phone).slice(0, 20).forEach((x) => sel.add(String(x.id))); paint(); };
         box.querySelector("[data-all]").onclick = () => { items.forEach((x) => x.phone && sel.add(String(x.id))); paint(); };
         box.querySelector("[data-none]").onclick = () => { sel.clear(); paint(); };
         paint();
@@ -103,7 +107,7 @@
         };
     }
     const listHtml = (ph) => `<div class="bc-listbar"><input type="search" class="bc-q" placeholder="${esc(ph)}">
-        <button type="button" data-all>Усі</button><button type="button" data-none>Жодного</button><span class="bc-count"></span></div>
+        <button type="button" data-top="20" title="Позначити перших 20 у списку (найкращі — зверху)">Перші 20</button><button type="button" data-all>Усі</button><button type="button" data-none>Жодного</button><span class="bc-count"></span></div>
         <div class="bc-list"></div>`;
 
     function textHtml(text, hint) {
@@ -114,7 +118,10 @@
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
-            <div class="bc-len"></div></div>`;
+            <div class="bc-len"></div>
+            <div class="bc-type"><span>Тип повідомлення у Київстару:</span>
+                <label><input type="radio" name="bcType" value="promo" ${msgType === "promo" ? "checked" : ""}> рекламне <small>≈1,75 грн</small></label>
+                <label title="Дешевше, але працює лише коли Київстар погодив шаблон тексту, і текст йому відповідає"><input type="radio" name="bcType" value="service" ${msgType === "service" ? "checked" : ""}> сервісне за шаблоном <small>≈0,85 грн</small></label></div></div>`;
     }
     const fullText = (box) => {
         const t = box.querySelector(".bc-text").value.trim();
@@ -128,6 +135,11 @@
             box.querySelector(".bc-len").classList.toggle("over", n > 1000);
         };
         box.querySelector(".bc-self")?.addEventListener("click", () => selfTest(box));
+        box.querySelectorAll('input[name="bcType"]').forEach((r) => r.addEventListener("change", () => {
+            msgType = r.value;
+            try { localStorage.setItem("fura_bc_type", msgType); } catch (e) { /* */ }
+            box.querySelector(".bc-q")?.dispatchEvent(new Event("input"));
+        }));
         box.querySelector(".bc-text").addEventListener("input", upd);
         box.querySelector(".bc-sign").addEventListener("input", (e) => { try { localStorage.setItem(SIGN_KEY, e.target.value); } catch (err) { /* */ } upd(); });
         upd();
@@ -148,7 +160,7 @@
         b.disabled = true; b.textContent = "Надсилаю…";
         try {
             const kind = root?.querySelector(".bc-head b")?.textContent.includes("клієнт") ? "clients" : "carriers";
-            const r = await call({ action: "send_test", phone: ph, text, kind });
+            const r = await call({ action: "send_test", phone: ph, text, kind, type: msgType });
             alert(r.test ? "🧪 Тестовий режим: Київстар ще не підключено, тому у Viber нічого не прийде.\nКоли додасте ключі Київстару в Supabase Secrets — тест прийде вам у Viber." : `✅ Надіслано на ${fmtPhone(normPhone(ph))}. Перевірте Viber (зазвичай за кілька секунд).`);
         } catch (e) { alert(e.message); }
         b.disabled = false; b.textContent = "📱 Тест собі";
@@ -162,12 +174,12 @@
         if (text.length > 1000) return alert("Текст задовгий (більше 1000 символів).");
         const c = await config();
         const who = kind === "carriers" ? "перевізникам" : "клієнтам";
-        if (!confirm(`${c.test ? "ТЕСТ (нічого не надішлеться). " : ""}Надіслати у Viber ${ids.length} ${who}?\nОрієнтовна вартість: ≈ ${Math.round(ids.length * PRICE)} грн.`)) return;
+        if (!confirm(`${c.test ? "ТЕСТ (нічого не надішлеться). " : ""}Надіслати у Viber ${ids.length} ${who}?\nТип: ${msgType === "service" ? "сервісне (шаблон)" : "рекламне"}. Орієнтовна вартість: ≈ ${(ids.length * price()).toFixed(1)} грн.`)) return;
         const btn = box.querySelector(".bc-send");
         btn.disabled = true;
         btn.innerHTML = `<i class="bx bx-loader-alt bx-spin"></i> Надсилаю ${ids.length}…`;
         try {
-            const r = await call({ action: "send", kind, ids, text, ...extra });
+            const r = await call({ action: "send", kind, ids, text, type: msgType, ...extra });
             showResult(r);
         } catch (e) {
             alert(e.message);
@@ -230,8 +242,7 @@
                 sub: [c.region_ukr, c.trailer_type, c.lardi_rating ? `Lardi ★${c.lardi_rating}` : ""].filter(Boolean).join(" · "),
                 score: (c.lardi_found ? 2 : 0) + Number(c.lardi_rating || 0) / 10,
             })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "uk"));
-            // одразу позначені — лише перші 100 (щоб випадково не розіслати тисячам)
-            items.forEach((x, i) => (x.checked = i < 100));
+                        items.forEach((x) => (x.checked = false)); // нічого не позначено — обираєте самі (або «Перші 20»)
             const extra = ui ? [...ui.sel] : [];
             ui = listUi(body, items, { empty: "Під цей напрямок у базі нікого — додайте перевізника вручну зверху." });
             extra.forEach((id) => items.some((x) => String(x.id) === id) && ui.sel.add(id));
@@ -396,6 +407,8 @@
     .bc-text { min-height: 260px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px 40px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
     .bc-len { font-size: 12px; color: #9ca3af; text-align: right; }
     .bc-len.over { color: #b42318; font-weight: 700; }
+    .bc-type { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: #374151; padding: 6px 0; }
+    .bc-type small { color: #9ca3af; }
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
     .bc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
     .bc-muted { color: #6b7280; font-size: 12.5px; }

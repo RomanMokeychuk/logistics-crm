@@ -82,8 +82,9 @@ async function ksToken(): Promise<string> {
     tokenUntil = Date.now() + Number(data.expires_in || 3000) * 1000;
     return token;
 }
-async function ksSend(phone: string, text: string): Promise<{ id?: string; error?: string }> {
-    const res = await fetch(`${KS_BASE}/viber/promotion`, {
+// type: "promo" — рекламне (/viber/promotion); "service" — сервісне за погодженим шаблоном (/viber/transaction), дешевше
+async function ksSend(phone: string, text: string, type = "promo"): Promise<{ id?: string; error?: string }> {
+    const res = await fetch(`${KS_BASE}/viber/${type === "service" ? "transaction" : "promotion"}`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${await ksToken()}` },
         body: JSON.stringify({ from: KS_SENDER, to: phone, text, messageTtlSec: 86400 }),
@@ -171,7 +172,7 @@ async function actSend(me: Any, body: Any) {
             if (TEST) upd = { status: "test" };
             else {
                 try {
-                    const res = await ksSend(r.phone, text);
+                    const res = await ksSend(r.phone, text, body.type);
                     upd = res.id ? { status: "sent", msg_id: res.id } : { status: "failed", error: res.error };
                 } catch (e) { upd = { status: "failed", error: String((e as Error).message || e).slice(0, 200) }; }
             }
@@ -199,7 +200,7 @@ async function actSendTest(me: Any, body: Any) {
     }).select().single();
     let upd: Any = { status: "test" };
     if (!TEST) {
-        try { const r = await ksSend(phone, text); upd = r.id ? { status: "sent", msg_id: r.id } : { status: "failed", error: r.error }; }
+        try { const r = await ksSend(phone, text, body.type); upd = r.id ? { status: "sent", msg_id: r.id } : { status: "failed", error: r.error }; }
         catch (e) { upd = { status: "failed", error: String((e as Error).message || e).slice(0, 200) }; }
     }
     if (b) {
