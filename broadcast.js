@@ -393,7 +393,7 @@
     .bc-lbl { font-size: 12.5px; font-weight: 700; color: #374151; }
     .bc-lbl small { font-weight: 400; color: #9ca3af; }
     .bc-text-wrap { display: flex; flex-direction: column; gap: 6px; }
-    .bc-text { min-height: 260px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
+    .bc-text { min-height: 260px; border: 1px solid #e5e7eb; border-radius: 12px; padding: 10px 12px 40px; font: inherit; font-size: 14px; line-height: 1.5; resize: vertical; }
     .bc-len { font-size: 12px; color: #9ca3af; text-align: right; }
     .bc-len.over { color: #b42318; font-weight: 700; }
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
