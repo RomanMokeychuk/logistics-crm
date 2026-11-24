@@ -75,7 +75,12 @@ async function aesKey() {
     const raw = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ENC_KEY));
     return crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 }
-const b64e = (u: Uint8Array) => btoa(Array.from(u, (c) => String.fromCharCode(c)).join(""));
+// base64 частинами — щоб великі файли не «з'їдали» пам'ять функції (помилка 546)
+const b64e = (u: Uint8Array) => {
+    let s = "";
+    for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, Array.from(u.subarray(i, i + 0x8000)));
+    return btoa(s);
+};
 const b64d = (s: string) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 async function encPass(p: string) {
     const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -1324,6 +1329,8 @@ async function actionMailRead(body: Any, me: Any) {
                 // завантажити одне вкладення
                 const { content, meta } = await imap.download(String(uids[0]), String(body.part), { uid: true });
                 const buf = await streamBuf(content);
+                // великі вкладення (PDF 10–20 МБ) — одразу байтами, без base64
+                if (body.raw) return { raw: { buf, name: clip(body.name || meta?.filename || "file", 150), type: meta?.contentType || "application/octet-stream" } };
                 return { file: { name: clip(body.name || meta?.filename || "file", 150), type: meta?.contentType || "application/octet-stream", data: b64e(buf) } };
             }
             const list: Any[] = [];
@@ -1333,6 +1340,7 @@ async function actionMailRead(body: Any, me: Any) {
             return Array.isArray(body.uids) ? { list } : list[0] || null;
         } finally { lock.release(); }
     });
+    if (res?.raw) return { status: 200, data: null, raw: res.raw };
     return res ? ok(res) : fail(404, "Лист не знайдено");
 }
 // «Не спам» / у кошик / позначки
@@ -1619,6 +1627,19 @@ Deno.serve(async (req) => {
                 },
             }); break;
             default: out = fail(400, "unknown action");
+        }
+        if ((out as Any).raw) {
+            const r = (out as Any).raw;
+            return new Response(r.buf, {
+                status: 200,
+                headers: {
+                    ...CORS,
+                    "content-type": "application/octet-stream",
+                    "x-file-name": encodeURIComponent(r.name),
+                    "x-file-type": r.type,
+                    "Access-Control-Expose-Headers": "x-file-name, x-file-type",
+                },
+            });
         }
         return json(out.status, out.data);
     } catch (e) {
