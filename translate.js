@@ -86,6 +86,44 @@ const TR = (() => {
         $("#trOut").innerHTML = `<div class="tr-err">${esc(msg)}</div>`;
     }
 
+
+    /* ---------- смужка прогресу ---------- */
+    let progTimer = 0, progT0 = 0, progPct = 0;
+    function progShow(label) {
+        clearInterval(progTimer);
+        progT0 = Date.now(); progPct = 0;
+        $("#trOut").innerHTML = `<div class="tr-prog">
+            <div class="tr-prog-top"><span class="tr-prog-label">${esc(label)}</span><b class="tr-prog-pct">0%</b></div>
+            <div class="tr-prog-bar"><i></i></div>
+            <div class="tr-prog-sub"></div></div>`;
+        progTimer = setInterval(() => {
+            const el = $("#trOut .tr-prog-sub");
+            if (!el) return clearInterval(progTimer);
+            el.textContent = `минуло ${Math.round((Date.now() - progT0) / 1000)} с`;
+        }, 1000);
+    }
+    function prog(pct, label) {
+        const box = $("#trOut .tr-prog");
+        if (!box) return;
+        if (pct != null) {
+            progPct = Math.max(progPct, Math.min(100, pct)); // назад не відкочується
+            box.querySelector(".tr-prog-bar i").style.width = `${progPct}%`;
+            box.querySelector(".tr-prog-pct").textContent = `${Math.round(progPct)}%`;
+        }
+        if (label) box.querySelector(".tr-prog-label").textContent = label;
+    }
+    function progStop() { clearInterval(progTimer); }
+    // для кроку, де точного % немає (відповідь ШІ): плавно до ~95% від очікуваного часу
+    function progEstimate(from, to, seconds, labels) {
+        const t0 = Date.now();
+        const id = setInterval(() => {
+            const t = (Date.now() - t0) / 1000;
+            const k = 1 - Math.exp(-t / seconds);
+            prog(from + (to - from) * 0.95 * k, labels ? labels(k) : null);
+        }, 250);
+        return () => clearInterval(id);
+    }
+
     async function go() {
         const text = $("#trText").value;
         if (busy) return;
@@ -95,7 +133,10 @@ const TR = (() => {
         $("#trGo").disabled = true;
         $("#trCopy").disabled = true;
         $("#trFrom").textContent = "";
-        $("#trOut").innerHTML = `<div class="tr-load">${file ? "Читаю файл і перекладаю… (PDF на кілька сторінок — до хвилини)" : "Перекладаю…"}</div>`;
+        progShow(file ? "Надсилаю файл…" : "Перекладаю…");
+        const mb = file ? file.data.length * 0.75 / 1048576 : 0;
+        const expect = file ? (file.type === "application/pdf" ? 12 + mb * 25 : 10) : 3 + text.length / 1200;
+        const stopEst = progEstimate(3, 100, expect, (k) => (!file ? "Перекладаю…" : k < 0.15 ? "Надсилаю файл…" : k < 0.55 ? "ШІ читає файл…" : k < 0.85 ? "Перекладаю…" : "Майже готово…"));
         try {
             const { data, error } = await sbClient.functions.invoke("fura-assistant", {
                 body: { action: "translate", to: $("#trTo").value, text, file: file ? { name: file.name, type: file.type, data: file.data } : null },
@@ -105,6 +146,7 @@ const TR = (() => {
                 try { const j = await error.context?.json(); if (j?.error) msg = j.error; } catch (_) { /* */ }
                 throw new Error(msg);
             }
+            stopEst(); prog(100, "Готово ✓");
             const out = String(data?.translation || "").trim();
             $("#trOut").innerHTML = out ? `<div class="tr-text" contenteditable="true" spellcheck="false">${esc(out)}</div>` + (data.cut ? `<div class="tr-warn">Текст дуже довгий — переклад обрізано. Перекладіть решту окремо.</div>` : "") : `<div class="tr-empty">Порожня відповідь.</div>`;
             $("#trFrom").textContent = data?.from ? `з мови: ${data.from}` : "";
@@ -112,6 +154,7 @@ const TR = (() => {
         } catch (e) {
             showErr(e.message);
         } finally {
+            stopEst(); progStop();
             busy = false;
             $("#trGo").disabled = false;
         }
@@ -133,13 +176,12 @@ const TR = (() => {
         document.head.appendChild(sc);
     });
     let ocrWorker = null;
+    let onOcrLog = null;
     async function getWorker(say) {
         if (ocrWorker) return ocrWorker;
         await loadJs(TESS_URL);
         say("Готую розпізнавання тексту… (перший раз — до хвилини, далі швидко)");
-        ocrWorker = await window.Tesseract.createWorker(OCR_LANGS, 1, {
-            logger: (m) => { if (m.status === "recognizing text") say(`Розпізнаю текст… ${Math.round((m.progress || 0) * 100)}%`); },
-        });
+        ocrWorker = await window.Tesseract.createWorker(OCR_LANGS, 1, { logger: (m) => onOcrLog?.(m) });
         return ocrWorker;
     }
     // сторінки → canvas
@@ -240,22 +282,36 @@ const TR = (() => {
         $("#trCopy").disabled = true;
         $("#trFrom").textContent = "";
         const out = $("#trOut");
-        const say = (m) => { const el = out.querySelector(".tr-load"); if (el) el.textContent = m; else out.innerHTML = `<div class="tr-load">${esc(m)}</div>`; };
-        out.innerHTML = `<div class="tr-load">Готую…</div>`;
+        // 0–8% відкриваємо файл · 8–15% готуємо розпізнавання · 15–100% сторінки (60% розпізнавання + 40% переклад)
+        const say = (m) => prog(null, m);
+        progShow("Відкриваю файл…");
         const allText = [];
+        let stopEst = () => {};
         try {
-            const pages = await pagesOf(file, say);
+            const pages = await pagesOf(file, (m) => { say(m); prog(Math.min(8, progPct + 1)); });
+            prog(8);
+            onOcrLog = (m) => {
+                if (/loading|initializ/i.test(m.status || "")) prog(8 + 7 * (m.progress || 0), "Готую розпізнавання тексту… (перший раз — до хвилини)");
+            };
             const worker = await getWorker(say);
+            prog(15);
+            const per = 85 / pages.length;
             const done = [];
             let from = "";
             for (let p = 0; p < pages.length; p++) {
                 const pre = pages.length > 1 ? `Сторінка ${p + 1} з ${pages.length}: ` : "";
+                const base = 15 + per * p;
                 say(pre + "розпізнаю текст…");
+                onOcrLog = (m) => { if (m.status === "recognizing text") prog(base + per * 0.6 * (m.progress || 0), `${pre}розпізнаю текст… ${Math.round((m.progress || 0) * 100)}%`); };
                 const { data } = await worker.recognize(pages[p], {}, { blocks: true, text: true });
+                onOcrLog = null;
                 const lines = linesOf(data);
-                if (!lines.length) { done.push({ src: pages[p], res: pages[p], n: 0 }); continue; }
-                say(pre + `перекладаю ${lines.length} рядків…`);
+                if (!lines.length) { prog(base + per); done.push({ src: pages[p], res: pages[p], n: 0 }); continue; }
+                prog(base + per * 0.6, `${pre}перекладаю ${lines.length} рядків…`);
+                stopEst = progEstimate(base + per * 0.6, base + per, 4 + lines.length / 25);
                 const { data: r, error } = await sbClient.functions.invoke("fura-assistant", { body: { action: "translate_lines", to: $("#trTo").value, lines: lines.map((l) => l.text) } });
+                stopEst();
+                prog(base + per);
                 if (error) {
                     let msg = "Перекладач не відповів. Перевірте, чи розгорнута нова версія функції fura-assistant.";
                     try { const j = await error.context?.json(); if (j?.error) msg = j.error; } catch (_) { /* */ }
@@ -266,6 +322,8 @@ const TR = (() => {
                 allText.push(tr.join("\n"));
                 done.push({ src: pages[p], res: paintPage(pages[p], lines, tr), n: lines.length });
             }
+            prog(100, "Готово ✓");
+            progStop();
             showPic(done, pages.cut);
             $("#trFrom").textContent = from ? `з мови: ${from}` : "";
             const txt = allText.join("\n\n").trim();
@@ -274,6 +332,7 @@ const TR = (() => {
         } catch (e) {
             showErr(e.message || String(e));
         } finally {
+            stopEst(); progStop(); onOcrLog = null;
             busy = false;
             $("#trGo").disabled = false;
         }

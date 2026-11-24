@@ -54,3 +54,12 @@
 .tr-canvas { display: block; width: 100%; height: auto; cursor: help; }
 .tr-tip { position: absolute; z-index: 5; max-width: 260px; background: #1f2937; color: #fff; font-size: 12.5px; line-height: 1.4; padding: 6px 9px; border-radius: 8px; pointer-events: none; box-shadow: 0 8px 20px rgba(0,0,0,.25); }
 .tr-tip[hidden] { display: none; }
+
+/* смужка прогресу */
+.tr-prog { padding: 6px 2px; max-width: 520px; }
+.tr-prog-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.tr-prog-label { color: #374151; font-weight: 600; }
+.tr-prog-pct { font-size: 18px; color: #8f6a1f; font-variant-numeric: tabular-nums; }
+.tr-prog-bar { height: 10px; border-radius: 999px; background: #f3eee0; overflow: hidden; }
+.tr-prog-bar i { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #f2d27f, #d9a944); transition: width .3s ease; }
+.tr-prog-sub { margin-top: 6px; color: #9ca3af; font-size: 12.5px; }
