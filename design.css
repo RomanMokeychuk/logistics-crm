@@ -1148,3 +1148,8 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 .table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(4)::before { display: none !important; }
 .table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(4) strong { font-size: 14.5px; }
 .table-card.fura-tiles[data-title-col="3"] thead th:nth-child(2) { display: none; }
+
+/* 🌐 Перекладач — кнопка у верхній панелі біля дзвіночка */
+.fura-tr-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 auto; margin-left: auto; border: 1px solid var(--f-line, #e4e8ef); border-radius: 10px; background: #fff; font-size: 18px; text-decoration: none; }
+.fura-tr-btn + .fura-bell { margin-left: 8px !important; }
+.fura-tr-btn:hover, .fura-tr-btn.on { border-color: #d9a944; background: #fdf6e3; }
