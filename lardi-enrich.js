@@ -53,7 +53,8 @@
         const rows = list.map((c, i) => `<label class="le-row"><input type="checkbox" data-f="${esc(c.field)}" checked>
             <span class="le-lbl">${esc(c.label)}</span>
             <span class="le-val">${c.old && !c.added ? `<s>${esc(c.old)}</s> → ` : ""}${c.added ? `+ ${esc(c.added.join(", "))}` : esc(c.new)}</span></label>`).join("");
-        modal(`<div class="le-sub">Профіль: <a href="${esc(r.profile)}" target="_blank" rel="noopener">lardi-trans.com/log/user/${esc(r.ref)} ↗</a> · заявок «авто» за 60 днів: ${r.trucks}</div>
+        const viaNote = r.via ? `<div class="le-warn">⚠️ За ЄДРПОУ і назвою в Lardi не знайшов. Знайшов <b>через ${esc(r.via.person)}</b> з картки: профіль <b>«${esc(r.via.name || "")}»</b>${r.via.city ? ` (${esc(r.via.city)})` : ""}${r.via.sameCity ? " — місто збігається" : ""}.<br>Часто це той самий перевізник (керівник ТОВ зареєстрований у Lardi як ФОП). Відкрийте профіль і перевірте, перш ніж зберігати.</div>` : "";
+        modal(`${viaNote}<div class="le-sub">Профіль: <a href="${esc(r.profile)}" target="_blank" rel="noopener">lardi-trans.com/log/user/${esc(r.ref)} ↗</a> · заявок «авто» за 60 днів: ${r.trucks}</div>
             ${list.length ? `<div class="le-list">${rows}</div>
                 <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля й нові пункти у списках.</div>
                 <div class="le-acts"><button type="button" class="le-go" data-le="save">Зберегти обране</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>`
@@ -517,7 +518,7 @@
     .le-acts{display:flex;align-items:center;gap:12px}
     .le-go{border:0;border-radius:10px;height:40px;padding:0 18px;font:600 14px inherit;font-family:inherit;color:#2b1d06;background:linear-gradient(180deg,#f2d27f,#d9a944);cursor:pointer}
     .le-link{border:0;background:none;color:#a8781f;text-decoration:underline;cursor:pointer;font:inherit;font-size:13px}
-    .le-load,.le-ok{padding:18px 4px;color:#374151}.le-err{padding:14px;border-radius:10px;background:#fff5f5;color:#b42318}
+    .le-load,.le-ok{padding:18px 4px;color:#374151}.le-warn{margin:0 0 10px;padding:11px 13px;border-radius:10px;background:#fff8e8;border:1px solid #f1dca4;color:#6b4e12;font-size:13px;line-height:1.45}.le-err{padding:14px;border-radius:10px;background:#fff5f5;color:#b42318}
     .le-dbg{font-size:11.5px;color:#9ca3af}.le-dbg pre{white-space:pre-wrap;max-height:200px;overflow:auto;background:#f8fafc;padding:8px;border-radius:8px}
     .le-paste{width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font:13px/1.45 inherit;font-family:inherit;resize:vertical}
     .le-paste:focus{outline:none;border-color:#d9a944;box-shadow:0 0 0 3px rgba(217,169,68,.18)}

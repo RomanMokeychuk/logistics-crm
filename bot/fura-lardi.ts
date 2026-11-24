@@ -710,7 +710,25 @@ const pick = (pairs: Array<[string, Any, string]>, rx: RegExp, ok: (v: string) =
     return "";
 };
 
-async function findRef(c: Any): Promise<{ ref: string; user: Any | null }> {
+// ПІБ людей з картки (керівник, контакти) — ФОП-перевізник часто зареєстрований у Lardi на себе, а не на ТОВ
+function personNames(c: Any): string[] {
+    const raw: string[] = [c.director, c.contact_person_1, c.contact_person_2];
+    const ex = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
+    ex.forEach((x: Any) => raw.push(x?.name));
+    const out: string[] = [];
+    for (const r of raw) {
+        const nm = String(r || "").replace(/(^|[\s,.(])(ФОП|ФО-П|ТОВ|ПП|директор|керівник|логіст|диспетчер|власник)(?=$|[\s,.)])/gi, " ").replace(/[^A-Za-zА-Яа-яІіЇїЄєҐґ'’ -]/g, " ").replace(/\s+/g, " ").trim();
+        const words = nm.split(" ").filter((w) => w.length > 1);
+        if (words.length < 2 || !/[А-Яа-яІіЇїЄєҐґ]/.test(nm)) continue;
+        const key = words.slice(0, 3).join(" ");
+        if (!out.some((o) => o.toLowerCase() === key.toLowerCase())) out.push(key);
+    }
+    return out.slice(0, 3);
+}
+const normWords = (v: unknown) => String(v || "").toLowerCase().replace(/[’']/g, "").replace(/[^a-zа-яіїєґ0-9 ]/gi, " ").split(/\s+/).filter(Boolean);
+const cityOfUser = (u: Any) => pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)).toLowerCase();
+
+async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: Any }> {
     const m = String(c.profile_url || "").match(/user\/(\d+)/);
     if (m) return { ref: m[1], user: null };
     const code = codeKey(c.edrpou);
@@ -725,6 +743,44 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null }> {
         const ref = u && (u.refId ?? u.id ?? u.userId);
         if (ref) return { ref: String(ref), user: u };
     }
+    // Запасний шлях: за ПІБ керівника / контакту (напр. ТОВ «АВАНТОС» → у Lardi «Соболівський Олексій Михайлович, ФОП»)
+    const myCity = normWords(c.city).find((w) => w.length > 2) || "";
+    const myRegion = normWords(c.region_ukr).find((w) => w.length > 3)?.slice(0, 5) || "";
+    for (const person of personNames(c)) {
+        await sleep(300);
+        const r = await lardiGet(`/users/search?query=${encodeURIComponent(person)}&queryLimit=10`);
+        const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || r?.result || []);
+        const pw = normWords(person);
+        // у назві профілю є всі слова ПІБ (прізвище, ім'я, по батькові)
+        const hits = list.filter((u) => {
+            const nw = normWords(pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/));
+            return pw.every((w) => nw.includes(w));
+        });
+        if (!hits.length) continue;
+        const sameCity = hits.filter((u) => {
+            const pairs = walk(u);
+            const city = cityOfUser(u);
+            const region = pick(pairs, /^(region|area|oblast|regionName|areaName)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)).toLowerCase();
+            return (myCity && city.includes(myCity)) || (myRegion && region.includes(myRegion));
+        });
+        // надійно: ПІБ з 3 слів і один такий профіль, або збіг міста / області
+        const u = sameCity.length === 1 ? sameCity[0] : hits.length === 1 && (pw.length >= 3 || sameCity.length) ? hits[0] : null;
+        const ref = u && (u.refId ?? u.id ?? u.userId);
+        if (ref) {
+            const pairs = walk(u);
+            return {
+                ref: String(ref),
+                user: u,
+                via: {
+                    kind: "person",
+                    person,
+                    name: pick(pairs, /^(name|nameWithBrand|fullName|companyName)$/),
+                    city: cityOfUser(u) ? pick(pairs, /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "",
+                    sameCity: sameCity.includes(u),
+                },
+            };
+        }
+    }
     return { ref: "", user: null };
 }
 
@@ -733,10 +789,10 @@ async function carrierEnrich(body: Any, row: Any = null) {
     const c = row || (await db.from("carriers").select("*").eq("id", body.carrier_id).maybeSingle()).data;
     if (!c) return { status: 404, data: { error: "Перевізника не знайдено" } };
 
-    const { ref, user } = await findRef(c);
+    const { ref, user, via } = await findRef(c);
     const stamp = { lardi_checked_at: new Date().toISOString(), lardi_found: !!ref };
     if (!ref) { if ("lardi_checked_at" in c) await db.from("carriers").update(stamp).eq("id", c.id); }
-    if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ і назвою). Вставте посилання на профіль у картку — і спробуйте ще раз." } };
+    if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ, назвою і ПІБ керівника чи контактів). Якщо знаєте його профіль — вставте посилання в картку і спробуйте ще раз." } };
 
     // Методи профілю: беремо ті, що дає ключ (решта просто пропускаються)
     const tried: Record<string, boolean> = {};
@@ -937,7 +993,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
     return {
         status: 200,
         data: {
-            found: true, ref, profile, changes, trucks: tl.length,
+            found: true, ref, profile, changes, trucks: tl.length, via: via || null,
             // для налаштування: які методи Lardi відповіли і які поля прийшли
             debug: { endpoints: tried, sample: pairs.slice(0, 60).map(([, v, p]) => `${p} = ${String(v).slice(0, 60)}`), keys: [...new Set(pairs.map(([, , p]) => p.replace(/\.\d+\./g, ".*.")))].slice(0, 120) },
         },
