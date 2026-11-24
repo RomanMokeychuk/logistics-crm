@@ -54,7 +54,8 @@
             <span class="le-lbl">${esc(c.label)}</span>
             <span class="le-val">${c.old && !c.added ? `<s>${esc(c.old)}</s> → ` : ""}${c.added ? `+ ${esc(c.added.join(", "))}` : esc(c.new)}</span></label>`).join("");
         const viaNote = r.via ? `<div class="le-warn">⚠️ За ЄДРПОУ і назвою в Lardi не знайшов. Знайшов <b>через ${esc(r.via.person)}</b> з картки: профіль <b>«${esc(r.via.name || "")}»</b>${r.via.city ? ` (${esc(r.via.city)})` : ""}${r.via.sameCity ? " — місто збігається" : ""}.<br>Часто це той самий перевізник (керівник ТОВ зареєстрований у Lardi як ФОП). Відкрийте профіль і перевірте, перш ніж зберігати.</div>` : "";
-        modal(`${viaNote}<div class="le-sub">Профіль: <a href="${esc(r.profile)}" target="_blank" rel="noopener">lardi-trans.com/log/user/${esc(r.ref)} ↗</a> · заявок «авто» за 60 днів: ${r.trucks}</div>
+        const linkBox = r.via && r.via.name && window.furaCarrierGroup ? `<label class="le-row le-link-row"><input type="checkbox" data-le-link checked><span class="le-lbl">🔗 Пов'язати</span><span class="le-val">Додати <b>«${esc(r.via.name)}»</b> як пов'язану компанію (той самий власник) — у картці буде видно обидві</span></label>` : "";
+        modal(`${viaNote}${linkBox}<div class="le-sub">Профіль: <a href="${esc(r.profile)}" target="_blank" rel="noopener">lardi-trans.com/log/user/${esc(r.ref)} ↗</a> · заявок «авто» за 60 днів: ${r.trucks}</div>
             ${list.length ? `<div class="le-list">${rows}</div>
                 <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля й нові пункти у списках.</div>
                 <div class="le-acts"><button type="button" class="le-go" data-le="save">Зберегти обране</button><button type="button" class="le-link" data-le="close">Скасувати</button></div>`
@@ -62,7 +63,15 @@
             <details class="le-dbg"${list.some((c) => /region_ukr|city|logo_url/.test(c.field)) ? "" : " open"}><summary>Технічні дані (для налаштування)</summary><pre>${esc(JSON.stringify(r.debug, null, 1))}</pre></details>`);
         box.querySelector("[data-le=save]")?.addEventListener("click", async (e) => {
             const fields = [...box.querySelectorAll("[data-f]:checked")].map((x) => x.dataset.f);
-            if (!fields.length) return (box.hidden = true);
+            const wantLink = !!box.querySelector("[data-le-link]:checked");
+            if (wantLink) {
+                try {
+                    const { data: me } = await sbClient.from("carriers").select("*").eq("id", id).maybeSingle(); // eslint-disable-line no-undef
+                    const other = await window.furaCarrierGroup.findOrCreate({ name: r.via.name, city: r.via.city, profile_url: r.profile });
+                    if (me && other) await window.furaCarrierGroup.link(me, other);
+                } catch (err) { alert(/group_id/.test(err?.message || "") ? "Щоб пов'язувати компанії, один раз запустіть carriers_group.sql у Supabase." : "Не вдалося пов'язати: " + (err?.message || err)); }
+            }
+            if (!fields.length) { box.hidden = true; if (wantLink) await refresh(id); return; }
             e.target.disabled = true; e.target.textContent = "Зберігаю…";
             try {
                 const res = await call({ action: "carrier_enrich", carrier_id: id, apply: true, fields });

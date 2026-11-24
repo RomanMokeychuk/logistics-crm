@@ -726,6 +726,8 @@ function personNames(c: Any): string[] {
     return out.slice(0, 3);
 }
 const normWords = (v: unknown) => String(v || "").toLowerCase().replace(/[’']/g, "").replace(/[^a-zа-яіїєґ0-9 ]/gi, " ").split(/\s+/).filter(Boolean);
+// назва профілю — з верхнього рівня (а не town.name тощо)
+const nameOfUser = (u: Any) => String(u?.nameWithBrand || u?.name || u?.fullName || u?.companyName || u?.firmName || "").trim() || pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/);
 const cityOfUser = (u: Any) => pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)).toLowerCase();
 
 async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: Any }> {
@@ -752,11 +754,11 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
         const mentioned = list.filter((u) => mentionsUs(u));
         if (mentioned.length === 1 && !list.some((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code))) {
             const u = mentioned[0];
-            const own = normWords(pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/)).join(" ");
+            const own = normWords(nameOfUser(u)).join(" ");
             const ref = u.refId ?? u.id ?? u.userId;
             if (ref && core && !own.includes(core)) {
                 const why = mentionsUs(u);
-                return { ref: String(ref), user: u, via: { kind: "text", person: why === "code" ? `ЄДРПОУ ${c.edrpou} в описі профілю` : why === "name" ? `назву «${c.name}» в описі профілю` : "ПІБ з картки в описі профілю", name: pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
+                return { ref: String(ref), user: u, via: { kind: "text", person: why === "code" ? `ЄДРПОУ ${c.edrpou} в описі профілю` : why === "name" ? `назву «${c.name}» в описі профілю` : "ПІБ з картки в описі профілю", name: nameOfUser(u), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
             }
         }
         // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один
@@ -776,7 +778,7 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
         const pw = normWords(person);
         // у назві профілю є всі слова ПІБ (прізвище, ім'я, по батькові)
         const hits = list.filter((u) => {
-            const nw = normWords(pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/));
+            const nw = normWords(nameOfUser(u));
             return pw.every((w) => nw.includes(w)) || (pw.length >= 3 && !!mentionsUs(u));
         });
         if (!hits.length) continue;
@@ -797,7 +799,7 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
                 via: {
                     kind: "person",
                     person,
-                    name: pick(pairs, /^(name|nameWithBrand|fullName|companyName)$/),
+                    name: nameOfUser(u),
                     city: cityOfUser(u) ? pick(pairs, /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "",
                     sameCity: sameCity.includes(u),
                 },
