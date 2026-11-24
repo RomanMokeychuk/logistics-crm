@@ -342,7 +342,7 @@
                     }
                 </div>
                 <div class="route-stats"><span class="route-note">${hasAddr ? "Будую маршрут для фури…" : esc(ERRORS.no_address)}</span></div>
-                ${hasAddr ? `<div class="route-list-title rc-h rc-map-h" data-rc="map">Карта</div><div class="route-map"></div><div class="route-details"></div><div class="route-links"></div>` : ""}
+                ${hasAddr ? `<div class="rc-h rc-map-h" data-rc="map"><i class='bx bx-map rc-ico'></i><span class="rc-t">Карта</span><span class="rc-sum">маршрут на карті</span><span class="rc-chev"><i class='bx bx-chevron-down'></i></span></div><div class="route-map"></div><div class="route-details"></div><div class="route-links"></div>` : ""}
             </div>`;
         rcApply(box);
         if (!hasAddr) return;
@@ -353,12 +353,13 @@
     }
 
     /* ---------- Згортання частин «Карти маршруту»: карта, час у дорозі, термін, кордони, затори ---------- */
-    const RC_KEY = "fura_route_coll";
+    // за замовчуванням усе згорнуте; пам'ятаємо, що людина розгорнула
+    const RC_KEY = "fura_route_open";
     const rcGet = () => { try { return new Set(JSON.parse(localStorage.getItem(RC_KEY) || "[]")); } catch (e) { return new Set(); } };
     function rcApply(root) {
-        const closed = rcGet();
+        const open = rcGet();
         root.querySelectorAll(".rc-h[data-rc]").forEach((h) => {
-            h.classList.toggle("rc-closed", closed.has(h.dataset.rc));
+            h.classList.toggle("rc-closed", !open.has(h.dataset.rc));
             h.title = "Натисніть, щоб згорнути / розгорнути";
         });
     }
@@ -367,21 +368,31 @@
         document.addEventListener("click", (e) => {
             const h = e.target.closest(".rc-h[data-rc]");
             if (!h) return;
-            const closed = rcGet();
+            const open = rcGet();
             const id = h.dataset.rc;
-            if (closed.has(id)) closed.delete(id); else closed.add(id);
-            try { localStorage.setItem(RC_KEY, JSON.stringify([...closed])); } catch (err) { /* */ }
-            document.querySelectorAll(`.rc-h[data-rc="${id}"]`).forEach((x) => x.classList.toggle("rc-closed", closed.has(id)));
-            if (id === "map" && !closed.has(id)) setTimeout(() => { try { mapInstance?.resize?.(); mapInstance?.invalidateSize?.(); } catch (err) { /* */ } window.dispatchEvent(new Event("resize")); }, 50);
+            if (open.has(id)) open.delete(id); else open.add(id);
+            try { localStorage.setItem(RC_KEY, JSON.stringify([...open])); } catch (err) { /* */ }
+            document.querySelectorAll(`.rc-h[data-rc="${id}"]`).forEach((x) => x.classList.toggle("rc-closed", !open.has(id)));
+            if (id === "map" && open.has(id)) setTimeout(() => { try { mapInstance?.resize?.(); mapInstance?.invalidateSize?.(); } catch (err) { /* */ } window.dispatchEvent(new Event("resize")); }, 50);
         });
         const st = document.createElement("style");
         st.textContent = `
-        .rc-h { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
-        .rc-h::after { content: "▾"; font-size: 12px; color: #9ca3af; transition: transform .15s; margin-left: 2px; }
-        .rc-h.rc-closed::after { transform: rotate(-90deg); }
-        .rc-h:hover { color: #8f6a1f; }
+        .rc-h { display: flex; align-items: center; gap: 10px; width: 100%; box-sizing: border-box; margin: 6px 0 0; padding: 9px 12px;
+            border: 1px solid #eee5cf; border-radius: 12px; background: #fff; cursor: pointer; user-select: none; transition: background .15s, border-color .15s; }
+        .rc-h:hover { border-color: #d9a944; background: #fffbf0; }
+        .rc-ico { flex: 0 0 auto; width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: #fdf6e3; color: #a37a1d; font-size: 16px; }
+        .rc-t { font-size: 13.5px; font-weight: 700; color: #1f2937; white-space: nowrap; }
+        .rc-sum { flex: 1; min-width: 0; font-size: 12.5px; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .rc-chev { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #f3f4f6; color: #4b5563; font-size: 18px; transition: transform .2s, background .15s; }
+        .rc-h:not(.rc-closed) .rc-chev { transform: rotate(180deg); background: #fdf6e3; color: #a37a1d; }
+        .rc-h:not(.rc-closed) { border-color: #ecd9a8; border-bottom-left-radius: 0; border-bottom-right-radius: 0; background: #fffdf7; }
+        .rc-h:not(.rc-closed) + .rc-b, .rc-map-h:not(.rc-closed) + .route-map { border: 1px solid #ecd9a8; border-top: 0; border-radius: 0 0 12px 12px; padding: 10px 12px; background: #fff; }
+        .rc-map-h:not(.rc-closed) + .route-map { padding: 0; overflow: hidden; }
         .rc-h.rc-closed + .rc-b, .route-plan-head:has(.rc-h.rc-closed) + .rc-b, .rc-map-h.rc-closed + .route-map { display: none !important; }
-        .rc-map-h { margin: 4px 0 6px; }`;
+        .route-plan-head:has(.rc-h:not(.rc-closed)) + .rc-b { border: 1px solid #ecd9a8; border-top: 0; border-radius: 0 0 12px 12px; padding: 10px 12px; background: #fff; }
+        .route-plan-head { margin: 0 !important; }
+        .route-plan:has(.rc-h) { background: transparent !important; border: 0 !important; padding: 0 !important; box-shadow: none !important; }
+        @media (max-width: 700px) { .rc-sum { display: none; } }`;
         document.head.appendChild(st);
     }
 
@@ -471,8 +482,8 @@
 
         details.innerHTML = `
             <div class="route-plan"></div>
-            <div><div class="route-list-title rc-h" data-rc="borders">Кордони</div><div class="rc-b">${bordersHtml}</div></div>
-            <div><div class="route-list-title rc-h" data-rc="jams">Затори і ремонти зараз</div><div class="rc-b">${jamsHtml}</div></div>`;
+            <div><div class="rc-h" data-rc="borders"><i class='bx bx-shield-quarter rc-ico'></i><span class="rc-t">Кордони</span><span class="rc-sum">${data.borders.length ? data.borders.length + " · " + esc(data.borders.slice(0, 2).map((b) => b.name).join(", ")) + (data.borders.length > 2 ? "…" : "") : "без кордонів"}</span><span class="rc-chev"><i class='bx bx-chevron-down'></i></span></div><div class="rc-b">${bordersHtml}</div></div>
+            <div><div class="rc-h" data-rc="jams"><i class='bx bx-traffic-cone rc-ico'></i><span class="rc-t">Затори і ремонти зараз</span><span class="rc-sum">${jams.length ? jams.length + " на маршруті" : "немає"}</span><span class="rc-chev"><i class='bx bx-chevron-down'></i></span></div><div class="rc-b">${jamsHtml}</div></div>`;
         rcApply(box);
 
         /* --- Час у дорозі за нормами праці водіїв --- */
@@ -498,7 +509,7 @@
                 `<div class="route-plan-row"><span>${label}</span><b>${val}</b></div>`;
             planBox.innerHTML = `
                 <div class="route-plan-head">
-                    <div class="route-list-title rc-h" data-rc="hos">Час у дорозі за нормами праці водія (ЄС 561/2006 / ЄУТР)</div>
+                    <div class="rc-h" data-rc="hos"><i class='bx bx-time-five rc-ico'></i><span class="rc-t">Час у дорозі за нормами праці водія</span><span class="rc-sum">${"≈ " + fmtDays(p.total) + " · " + fmtDur(p.drive * 60) + " за кермом"}</span><span class="rc-chev"><i class='bx bx-chevron-down'></i></span></div>
                 </div>
                 <div class="rc-b"><div class="route-plan-grid">
                     ${row("За кермом", fmtDur(p.drive * 60))}
@@ -509,7 +520,7 @@
                     ${row("Прибуття, якщо виїхати зараз", arriveTxt)}
                 </div></div>
                 <div class="route-plan-head" style="margin-top:12px">
-                    <div class="route-list-title rc-h" data-rc="delivery">Термін доставки вантажу (орієнтовно)</div>
+                    <div class="rc-h" data-rc="delivery"><i class='bx bx-package rc-ico'></i><span class="rc-t">Термін доставки вантажу</span><span class="rc-sum">${daysRange(dl.dMin, dl.dMax)}</span><span class="rc-chev"><i class='bx bx-chevron-down'></i></span></div>
                 </div>
                 <div class="rc-b"><div class="route-plan-grid">
                     ${row("Рух з відпочинком водія", `≈ ${fmtDays(p.total)}`)}
