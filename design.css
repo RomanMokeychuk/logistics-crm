@@ -1140,3 +1140,11 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 .lardi-chk-filter { height: 40px; padding: 0 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: #fff; font: inherit; font-size: 13px; color: #374151; cursor: pointer; }
 .lardi-chk-filter:not([value=""]) { }
 .lardi-chk-filter.on { border-color: #86efac; background: #f0fdf4; color: #15803d; font-weight: 600; }
+
+/* Перевізники «квадратиками»: фото + назва зверху, далі поля з підписами */
+.table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(2) { position: absolute !important; top: 12px; left: 14px; padding: 0 !important; font-size: 13px; font-weight: 400; }
+.table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(2) img, .table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(2) > * { width: 38px !important; height: 38px !important; }
+.table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(4) { order: -1; min-height: 44px; padding: 0 34px 8px 50px !important; font-size: 14px; }
+.table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(4)::before { display: none !important; }
+.table-card.fura-tiles[data-title-col="3"] tbody td:nth-child(4) strong { font-size: 14.5px; }
+.table-card.fura-tiles[data-title-col="3"] thead th:nth-child(2) { display: none; }
