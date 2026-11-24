@@ -114,67 +114,119 @@
     );
 
     /* ---------------------------------------------------------------- *
-     * 2. Перегляд фото на весь екран зі збільшенням                    *
+     * 2. Перегляд фото і PDF (телефон і комп'ютер):                    *
+     *    збільшення (пальці, колесо, − +), поворот, «Текст» —           *
+     *    розпізнати текст на фото / скані, щоб його можна було виділити *
      * ---------------------------------------------------------------- */
-    const SKIP_IMG = ".sidebar, .fura-sidebar, .fura-topbar, .mk-bar, .fk, .fh-fab, button:not(.sa-mr-att), .home-company-logo, .gd-logo, [data-no-zoom], .mk-viewer";
-    function zoomable(img) {
-        if (!img || img.tagName !== "IMG" || img.closest(SKIP_IMG)) return false;
-        if (/\.svg(\?|$)/i.test(img.currentSrc || img.src || "")) return false;
-        const r = img.getBoundingClientRect();
-        return r.width >= 56 && r.height >= 40 && (img.naturalWidth || 0) >= 120;
+    const loadJs = (src) => new Promise((res, rej) => {
+        if (document.querySelector(`script[src="${src}"]`) && (src !== TESS || window.Tesseract)) return res();
+        const sc = document.createElement("script");
+        sc.src = src;
+        sc.onload = res;
+        sc.onerror = () => rej(new Error("Не вдалося завантажити модуль — перевірте інтернет"));
+        document.head.appendChild(sc);
+    });
+    // ---- Розпізнавання тексту (Tesseract) ----
+    const TESS = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js";
+    let ocrP = null;
+    const ocrWorker = () => (ocrP ||= loadJs(TESS).then(() => window.Tesseract.createWorker(["ukr", "eng", "rus"], 1)).catch((e) => { ocrP = null; throw e; }));
+    // рядки тексту з картинки/полотна; координати — у пікселях джерела
+    async function ocrLines(src) {
+        const W = src.naturalWidth || src.width, H = src.naturalHeight || src.height;
+        const k = Math.max(1, Math.min(2.5, 2200 / W));
+        const c = document.createElement("canvas");
+        c.width = Math.round(W * k);
+        c.height = Math.round(H * k);
+        const ctx = c.getContext("2d", { willReadFrequently: true });
+        ctx.filter = "grayscale(1) contrast(1.3)";
+        ctx.drawImage(src, 0, 0, c.width, c.height);
+        const w = await ocrWorker();
+        const { data } = await w.recognize(c);
+        let ls = Array.isArray(data?.lines) && data.lines.length ? data.lines : [];
+        if (!ls.length && Array.isArray(data?.blocks)) ls = data.blocks.flatMap((b) => (b.paragraphs || []).flatMap((p) => p.lines || []));
+        return {
+            W, H,
+            lines: ls
+                .map((l) => ({ text: String(l.text || "").replace(/\s+/g, " ").trim(), b: l.bbox, conf: l.confidence ?? 100 }))
+                .filter((l) => l.b && l.text && l.conf >= 20)
+                .map((l) => ({ text: l.text, x0: l.b.x0 / k, y0: l.b.y0 / k, x1: l.b.x1 / k, y1: l.b.y1 / k })),
+        };
     }
-    let viewer = null;
-    function openViewer(src, name) {
-        closeViewer(true);
-        viewer = document.createElement("div");
-        viewer.className = "mk-viewer";
-        viewer.innerHTML = `
-            <div class="mk-v-stage"><img class="mk-v-img" alt="" draggable="false" /></div>
-            <div class="mk-v-top">
-                <button type="button" class="mk-v-btn" data-v="close" aria-label="Закрити"><i class="bx bx-x"></i></button>
-                <span class="mk-v-hint">Двома пальцями — збільшити</span>
-                <button type="button" class="mk-v-btn" data-v="save" aria-label="Зберегти або надіслати"><i class="bx bx-share"></i></button>
-            </div>`;
-        const img = viewer.querySelector(".mk-v-img");
-        img.src = src;
-        document.body.appendChild(viewer);
-        document.documentElement.classList.add("mk-noscroll");
-        try {
-            history.pushState({ mkViewer: 1 }, "");
-        } catch (e) {
-            /* без історії */
-        }
+    // прозорий шар тексту поверх картинки — для виділення й копіювання
+    function ocrLayer(host, res) {
+        host.querySelector(".mk-ocr")?.remove();
+        const L = document.createElement("div");
+        L.className = "mk-ocr";
+        L.innerHTML = res.lines
+            .map((l) => {
+                const h = ((l.y1 - l.y0) / res.H) * 100;
+                return `<span style="left:${(l.x0 / res.W) * 100}%;top:${(l.y0 / res.H) * 100}%;width:${((l.x1 - l.x0) / res.W) * 100}%;height:${h}%;font-size:${h * 0.82}cqh">${esc(l.text)}\n</span>`;
+            })
+            .join("");
+        host.appendChild(L);
+        return res.lines.length;
+    }
+    const pdfSel = () => String(getSelection?.() || "");
 
-        // масштаб і зсув
-        let s = 1, x = 0, y = 0;
-        const pts = new Map();
-        let start = null, lastTap = 0;
+    // ---- Фото: збільшення, зсув, поворот, текст ----
+    function imgView(box, src, opts = {}) {
+        box.innerHTML = `<div class="mk-iv">
+            <div class="mk-bar2">
+                ${opts.onClose ? `<button type="button" data-iv="close" aria-label="Закрити"><i class="bx bx-x"></i></button>` : ""}
+                <button type="button" data-iv="-" aria-label="Зменшити">−</button><span class="mk-z">100%</span><button type="button" data-iv="+" aria-label="Збільшити">+</button>
+                <button type="button" data-iv="rot" aria-label="Повернути"><i class="bx bx-rotate-right"></i></button>
+                <button type="button" data-iv="ocr" class="mk-ocr-btn" title="Розпізнати текст на фото, щоб його можна було виділити й скопіювати"><b>T</b> Текст</button>
+                ${opts.save ? `<button type="button" data-iv="save" aria-label="Зберегти або надіслати"><i class="bx bx-share"></i></button>` : ""}
+            </div>
+            <div class="mk-iv-stage"><div class="mk-iv-wrap"><img class="mk-iv-img" alt="" draggable="false" crossorigin="anonymous" /></div></div>
+            <div class="mk-iv-msg" hidden></div></div>`;
+        const stage = box.querySelector(".mk-iv-stage"), wrap = box.querySelector(".mk-iv-wrap"), img = box.querySelector(".mk-iv-img"), msg = box.querySelector(".mk-iv-msg");
+        img.onerror = () => { if (img.crossOrigin) { img.removeAttribute("crossorigin"); img.src = src; } };
+        img.src = src;
+        let s = 1, x = 0, y = 0, rot = 0, textMode = false;
+        const fit = () => {
+            // повернуто на 90/270 — вписуємо «лежачу» картинку в екран
+            if (rot % 180 === 0) return 1;
+            const w = img.offsetWidth, h = img.offsetHeight, SW = stage.clientWidth, SH = stage.clientHeight;
+            return w && h ? Math.min(SW / h, SH / w) : 1;
+        };
         const apply = (anim) => {
-            img.style.transition = anim ? "transform .2s ease" : "none";
-            img.style.transform = `translate(${x}px, ${y}px) scale(${s})`;
+            wrap.style.transition = anim ? "transform .2s ease" : "none";
+            wrap.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${s * fit()})`;
+            box.querySelector(".mk-z").textContent = Math.round(s * 100) + "%";
         };
         const clamp = () => {
-            if (s <= 1) { s = 1; x = 0; y = 0; return; }
-            const r = img.getBoundingClientRect(), W = innerWidth, H = innerHeight;
-            const w = r.width, h = r.height;
-            const maxX = Math.max(0, (w - W) / 2), maxY = Math.max(0, (h - H) / 2);
+            if (s <= 1) { s = Math.max(1, s); if (s === 1) { x = 0; y = 0; } return; }
+            const r = wrap.getBoundingClientRect(), W = stage.clientWidth, H = stage.clientHeight;
+            const maxX = Math.max(0, (r.width - W) / 2), maxY = Math.max(0, (r.height - H) / 2);
             x = Math.max(-maxX, Math.min(maxX, x));
             y = Math.max(-maxY, Math.min(maxY, y));
         };
-        const stage = viewer.querySelector(".mk-v-stage");
+        const zoomAt = (ns, cx, cy, anim) => {
+            const sr = stage.getBoundingClientRect();
+            const px = cx - sr.left - sr.width / 2, py = cy - sr.top - sr.height / 2;
+            ns = Math.max(1, Math.min(8, ns));
+            x = px - ((px - x) * ns) / s;
+            y = py - ((py - y) * ns) / s;
+            s = ns;
+            clamp();
+            apply(anim);
+        };
+        const pts = new Map();
+        let start = null, lastTap = 0;
         stage.addEventListener("pointerdown", (e) => {
-            stage.setPointerCapture(e.pointerId);
+            // у режимі «Текст» одним пальцем / мишею — виділяємо текст, а не тягнемо
+            if (textMode && e.target.closest(".mk-ocr span") && e.pointerType !== "touch") return;
             pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
             const p = [...pts.values()];
-            if (p.length === 2) start = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s, x, y, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2 };
-            else if (p.length === 1) {
+            if (p.length === 2) {
+                start = { d: Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y), s, cx: (p[0].x + p[1].x) / 2, cy: (p[0].y + p[1].y) / 2, x, y };
+            } else if (p.length === 1) {
+                if (!textMode) { try { stage.setPointerCapture(e.pointerId); } catch (er) { /* */ } }
                 start = { px: e.clientX, py: e.clientY, x, y };
                 const now = Date.now();
-                if (now - lastTap < 280) {
-                    // подвійний дотик: збільшити в місці дотику / повернути
-                    if (s > 1) { s = 1; x = 0; y = 0; }
-                    else { s = 2.5; x = (innerWidth / 2 - e.clientX) * 1.5; y = (innerHeight / 2 - e.clientY) * 1.5; clamp(); }
-                    apply(true);
+                if (now - lastTap < 280 && !pdfSel()) {
+                    if (s > 1) { s = 1; x = 0; y = 0; apply(true); } else zoomAt(2.5, e.clientX, e.clientY, true);
                     lastTap = 0;
                 } else lastTap = now;
             }
@@ -185,12 +237,10 @@
             const p = [...pts.values()];
             if (p.length >= 2 && start?.d) {
                 const d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
-                s = Math.max(1, Math.min(6, start.s * (d / start.d)));
                 const cx = (p[0].x + p[1].x) / 2, cy = (p[0].y + p[1].y) / 2;
-                x = start.x + (cx - start.cx);
-                y = start.y + (cy - start.cy);
-                apply(false);
-            } else if (p.length === 1 && start && "px" in start && s > 1) {
+                s = start.s; x = start.x + (cx - start.cx); y = start.y + (cy - start.cy);
+                zoomAt(start.s * (d / start.d), cx, cy, false);
+            } else if (p.length === 1 && start && "px" in start && s > 1 && !textMode) {
                 x = start.x + (e.clientX - start.px);
                 y = start.y + (e.clientY - start.py);
                 apply(false);
@@ -198,33 +248,73 @@
         });
         const end = (e) => {
             pts.delete(e.pointerId);
-            if (pts.size === 1) {
-                const p = [...pts.values()][0];
-                start = { px: p.x, py: p.y, x, y };
-            } else if (!pts.size) {
-                clamp();
-                apply(true);
-                start = null;
-            }
+            if (pts.size === 1) { const p = [...pts.values()][0]; start = { px: p.x, py: p.y, x, y }; }
+            else if (!pts.size) { clamp(); apply(true); start = null; }
         };
         stage.addEventListener("pointerup", end);
         stage.addEventListener("pointercancel", end);
-        // колесо / тачпад на ПК
         stage.addEventListener("wheel", (e) => {
             e.preventDefault();
-            s = Math.max(1, Math.min(6, s * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
-            clamp();
-            apply(false);
+            zoomAt(s * (e.deltaY < 0 ? 1.15 : 1 / 1.15), e.clientX, e.clientY, false);
         }, { passive: false });
-
-        viewer.addEventListener("click", async (e) => {
-            const b = e.target.closest("[data-v]");
+        const say = (t) => { msg.hidden = !t; msg.textContent = t || ""; };
+        box.querySelector(".mk-bar2").addEventListener("click", async (e) => {
+            const b = e.target.closest("[data-iv]");
             if (!b) return;
-            if (b.dataset.v === "close") return closeViewer();
-            if (b.dataset.v === "save") {
-                const nm = name || (decodeURIComponent((src.split("?")[0].split("/").pop() || "").replace(/^\d+_/, "")) || "фото.jpg");
-                if (!(await shareHref(src, /\.\w{2,4}$/.test(nm) ? nm : nm + ".jpg"))) window.open(src, "_blank");
+            const k = b.dataset.iv;
+            const sr = stage.getBoundingClientRect();
+            if (k === "close") return opts.onClose?.();
+            if (k === "+" || k === "-") return zoomAt(s * (k === "+" ? 1.4 : 1 / 1.4), sr.left + sr.width / 2, sr.top + sr.height / 2, true);
+            if (k === "rot") { rot = (rot + 90) % 360; s = 1; x = 0; y = 0; return apply(true); }
+            if (k === "save") return opts.save?.();
+            if (k === "ocr") {
+                if (textMode) { textMode = false; b.classList.remove("on"); wrap.querySelector(".mk-ocr")?.remove(); box.classList.remove("mk-text"); return; }
+                b.disabled = true;
+                say("Розпізнаю текст… (перший раз — до хвилини)");
+                try {
+                    if (!img.complete) await new Promise((r) => img.addEventListener("load", r, { once: true }));
+                    const res = await ocrLines(img);
+                    const n = ocrLayer(wrap, res);
+                    textMode = true;
+                    b.classList.add("on");
+                    box.classList.add("mk-text");
+                    say(n ? (touch.matches ? "Готово: утримуйте палець на тексті, щоб виділити" : "Готово: виділяйте текст мишею") : "Тексту не знайшов");
+                    setTimeout(() => say(""), 3500);
+                } catch (err) {
+                    say(/tainted|cross-origin|SecurityError/i.test(String(err?.message || err)) ? "Це фото не можна розпізнати тут — відкрийте його в 🌐 Перекладачі" : "Не вдалося: " + (err?.message || err));
+                } finally { b.disabled = false; }
             }
+        });
+        img.addEventListener("load", () => apply(false));
+        addEventListener("resize", () => apply(false));
+    }
+    window.furaImgView = imgView;
+
+    // ---- Фото на весь екран ----
+    const SKIP_IMG = ".sidebar, .fura-sidebar, .fura-topbar, .mk-bar, .fk, .fh-fab, button:not(.sa-mr-att), .home-company-logo, .gd-logo, [data-no-zoom], .mk-viewer, .mk-iv";
+    // на комп'ютері — лише фото документів (переписка, вкладення, CMR); на телефоні — будь-які великі
+    const DESK_IMG = ".req-msg-img img, .req-att img, .td-docs img, .cb-docs img, .sa-pv-body img, [data-zoom] img, img[data-zoom]";
+    function zoomable(img) {
+        if (!img || img.tagName !== "IMG" || img.closest(SKIP_IMG)) return false;
+        if (!isPhone() && !img.matches(DESK_IMG)) return false;
+        if (/\.svg(\?|$)/i.test(img.currentSrc || img.src || "")) return false;
+        const r = img.getBoundingClientRect();
+        return r.width >= 40 && r.height >= 30 && (img.naturalWidth || 0) >= 100;
+    }
+    let viewer = null;
+    function openViewer(src, name) {
+        closeViewer(true);
+        viewer = document.createElement("div");
+        viewer.className = "mk-viewer";
+        document.body.appendChild(viewer);
+        document.documentElement.classList.add("mk-noscroll");
+        try { history.pushState({ mkViewer: 1 }, ""); } catch (e) { /* без історії */ }
+        imgView(viewer, src, {
+            onClose: () => closeViewer(),
+            save: async () => {
+                const nm = name || decodeURIComponent((src.split("?")[0].split("/").pop() || "").replace(/^\d+_/, "")) || "фото.jpg";
+                if (!(await shareHref(src, /\.\w{2,4}$/.test(nm) ? nm : nm + ".jpg"))) window.open(src, "_blank");
+            },
         });
     }
     function closeViewer(silent) {
@@ -234,18 +324,14 @@
         document.documentElement.classList.remove("mk-noscroll");
         if (!silent && history.state?.mkViewer) history.back();
     }
-    addEventListener("popstate", () => {
-        if (viewer) closeViewer(true);
-    });
-    addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && viewer) closeViewer();
-    });
+    addEventListener("popstate", () => { if (viewer) closeViewer(true); });
+    addEventListener("keydown", (e) => { if (e.key === "Escape" && viewer) closeViewer(); });
     document.addEventListener(
         "click",
         (e) => {
-            if (!isPhone()) return;
             const img = e.target.closest?.("img");
             if (!zoomable(img)) return;
+            if (img.closest(".sa-pv-body")) return; // у перегляді вкладень — свій переглядач
             const a = img.closest("a");
             // посилання на іншу сторінку (не на сам файл) — не чіпаємо
             if (a && a.getAttribute("href") && !/^#|\.(png|jpe?g|webp|gif|heic)(\?|$)|storage\/v1|blob:|data:image/i.test(a.getAttribute("href"))) return;
@@ -257,10 +343,7 @@
     );
     window.furaZoomImage = openViewer;
 
-    /* ---------------------------------------------------------------- *
-     * 2б. PDF на телефоні: сторінки з текстом, який можна виділити,     *
-     *     і збільшення двома пальцями / кнопками − +                    *
-     * ---------------------------------------------------------------- */
+    /* ---- PDF: сторінки з текстом для виділення, збільшення, поворот, текст зі сканів ---- */
     const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
     const PDFJS_W = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
     let pdfLibP = null;
@@ -274,11 +357,15 @@
             document.head.appendChild(sc);
         }));
     async function pdfView(box, url) {
-        box.innerHTML = `<div class="mk-pdf"><div class="mk-pdf-bar">
-                <button type="button" data-z="-" aria-label="Зменшити">−</button><span class="mk-pdf-z">100%</span><button type="button" data-z="+" aria-label="Збільшити">+</button>
+        box.innerHTML = `<div class="mk-pdf"><div class="mk-bar2">
+                <button type="button" data-z="-" aria-label="Зменшити">−</button><span class="mk-z">100%</span><button type="button" data-z="+" aria-label="Збільшити">+</button>
+                <button type="button" data-z="rot" aria-label="Повернути"><i class="bx bx-rotate-right"></i></button>
+                <button type="button" data-z="ocr" class="mk-ocr-btn" title="Розпізнати текст на сканах, щоб його можна було виділити"><b>T</b> Текст</button>
                 <span class="mk-pdf-n"></span></div>
+            <div class="mk-iv-msg" hidden></div>
             <div class="mk-pdf-scroll"><div class="mk-pdf-pages"><p class="mk-pdf-load">Відкриваю PDF…</p></div></div></div>`;
-        const scroll = box.querySelector(".mk-pdf-scroll"), wrap = box.querySelector(".mk-pdf-pages");
+        const scroll = box.querySelector(".mk-pdf-scroll"), wrap = box.querySelector(".mk-pdf-pages"), msg = box.querySelector(".mk-iv-msg");
+        const say = (t) => { msg.hidden = !t; msg.textContent = t || ""; };
         let lib, doc;
         try {
             lib = await loadPdfLib();
@@ -289,48 +376,61 @@
         }
         box.querySelector(".mk-pdf-n").textContent = `${doc.numPages} стор.`;
         const dpr = Math.min(window.devicePixelRatio || 1, 3);
-        let z = 1;
+        let z = 1, rot = 0, ocrOn = false;
         const base = () => Math.max(200, scroll.clientWidth - 12);
         const pages = [];
         wrap.innerHTML = "";
         for (let n = 1; n <= doc.numPages; n++) {
             const page = await doc.getPage(n);
-            const vp1 = page.getViewport({ scale: 1 });
             const el = document.createElement("div");
             el.className = "mk-pdf-page";
             el.dataset.n = n;
             wrap.appendChild(el);
-            pages.push({ page, vp1, el, drawn: 0 });
+            pages.push({ page, el, drawn: "", ocr: null, hasText: null });
         }
+        const vp1 = (p) => p.page.getViewport({ scale: 1, rotation: (p.page.rotate + rot) % 360 });
         const layout = () => {
             for (const p of pages) {
-                const w = base() * z;
+                const v = vp1(p), w = base() * z;
                 p.el.style.width = w + "px";
-                p.el.style.height = (w * p.vp1.height) / p.vp1.width + "px";
+                p.el.style.height = (w * v.height) / v.width + "px";
             }
-            box.querySelector(".mk-pdf-z").textContent = Math.round(z * 100) + "%";
+            box.querySelector(".mk-z").textContent = Math.round(z * 100) + "%";
         };
         async function draw(p) {
-            const cssW = base() * z;
-            if (p.drawn === cssW) return;
-            p.drawn = cssW;
-            const scale = cssW / p.vp1.width;
-            const vp = p.page.getViewport({ scale });
-            // не більше ~4000 px по ширині — щоб телефон не «падав» на великому збільшенні
+            const cssW = base() * z, key = cssW + "|" + rot + "|" + ocrOn;
+            if (p.drawn === key) return;
+            p.drawn = key;
+            const v1 = vp1(p), scale = cssW / v1.width;
+            const vp = p.page.getViewport({ scale, rotation: (p.page.rotate + rot) % 360 });
             const q = Math.min(dpr, 4000 / vp.width);
             const cv = document.createElement("canvas");
             cv.width = Math.floor(vp.width * q);
             cv.height = Math.floor(vp.height * q);
             await p.page.render({ canvasContext: cv.getContext("2d"), viewport: vp, transform: q !== 1 ? [q, 0, 0, q, 0, 0] : null }).promise;
-            if (p.drawn !== cssW) return;
+            if (p.drawn !== key) return;
             const tl = document.createElement("div");
             tl.className = "textLayer";
             tl.style.setProperty("--scale-factor", scale);
+            let items = 0;
             try {
-                await lib.renderTextLayer({ textContentSource: await p.page.getTextContent(), container: tl, viewport: vp, textDivs: [] }).promise;
+                const tc = await p.page.getTextContent();
+                items = (tc.items || []).filter((i) => String(i.str || "").trim()).length;
+                await lib.renderTextLayer({ textContentSource: tc, container: tl, viewport: vp, textDivs: [] }).promise;
             } catch (e) { /* без тексту — лише картинка */ }
-            if (p.drawn !== cssW) return;
+            if (p.drawn !== key) return;
+            p.hasText = items > 3;
             p.el.replaceChildren(cv, tl);
+            // скан без тексту: розпізнаємо (один раз на сторінку; шар у відсотках — підходить для будь-якого збільшення)
+            if (ocrOn && !p.hasText) {
+                if (!p.ocr || p.ocr.rot !== rot) {
+                    say(`Розпізнаю текст: сторінка ${p.el.dataset.n}… (перший раз — до хвилини)`);
+                    try { p.ocr = { rot, res: await ocrLines(cv) }; } catch (e) { say("Не вдалося розпізнати: " + (e?.message || e)); return; }
+                    say("");
+                }
+                if (p.drawn === key) ocrLayer(p.el, p.ocr.res);
+            }
+            if (p.el.dataset.n === "1" && !p.hasText && !ocrOn) box.querySelector('[data-z="ocr"]').classList.add("hint");
         }
         const io = new IntersectionObserver((ents) => ents.forEach((en) => { if (en.isIntersecting) draw(pages[en.target.dataset.n - 1]); }), { root: scroll, rootMargin: "600px 0px" });
         layout();
@@ -339,9 +439,8 @@
             const top = scroll.scrollTop - 600, bot = scroll.scrollTop + scroll.clientHeight + 600;
             pages.forEach((p) => { const o = p.el.offsetTop; if (o + p.el.offsetHeight > top && o < bot) draw(p); });
         };
-        // новий масштаб так, щоб точка (cx, cy) екрана лишилась на місці
         const setZoom = (nz, cx = scroll.clientWidth / 2, cy = scroll.clientHeight / 2) => {
-            nz = Math.max(1, Math.min(5, nz));
+            nz = Math.max(0.5, Math.min(5, nz));
             const k = nz / z;
             const sx = (scroll.scrollLeft + cx) * k - cx, sy = (scroll.scrollTop + cy) * k - cy;
             z = nz;
@@ -350,11 +449,27 @@
             scroll.scrollTop = sy;
             redrawVisible();
         };
-        box.querySelector(".mk-pdf-bar").addEventListener("click", (e) => {
+        box.querySelector(".mk-bar2").addEventListener("click", (e) => {
             const b = e.target.closest("[data-z]");
-            if (b) setZoom(z * (b.dataset.z === "+" ? 1.4 : 1 / 1.4));
+            if (!b) return;
+            if (b.dataset.z === "+" || b.dataset.z === "-") return setZoom(z * (b.dataset.z === "+" ? 1.4 : 1 / 1.4));
+            if (b.dataset.z === "rot") { rot = (rot + 90) % 360; layout(); scroll.scrollTop = 0; return redrawVisible(); }
+            if (b.dataset.z === "ocr") {
+                ocrOn = !ocrOn;
+                b.classList.toggle("on", ocrOn);
+                b.classList.remove("hint");
+                if (!ocrOn) pages.forEach((p) => p.el.querySelector(".mk-ocr")?.remove());
+                redrawVisible();
+            }
         });
-        // двома пальцями: під час жесту — плавне CSS-збільшення, після — перемальовування чітко
+        // Ctrl + колесо / щипок на тачпаді (комп'ютер)
+        scroll.addEventListener("wheel", (e) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const r = scroll.getBoundingClientRect();
+            setZoom(z * (e.deltaY < 0 ? 1.12 : 1 / 1.12), e.clientX - r.left, e.clientY - r.top);
+        }, { passive: false });
+        // двома пальцями: під час жесту — плавне CSS-збільшення, після — чітке перемальовування
         let pinch = null;
         const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
         scroll.addEventListener("touchstart", (e) => {
@@ -366,7 +481,7 @@
         scroll.addEventListener("touchmove", (e) => {
             if (!pinch || e.touches.length !== 2) return;
             e.preventDefault();
-            pinch.k = Math.max(1 / z, Math.min(5 / z, dist(e.touches) / pinch.d));
+            pinch.k = Math.max(0.5 / z, Math.min(5 / z, dist(e.touches) / pinch.d));
             wrap.style.transform = `scale(${pinch.k})`;
         }, { passive: false });
         scroll.addEventListener("touchend", () => {
@@ -376,11 +491,10 @@
             wrap.style.transform = "";
             setZoom(z * p.k, p.cx, p.cy);
         });
-        // подвійний дотик: збільшити / повернути
         let last = 0;
         scroll.addEventListener("click", (e) => {
             const now = Date.now();
-            if (now - last < 300 && !String(getSelection?.() || "")) {
+            if (now - last < 300 && !pdfSel()) {
                 const r = scroll.getBoundingClientRect();
                 setZoom(z > 1.05 ? 1 : 2.2, e.clientX - r.left, e.clientY - r.top);
                 last = 0;
@@ -404,8 +518,6 @@
             <button type="button" data-mk="back" aria-label="Назад"><i class="bx bx-chevron-left"></i><span>Назад</span></button>
             <button type="button" data-mk="fwd" aria-label="Вперед"><i class="bx bx-chevron-right"></i><span>Вперед</span></button>
             <a href="home.html" data-mk="home" class="${page === "home.html" ? "on" : ""}"><i class="bx bx-home-alt"></i><span>Головна</span></a>
-            <button type="button" data-mk="helper" aria-label="Пошук перевізника"><i class="bx bx-search-alt"></i><span>Пошук</span></button>
-            <button type="button" data-mk="furik" aria-label="Фурик"><i class="bx bx-bell"></i><span>Фурик</span><b class="mk-badge" hidden></b></button>
             <button type="button" data-mk="menu" aria-label="Меню"><i class="bx bx-menu"></i><span>Меню</span></button>`;
         document.body.appendChild(bar);
         const nav = window.navigation;
@@ -415,12 +527,6 @@
                 back.classList.toggle("off", !nav.canGoBack && page === "home.html");
                 fwd.classList.toggle("off", !nav.canGoForward);
             }
-            bar.querySelector('[data-mk="helper"]').hidden = !document.querySelector(".fh-fab");
-            bar.querySelector('[data-mk="furik"]').hidden = !document.querySelector(".fk-me");
-            const fb = document.querySelector(".fk-badge");
-            const mb = bar.querySelector(".mk-badge");
-            mb.hidden = !fb || fb.hidden;
-            if (fb) mb.textContent = fb.textContent;
         };
         sync();
         nav?.addEventListener?.("currententrychange", sync);
@@ -436,8 +542,6 @@
                 else if (page !== "home.html") location.href = "home.html";
             }
             if (k === "fwd") history.forward();
-            if (k === "helper") document.querySelector(".fh-fab")?.click();
-            if (k === "furik") document.querySelector(".fk-me")?.click();
             if (k === "menu") (document.getElementById("furaBurger") || document.querySelector(".fura-burger"))?.click();
         });
         // відкрито клавіатуру (друкуємо) — панель ховаємо, щоб не заважала
@@ -474,37 +578,52 @@
         .mk-badge { position: absolute; top: 3px; left: 54%; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 9px; background: #e11d48; color: #fff; font-size: 10.5px; line-height: 17px; text-align: center; }
         body.mk-typing .mk-bar, body.fura-menu-open .mk-bar { display: none; }
         /* панель знизу замінює плаваючі кнопки, бургер і стрілки вгорі */
-        body:has(.mk-bar) .fh-fab, body:has(.mk-bar) .fk-me { display: none !important; }
-        body:has(.mk-bar) .fk { right: 10px !important; bottom: calc(66px + env(safe-area-inset-bottom)) !important; transform: none !important; }
+        /* Фурик і «Помічник» на телефоні не показуємо — вони закривали картки */
+        body:has(.mk-bar) .fh-fab, body:has(.mk-bar) .fk { display: none !important; }
         body:has(.mk-bar) .fura-topbar .fura-burger, body:has(.mk-bar) .fura-topbar .fura-nav-arrows { display: none !important; }
         body:has(.mk-bar) main.main-content { padding-bottom: calc(80px + env(safe-area-inset-bottom)) !important; }
         .mk-dup { display: none !important; }
         body:has(.mk-bar) .fura-toasts { bottom: calc(70px + env(safe-area-inset-bottom)) !important; }
     }
     .mk-noscroll, .mk-noscroll body { overflow: hidden !important; }
-    .mk-viewer { position: fixed; inset: 0; z-index: 2147483500; background: #000; touch-action: none; user-select: none; -webkit-user-select: none; }
-    .mk-v-stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none; }
-    .mk-v-img { max-width: 100%; max-height: 100%; object-fit: contain; transform-origin: center center; will-change: transform; -webkit-user-drag: none; }
-    .mk-v-top { position: absolute; left: 0; right: 0; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
-        padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: linear-gradient(rgba(0,0,0,.65), transparent); pointer-events: none; }
-    .mk-v-top > * { pointer-events: auto; }
-    .mk-v-btn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: rgba(255,255,255,.16); color: #fff; font-size: 24px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
-    .mk-v-hint { color: rgba(255,255,255,.75); font-size: 12.5px; }
-    .sa-pv-body:has(.mk-pdf) { display: block; overflow: hidden; padding: 0 6px 6px; }
-    .mk-pdf { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
-    .mk-pdf-bar { display: flex; align-items: center; gap: 6px; padding: 4px 2px 8px; color: #fff; }
-    .mk-pdf-bar button { width: 40px; height: 36px; border-radius: 9px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff; font-size: 22px; line-height: 1; }
-    .mk-pdf-z { min-width: 48px; text-align: center; font-size: 13px; }
+    .mk-viewer { position: fixed; inset: 0; z-index: 2147483500; background: #0b0f17; display: flex; flex-direction: column; padding-top: env(safe-area-inset-top); }
+    .mk-iv { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
+    .mk-bar2 { display: flex; align-items: center; gap: 6px; padding: 6px 8px; color: #fff; flex-wrap: wrap; }
+    .mk-bar2 button { min-width: 40px; height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.2); background: rgba(255,255,255,.1); color: #fff; font: 600 14px inherit; font-size: 20px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; cursor: pointer; }
+    .mk-bar2 button i { font-size: 21px; }
+    .mk-bar2 .mk-ocr-btn { font-size: 13.5px; }
+    .mk-bar2 .mk-ocr-btn b { font: 800 15px Georgia, serif; }
+    .mk-bar2 .mk-ocr-btn.on { background: #d9a944; border-color: #d9a944; color: #1f1504; }
+    .mk-bar2 .mk-ocr-btn.hint { border-color: #d9a944; box-shadow: 0 0 0 3px rgba(217,169,68,.35); }
+    .mk-bar2 button:disabled { opacity: .5; }
+    .mk-bar2 [data-iv="close"] { margin-right: auto; order: -1; }
+    .mk-bar2 [data-iv="save"] { margin-left: auto; }
+    .mk-z { min-width: 46px; text-align: center; font-size: 13px; }
+    .mk-iv-stage { position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; }
+    .mk-iv-wrap { position: relative; max-width: 100%; max-height: 100%; transform-origin: center center; will-change: transform; display: inline-block; line-height: 0; }
+    .mk-iv-img { display: block; max-width: 100%; max-height: calc(100vh - 120px); object-fit: contain; -webkit-user-drag: none; }
+    .sa-pv-body .mk-iv-img { max-height: calc(100vh - 150px); }
+    .mk-iv-msg { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3; background: rgba(17,24,39,.92); color: #fff; padding: 8px 14px; border-radius: 10px; font-size: 13px; max-width: 90%; text-align: center; line-height: 1.35; }
+    .mk-iv-msg[hidden] { display: none; }
+    .mk-ocr { position: absolute; inset: 0; z-index: 2; line-height: 1; container-type: size; user-select: text; -webkit-user-select: text; }
+    .mk-text .mk-iv-wrap { user-select: text; -webkit-user-select: text; }
+    .mk-ocr span { position: absolute; color: transparent; white-space: pre; overflow: hidden; cursor: text; user-select: text; -webkit-user-select: text; line-height: 1; font-family: Arial, sans-serif; }
+    .mk-ocr span::selection { background: rgba(37, 99, 235, .4); color: transparent; }
+    .mk-text .mk-iv-stage { touch-action: pinch-zoom; user-select: text; -webkit-user-select: text; }
+    .mk-text, .mk-viewer.mk-text { user-select: text; -webkit-user-select: text; }
+    .sa-pv-body:has(.mk-pdf), .sa-pv-body:has(.mk-iv) { display: block; overflow: hidden; padding: 0 6px 6px; }
+    .mk-pdf { position: relative; display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; }
     .mk-pdf-n { margin-left: auto; font-size: 13px; color: #cbd5e1; }
     .mk-pdf-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; }
     .mk-pdf-pages { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 0 6px 20px; width: max-content; min-width: 100%; box-sizing: border-box; }
-    .mk-pdf-page { position: relative; background: #fff; border-radius: 4px; overflow: hidden; margin: 0 auto; }
+    .mk-pdf-page { position: relative; background: #fff; border-radius: 4px; overflow: hidden; margin: 0 auto; user-select: none; -webkit-user-select: none; }
     .mk-pdf-page canvas { display: block; width: 100%; height: 100%; }
     .mk-pdf-load { color: #e5e7eb; padding: 20px; }
     .mk-pdf .textLayer { position: absolute; inset: 0; overflow: hidden; line-height: 1; text-align: initial; opacity: 1; z-index: 2; -webkit-text-size-adjust: none; text-size-adjust: none; forced-color-adjust: none; transform-origin: 0 0; }
-    .mk-pdf .textLayer span, .mk-pdf .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; }
+    .mk-pdf .textLayer span, .mk-pdf .textLayer br { color: transparent; position: absolute; white-space: pre; cursor: text; transform-origin: 0% 0%; user-select: text; -webkit-user-select: text; }
     .mk-pdf .textLayer ::selection { background: rgba(37, 99, 235, .35); }
-    .mk-pdf .textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
+    .mk-pdf .textLayer .endOfContent { display: none; }
+    .mk-pdf .mk-ocr { z-index: 3; }
     .mk-sheet { position: fixed; inset: 0; z-index: 2147483600; background: rgba(15,23,42,.45); display: flex; align-items: flex-end; justify-content: center; }
     .mk-sheet-card { width: 100%; max-width: 480px; background: #fff; border-radius: 18px 18px 0 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
     .mk-sheet-name { font-weight: 700; color: #1f2937; display: flex; gap: 8px; align-items: center; word-break: break-all; }
