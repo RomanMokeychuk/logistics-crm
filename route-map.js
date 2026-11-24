@@ -342,13 +342,47 @@
                     }
                 </div>
                 <div class="route-stats"><span class="route-note">${hasAddr ? "Будую маршрут для фури…" : esc(ERRORS.no_address)}</span></div>
-                ${hasAddr ? `<div class="route-map"></div><div class="route-details"></div><div class="route-links"></div>` : ""}
+                ${hasAddr ? `<div class="route-list-title rc-h rc-map-h" data-rc="map">Карта</div><div class="route-map"></div><div class="route-details"></div><div class="route-links"></div>` : ""}
             </div>`;
+        rcApply(box);
         if (!hasAddr) return;
 
         const sel = box.querySelector(".route-via");
         sel?.addEventListener("change", () => draw(box, r, sel.value));
         draw(box, r, initialVia);
+    }
+
+    /* ---------- Згортання частин «Карти маршруту»: карта, час у дорозі, термін, кордони, затори ---------- */
+    const RC_KEY = "fura_route_coll";
+    const rcGet = () => { try { return new Set(JSON.parse(localStorage.getItem(RC_KEY) || "[]")); } catch (e) { return new Set(); } };
+    function rcApply(root) {
+        const closed = rcGet();
+        root.querySelectorAll(".rc-h[data-rc]").forEach((h) => {
+            h.classList.toggle("rc-closed", closed.has(h.dataset.rc));
+            h.title = "Натисніть, щоб згорнути / розгорнути";
+        });
+    }
+    if (!window.__furaRcBound) {
+        window.__furaRcBound = true;
+        document.addEventListener("click", (e) => {
+            const h = e.target.closest(".rc-h[data-rc]");
+            if (!h) return;
+            const closed = rcGet();
+            const id = h.dataset.rc;
+            if (closed.has(id)) closed.delete(id); else closed.add(id);
+            try { localStorage.setItem(RC_KEY, JSON.stringify([...closed])); } catch (err) { /* */ }
+            document.querySelectorAll(`.rc-h[data-rc="${id}"]`).forEach((x) => x.classList.toggle("rc-closed", closed.has(id)));
+            if (id === "map" && !closed.has(id)) setTimeout(() => { try { mapInstance?.resize?.(); mapInstance?.invalidateSize?.(); } catch (err) { /* */ } window.dispatchEvent(new Event("resize")); }, 50);
+        });
+        const st = document.createElement("style");
+        st.textContent = `
+        .rc-h { cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; }
+        .rc-h::after { content: "▾"; font-size: 12px; color: #9ca3af; transition: transform .15s; margin-left: 2px; }
+        .rc-h.rc-closed::after { transform: rotate(-90deg); }
+        .rc-h:hover { color: #8f6a1f; }
+        .rc-h.rc-closed + .rc-b, .route-plan-head:has(.rc-h.rc-closed) + .rc-b, .rc-map-h.rc-closed + .route-map { display: none !important; }
+        .rc-map-h { margin: 4px 0 6px; }`;
+        document.head.appendChild(st);
     }
 
     let mapInstance = null;
@@ -437,8 +471,9 @@
 
         details.innerHTML = `
             <div class="route-plan"></div>
-            <div><div class="route-list-title">Кордони</div>${bordersHtml}</div>
-            <div><div class="route-list-title">Затори і ремонти зараз</div>${jamsHtml}</div>`;
+            <div><div class="route-list-title rc-h" data-rc="borders">Кордони</div><div class="rc-b">${bordersHtml}</div></div>
+            <div><div class="route-list-title rc-h" data-rc="jams">Затори і ремонти зараз</div><div class="rc-b">${jamsHtml}</div></div>`;
+        rcApply(box);
 
         /* --- Час у дорозі за нормами праці водіїв --- */
         const planBox = details.querySelector(".route-plan");
@@ -463,20 +498,20 @@
                 `<div class="route-plan-row"><span>${label}</span><b>${val}</b></div>`;
             planBox.innerHTML = `
                 <div class="route-plan-head">
-                    <div class="route-list-title">Час у дорозі за нормами праці водія (ЄС 561/2006 / ЄУТР)</div>
+                    <div class="route-list-title rc-h" data-rc="hos">Час у дорозі за нормами праці водія (ЄС 561/2006 / ЄУТР)</div>
                 </div>
-                <div class="route-plan-grid">
+                <div class="rc-b"><div class="route-plan-grid">
                     ${row("За кермом", fmtDur(p.drive * 60))}
                     ${row("Перерви по 45 хв", p.breaks ? fmtDur(p.breaks * 60) : "—")}
                     ${row("Щоденний відпочинок", p.daily ? fmtDur(p.daily * 60) : "—")}
                     ${p.weekly ? row("Тижневий відпочинок", fmtDur(p.weekly * 60)) : ""}
                     ${row("Разом у дорозі", `≈ ${fmtDays(p.total)}`)}
                     ${row("Прибуття, якщо виїхати зараз", arriveTxt)}
-                </div>
+                </div></div>
                 <div class="route-plan-head" style="margin-top:12px">
-                    <div class="route-list-title">Термін доставки вантажу (орієнтовно)</div>
+                    <div class="route-list-title rc-h" data-rc="delivery">Термін доставки вантажу (орієнтовно)</div>
                 </div>
-                <div class="route-plan-grid">
+                <div class="rc-b"><div class="route-plan-grid">
                     ${row("Рух з відпочинком водія", `≈ ${fmtDays(p.total)}`)}
                     ${row("Завантаження", fmtDur(LOADING * 60))}
                     ${dl.items.map((it) => row(`Черга: ${esc(it.name)}`, fmtRange(it.lo, it.hi))).join("")}
@@ -491,7 +526,8 @@
                     відпочинок 11 год (тричі на тиждень — 9); до 56 год на тиждень; тижневий відпочинок 45 год.
                     Черга на кордоні з Україною взята 6–36 год, на інших кордонах поза ЄС — 3–12 год; кордони всередині ЄС — без черги.
                     Актуальну чергу перевіряйте в єЧерзі.
-                </div>`;
+                </div></div>`;
+            rcApply(box);
         };
         updatePlan();
 
