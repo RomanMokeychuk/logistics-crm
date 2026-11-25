@@ -1,6 +1,6 @@
 -- FURA · Сповіщення про нові листи на телефон і комп'ютер (навіть коли FURA закрита).
 -- Supabase → SQL Editor → New query → вставити ВЕСЬ файл → Run. Нічого міняти не треба.
--- Унизу має бути рядок fura-mail-push.
+-- Унизу має бути рядок fura-mail-push. Можна запускати повторно (нічого не зламає).
 
 -- Пристрої, куди слати сповіщення (кожен браузер / телефон окремо)
 create table if not exists public.push_subs (
@@ -23,6 +23,21 @@ create table if not exists public.mail_push_state (
     updated_at timestamptz default now()
 );
 
+-- «⏰ Нагадати пізніше» про лист (пошта → кнопка ⏰)
+create table if not exists public.mail_reminders (
+    id bigserial primary key,
+    staff_id uuid not null,
+    folder text default 'INBOX',
+    uid bigint,
+    subject text default '',
+    sender text default '',
+    note text default '',
+    remind_at timestamptz not null,
+    done_at timestamptz,
+    created_at timestamptz not null default now()
+);
+create index if not exists mail_reminders_due on public.mail_reminders (remind_at) where done_at is null;
+
 -- Ключі для сповіщень (створюються функцією самі)
 create table if not exists public.push_config (
     id int primary key,
@@ -41,7 +56,8 @@ revoke all on public.push_cron from anon, authenticated;
 alter table public.push_subs enable row level security;
 alter table public.mail_push_state enable row level security;
 alter table public.push_config enable row level security;
-revoke all on public.push_subs, public.mail_push_state, public.push_config from anon, authenticated;
+alter table public.mail_reminders enable row level security;
+revoke all on public.push_subs, public.mail_push_state, public.push_config, public.mail_reminders from anon, authenticated;
 
 -- Перевірка нових листів щохвилини
 create extension if not exists pg_cron;

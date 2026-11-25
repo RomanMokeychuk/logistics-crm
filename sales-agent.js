@@ -1415,22 +1415,102 @@ document.addEventListener("DOMContentLoaded", async () => {
         return `<div class="sa-ml-head sa-sk-head"><b>${escapeHtml(text)}</b></div><div class="sa-sk-bar"><i></i></div>` +
             [[55, 85], [40, 70], [62, 90], [35, 60], [50, 80], [45, 75], [58, 88]].map(([a, b]) => row(a, b)).join("");
     }
+    /* ---------- Фільтри, ⭐ важливі, ланцюжки, «хто це» (клієнт / колега) ---------- */
+    const PREF_KEY = "fura_mail_prefs";
+    const PREF = (() => { try { return { threads: true, ...JSON.parse(localStorage.getItem(PREF_KEY) || "{}") }; } catch (_) { return { threads: true }; } })();
+    const prefSave = () => { try { localStorage.setItem(PREF_KEY, JSON.stringify(PREF)); } catch (_) { /* */ } };
+    ML.filt = "all"; ML.exp = new Set();
+    const FILTS = [["all", "Усі"], ["unseen", "Непрочитані"], ["flagged", "⭐ Важливі"], ["att", "📎 З файлами"], ["crm", "🏢 Клієнти"]];
+    // тема без «Re: / Fwd: / AW: / RE[2]:» — щоб зібрати ланцюжок
+    const thrKey = (subj) => {
+        let t = String(subj || "").trim(), prev;
+        do { prev = t; t = t.replace(/^\s*(re|fw|fwd|aw|wg|tr|sv|vs|odp|ответ|отв|пересл)\s*(\[\d+\]|\(\d+\))?\s*[:：]\s*/i, ""); } while (t !== prev);
+        return t.replace(/\s+/g, " ").toLowerCase();
+    };
+    // Хто це: клієнт з «Клієнтів» (свої — з e-mail, інші — за доменом пошти) або колега
+    const WHO = { loaded: false, email: new Map(), dom: new Map(), staff: new Set() };
+    const domOf = (e) => String(e || "").toLowerCase().split("@")[1] || "";
+    async function loadWho() {
+        if (WHO.loaded) return;
+        WHO.loaded = true;
+        try {
+            const sel = "id, name, email, contacts";
+            let r = await sbClient.from("leads_dir").select(sel).limit(5000);
+            if (r.error) r = await sbClient.from("leads").select(sel).limit(5000);
+            for (const c of r.data || []) {
+                const mails = [c.email, ...(Array.isArray(c.contacts) ? c.contacts.map((x) => x?.email) : [])].join(" ").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || [];
+                for (const m of mails) {
+                    const e = m.toLowerCase(), d = domOf(e);
+                    if (!WHO.email.has(e)) WHO.email.set(e, c);
+                    if (d && !FREE.test(d) && !WHO.dom.has(d)) WHO.dom.set(d, c);
+                }
+            }
+            const st = await sbClient.from("staff").select("email");
+            for (const x of st.data || []) if (x.email) WHO.staff.add(String(x.email).toLowerCase());
+        } catch (_) { /* не критично */ }
+        if (ML.list.length) renderList();
+    }
+    const whoOf = (email) => {
+        const e = String(email || "").toLowerCase();
+        if (!e) return null;
+        if (WHO.staff.has(e)) return { kind: "staff" };
+        const c = WHO.email.get(e) || WHO.dom.get(domOf(e));
+        return c ? { kind: "client", c } : null;
+    };
+    const whoChip = (email, big) => {
+        const w = whoOf(email);
+        if (!w) return "";
+        if (w.kind === "staff") return `<span class="ml-who staff" title="Колега з FURA">👤 колега</span>`;
+        return big
+            ? `<a class="ml-who client" href="clients.html?open=${encodeURIComponent(w.c.id)}" target="_blank" title="Відкрити картку клієнта">🏢 Клієнт: ${escapeHtml(w.c.name || "")} ↗</a>`
+            : `<span class="ml-who client" title="Клієнт з «Клієнтів»">🏢 ${escapeHtml(String(w.c.name || "клієнт").slice(0, 22))}</span>`;
+    };
+    function filtered() {
+        const f = ML.filt;
+        return ML.list.filter((m) => f === "all" || (f === "unseen" && !m.seen) || (f === "flagged" && m.flagged) || (f === "att" && m.att) || (f === "crm" && whoOf(m.from_email)?.kind === "client"));
+    }
+    // групи «ланцюжків»: однакова тема → один рядок (найновіший лист зверху)
+    function groups(list) {
+        if (!PREF.threads || ML.q) return list.map((m) => ({ key: "u" + m.fp + m.uid, items: [m] }));
+        const map = new Map(), out = [];
+        for (const m of list) {
+            const k = thrKey(m.subject) || "u" + m.fp + m.uid;
+            if (!map.has(k)) { const g = { key: k, items: [] }; map.set(k, g); out.push(g); }
+            map.get(k).items.push(m);
+        }
+        return out;
+    }
+    ML.thread = (m) => (m ? ML.list.filter((x) => thrKey(x.subject) && thrKey(x.subject) === thrKey(m.subject)) : []);
     function renderList() {
         const isSent = kindOf(ML.folder) === "\\Sent";
         const fname = (ML.folders.find((f) => f.path === ML.folder) || {});
-        const head = `<div class="sa-ml-head"><b>${ML.q ? "Пошук у всіх папках" : escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>`;
-        $("mlList").innerHTML = head + (ML.list.map((m) => {
+        const list = filtered();
+        const head = `<div class="sa-ml-head"><b>${ML.q ? "Пошук у всіх папках" : escapeHtml((KIND[fname.kind] || [fname.name || ML.folder])[0])}</b><span>${ML.q ? `знайдено: ${ML.list.length}` : fname.total != null ? `${fname.total} листів` : ""}</span></div>` +
+            `<div class="ml-filters">${FILTS.map(([k, t]) => {
+                const n = k === "all" ? 0 : ML.list.filter((m) => (k === "unseen" && !m.seen) || (k === "flagged" && m.flagged) || (k === "att" && m.att) || (k === "crm" && whoOf(m.from_email)?.kind === "client")).length;
+                return `<button type="button" class="ml-f ${ML.filt === k ? "on" : ""}" data-filt="${k}">${t}${n ? ` <em>${n}</em>` : ""}</button>`;
+            }).join("")}<button type="button" class="ml-f ml-thr ${PREF.threads ? "on" : ""}" data-threads title="Збирати листи з однаковою темою (Re:, Fwd:) в один рядок">🧵 Ланцюжки</button></div>`;
+        const row = (m, g, child) => {
             const sent = ML.q ? folderName(m.fp) === "Надіслані" : isSent;
             const who = sent ? m.to || "" : m.from || m.from_email;
-            return `<button type="button" class="sa-mi ${m.seen ? "" : "unseen"} ${ML.open?.uid === m.uid && ML.open?.fp === m.fp ? "active" : ""}" data-uid="${m.uid}" data-fp="${escapeHtml(m.fp)}">
-                ${avatar(sent ? m.to : m.from || m.from_email)}
+            const many = g && g.items.length > 1 && !child;
+            const unseen = many ? g.items.some((x) => !x.seen) : !m.seen;
+            const names = many ? [...new Set(g.items.map((x) => String((sent ? x.to : x.from || x.from_email) || "").replace(/<.*>/, "").replace(/["']/g, "").trim().split(/\s+/)[0]).filter(Boolean))].slice(0, 3).join(", ") : "";
+            const open = ML.open?.uid === m.uid && ML.open?.fp === m.fp;
+            const exp = many && ML.exp.has(g.key);
+            return `<div class="sa-mi-w ${child ? "child" : ""}"><button type="button" class="sa-mi ${unseen ? "unseen" : ""} ${open ? "active" : ""}" data-uid="${m.uid}" data-fp="${escapeHtml(m.fp)}"${many ? ` data-gk="${escapeHtml(g.key)}"` : ""}>
+                ${child ? "" : avatar(sent ? m.to : m.from || m.from_email)}
                 <div class="sa-mi-body">
-                    <div class="sa-mi-top"><span class="sa-mi-from">${sent ? "Кому: " : ""}${escapeHtml(who)}</span><span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
-                    <div class="sa-mi-subj">${ML.q ? `<span class="sa-mi-fold">${escapeHtml(folderName(m.fp))}</span> ` : ""}${m.att ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
+                    <div class="sa-mi-top"><span class="sa-mi-from">${sent ? "Кому: " : ""}${escapeHtml(many ? names : who)}</span>${many ? `<span class="ml-cnt" data-exp="${escapeHtml(g.key)}" title="${exp ? "Згорнути" : "Показати всі листи ланцюжка"}">${g.items.length} ${exp ? "▴" : "▾"}</span>` : ""}<span class="sa-mi-date">${escapeHtml(when(m.date))}</span></div>
+                    <div class="sa-mi-subj">${ML.q ? `<span class="sa-mi-fold">${escapeHtml(folderName(m.fp))}</span> ` : ""}${(many ? g.items.some((x) => x.att) : m.att) ? '<i class="bx bx-paperclip"></i> ' : ""}${escapeHtml(m.subject)}</div>
+                    ${!sent ? whoChip(m.from_email) : ""}
                 </div>
-            </button>`;
-        }).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : "У цій папці листів немає"}</span></div>`) +
+            </button><span class="ml-star ${m.flagged ? "on" : ""}" data-star="${m.uid}" data-fp="${escapeHtml(m.fp)}" role="button" title="${m.flagged ? "Прибрати з важливих" : "Позначити важливим (S)"}">${m.flagged ? "★" : "☆"}</span></div>` +
+                (exp ? g.items.slice(1).map((x) => row(x, g, true)).join("") : "");
+        };
+        $("mlList").innerHTML = head + (groups(list).map((g) => row(g.items[0], g, false)).join("") || `<div class="sa-ml-empty"><i class="bx bx-envelope-open"></i><span>${ML.q ? "Нічого не знайдено" : ML.filt !== "all" ? "Немає листів за цим фільтром на цій сторінці" : "У цій папці листів немає"}</span></div>`) +
             `<div class="sa-mi-pages">${ML.page ? '<button type="button" class="btn btn-secondary" data-pg="-1">← Новіші</button>' : ""}${ML.list.length >= 50 ? '<button type="button" class="btn btn-secondary" data-pg="1">Старіші →</button>' : ""}</div>`;
+        if (!WHO.loaded) loadWho();
     }
     // Кеш відкритих листів + попереднє завантаження верхніх листів списку — відкриваються миттєво
     const MCACHE = new Map();
@@ -1485,6 +1565,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <button type="button" class="btn btn-secondary" data-mr="replyall"><i class="bx bx-reply-all"></i> Усім</button>
                 <button type="button" class="btn btn-secondary" data-mr="fwd"><i class="bx bx-share"></i> Переслати</button>
                 ${junk ? '<button type="button" class="btn btn-primary" data-mr="notspam"><i class="bx bx-check"></i> Не спам</button>' : pathOf("\\Junk") ? '<button type="button" class="btn btn-secondary" data-mr="spam" title="У спам"><i class="bx bx-error-circle"></i></button>' : ""}
+                <button type="button" class="btn btn-secondary ml-starbtn ${it?.flagged ? "on" : ""}" data-mr="star" title="Важливий (S)">${it?.flagged ? "★" : "☆"}</button>
+                <button type="button" class="btn btn-secondary" data-mr="remind" title="Нагадати про цей лист пізніше (прийде сповіщення)"><i class="bx bx-alarm"></i> Нагадати</button>
                 <button type="button" class="btn btn-secondary" data-mr="unread" title="Позначити непрочитаним"><i class="bx bx-envelope"></i></button>
                 <button type="button" class="btn btn-secondary" data-mr="tr" title="Перекласти лист українською (у «Перекладачі»)"><i class="bx bx-world"></i> Перекласти</button>
                 <button type="button" class="btn btn-secondary" data-mr="book" title="Зберегти відправника в «Адреси»"><i class="bx bx-book-add"></i> ${BOOK.byEmail(m.from_email) ? "В адресах" : "В адреси"}</button>
@@ -1498,6 +1580,12 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ${m.cc ? `<div class="sa-mr-line"><span class="sa-mr-lbl">Копія:</span> ${people(m.cc)}</div>` : ""}
                 <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
             </div>
+            ${whoChip(m.from_email, true) ? `<div class="ml-who-line">${whoChip(m.from_email, true)}</div>` : ""}
+            ${(() => {
+                const th = ML.thread(m).filter((x) => !(x.uid === m.uid && x.fp === fp));
+                if (!th.length) return "";
+                return `<details class="ml-thread"${th.length <= 4 ? " open" : ""}><summary>🧵 У цьому ланцюжку ще ${th.length} ${th.length === 1 ? "лист" : th.length < 5 ? "листи" : "листів"}</summary>${th.map((x) => `<button type="button" class="ml-th-it ${x.seen ? "" : "unseen"}" data-uid="${x.uid}" data-fp="${escapeHtml(x.fp)}"><b>${escapeHtml(String(x.from || x.from_email || "").replace(/<.*>/, ""))}</b><span>${escapeHtml(when(x.date))}</span></button>`).join("")}</details>`;
+            })()}
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
@@ -1579,6 +1667,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (kind === "fwd") return window.furaCompose?.({ to: "", subject: /^fwd?:/i.test(m.subject) ? m.subject : `Fwd: ${m.subject}`, body: "", quote: quote(m).trim().replace("Вихідне повідомлення", "Переслане повідомлення"),
             remote: (m.attachments || []).map((a) => ({ fp: m.fp, uid: m.uid, part: a.part, name: a.name, type: a.type, size: a.size })) });
         if (kind === "book") return openBook(guessContact(m));
+        if (kind === "star") return toggleStar(m.uid, m.fp, btn);
+        if (kind === "remind") return remindMenu(m, btn);
         if (kind === "unread") {
             await withBusy(btn, () => api({ action: "mail_move", folder: m.fp, uid: m.uid, flag: "unseen" }));
             const it = ML.list.find((x) => x.uid === m.uid && x.fp === m.fp); if (it) it.seen = false;
@@ -1595,6 +1685,181 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (document.body.classList.contains("ml-reading")) { if (readPushed && history.state?.mlRead) history.back(); else readMode(false); }
         renderList(); loadFolders().catch(() => {});
     }
+    // ⭐ Важливий — позначка \Flagged на сервері пошти (видно і в Outlook як «прапорець»)
+    async function toggleStar(uid, fp, btn) {
+        const it = ML.list.find((x) => x.uid === uid && x.fp === fp);
+        const on = !(it ? it.flagged : ML.open?.flagged);
+        if (it) it.flagged = on;
+        if (ML.open?.uid === uid) ML.open.flagged = on;
+        const paint = () => {
+            renderList();
+            const b = $("mlRead").querySelector('[data-mr="star"]');
+            if (b && ML.open?.uid === uid) { b.classList.toggle("on", on); b.textContent = on ? "★" : "☆"; }
+        };
+        paint();
+        try { await api({ action: "mail_move", folder: fp, uid, flag: on ? "flagged" : "unflagged" }); }
+        catch (e) { if (it) it.flagged = !on; paint(); throw e; }
+        toast(on ? "⭐ Позначено важливим" : "Прибрано з важливих");
+    }
+    /* ---------- ⏰ Нагадати пізніше: прийде сповіщення на комп'ютер / телефон ---------- */
+    const at9 = (d) => { d.setHours(9, 0, 0, 0); return d; };
+    function remindOptions() {
+        const now = new Date(), h = (n) => new Date(Date.now() + n * 3600e3);
+        const tom = at9(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
+        const mon = at9(new Date(now.getFullYear(), now.getMonth(), now.getDate() + ((8 - now.getDay()) % 7 || 7)));
+        const eve = new Date(now); eve.setHours(17, 0, 0, 0);
+        const opts = [["Через 1 годину", h(1)], ["Через 3 години", h(3)]];
+        if (eve - now > 3600e3) opts.push(["Сьогодні о 17:00", eve]);
+        opts.push(["Завтра о 9:00", tom], ["У понеділок о 9:00", mon]);
+        return opts;
+    }
+    const fmtAt = (d) => new Date(d).toLocaleString("uk-UA", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    function popMenu(btn, html) {
+        document.querySelector(".ml-pop")?.remove();
+        const pop = document.createElement("div");
+        pop.className = "ml-pop";
+        pop.innerHTML = html;
+        document.body.appendChild(pop);
+        const r = btn.getBoundingClientRect();
+        pop.style.top = Math.min(innerHeight - pop.offsetHeight - 8, r.bottom + 6) + "px";
+        pop.style.left = Math.max(8, Math.min(innerWidth - pop.offsetWidth - 8, r.left)) + "px";
+        const off = (e) => { if (!pop.contains(e.target) && e.target !== btn) { pop.remove(); document.removeEventListener("pointerdown", off, true); } };
+        setTimeout(() => document.addEventListener("pointerdown", off, true), 0);
+        return pop;
+    }
+    function remindMenu(m, btn) {
+        const opts = remindOptions();
+        const local = (d) => new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        const pop = popMenu(btn, `<b class="ml-pop-h">⏰ Нагадати про лист</b>` +
+            opts.map(([t, d], i) => `<button type="button" data-ri="${i}"><span>${t}</span><em>${escapeHtml(fmtAt(d))}</em></button>`).join("") +
+            `<label class="ml-pop-own">Свій час <input type="datetime-local" value="${local(opts[opts.length - 2][1])}" /></label>
+             <input class="ml-pop-note" placeholder="Нотатка (необов'язково): напр. «чекаю ставку»" maxlength="200" />
+             <button type="button" class="btn btn-primary" data-rown>Нагадати у свій час</button>
+             <p class="ml-pop-hint">Прийде сповіщення на всі ваші пристрої, де ввімкнено 🔔 — навіть коли FURA закрита.</p>`);
+        const save = async (d) => {
+            if (!(d > new Date())) return toast("Оберіть час у майбутньому", true);
+            await api({ action: "mail_remind", folder: m.fp, uid: m.uid, subject: m.subject, sender: m.from, note: pop.querySelector(".ml-pop-note").value, at: d.toISOString() });
+            pop.remove();
+            toast("⏰ Нагадаю " + fmtAt(d));
+            pushHint();
+        };
+        pop.addEventListener("click", (e) => {
+            const b = e.target.closest("[data-ri]");
+            if (b) return save(opts[Number(b.dataset.ri)][1]).catch((er) => toast(er.message, true));
+            if (e.target.closest("[data-rown]")) return save(new Date(pop.querySelector('input[type="datetime-local"]').value)).catch((er) => toast(er.message, true));
+        });
+    }
+    // нагадування є, а сповіщення на цьому пристрої вимкнені — підкажемо
+    function pushHint() {
+        const on = (() => { try { return !!localStorage.getItem("fura_push_endpoint") && Notification.permission === "granted"; } catch (_) { return false; } })();
+        if (!on) setTimeout(() => toast("Щоб нагадування прийшло, увімкніть сповіщення: кнопка 🔔 угорі пошти"), 1800);
+    }
+    async function remindList(btn) {
+        const pop = popMenu(btn, `<b class="ml-pop-h">⏰ Мої нагадування</b><div class="ml-pop-list"><p class="ml-pop-hint">Завантажую…</p></div>`);
+        const draw = async () => {
+            const r = await api({ action: "mail_remind", list: true });
+            const list = r.list || [];
+            pop.querySelector(".ml-pop-list").innerHTML = list.length ? list.map((x) => `<div class="ml-rem"><button type="button" class="ml-rem-open" data-ropen="${x.uid || ""}" data-rf="${escapeHtml(x.folder || "")}"><b>${escapeHtml(x.subject || "лист")}</b><span>${escapeHtml(fmtAt(x.remind_at))}${x.note ? " · " + escapeHtml(x.note) : ""}</span></button><button type="button" class="ml-rem-x" data-rdel="${x.id}" title="Скасувати">✕</button></div>`).join("")
+                : '<p class="ml-pop-hint">Нагадувань немає. Відкрийте лист → «⏰ Нагадати».</p>';
+        };
+        draw().catch((e) => { pop.querySelector(".ml-pop-list").innerHTML = `<p class="ml-pop-hint">${escapeHtml(e.message)}</p>`; });
+        pop.addEventListener("click", async (e) => {
+            const d = e.target.closest("[data-rdel]");
+            if (d) { await api({ action: "mail_remind", cancel: d.dataset.rdel }).catch((er) => toast(er.message, true)); return draw(); }
+            const o = e.target.closest("[data-ropen]");
+            if (o && o.dataset.ropen) { pop.remove(); openFrom(Number(o.dataset.ropen), o.dataset.rf); }
+        });
+    }
+    // відкрити лист з іншої папки (нагадування, посилання зі сповіщення)
+    async function openFrom(uid, folder) {
+        const f = folder && ML.folders.find((x) => x.path === folder || (x.paths || []).includes(folder));
+        const want = f ? f.path : pathOf("\\Inbox") || "INBOX";
+        if (ML.folder !== want || ML.book || ML.q) { ML.book = false; ML.q = ""; $("mlQ").value = ""; ML.folder = want; ML.page = 0; renderFolders(); await loadList(); }
+        return openMail(uid, folder || realPaths(want)[0]);
+    }
+    /* ---------- 🔔 Сповіщення: стан цього пристрою, усі ваші пристрої, перевірка ---------- */
+    async function pushPanel(btn) {
+        const isMac = /Mac/.test(navigator.platform) && navigator.maxTouchPoints < 2;
+        const isWin = /Win/.test(navigator.platform);
+        const perm = "Notification" in window ? Notification.permission : "none";
+        const here = (() => { try { return localStorage.getItem("fura_push_endpoint") || ""; } catch (_) { return ""; } })();
+        const pop = popMenu(btn, `<b class="ml-pop-h">🔔 Сповіщення про нові листи</b>
+            <div class="ml-push-state ${perm === "granted" && here ? "ok" : "bad"}">${perm === "granted" && here ? "✅ На цьому пристрої увімкнено" : perm === "denied" ? "⛔ Браузер заблокував сповіщення для FURA" : "⚪ На цьому пристрої вимкнено"}</div>
+            ${perm === "denied" ? `<p class="ml-pop-hint">Натисніть на значок <b>ліворуч від адреси сайту</b> (повзунки / замочок) → «Сповіщення» → <b>Дозволити</b> → оновіть сторінку.</p>`
+                : `<button type="button" class="btn btn-primary" data-pon>${perm === "granted" && here ? "Надіслати тестове сповіщення" : "Увімкнути на цьому пристрої"}</button>`}
+            <div class="ml-pop-sub">Ваші пристрої</div><div class="ml-dev"><p class="ml-pop-hint">Завантажую…</p></div>
+            <details class="ml-pop-help"${perm === "granted" && here ? "" : " open"}><summary>Щоб приходило, навіть коли FURA закрита</summary>
+            ${isMac ? `<ol><li><b>Системні параметри → Сповіщення → Google Chrome</b> → «Дозволити сповіщення», стиль — <b>«Попередження»</b> (не зникатимуть самі).</li><li>Закривайте вкладку чи вікно FURA як завгодно, але <b>не виходьте з Chrome повністю</b> (⌘Q). Поки Chrome працює (крапка під іконкою в Dock), сповіщення приходять.</li><li>Вимкніть «Не турбувати» / «Фокусування».</li><li>Зручно: Chrome → ⋮ → «Трансляція, збереження і поширення» → <b>«Встановити сторінку як застосунок»</b> — FURA матиме свою іконку в Dock.</li></ol>`
+                : isWin ? `<ol><li><b>Параметри → Система → Сповіщення → Google Chrome</b> → Увімкнено.</li><li>Chrome → Налаштування → Система → <b>«Продовжувати запуск фонових програм після закриття Google Chrome»</b> — увімкнути. Тоді сповіщення приходять, навіть коли всі вікна Chrome закриті.</li><li>Вимкніть «Фокусування» / «Не турбувати».</li></ol>`
+                : `<ol><li>iPhone: Safari → FURA → «Поділитися» → «На екран Додому», відкрийте FURA з іконки і ввімкніть тут.</li><li>Android: Chrome → дозволити сповіщення для сайту.</li></ol>`}
+            <p class="ml-pop-hint">Сповіщення приходять приблизно протягом хвилини після листа. Увімкніть на кожному пристрої окремо: ноутбук, телефон.</p></details>`);
+        pop.classList.add("wide");
+        const devs = async () => {
+            const r = await api({ action: "push_devices" }).catch((e) => ({ err: e.message }));
+            const box = pop.querySelector(".ml-dev");
+            if (r.err) { box.innerHTML = `<p class="ml-pop-hint">${escapeHtml(/mail_push|push_subs/.test(r.err) ? "Адміністратору: виконайте mail_push.sql і оновіть функцію fura-sales." : r.err)}</p>`; return; }
+            box.innerHTML = (r.list || []).map((d) => `<div class="ml-rem"><span class="ml-dev-n">${/iPhone|Android/.test(d.device) ? "📱" : "💻"} ${escapeHtml(d.device || "пристрій")}${here.endsWith(d.ep) ? " <em>(цей)</em>" : ""}<small>з ${escapeHtml(new Date(d.created_at).toLocaleDateString("uk-UA"))}</small></span><button type="button" class="ml-rem-x" data-ptest="${d.id}" title="Тестове сповіщення">🔔</button><button type="button" class="ml-rem-x" data-pdel="${d.id}" title="Вимкнути на цьому пристрої">✕</button></div>`).join("")
+                || '<p class="ml-pop-hint">Поки що жодного. Натисніть «Увімкнути на цьому пристрої».</p>';
+        };
+        devs();
+        pop.addEventListener("click", async (e) => {
+            const on = e.target.closest("[data-pon]");
+            if (on) {
+                await withBusy(on, async () => {
+                    const okk = await window.furaPushEnable?.(true);
+                    if (!okk) toast(Notification.permission === "denied" ? "Сповіщення заблоковані в браузері — див. підказку" : "Не вдалося ввімкнути. Дозвольте сповіщення, коли браузер спитає.", true);
+                    else toast("Увімкнено ✅ Зараз прийде тестове сповіщення");
+                });
+                pop.remove(); return pushPanel(btn);
+            }
+            const t = e.target.closest("[data-ptest]");
+            if (t) { const r = await api({ action: "push_test", id: t.dataset.ptest }).catch((er) => ({ err: er.message })); return toast(r.err || (r.sent ? "Надіслано — дивіться в кут екрана" : "Пристрій не відповів — увімкніть на ньому ще раз"), !!r.err || !r.sent); }
+            const d = e.target.closest("[data-pdel]");
+            if (d) {
+                await api({ action: "push_remove", id: d.dataset.pdel }).catch(() => {});
+                const row = d.closest(".ml-rem");
+                if (row?.querySelector("em")) { try { localStorage.removeItem("fura_push_endpoint"); } catch (_) { /* */ } }
+                return devs();
+            }
+        });
+    }
+    // стан кнопки 🔔 у пошті
+    function paintPushBtn() {
+        const b = $("mlPush"); if (!b) return;
+        const on = (() => { try { return !!localStorage.getItem("fura_push_endpoint") && Notification.permission === "granted"; } catch (_) { return false; } })();
+        b.classList.toggle("ml-push-off", !on);
+        b.title = on ? "Сповіщення про нові листи увімкнено на цьому пристрої" : "Увімкнути сповіщення про нові листи (навіть коли FURA закрита)";
+    }
+    /* ---------- Гарячі клавіші (як у Gmail / Outlook) ---------- */
+    const KEYS_HELP = [["↓ / J", "наступний лист"], ["↑ / K", "попередній лист"], ["R", "відповісти"], ["A", "відповісти всім"], ["F", "переслати"], ["S", "важливий ⭐"], ["U", "непрочитаний"], ["H", "нагадати ⏰"], ["Delete / #", "видалити"], ["/", "пошук"], ["C", "написати лист"], ["Esc", "закрити лист"], ["?", "ця підказка"]];
+    document.addEventListener("keydown", (e) => {
+        const panel = document.querySelector('.sa-panel[data-panel="mail"]');
+        if (!panel || panel.hidden || !ML.loaded || ML.book || e.metaKey || e.ctrlKey || e.altKey) return;
+        const t = e.target;
+        if (t.closest?.("input, textarea, select, [contenteditable], dialog") || document.body.classList.contains("sa-pv-open") || document.querySelector(".modal-overlay.open, .mk-viewer")) return;
+        const k = e.key;
+        const rows = [...$("mlList").querySelectorAll(".sa-mi[data-uid]")];
+        const cur = rows.findIndex((r) => r.classList.contains("active"));
+        const go = (i) => { const r = rows[Math.max(0, Math.min(rows.length - 1, i))]; if (r) { r.scrollIntoView({ block: "nearest" }); openMail(Number(r.dataset.uid), r.dataset.fp).catch((er) => toast(er.message, true)); } };
+        const click = (sel) => { const b = $("mlRead").querySelector(sel); if (b) b.click(); };
+        let done = true;
+        if (k === "ArrowDown" || k === "j") go(cur + 1);
+        else if (k === "ArrowUp" || k === "k") go(cur < 0 ? 0 : cur - 1);
+        else if (k === "/") $("mlQ").focus();
+        else if (k === "c") $("mlCompose").click();
+        else if (k === "?") popMenu($("mlKeys") || $("mlCompose"), `<b class="ml-pop-h">⌨️ Гарячі клавіші пошти</b>${KEYS_HELP.map(([a, b]) => `<div class="ml-key"><kbd>${a}</kbd><span>${b}</span></div>`).join("")}`);
+        else if (!ML.open?.uid) done = false;
+        else if (k === "r") click('[data-mr="reply"]');
+        else if (k === "a") click('[data-mr="replyall"]');
+        else if (k === "f") click('[data-mr="fwd"]');
+        else if (k === "s") click('[data-mr="star"]');
+        else if (k === "u") click('[data-mr="unread"]');
+        else if (k === "h") click('[data-mr="remind"]');
+        else if (k === "Delete" || k === "#") click('[data-mr="trash"]');
+        else if (k === "Escape") { if (document.querySelector(".ml-pop")) document.querySelector(".ml-pop").remove(); else if (document.body.classList.contains("ml-reading")) $("mlBack").click(); else { ML.open = null; renderList(); $("mlRead").innerHTML = '<p class="ag-empty">Оберіть лист зліва</p>'; } }
+        else done = false;
+        if (done) e.preventDefault();
+    });
     // Підключити свою пошту: e-mail + пароль від неї (сервер для @grandarltd.com підставиться сам)
     async function connectForm() {
         const { data } = await sbClient.auth.getSession();
@@ -1641,12 +1906,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             await loadFolders();
             await loadList();
             // посилання зі сповіщення: mail.html?uid=123 — одразу відкрити цей лист
-            const u = Number(new URLSearchParams(location.search).get("uid"));
+            const sp = new URLSearchParams(location.search), u = Number(sp.get("uid"));
             if (u) {
                 history.replaceState(null, "", location.pathname);
-                const inbox = pathOf("\\Inbox") || "INBOX";
-                if (ML.folder !== inbox) { ML.folder = inbox; renderFolders(); await loadList(); }
-                openMail(u, inbox).catch(() => {});
+                openFrom(u, sp.get("folder") || "").catch(() => {});
             }
         } catch (e) { ML.loaded = false; needAccess(e.message); }
     }
@@ -1676,6 +1939,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (ML.book) return bookListClick(e);
         const pg = e.target.closest("[data-pg]");
         if (pg) { ML.page = Math.max(0, ML.page + Number(pg.dataset.pg)); return loadList().catch((er) => toast(er.message, true)); }
+        const fl = e.target.closest("[data-filt]");
+        if (fl) { ML.filt = fl.dataset.filt; return renderList(); }
+        if (e.target.closest("[data-threads]")) { PREF.threads = !PREF.threads; prefSave(); return renderList(); }
+        const st = e.target.closest("[data-star]");
+        if (st) return toggleStar(Number(st.dataset.star), st.dataset.fp).catch((er) => toast(er.message, true));
+        const ex = e.target.closest("[data-exp]");
+        if (ex) { e.stopPropagation(); const k = ex.dataset.exp; if (ML.exp.has(k)) ML.exp.delete(k); else ML.exp.add(k); return renderList(); }
         const it = e.target.closest("[data-uid]");
         if (it) openMail(Number(it.dataset.uid), it.dataset.fp).catch((er) => toast(er.message, true));
     });
@@ -1693,6 +1963,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const b = e.target.closest("[data-mr]");
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
+        const th = e.target.closest(".ml-th-it[data-uid]");
+        if (th) return openMail(Number(th.dataset.uid), th.dataset.fp).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");
         if (a) await withBusy(a, () => preview(Number(a.dataset.att)));
         const acp = e.target.closest("[data-attcp]");
@@ -1707,6 +1979,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         ML.q = (v.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [])[0] || v.replace(/["'<>«»]/g, " ").replace(/\s+/g, " ").trim(); ML.page = 0; loadList().catch((er) => toast(er.message, true)); }, 500); });
     $("mlRefresh").addEventListener("click", () => { loadFolders().catch(() => {}); loadList().catch((er) => toast(er.message, true)); });
     $("mlCompose").addEventListener("click", () => window.furaCompose?.());
+    $("mlCompose").insertAdjacentHTML("beforebegin", '<button type="button" class="btn btn-secondary ml-tb" id="mlPush" title="Сповіщення"><i class="bx bx-bell"></i></button><button type="button" class="btn btn-secondary ml-tb" id="mlRem" title="Мої нагадування"><i class="bx bx-alarm"></i></button><button type="button" class="btn btn-secondary ml-tb ml-keys" id="mlKeys" title="Гарячі клавіші (?)"><i class="bx bx-command"></i></button>');
+    $("mlPush").addEventListener("click", (e) => pushPanel(e.currentTarget));
+    $("mlRem").addEventListener("click", (e) => remindList(e.currentTarget));
+    $("mlKeys").addEventListener("click", (e) => popMenu(e.currentTarget, `<b class="ml-pop-h">⌨️ Гарячі клавіші пошти</b>${KEYS_HELP.map(([a, b]) => `<div class="ml-key"><kbd>${a}</kbd><span>${b}</span></div>`).join("")}`));
+    paintPushBtn(); setInterval(paintPushBtn, 5000);
     // файли, кинуті на пошту, — одразу в новий лист
     const mp = document.querySelector('.sa-panel[data-panel="mail"]');
     ["dragenter", "dragover"].forEach((t) => mp.addEventListener(t, (e) => { if ([...(e.dataTransfer?.types || [])].includes("Files")) { e.preventDefault(); mp.classList.add("drop"); } }));

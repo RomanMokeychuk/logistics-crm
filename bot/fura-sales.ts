@@ -1351,12 +1351,228 @@ async function actionMailMove(body: Any, me: Any) {
     await withImap(box, async (imap) => {
         const lock = await imap.getMailboxLock(folder);
         try {
-            if (body.flag === "unseen") await imap.messageFlagsRemove(uid, ["\\Seen"], { uid: true });
+            if (body.flag === "flagged") await imap.messageFlagsAdd(uid, ["\\Flagged"], { uid: true });
+            else if (body.flag === "unflagged") await imap.messageFlagsRemove(uid, ["\\Flagged"], { uid: true });
+            else if (body.flag === "unseen") await imap.messageFlagsRemove(uid, ["\\Seen"], { uid: true });
             else if (body.flag === "seen") await imap.messageFlagsAdd(uid, ["\\Seen"], { uid: true });
             else await imap.messageMove(uid, to, { uid: true });
         } finally { lock.release(); }
     });
     return ok();
+}
+
+/* ================================================================== */
+/* Push-сповіщення (Web Push, VAPID): нові листи і «Нагадати пізніше»  */
+/* приходять на комп'ютер і телефон, навіть коли FURA закрита          */
+/* ================================================================== */
+const b64u = (u: Uint8Array) => b64e(u).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64ud = (s: string) => b64d(String(s).replace(/-/g, "+").replace(/_/g, "/") + "===".slice((String(s).length + 3) % 4));
+const cat = (...a: Uint8Array[]) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let i = 0; for (const x of a) { o.set(x, i); i += x.length; } return o; };
+const utf8 = (s: string) => new TextEncoder().encode(s);
+async function hmacRaw(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+    const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return new Uint8Array(await crypto.subtle.sign("HMAC", k, data));
+}
+let vapidCache: { pub: string; jwk: Any } | null = null;
+async function vapid(): Promise<{ pub: string; jwk: Any }> {
+    if (vapidCache) return vapidCache;
+    const { data: r } = await db.from("push_config").select("*").eq("id", 1).maybeSingle();
+    if (r?.public_key && r?.private_d) {
+        const raw = b64ud(r.public_key);
+        vapidCache = { pub: r.public_key, jwk: { kty: "EC", crv: "P-256", x: b64u(raw.slice(1, 33)), y: b64u(raw.slice(33, 65)), d: r.private_d, ext: true } };
+        return vapidCache;
+    }
+    // перший запуск — створюємо ключі і зберігаємо в базі (лише сервер має до них доступ)
+    const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]) as CryptoKeyPair;
+    const jwk: Any = await crypto.subtle.exportKey("jwk", kp.privateKey);
+    const pub = b64u(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)));
+    const { error } = await db.from("push_config").insert([{ id: 1, public_key: pub, private_d: jwk.d }]);
+    if (error) {
+        // інший запуск встиг створити — беремо його
+        const { data: again } = await db.from("push_config").select("*").eq("id", 1).maybeSingle();
+        if (!again) throw new Error(/push_config/.test(error.message) ? "Виконайте mail_push.sql у Supabase" : error.message);
+        vapidCache = null;
+        return vapid();
+    }
+    vapidCache = { pub, jwk };
+    return vapidCache;
+}
+async function vapidAuth(endpoint: string): Promise<string> {
+    const { pub, jwk } = await vapid();
+    const aud = new URL(endpoint).origin;
+    const head = b64u(utf8(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+    const body = b64u(utf8(JSON.stringify({ aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: "mailto:" + (env("PUSH_CONTACT") || "admin@grandarltd.com") })));
+    const key = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+    const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, utf8(`${head}.${body}`)));
+    return `vapid t=${head}.${body}.${b64u(sig)}, k=${pub}`;
+}
+// Шифрування вмісту за RFC 8291 (aes128gcm)
+async function pushEncrypt(p256dh: string, authSecret: string, payload: Uint8Array): Promise<Uint8Array> {
+    const uaPub = b64ud(p256dh), auth = b64ud(authSecret);
+    const eph = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]) as CryptoKeyPair;
+    const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+    const uaKey = await crypto.subtle.importKey("raw", uaPub, { name: "ECDH", namedCurve: "P-256" }, false, []);
+    const ecdh = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, eph.privateKey, 256));
+    const prkKey = await hmacRaw(auth, ecdh);
+    const ikm = await hmacRaw(prkKey, cat(utf8("WebPush: info\0"), uaPub, asPub, new Uint8Array([1])));
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const prk = await hmacRaw(salt, ikm);
+    const cek = (await hmacRaw(prk, cat(utf8("Content-Encoding: aes128gcm\0"), new Uint8Array([1])))).slice(0, 16);
+    const nonce = (await hmacRaw(prk, cat(utf8("Content-Encoding: nonce\0"), new Uint8Array([1])))).slice(0, 12);
+    const key = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+    const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, cat(payload, new Uint8Array([2]))));
+    const rs = new Uint8Array([0, 0, 0x10, 0]); // 4096
+    return cat(salt, rs, new Uint8Array([asPub.length]), asPub, ct);
+}
+type PushMsg = { title: string; body?: string; url?: string; tag?: string };
+async function pushOne(sub: Any, msg: PushMsg): Promise<boolean> {
+    try {
+        const body = await pushEncrypt(sub.p256dh, sub.auth, utf8(JSON.stringify(msg).slice(0, 3000)));
+        const r = await fetch(sub.endpoint, {
+            method: "POST",
+            headers: { Authorization: await vapidAuth(sub.endpoint), "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", TTL: "86400", Urgency: "high" },
+            body,
+        });
+        if (r.status === 404 || r.status === 410) { await db.from("push_subs").delete().eq("endpoint", sub.endpoint); return false; }
+        if (r.status === 403 || r.status === 400) {
+            const t = await r.text().catch(() => "");
+            console.warn("push", r.status, t.slice(0, 200));
+            // ключі сервера змінились — пристрій підпишеться заново при наступному відкритті FURA
+            if (/VAPID|credentials|mismatch/i.test(t)) await db.from("push_subs").delete().eq("endpoint", sub.endpoint);
+            return false;
+        }
+        return r.ok;
+    } catch (e) { console.warn("push", String(e).slice(0, 200)); return false; }
+}
+async function pushStaff(staffId: string, msgs: PushMsg[]): Promise<number> {
+    if (!msgs.length) return 0;
+    const { data: subs } = await db.from("push_subs").select("*").eq("staff_id", staffId);
+    let n = 0;
+    for (const s of subs || []) for (const m of msgs) if (await pushOne(s, m)) n++;
+    return n;
+}
+async function actionPushKey() { return ok({ key: (await vapid()).pub }); }
+async function actionPushSubscribe(body: Any, me: Any) {
+    const s = body.sub || {};
+    const endpoint = clip(s.endpoint, 1000), p256dh = clip(s.keys?.p256dh, 200), auth = clip(s.keys?.auth, 100);
+    if (!/^https:\/\//.test(endpoint) || !p256dh || !auth) return fail(400, "Неправильна підписка");
+    const { error } = await db.from("push_subs").upsert([{ staff_id: me.id, endpoint, p256dh, auth, device: clip(body.device, 80), updated_at: nowIso() }], { onConflict: "endpoint" });
+    if (error) return fail(500, /push_subs/.test(error.message) ? "Виконайте mail_push.sql у Supabase" : error.message);
+    let sent = null;
+    if (body.test) sent = await pushOne({ endpoint, p256dh, auth }, { title: "FURA · сповіщення увімкнено ✅", body: "Нові листи і нагадування приходитимуть сюди, навіть коли FURA закрита.", url: "mail.html", tag: "fura-test" });
+    return ok({ sent });
+}
+async function actionPushDevices(me: Any) {
+    const { data } = await db.from("push_subs").select("id, device, created_at, updated_at, endpoint").eq("staff_id", me.id).order("updated_at", { ascending: false });
+    return ok({ list: (data || []).map((d: Any) => ({ id: d.id, device: d.device, created_at: d.created_at, updated_at: d.updated_at, ep: String(d.endpoint).slice(-24) })) });
+}
+async function actionPushTest(body: Any, me: Any) {
+    let q = db.from("push_subs").select("*").eq("staff_id", me.id);
+    if (body.id) q = q.eq("id", Number(body.id));
+    const { data: subs } = await q;
+    let n = 0;
+    for (const s of subs || []) if (await pushOne(s, { title: "FURA · перевірка 🔔", body: `Сповіщення працюють (${s.device || "пристрій"}).`, url: "mail.html", tag: "fura-test" })) n++;
+    return ok({ sent: n, total: (subs || []).length });
+}
+async function actionPushRemove(body: Any, me: Any) {
+    let q = db.from("push_subs").delete().eq("staff_id", me.id);
+    if (body.id) q = q.eq("id", Number(body.id));
+    else if (body.endpoint) q = q.eq("endpoint", clip(body.endpoint, 1000));
+    else return fail(400, "Немає пристрою");
+    await q;
+    return ok();
+}
+// «⏰ Нагадати пізніше» про лист
+async function actionMailRemind(body: Any, me: Any) {
+    if (body.cancel) {
+        await db.from("mail_reminders").delete().eq("staff_id", me.id).eq("id", Number(body.cancel));
+        return ok();
+    }
+    if (body.list) {
+        const { data, error } = await db.from("mail_reminders").select("id, folder, uid, subject, sender, remind_at, note").eq("staff_id", me.id).is("done_at", null).order("remind_at").limit(100);
+        if (error) return fail(500, /mail_reminders/.test(error.message) ? "Виконайте mail_push.sql у Supabase" : error.message);
+        return ok({ list: data || [] });
+    }
+    const at = new Date(body.at);
+    if (isNaN(+at) || +at < Date.now() - 60000) return fail(400, "Оберіть час у майбутньому");
+    const { data, error } = await db.from("mail_reminders").insert([{
+        staff_id: me.id, folder: clip(body.folder || "INBOX", 200), uid: Number(body.uid) || null, subject: clip(body.subject, 300),
+        sender: clip(body.sender, 200), note: clip(body.note, 300), remind_at: at.toISOString(),
+    }]).select("id").single();
+    if (error) return fail(500, /mail_reminders/.test(error.message) ? "Виконайте mail_push.sql у Supabase (оновлений)" : error.message);
+    return ok({ id: data.id });
+}
+const clean = (s: unknown) => String(s ?? "").replace(/<[^>]*>/g, "").replace(/["']/g, "").trim();
+// Розклад щохвилини: нові листи у Вхідних + нагадування, яким настав час
+async function mailPushTick() {
+    const t0 = Date.now();
+    const out = { staff: 0, mails: 0, reminders: 0, sent: 0, errors: [] as string[] };
+    // 1) нагадування
+    const { data: due } = await db.from("mail_reminders").select("*").is("done_at", null).lte("remind_at", nowIso()).limit(50);
+    for (const r of due || []) {
+        await db.from("mail_reminders").update({ done_at: nowIso() }).eq("id", r.id);
+        out.reminders++;
+        out.sent += await pushStaff(r.staff_id, [{
+            title: "⏰ Нагадування: " + (clean(r.subject) || "лист"),
+            body: [r.note ? clean(r.note) : "", r.sender ? "Від: " + clean(r.sender) : ""].filter(Boolean).join("\n") || "Час повернутися до листа",
+            url: r.uid ? `mail.html?uid=${r.uid}&folder=${encodeURIComponent(r.folder || "INBOX")}` : "mail.html", tag: "remind-" + r.id,
+        }]);
+    }
+    // 2) нові листи — для кожного, хто ввімкнув сповіщення і підключив пошту
+    const { data: subs } = await db.from("push_subs").select("staff_id");
+    const ids = [...new Set((subs || []).map((s: Any) => s.staff_id))];
+    if (!ids.length) return out;
+    const { data: staff } = await db.from("staff").select("id, full_name, email, active").in("id", ids).eq("active", true);
+    const { data: states } = await db.from("mail_push_state").select("*").in("staff_id", ids);
+    const st = new Map((states || []).map((s: Any) => [s.staff_id, s]));
+    await Promise.all((staff || []).map(async (me: Any) => {
+        if (Date.now() - t0 > 40000) return;
+        const box = await boxOf(me);
+        if (!box) return;
+        out.staff++;
+        try {
+            const prev: Any = st.get(me.id);
+            const res = await withImap(box, async (imap) => {
+                const lock = await imap.getMailboxLock("INBOX");
+                try {
+                    const next = Number(imap.mailbox?.uidNext) || 0;
+                    const last = prev && prev.box === box.user ? Number(prev.last_uid) || 0 : 0;
+                    if (!last || !next) return { top: Math.max(0, next - 1), list: [] as Any[] };
+                    if (next - 1 <= last) return { top: last, list: [] as Any[] };
+                    const list: Any[] = [];
+                    for await (const m of imap.fetch(`${last + 1}:*`, { uid: true, envelope: true, flags: true, bodyStructure: true }, { uid: true })) {
+                        if (m.uid <= last) continue;
+                        list.push(m);
+                    }
+                    return { top: Math.max(last, ...list.map((m) => m.uid)), list };
+                } finally { lock.release(); }
+            });
+            await db.from("mail_push_state").upsert([{ staff_id: me.id, box: box.user, last_uid: res.top, updated_at: nowIso() }], { onConflict: "staff_id" });
+            const fresh = res.list.filter((m: Any) => !m.flags?.has?.("\\Seen")).sort((a: Any, b: Any) => a.uid - b.uid);
+            if (!fresh.length) return;
+            out.mails += fresh.length;
+            const show = fresh.slice(-3);
+            const msgs: PushMsg[] = show.map((m: Any) => {
+                const e = m.envelope || {}, f = (e.from || [])[0] || {};
+                const att = JSON.stringify(m.bodyStructure || {}).includes('"disposition":"attachment"');
+                return { title: "✉️ " + (clean(f.name) || f.address || "Новий лист"), body: (att ? "📎 " : "") + (clean(e.subject) || "(без теми)"), url: `mail.html?uid=${m.uid}`, tag: "mail-" + m.uid };
+            });
+            if (fresh.length > show.length) msgs.unshift({ title: `✉️ Ще ${fresh.length - show.length} нових листів`, body: "Відкрити пошту", url: "mail.html", tag: "mail-more" });
+            out.sent += await pushStaff(me.id, msgs);
+        } catch (e) {
+            out.errors.push(`${me.email}: ${String((e as Any)?.message || e).slice(0, 120)}`);
+        }
+    }));
+    return out;
+}
+async function pushTokenOk(req: Request): Promise<boolean> {
+    const given = req.headers.get("x-push-token") || "";
+    if (!given) return false;
+    const { data } = await db.from("push_cron").select("token").eq("id", 1).maybeSingle();
+    const want = String(data?.token || "");
+    if (!want || want.length !== given.length) return false;
+    let d = 0; for (let i = 0; i < want.length; i++) d |= want.charCodeAt(i) ^ given.charCodeAt(i);
+    return d === 0;
 }
 
 // Підключити свою пошту: перевіряємо логін/пароль на сервері і зберігаємо (пароль — зашифровано)
@@ -1583,6 +1799,11 @@ Deno.serve(async (req) => {
             if (!secretOk(req, url, CRON_SECRET)) return json(403, { error: "forbidden" });
             return json(200, await tick());
         }
+        // Розклад: нові листи і нагадування → push (mail_push.sql)
+        if (body.action === "mail_push") {
+            if (!(await pushTokenOk(req))) return json(403, { error: "forbidden" });
+            return json(200, await mailPushTick());
+        }
         // Вхідний лист (вебхук поштового сервісу)
         if (body.action === "inbound" || body.type === "email.received" || url.searchParams.get("inbound") === "1") {
             if (!secretOk(req, url, INBOUND_SECRET)) return json(403, { error: "forbidden" });
@@ -1613,6 +1834,12 @@ Deno.serve(async (req) => {
             case "mail_list": out = await actionMailList(body, me); break;
             case "mail_read": out = await actionMailRead(body, me); break;
             case "mail_move": out = await actionMailMove(body, me); break;
+            case "mail_remind": out = await actionMailRemind(body, me); break;
+            case "push_key": out = await actionPushKey(); break;
+            case "push_subscribe": out = await actionPushSubscribe(body, me); break;
+            case "push_devices": out = await actionPushDevices(me); break;
+            case "push_test": out = await actionPushTest(body, me); break;
+            case "push_remove": out = await actionPushRemove(body, me); break;
             case "reject": out = await actionReject(body, me); break;
             case "set_stage": out = await actionSetStage(body); break;
             case "add_contact": out = await actionAddContact(body); break;
