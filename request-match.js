@@ -690,11 +690,14 @@
         const n = w.length >= 3 ? w[1] : w.length === 2 ? (SUR.test(w[0]) && !SUR.test(w[1]) ? w[1] : w[0]) : w[0];
         return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
     };
-    function personalize(text, who, plate) {
+    // Привітання за годиною: до 11 — «Доброго ранку», до 18 — «Добрий день», далі — «Доброго вечора»
+    const greet = () => { const h = new Date().getHours(); return h >= 5 && h < 11 ? "Доброго ранку" : h >= 11 && h < 18 ? "Добрий день" : "Доброго вечора"; };
+    const GREET_RE = /^\s*(Добрий день|Доброго дня|Доброго ранку|Добрий ранок|Доброго вечора|Добрий вечір|Вітаю|Привіт)(\s*,\s*[^!\n]{1,30})?\s*[!,.]?\s*\n?/i;
+    function personalize(text, who) {
         const n = firstName(who);
-        let t = text;
-        if (n) t = t.replace(/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*!/i, (m, g) => `${g}, ${n}!`);
-        return t;
+        const t = text.replace(GREET_RE, "").trimStart();
+        // «Є вантаж…» після привітання лишається в тому ж рядку, як було
+        return `${greet()}${n ? ", " + n : ""}! ${t}`.replace(/! (\S)/, (m, c) => (/[📍📅🚛📦🛃]/u.test(c) ? "!\n" + c : m));
     }
     function alertPause(box, n) {
         box.querySelector(".qm-vq-pause")?.remove();
@@ -710,7 +713,7 @@
             <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
-            <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Підставляти ім'я контакту («Добрий день, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
+            <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}${x.plate ? " · 🚛 " + esc(x.plate) : ""}</small></div>
                 ${x.phones.map(([who, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}" data-vq-who="${esc(who || "")}" data-vq-plate="${esc(x.plate || "")}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>

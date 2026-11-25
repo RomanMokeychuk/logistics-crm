@@ -147,16 +147,19 @@
         return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
     };
     const persOn = () => { try { return localStorage.getItem("fura_vq_pers") !== "0"; } catch (_) { return true; } };
+    // Привітання за годиною: до 11 — «Доброго ранку», до 18 — «Добрий день», далі — «Доброго вечора»
+    const greet = () => { const h = new Date().getHours(); return h >= 5 && h < 11 ? "Доброго ранку" : h >= 11 && h < 18 ? "Добрий день" : "Доброго вечора"; };
+    const GREET_RE = /^\s*(Добрий день|Доброго дня|Доброго ранку|Добрий ранок|Доброго вечора|Добрий вечір|Вітаю|Привіт)(\s*,\s*[^!\n]{1,30})?\s*[!,.]?\s*\n?/i;
     function personalize(text, who) {
         const n = firstName(who);
-        if (/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*[!,.]/i.test(text)) return n ? text.replace(/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*[!,.]/i, (m, g) => `${g}, ${n}!`) : text;
-        return `Добрий день${n ? ", " + n : ""}!\n${text}`;
+        // своє привітання з тексту прибираємо — ставимо правильне за часом і з ім'ям
+        return `${greet()}${n ? ", " + n : ""}!\n${text.replace(GREET_RE, "").trimStart()}`;
     }
     function convHtml() {
         return `<div class="bc-conv">
             <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
             <p class="bc-muted">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
-            <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Звертатися на ім'я («Добрий день, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
+            <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <label class="bc-chk"><input type="checkbox" class="bc-ld" ${window.furaViberLongDraft?.() ? "checked" : ""}> Пробувати вставляти весь текст прямо в поле Viber (якщо обрізає — вимкніть, буде ⌘V)</label>
             <div class="bc-pause" hidden></div></div>`;
     }
