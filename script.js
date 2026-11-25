@@ -576,7 +576,9 @@ function renderDestinationsHtml(str) {
             );
             const rawRegion = dashIndex !== -1 ? pair.substring(dashIndex + 1).trim() : "";
             // прибираємо сміття, яке колись потрапило з заявок Lardi («бічне, верхнє», розміри, ПІБ…)
-            const region = escapeHtml(window.furaCleanPlaces ? window.furaCleanPlaces(rawRegion).join(", ") : rawRegion);
+            const places = window.furaCleanPlaces ? window.furaCleanPlaces(rawRegion) : rawRegion.split(",").map((x) => x.trim()).filter(Boolean);
+            // кожне місто — окремо, щоб дописати воєводство / квадрат (geo-places.js)
+            const region = places.map((pl) => `<span class="dest-place" data-country="${country}" data-city="${escapeHtml(pl)}">${escapeHtml(pl)}</span>`).join(", ");
 
             if (country && region) {
                 return `
