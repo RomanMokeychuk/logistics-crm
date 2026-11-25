@@ -537,6 +537,44 @@ function contactsListHtml(item) {
 }
 
 // Один рядок "підпис — значення" в картці
+// ⚖ Орієнтовна вантажопідйомність / об'єм за типом причепа (коли поля порожні).
+// Точні цифри з'являються самі, коли машина перевізника потрапляє в Чергу (вага причепа з техпаспорту).
+const CAP_TYPICAL = [
+    [/мега|mega|jumbo/i, "мега-тент", [22, 24], [96, 100]],
+    [/реф|рефриж|холод|ref/i, "реф", [20, 22], [80, 88]],
+    [/ізотерм|изотерм/i, "ізотерм", [21, 23], [82, 90]],
+    [/зерно|самоскид|самосвал/i, "зерновоз / самоскид", [22, 25], [45, 60]],
+    [/цистерн/i, "цистерна", [22, 25], null],
+    [/контейнер/i, "контейнеровоз", [22, 26], [33, 76]],
+    [/автовоз|платформ|трал|бортов/i, "платформа / борт", [22, 25], null],
+    [/фургон/i, "фургон", [21, 23], [80, 90]],
+    [/тент|штора/i, "тент", [22, 24], [82, 92]],
+];
+function capEstimate(item) {
+    const kinds = String(item.trailer_type || "").split(/[;,/]/).map((t) => t.trim()).filter(Boolean)
+        .map((t) => CAP_TYPICAL.find(([re]) => re.test(t))).filter(Boolean);
+    if (!kinds.length) return null;
+    const uniq = [...new Set(kinds)];
+    const rng = (k) => {
+        const xs = uniq.map((u) => u[k]).filter(Boolean);
+        return xs.length ? [Math.min(...xs.map((x) => x[0])), Math.max(...xs.map((x) => x[1]))] : null;
+    };
+    return { names: uniq.map((u) => u[1]).join(", "), t: rng(2), v: rng(3) };
+}
+// значення поля або сіра оцінка «≈ 22–24»
+function capCell(item, field, unit) {
+    if (item[field]) return `${escapeHtml(item[field])} ${unit}`;
+    const e = capEstimate(item);
+    const r = e && (field === "tonnage" ? e.t : e.v);
+    if (!r) return `— ${unit}`;
+    return `<span class="cap-est" title="Орієнтовно — типово для: ${escapeHtml(e.names)}. Точні цифри з'являться, коли машина цього перевізника буде в Черзі (за вагою причепа).">≈ ${r[0]}–${r[1]} ${unit}</span>`;
+}
+(() => {
+    const st = document.createElement("style");
+    st.textContent = ".cap-est{color:#94a3b8;font-style:italic;white-space:nowrap;cursor:help}";
+    document.head.appendChild(st);
+})();
+
 function cardRow(label, valueHtml, editKey, copyText) {
     const copy = copyText
         ? `<button type="button" class="qe-copy" data-copy="${escapeHtml(copyText)}" title="Копіювати"><i class='bx bx-copy'></i></button>`
@@ -709,8 +747,8 @@ function openCarrierCard(id) {
             <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🚛 Техніка</div>
                 ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
-                ${cardRow("Об'єм:", item.volume ? escapeHtml(item.volume) + " м³" : "", "volume")}
-                ${cardRow("Тоннаж:", item.tonnage ? escapeHtml(item.tonnage) + " т" : "", "tonnage")}
+                ${cardRow("Об'єм:", item.volume || capEstimate(item)?.v ? capCell(item, "volume", "м³") : "", "volume")}
+                ${cardRow("Тоннаж:", item.tonnage || capEstimate(item)?.t ? capCell(item, "tonnage", "т") : "", "tonnage")}
                 ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(String(item.fleet_params).replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"))}</div>`) : ""}
                 ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
             </div>
@@ -1262,8 +1300,8 @@ function renderCarriers() {
           }
         </td>
         <td>
-          <small><strong>Объем:</strong> ${item.volume || "—"} м³</small><br>
-          <small><strong>Тоннаж:</strong> ${item.tonnage || "—"} т</small><br>
+          <small><strong>Об'єм:</strong> ${capCell(item, "volume", "м³")}</small><br>
+          <small><strong>Тоннаж:</strong> ${capCell(item, "tonnage", "т")}</small><br>
           <span style="color: #0284c7;">${item.additional || ""}</span>
         </td>
         <td>${ukraineBadges}</td>
