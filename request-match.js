@@ -191,7 +191,7 @@
         const forms = codeForms(codes);
         const [carriers, routes, deals] = await Promise.all([
             inChunks(forms, async (part) => (await client.from("carriers")
-                .select("id, name, edrpou, phone_1, phone_2, tg_chat_id, rating, trailer_type, match_hidden_reason, match_hidden_until")
+                .select("id, name, edrpou, phone_1, phone_2, contact_person_1, contact_person_2, region_ukr, city, profile_url, tg_chat_id, rating, trailer_type, match_hidden_reason, match_hidden_until")
                 .in("edrpou", part)).data),
             p.importLike
                 ? inChunks(forms, async (part) => (await client.from("carrier_routes")
@@ -389,6 +389,21 @@
                     <label class="qm-check"><input type="checkbox" id="qmFit" /> лише ті, що встигають</label>
                     <button type="button" class="btn btn-secondary" data-qm="refresh"><i class="bx bx-refresh"></i> Оновити</button>
                 </div>
+                <details class="qm-help"><summary>❓ Що тут що</summary>
+                    <div class="qm-help-body">
+                        <p><b>Плитка = один перевізник</b>, у якого зараз є машини в черзі на кордоні або щойно її проїхали. Перші — найкращі під ваш запит.</p>
+                        <ul>
+                            <li><b class="qm-score-ex">59</b> — <b>бал підбору</b>: чим більше, тим краще (встигає на дату, розвантажується поруч, возить цей напрямок, були угоди з нами, є контакти).</li>
+                            <li><b>ЄДРПОУ</b> ⧉ — скопіювати код · <b>🚛 3</b> — скільки його машин у черзі зараз · <b>Lardi ↗</b> — профіль у Lardi.</li>
+                            <li><span class="qm-chip hot">щойно виїхав</span> — уже проїхав кордон у бік ЄС; <span class="qm-chip">у черзі</span> — ще стоїть.</li>
+                            <li><span class="qm-chip">з вантажем → Чехія</span> — везе вантаж, і FURA за його митною історією прогнозує, куди. <span class="qm-chip good">порожній</span> — їде без вантажу.</li>
+                            <li><span class="qm-chip hot">зворотний з тієї ж країни</span> — розвантажиться там, де ваше завантаження, і шукатиме вантаж назад — найкращий кандидат.</li>
+                            <li><b>Вільний ~26.11</b> — коли орієнтовно зможе бути на завантаженні · <b>запізнення ~2 дн.</b> — наскільки пізніше за вашу дату.</li>
+                            <li><b>Возить Чехія → Україна (58 декл.)</b> — скільки разів за митними даними він уже возив цей напрямок.</li>
+                            <li><b>Машини</b> внизу плитки: номер ⧉ · порожня / з вантажем · пункт пропуску · коли проїхав або в'їзд.</li>
+                            <li><b>+ Обрати</b> — позначити, кому запросити ставку (кнопка «Запросити ставки» внизу вікна). Блідими показані ті, хто сильно не встигає.</li>
+                        </ul>
+                    </div></details>
                 <div class="qm-note" id="qmNote"></div>
                 <div id="qmList" class="qm-list"></div>
                 <div class="qm-foot">
@@ -487,6 +502,14 @@
         render();
     }
 
+    const phoneD = (v) => {
+        let d = String(v || "").replace(/\D/g, "");
+        if (d.length === 10 && d.startsWith("0")) d = "38" + d;
+        if (d.length === 9) d = "380" + d;
+        return d.length >= 11 ? d : "";
+    };
+    const copyBtn = (v, title) => `<button type="button" class="qm-copy" data-copy="${esc(v)}" title="${esc(title || "Скопіювати")}"><i class="bx bx-copy"></i></button>`;
+
     function render() {
         const listBox = overlay.querySelector("#qmList");
         const list = current.list || [];
@@ -497,26 +520,60 @@
         listBox.innerHTML = list
             .map((x, i) => {
                 const c = x.c;
-                const b = x.g.best.t;
+                const best = x.g.best, b = best.t;
                 const can = c && (x.tg || x.phone);
                 const name = c?.name || b.carrier || "—";
+                const code = c?.edrpou || b.edrpou || x.g.code;
+                const lardi = c?.profile_url || `https://lardi-trans.com/log/search/?query=${encodeURIComponent(code)}`;
+                const place = [c?.region_ukr, String(c?.city || "").split(",")[0]].filter(Boolean).join(", ");
                 const chips = [
-                    x.g.best.passed ? `<span class="qm-chip hot">щойно виїхав</span>` : `<span class="qm-chip">у черзі</span>`,
-                    x.g.best.loaded ? `<span class="qm-chip">з вантажем${x.g.best.dest ? " → " + esc(nice(x.g.best.dest.country)) : ""}</span>` : `<span class="qm-chip good">порожній</span>`,
-                    x.g.best.sameCountry ? `<span class="qm-chip hot">зворотний з тієї ж країни</span>` : "",
+                    best.passed ? `<span class="qm-chip hot" title="Уже проїхав кордон у бік ЄС">щойно виїхав</span>` : `<span class="qm-chip" title="Ще стоїть у черзі на кордоні">у черзі</span>`,
+                    best.loaded ? `<span class="qm-chip" title="Везе вантаж; країна — прогноз за митною історією">з вантажем${best.dest ? " → " + esc(nice(best.dest.country)) : ""}</span>` : `<span class="qm-chip good">порожній</span>`,
+                    best.sameCountry ? `<span class="qm-chip hot" title="Розвантажиться в країні вашого завантаження">зворотний з тієї ж країни</span>` : "",
                     b.trailer_body ? `<span class="qm-chip">${esc(b.trailer_body)}</span>` : "",
-                    x.tg ? `<span class="qm-chip good">Telegram</span>` : x.phone ? `<span class="qm-chip">Viber/WhatsApp</span>` : `<span class="qm-chip bad">немає телефону</span>`,
+                    x.tg ? `<span class="qm-chip good">Telegram</span>` : "",
                     !c ? `<span class="qm-chip bad">немає в «Перевізниках»</span>` : "",
                 ].join("");
-                return `<div class="qm-row ${x.g.best.off > 1 ? "qm-dim" : ""}">
-                    <label class="qm-pick">${can ? `<input type="checkbox" data-pick="${esc(c.id)}" ${picked.has(String(c.id)) ? "checked" : ""} />` : `<input type="checkbox" disabled title="Немає ні Telegram, ні телефону" />`}</label>
-                    <div class="qm-main">
-                        <div class="qm-name"><span class="qm-rank">${i + 1}</span>${c ? `<a href="#" class="qm-cname fura-clink" data-carrier-card="${esc(c.id)}" title="Відкрити картку: ${esc(name)}">${esc(name)}</a>` : `<span class="qm-cname" title="${esc(name)}">${esc(name)}</span>`} ${chips}</div>
-                        <div class="qm-truck">${esc(b.tractor)}${b.trailer ? " / " + esc(b.trailer) : ""}${b.trailer_model ? ` · ${esc(b.trailer_model)}` : ""}${b.boss ? ` · керівник: ${esc(b.boss)}` : ""}</div>
-                        <div class="qm-why">${x.why.map(esc).join(" · ")}</div>
-                        ${can ? "" : phoneFormHtml(x, i)}
+                // головне — коротко
+                const ready = `вільний ~${fmtDay(best.ready)}`;
+                const late = best.off === 0 ? `<b class="qm-ok">встигає</b>` : best.late ? `<b class="qm-late">запізнення ~${best.off} дн.</b>` : `раніше на ~${best.off} дн.`;
+                const lane = x.laneN ? `возить ${esc(nice(current.p.load))} → Україна (${x.laneN} декл.)` : "";
+                const dest = best.loaded && best.dest ? `везе, ймовірно: ${esc(nice(best.dest.country))}${best.dest.cities.length ? " (" + esc(best.dest.cities.slice(0, 2).join(", ")) + ")" : ""} — ${Math.round(best.dest.conf * 100)}%` : "";
+                // контакти
+                const phones = c ? [[c.contact_person_1, c.phone_1], [c.contact_person_2, c.phone_2]]
+                    .flatMap(([who, ph]) => String(ph || "").split(/[,;]/).map((one) => [who, phoneD(one)]))
+                    .filter(([, d]) => d).slice(0, 3) : [];
+                const contacts = phones.length
+                    ? `<div class="qm-contacts">${phones.map(([who, d]) => `<div class="qm-ph"><i class="bx bxs-phone"></i>${who ? `<span class="qm-who" title="${esc(who)}">${esc(who)}</span>` : ""}<span class="qm-num">+${d}</span> <a href="viber://chat?number=%2B${d}" title="Viber"></a>${copyBtn("+" + d, "Скопіювати номер")}</div>`).join("")}</div>`
+                    : can ? "" : phoneFormHtml(x, i);
+                // машини
+                const tr = [...x.g.trucks].sort((p, q) => q.s - p.s);
+                const trucks = tr.slice(0, 3).map((y) => `<div class="qm-tk">
+                        <b class="qm-plate">${esc(y.t.tractor)}</b>${copyBtn(y.t.tractor, "Скопіювати номер машини")}
+                        <span class="qm-st ${y.loaded ? "" : "empty"}">${y.loaded ? "з вантажем" : "порожня"}</span>
+                        <span class="qm-tk-sub">· ${esc(cpShort(y.t.checkpoint))} · ${y.passed ? "проїхав " + fmtDT(y.crossed) : "в'їзд ~" + fmtDT(y.crossed)}${y.t.trailer_body ? " · " + esc(y.t.trailer_body) : ""}</span>
+                    </div>`).join("") + (tr.length > 3 ? `<div class="qm-more">ще ${tr.length - 3}…</div>` : "");
+                const isPicked = c && picked.has(String(c.id));
+                return `<div class="qm-card ${best.off > 1 ? "qm-dim" : ""} ${isPicked ? "on" : ""}">
+                    <div class="qm-c-head">
+                        <span class="qm-rank">${i + 1}</span>
+                        ${c ? `<a href="#" class="qm-cname fura-clink" data-carrier-card="${esc(c.id)}" title="Відкрити картку перевізника">${esc(name)}</a>` : `<span class="qm-cname">${esc(name)}</span>`}
+                        <span class="qm-score" title="Бал підбору: чим більше — тим краще під цей запит">${Math.round(x.score)}</span>
                     </div>
-                    <div class="qm-score" title="Бал підбору">${Math.round(x.score)}</div>
+                    <div class="qm-c-ids">
+                        <div class="qm-id"><small>ЄДРПОУ</small><b>${esc(code)}</b>${copyBtn(code, "Скопіювати ЄДРПОУ")}</div>
+                        <div class="qm-id qm-id-n" title="Машин цього перевізника в черзі / щойно проїхали">🚛 <b>${tr.length}</b></div>
+                        <a class="qm-id qm-id-l" href="${esc(lardi)}" target="_blank" rel="noopener" title="${c?.profile_url ? "Профіль у Lardi" : "Шукати в Lardi за ЄДРПОУ"}">Lardi ↗</a>
+                    </div>
+                    ${place ? `<div class="qm-place">📍 ${esc(place)}</div>` : ""}
+                    <div class="qm-chips">${chips}</div>
+                    <div class="qm-sum"><span>${ready}</span> · ${late}${dest ? `<div>${dest}</div>` : ""}${lane ? `<div>📦 ${lane}</div>` : ""}${x.dealsN ? `<div>🤝 ${x.dealsN} угод(и) з нами</div>` : ""}${x.badN ? `<div class="qm-late">⚠ ${x.badN} негативн. відгук(и)</div>` : ""}</div>
+                    ${contacts}
+                    <div class="qm-trucks">${trucks}</div>
+                    <div class="qm-c-foot">
+                        ${can ? `<button type="button" class="qm-pickbtn ${isPicked ? "on" : ""}" data-pick-btn="${esc(c.id)}">${isPicked ? "✓ Обрано" : "+ Обрати"}</button>` : `<span class="qm-nopick">Додайте телефон, щоб обрати</span>`}
+                        <details class="qm-whyd"><summary>чому</summary><div class="qm-why">${x.why.map(esc).join(" · ")}</div></details>
+                    </div>
                 </div>`;
             })
             .join("");
@@ -623,6 +680,24 @@
             if (act === "phone-open") box.querySelector("input[name=phone]").focus();
         }
         if (act === "refresh") search();
+        const pb = e.target.closest("[data-pick-btn]");
+        if (pb) {
+            const id = String(pb.dataset.pickBtn);
+            picked.has(id) ? picked.delete(id) : picked.add(id);
+            const on = picked.has(id);
+            pb.classList.toggle("on", on);
+            pb.textContent = on ? "✓ Обрано" : "+ Обрати";
+            pb.closest(".qm-card")?.classList.toggle("on", on);
+            updatePicked();
+        }
+        const cb = e.target.closest("[data-copy]");
+        if (cb) {
+            e.preventDefault();
+            navigator.clipboard?.writeText(cb.dataset.copy).then(() => {
+                cb.classList.add("done");
+                setTimeout(() => cb.classList.remove("done"), 900);
+            });
+        }
         if (act === "bids" && picked.size) {
             const q = new URLSearchParams({ request: current.r.id, carriers: [...picked].join(",") });
             window.location.href = `agents.html?${q.toString()}`;
@@ -643,7 +718,7 @@
         if (!id || !overlay?.classList.contains("active") || !current?.list) return;
         const x = current.list.find((y) => y.c && String(y.c.id) === id);
         if (!x) return;
-        const { data } = await client.from("carriers").select("id, name, edrpou, phone_1, phone_2, tg_chat_id, rating").eq("id", id).limit(1);
+        const { data } = await client.from("carriers").select("id, name, edrpou, phone_1, phone_2, contact_person_1, contact_person_2, region_ukr, city, profile_url, tg_chat_id, rating").eq("id", id).limit(1);
         if (!data || !data[0]) return;
         Object.assign(x.c, data[0]);
         x.tg = !!x.c.tg_chat_id;
