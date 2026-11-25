@@ -135,7 +135,8 @@
             // скільки вийде разом із привітанням і ім'ям (беремо довге ім'я — «Олександр»)
             const withHi = (personalOn(box) ? personalize(fullText(box), "Олександр") : fullText(box)).length;
             const fits = withHi <= 95;
-            box.querySelector(".bc-len").innerHTML = `${n} / 1000 · з привітанням ≈ <b>${withHi}</b> — ${fits ? '<span class="bc-fit">✅ Viber вставить у поле сам, лишиться Enter</span>' : '<span class="bc-nofit">довгий: у Viber натисніть ґ (або ⌘V і Enter)</span>'}`;
+            const g = window.furaViberG?.();
+            box.querySelector(".bc-len").innerHTML = `${n} / 1000 · з привітанням ≈ <b>${withHi}</b> — ${g ? '<span class="bc-fit">у Viber натисніть ґ</span>' : fits ? '<span class="bc-fit">✅ Viber вставить у поле сам, лишиться Enter</span>' : '<span class="bc-nofit">довгий: у Viber ⌘V і Enter</span>'}`;
             box.querySelector(".bc-len").classList.toggle("over", n > 1000);
         };
         const sb = box.querySelector(".bc-short"), lb = box.querySelector(".bc-long");
@@ -155,7 +156,10 @@
                 upd();
             });
         }
-        box.addEventListener("change", (e) => { if (e.target.matches(".bc-pers")) upd(); });
+        box.addEventListener("change", (e) => {
+            if (e.target.matches(".bc-gk")) window.furaViberG?.(e.target.checked);
+            if (e.target.matches(".bc-pers, .bc-gk")) upd();
+        });
         box.querySelector(".bc-price")?.addEventListener("input", (e) => {
             if (box.dataset.short !== "1" || !window.furaShortOffer) return;
             box.querySelector(".bc-text").value = window.furaShortOffer(curReq, 66, e.target.value);
@@ -189,7 +193,8 @@
     function convHtml() {
         return `<div class="bc-conv">
             <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
-            <p class="bc-muted">Конвеєр: кнопка → у Viber <b>⌘V</b> і <b>Enter</b> → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
+            <p class="bc-muted">Конвеєр: кнопка → у Viber <b>ґ</b> (або ⌘V і Enter) → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
+            <label class="bc-chk bc-g"><input type="checkbox" class="bc-gk" ${window.furaViberG?.() ? "checked" : ""}> ⌨️ У мене налаштована клавіша <b>ґ</b> (вставити й надіслати) — тоді в Viber завжди лише <b>ґ</b></label>
             <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="bc-pause" hidden></div></div>`;
     }

@@ -143,6 +143,9 @@
         viberHint.t = setTimeout(() => h.remove(), 45000);
     }
     // furaViber("380671234567", "текст") — відкрити чат з текстом; повертає true, якщо текст ліг у поле сам
+    // Перемикач «⌨️ У мене налаштована ґ» (один на всі вікна, пам'ятається на цьому комп'ютері)
+    const gMode = () => { try { return localStorage.getItem("fura_viber_g") === "1"; } catch (_) { return false; } };
+    window.furaViberG = (v) => { try { if (v === undefined) return gMode(); localStorage.setItem("fura_viber_g", v ? "1" : "0"); } catch (_) { /* */ } return !!v; };
     // Налаштування «вставляти довгий текст прямо в поле» — деякі версії Viber Desktop приймають довгу чернетку
     const longDraft = () => { try { return localStorage.getItem("fura_viber_long_draft") === "1"; } catch (_) { return false; } };
     window.furaViberLongDraft = (v) => { try { if (v === undefined) return longDraft(); localStorage.setItem("fura_viber_long_draft", v ? "1" : "0"); } catch (_) { /* */ } return !!v; };
@@ -152,10 +155,11 @@
         if (!d) return false;
         // Viber бере в поле лише ~100 символів (перевірено на Viber для Mac) — довший текст не вставляємо, щоб не відправити обрізаний
         const short = text && text.length <= SHORT;
-        const draft = short;
+        // режим «ґ» (Karabiner: ґ = вставити й надіслати) — поле лишаємо порожнім, інакше текст піде двічі
+        const draft = short && !gMode();
         if (text) copyText(text);
         location.href = `viber://chat?number=%2B${d}${draft ? "&draft=" + encodeURIComponent(text) + "&text=" + encodeURIComponent(text) : ""}`; // різні версії Viber читають draft або text
-        if (text && !short && !opts.quiet) viberHint(text, d, draft);
+        if (text && !draft && !gMode() && !opts.quiet) viberHint(text, d, draft);
         return short;
     };
     window.furaCopyText = copyText;

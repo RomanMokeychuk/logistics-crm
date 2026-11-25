@@ -714,12 +714,13 @@
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
             <div class="qm-vq-tbar"><button type="button" class="qm-vq-mini" data-vq-short title="Стислий текст ~100 символів — Viber вставить його в поле сам">✂️ Коротко</button><button type="button" class="qm-vq-mini" data-vq-long hidden>↩ Повний текст</button><input class="qm-vq-price" data-vq-price hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"><span class="qm-vq-len"></span></div>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
+            <label class="qm-vq-opt"><input type="checkbox" data-vq-g ${window.furaViberG?.() ? "checked" : ""}> ⌨️ У мене налаштована клавіша <b>ґ</b> (вставити й надіслати) — тоді в Viber завжди лише <b>ґ</b></label>
             <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}${x.plate ? " · 🚛 " + esc(x.plate) : ""}</small></div>
                 ${x.phones.map(([who, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}" data-vq-who="${esc(who || "")}" data-vq-plate="${esc(x.plate || "")}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
             ${rows.length ? `<button type="button" class="btn btn-primary qm-vq-big" data-vq-next>▶ Відкрити наступний у Viber <span>(1 з ${rows.length})</span></button>
-            <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>⌘V</b> і <b>Enter</b> → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>` : ""}
+            <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>ґ</b> (або ⌘V і Enter) → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>` : ""}
         </div>`;
         overlay.querySelector(".qm-modal").appendChild(box);
         box.querySelector("textarea").focus();
@@ -730,7 +731,7 @@
         const ta = box.querySelector("textarea"), lenEl = box.querySelector(".qm-vq-len");
         const updLen = () => {
             const n = (pers() ? personalize(ta.value.trim(), "Олександр") : ta.value.trim()).length;
-            lenEl.innerHTML = `з привітанням ≈ <b>${n}</b> — ${n <= 95 ? '<span class="ok">✅ Viber вставить сам</span>' : '<span class="no">довгий: ґ або ⌘V</span>'}`;
+            lenEl.innerHTML = `з привітанням ≈ <b>${n}</b> — ${window.furaViberG?.() ? '<span class="ok">у Viber натисніть ґ</span>' : n <= 95 ? '<span class="ok">✅ Viber вставить сам</span>' : '<span class="no">довгий: ⌘V і Enter</span>'}`;
         };
         let fullT = "";
         box.querySelector("[data-vq-short]").addEventListener("click", (e) => {
@@ -749,6 +750,7 @@
         updLen();
         box.addEventListener("change", (e) => {
             if (e.target.matches("[data-vq-draft]")) window.furaViberLongDraft?.(e.target.checked);
+            if (e.target.matches("[data-vq-g]")) { window.furaViberG?.(e.target.checked); updLen(); }
             if (e.target.matches("[data-vq-pers]")) { try { localStorage.setItem("fura_vq_pers", e.target.checked ? "1" : "0"); } catch (_) { /* */ } updLen(); }
         });
     }
