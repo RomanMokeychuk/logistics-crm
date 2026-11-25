@@ -203,11 +203,19 @@
     }
     function bindConv(box, getUi) {
         const btn = box.querySelector(".bc-next");
-        let opened = 0;
         const paint = () => {
             const ui = getUi();
             if (!ui) return;
             const left = ui.queue().length, done = ui.sent.size;
+            const L = window.furaViberLimit?.state();
+            const pz = box.querySelector(".bc-pause");
+            if (L && !L.ok && left) {
+                btn.disabled = true;
+                btn.innerHTML = `⏸ Пауза до ${new Date(L.until).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" })}`;
+                pz.hidden = false; pz.className = "bc-pause"; pz.innerHTML = L.text + " Так Viber не заблокує ваш номер.";
+                return;
+            }
+            pz.hidden = !L; pz.className = "bc-pause bc-lim-ok"; pz.textContent = L ? L.text : "";
             btn.disabled = !left;
             btn.innerHTML = left ? `<i class="bx bxl-viber"></i> ▶ Відкрити ${done ? "наступний" : "перший"} у Viber <span>(${done + 1} з ${done + left})</span>` : done ? "✅ Усім обраним відкрито" : `<i class="bx bxl-viber"></i> Оберіть перевізників зліва`;
         };
@@ -216,18 +224,13 @@
             const ui = getUi();
             const it = ui?.queue()[0];
             if (!it) return;
+            if (window.furaViberLimit && !window.furaViberLimit.state().ok) return paint();
             const text = fullText(box);
             if (text.length < 5) { box.querySelector(".bc-text").focus(); return alert("Напишіть текст повідомлення."); }
             const msg = box.querySelector(".bc-pers").checked ? personalize(text, it.who) : text;
             if (window.furaViber) window.furaViber(it.phone, msg); else location.href = `viber://chat?number=%2B${it.phone}`;
+            window.furaViberLimit?.hit();
             ui.markSent(it.id);
-            opened++;
-            if (opened % 20 === 0) {
-                const p = box.querySelector(".bc-pause");
-                p.hidden = false;
-                p.innerHTML = `☕ Ви вже написали ${opened} поспіль. Щоб Viber не прийняв це за розсилку, зробіть паузу <b>10–15 хвилин</b>. <button type="button">Зрозуміло</button>`;
-                p.querySelector("button").onclick = () => (p.hidden = true);
-            }
             paint();
             btn.focus();
         });
@@ -235,6 +238,7 @@
         box.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.target.closest("textarea, input")) { e.preventDefault(); btn.click(); }
         });
+        const tick = setInterval(() => { if (!document.body.contains(btn)) return clearInterval(tick); paint(); }, 20000);
         return paint;
     }
 
@@ -540,6 +544,7 @@
     .bc-row.sent { background: #f0fdf4; }
     .bc-ok { color: #15803d; font-weight: 700; margin-right: 6px; }
     .bc-pause { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+    .bc-pause.bc-lim-ok { background: none; border: 0; color: #9ca3af; padding: 0; font-size: 12px; }
     .bc-pause button { margin-left: 6px; border: 1px solid #fdba74; background: #fff; border-radius: 8px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 12px; }
     .bc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
     .bc-muted { color: #6b7280; font-size: 12.5px; }

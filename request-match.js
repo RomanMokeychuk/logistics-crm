@@ -698,9 +698,9 @@
         // «Є вантаж…» після привітання лишається в тому ж рядку, як було
         return `${greet()}${n ? ", " + n : ""}! ${t}`.replace(/! (\S)/, (m, c) => (/[📍📅🚛📦🛃]/u.test(c) ? "!\n" + c : m));
     }
-    function alertPause(box, n) {
+    function alertPause(box, text) {
         box.querySelector(".qm-vq-pause")?.remove();
-        box.querySelector(".qm-vq-in").insertAdjacentHTML("afterbegin", `<div class="qm-vq-pause">☕ Ви вже написали ${n} перевізникам поспіль. Щоб Viber не прийняв це за розсилку, зробіть паузу <b>10–15 хвилин</b>, потім продовжуйте. <button type="button" onclick="this.parentElement.remove()">Зрозуміло</button></div>`);
+        box.querySelector(".qm-vq-in").insertAdjacentHTML("afterbegin", `<div class="qm-vq-pause">${esc(text)} Так Viber не заблокує ваш номер. <button type="button" onclick="this.parentElement.remove()">Зрозуміло</button></div>`);
     }
     const pers = () => { try { return localStorage.getItem("fura_vq_pers") !== "0"; } catch (_) { return true; } };
     function viberQueue() {
@@ -812,12 +812,14 @@
             const text = box._finalText ? box._finalText() : box.querySelector("textarea").value.trim();
             try { localStorage.setItem("fura_vq_text", text); } catch (_) { /* */ }
             const row = vs.closest(".qm-vq-row");
+            const L = window.furaViberLimit?.state();
+            if (L && !L.ok) { alertPause(box, L.text); return; }
             const msg = pers() ? personalize(text, vs.dataset.vqWho, vs.dataset.vqPlate) : text;
             window.furaViber ? window.furaViber(vs.dataset.vqSend, msg) : (location.href = `viber://chat?number=%2B${vs.dataset.vqSend}`);
             // після кожних 20 відкритих чатів — нагадування про паузу (захист вашого номера)
-            let cnt = 0;
-            try { const o = JSON.parse(sessionStorage.getItem("fura_vq_cnt") || "{}"); cnt = Date.now() - (o.t || 0) > 20 * 60e3 ? 1 : (o.n || 0) + 1; sessionStorage.setItem("fura_vq_cnt", JSON.stringify({ n: cnt, t: Date.now() })); } catch (_) { /* */ }
-            if (cnt && cnt % 20 === 0) setTimeout(() => alertPause(box, cnt), 300);
+            window.furaViberLimit?.hit();
+            const L2 = window.furaViberLimit?.state();
+            if (L2 && !L2.ok) setTimeout(() => alertPause(box, L2.text), 300);
             row.classList.add("sent");
             vs.textContent = "✓ Відкрито";
             const next = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");

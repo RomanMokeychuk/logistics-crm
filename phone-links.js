@@ -163,6 +163,31 @@
         return short;
     };
     window.furaCopyText = copyText;
+    /* ---------- Обмежувач розсилки з особистого Viber (захист номера від блокування) ----------
+     * Не більше 20 чатів за 15 хвилин і 100 за добу з цього комп'ютера (спільно для всіх вікон FURA). */
+    const LIM = { burst: 20, burstMin: 15, day: 100 };
+    const LKEY = "fura_viber_log";
+    const logGet = () => { try { return (JSON.parse(localStorage.getItem(LKEY) || "[]") || []).filter((t) => Date.now() - t < 864e5); } catch (_) { return []; } };
+    const hhmm = (t) => new Date(t).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" });
+    window.furaViberLimit = {
+        LIM,
+        state() {
+            const log = logGet(), now = Date.now();
+            const win = log.filter((t) => now - t < LIM.burstMin * 60e3).sort((a, b) => a - b);
+            const leftDay = Math.max(0, LIM.day - log.length), leftBurst = Math.max(0, LIM.burst - win.length);
+            if (!leftDay) {
+                const at = Math.min(...log) + 864e5;
+                return { ok: false, until: at, leftDay, leftBurst, why: "day", text: `⏸ Денний ліміт ${LIM.day} повідомлень вичерпано. Наступне — о ${hhmm(at)} (завтра); далі по ${LIM.burst} кожні ${LIM.burstMin} хв.` };
+            }
+            if (!leftBurst) {
+                const at = win[0] + LIM.burstMin * 60e3;
+                const mins = Math.max(1, Math.ceil((at - now) / 60e3));
+                return { ok: false, until: at, leftDay, leftBurst, why: "burst", text: `⏸ Пауза: ${LIM.burst} повідомлень за ${LIM.burstMin} хв. Наступне — о ${hhmm(at)} (через ${mins} хв). Сьогодні ще можна ${leftDay}.` };
+            }
+            return { ok: true, leftDay, leftBurst, text: `Можна ще ${leftBurst} зараз · ${leftDay} сьогодні` };
+        },
+        hit() { const log = logGet(); log.push(Date.now()); try { localStorage.setItem(LKEY, JSON.stringify(log)); } catch (_) { /* */ } },
+    };
     // Короткий текст пропозиції (щоб разом із «Доброго вечора, Олександр!» влізло в ~95 символів —
     // тоді Viber вставляє його в поле сам, без ⌘V)
     // Кінець повного тексту: «Ціна: 2500 $. Цікавить?» або просто «Цікавить?» (якщо текст уже так не закінчується)
