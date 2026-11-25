@@ -106,6 +106,54 @@
     new MutationObserver(run).observe(document.documentElement, { childList: true, subtree: true });
     if (document.body) upgrade(document.body); else document.addEventListener("DOMContentLoaded", () => upgrade(document.body));
 
+    /* ---------- Viber з готовим текстом ----------
+     * Сайт не може сам натиснути «Надіслати» і не може вписати довгий текст у Viber:
+     * Viber приймає в посиланні лише короткий текст (~100 символів).
+     * Тому: короткий текст — одразу в полі; довгий — копіюємо, відкриваємо чат і підказуємо «Cmd+V → Enter». */
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform) || /Mac OS/.test(navigator.userAgent);
+    const touch = matchMedia("(pointer: coarse)").matches;
+    function copyText(t) {
+        let ok = false;
+        try {
+            const ta = document.createElement("textarea");
+            ta.value = t; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
+            document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+            ok = document.execCommand("copy"); ta.remove();
+        } catch (_) { /* */ }
+        try { navigator.clipboard?.writeText(t).catch(() => {}); ok = true; } catch (_) { /* */ }
+        return ok;
+    }
+    const SHORT = 90;
+    function viberHint(text, d) {
+        document.querySelector(".fv-hint")?.remove();
+        const h = document.createElement("div");
+        h.className = "fv-hint";
+        const paste = touch ? "утримуйте палець на полі повідомлення → <b>«Вставити»</b>" : `клікніть у поле повідомлення → <b>${isMac ? "⌘ Cmd + V" : "Ctrl + V"}</b>`;
+        h.innerHTML = `<button type="button" class="fv-x" title="Закрити">✕</button>
+            <div class="fv-t">📋 Текст скопійовано (${text.length} символів)</div>
+            <ol><li>Відкрився чат у Viber${d ? " з +" + d : ""}</li><li>${paste}</li><li>Натисніть <b>${touch ? "➤ Надіслати" : "Enter"}</b></li></ol>
+            <div class="fv-b"><button type="button" class="fv-again">📋 Скопіювати ще раз</button>${d ? `<a class="fv-open" href="viber://chat?number=%2B${d}">Відкрити чат знову</a>` : ""}</div>`;
+        document.body.appendChild(h);
+        h.addEventListener("click", (e) => {
+            if (e.target.closest(".fv-x")) h.remove();
+            if (e.target.closest(".fv-again")) { copyText(text); e.target.textContent = "✓ Скопійовано"; setTimeout(() => (e.target.textContent = "📋 Скопіювати ще раз"), 1200); }
+        });
+        clearTimeout(viberHint.t);
+        viberHint.t = setTimeout(() => h.remove(), 45000);
+    }
+    // furaViber("380671234567", "текст") — відкрити чат з текстом; повертає true, якщо текст ліг у поле сам
+    window.furaViber = (digits, text) => {
+        const d = norm(digits);
+        text = String(text || "").trim();
+        if (!d) return false;
+        const short = text && text.length <= SHORT && !/\n/.test(text);
+        if (text) copyText(text);
+        location.href = `viber://chat?number=%2B${d}${short ? "&draft=" + encodeURIComponent(text) : ""}`;
+        if (text && !short) viberHint(text, d);
+        return short;
+    };
+    window.furaCopyText = copyText;
+
     const css = document.createElement("style");
     css.textContent = `
     .fm-group { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; vertical-align: middle; white-space: nowrap; }
@@ -122,6 +170,14 @@
     .fm-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; color: #1f2937 !important; text-decoration: none !important; border: 0; background: none; font: inherit; cursor: pointer; text-align: left; }
     .fm-row i { font-size: 18px; width: 20px; text-align: center; }
     .fm-row:hover { background: #f6f7f9; }
+    .fv-hint { position: fixed; z-index: 2147483400; right: 18px; bottom: 18px; width: 330px; max-width: calc(100vw - 24px); background: #fff; border: 2px solid #7360f2; border-radius: 14px; box-shadow: 0 18px 44px rgba(15, 23, 42, .25); padding: 12px 14px; font-size: 13.5px; color: #1f2937; animation: fvIn .2s ease-out; }
+    .fv-t { font-weight: 800; font-size: 14px; margin-bottom: 6px; padding-right: 20px; }
+    .fv-hint ol { margin: 0 0 10px; padding-left: 20px; line-height: 1.6; }
+    .fv-x { position: absolute; top: 8px; right: 8px; border: 0; background: none; font-size: 16px; color: #9ca3af; cursor: pointer; }
+    .fv-b { display: flex; gap: 8px; flex-wrap: wrap; }
+    .fv-again, .fv-open { border: 1px solid #ddd6fe; background: #f5f3ff; color: #5b21b6 !important; border-radius: 9px; padding: 6px 10px; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; text-decoration: none !important; }
+    @media (max-width: 760px) { .fv-hint { left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); width: auto; } }
+    @keyframes fvIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
     .fm-row.fm-tel i { color: #2563eb; } .fm-row.fm-viber i { color: #7360f2; } .fm-row.fm-wa i { color: #25d366; } .fm-row.fm-tg i { color: #229ed9; } .fm-row.fm-copy i { color: #6b7280; }
     `;
     document.head.appendChild(css);

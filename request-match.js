@@ -408,6 +408,7 @@
                 <div id="qmList" class="qm-list"></div>
                 <div class="qm-foot">
                     <span id="qmPicked">Оберіть перевізників</span>
+                    <button type="button" class="btn btn-secondary qm-vbtn" data-qm="viber" disabled title="Написати обраним у свій Viber по черзі — з готовим текстом"><i class="bx bxs-message-rounded-dots"></i> Написати у Viber</button>
                     <button type="button" class="btn btn-primary" data-qm="bids" disabled><i class="bx bx-bot"></i> Запросити ставки</button>
                 </div>
             </div>`;
@@ -553,6 +554,7 @@
                         <span class="qm-st ${y.loaded ? "" : "empty"}">${y.loaded ? "з вантажем" : "порожня"}</span>
                         <span class="qm-tk-sub">· ${esc(cpShort(y.t.checkpoint))} · ${y.passed ? "проїхав " + fmtDT(y.crossed) : "в'їзд ~" + fmtDT(y.crossed)}${y.t.trailer_body ? " · " + esc(y.t.trailer_body) : ""}</span>
                     </div>`).join("") + (tr.length > 3 ? `<div class="qm-more">ще ${tr.length - 3}…</div>` : "");
+                if (c) (current.byId || (current.byId = {}))[String(c.id)] = { name, phones };
                 const isPicked = c && picked.has(String(c.id));
                 return `<div class="qm-card ${best.off > 1 ? "qm-dim" : ""} ${isPicked ? "on" : ""}">
                     <div class="qm-c-head">
@@ -656,9 +658,44 @@
     function updatePicked() {
         const btn = overlay.querySelector('[data-qm="bids"]');
         btn.disabled = !picked.size;
+        overlay.querySelector('[data-qm="viber"]').disabled = !picked.size;
         overlay.querySelector("#qmPicked").textContent = picked.size
             ? `Обрано перевізників: ${picked.size}. Агент підготує запити ставки — ви переглянете й надішлете.`
             : "Оберіть перевізників (✓), щоб запросити ставки";
+    }
+
+    // Повідомлення перевізнику: лише маршрут, дата, транспорт, вантаж — БЕЗ назви клієнта
+    function offerText(r) {
+        const place = (addr, cc) => [addr, cc && !String(addr || "").toUpperCase().includes(String(cc).toUpperCase()) ? nice(String(cc).toUpperCase()) : ""].filter(Boolean).join(", ");
+        const from = place(r.load_address, r.load_country), to = place(r.unload_address, r.unload_country);
+        const date = r.desired_date ? fmtDay(new Date(r.desired_date + "T00:00:00")) + (r.desired_date_to && r.desired_date_to !== r.desired_date ? "–" + fmtDay(new Date(r.desired_date_to + "T00:00:00")) : "") : "найближчим часом";
+        return [
+            "Добрий день! Є вантаж для вашої машини:",
+            `📍 ${from || "—"} → ${to || "—"}`,
+            `📅 Завантаження: ${date}`,
+            r.transport_type ? `🚛 ${r.transport_type}` : "",
+            [r.cargo, r.weight].filter(Boolean).length ? `📦 ${[r.cargo, r.weight].filter(Boolean).join(", ")}` : "",
+            r.border_crossing ? `🛃 Кордон: ${r.border_crossing}` : "",
+            "",
+            "Цікаво? Напишіть, будь ласка, вашу ставку і коли зможете бути на завантаженні.",
+            "Грандар, відділ автоперевезень",
+        ].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
+    }
+    function viberQueue() {
+        overlay.querySelector(".qm-vq")?.remove();
+        const rows = [...picked].map((id) => ({ id, ...(current.byId?.[id] || {}) })).filter((x) => x.phones?.length);
+        const box = document.createElement("div");
+        box.className = "qm-vq";
+        box.innerHTML = `<div class="qm-vq-in">
+            <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
+            <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
+            <textarea rows="9">${esc(offerText(current.r))}</textarea>
+            <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}</small></div>
+                ${x.phones.map(([, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
+            <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
+        </div>`;
+        overlay.querySelector(".qm-modal").appendChild(box);
+        box.querySelector("textarea").focus();
     }
 
     function onChange(e) {
@@ -697,6 +734,22 @@
                 cb.classList.add("done");
                 setTimeout(() => cb.classList.remove("done"), 900);
             });
+        }
+        if (act === "viber" && picked.size) return viberQueue();
+        if (act === "vq-close") return overlay.querySelector(".qm-vq")?.remove();
+        const vs = e.target.closest("[data-vq-send]");
+        if (vs) {
+            const box = overlay.querySelector(".qm-vq");
+            const text = box.querySelector("textarea").value.trim();
+            if (!text) return box.querySelector("textarea").focus();
+            try { localStorage.setItem("fura_vq_text", text); } catch (_) { /* */ }
+            const row = vs.closest(".qm-vq-row");
+            window.furaViber ? window.furaViber(vs.dataset.vqSend, text) : (location.href = `viber://chat?number=%2B${vs.dataset.vqSend}`);
+            row.classList.add("sent");
+            vs.textContent = "✓ Відкрито";
+            const next = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");
+            box.querySelector(".qm-vq-next").textContent = next ? "Далі: " + next.closest(".qm-vq-row").querySelector("b").textContent : "Усім відкрито ✅";
+            return;
         }
         if (act === "bids" && picked.size) {
             const q = new URLSearchParams({ request: current.r.id, carriers: [...picked].join(",") });

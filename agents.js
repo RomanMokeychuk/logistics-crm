@@ -260,7 +260,7 @@ document.getElementById("queueList").addEventListener("click", async (e) => {
         if (!text || !phone) return toast("Немає тексту або телефону", true);
         copyNow(text);
         const url = chatLink(kind, phone, text);
-        if (kind === "viber") window.location.href = url;
+        if (kind === "viber") { if (window.furaViber) window.furaViber(phone, text); else window.location.href = url; }
         else window.open(url, "_blank", "noopener");
         const box = card.querySelector("[data-confirm]");
         box.hidden = false;
