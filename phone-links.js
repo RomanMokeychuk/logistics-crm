@@ -123,7 +123,7 @@
         try { navigator.clipboard?.writeText(t).catch(() => {}); ok = true; } catch (_) { /* */ }
         return ok;
     }
-    const SHORT = 90;
+    const SHORT = 95;
     function viberHint(text, d, drafted) {
         document.querySelector(".fv-hint")?.remove();
         const h = document.createElement("div");
@@ -150,8 +150,9 @@
         const d = norm(digits);
         text = String(text || "").trim();
         if (!d) return false;
-        const short = text && text.length <= SHORT && !/\n/.test(text);
-        const draft = short || (text && longDraft());
+        // Viber бере в поле лише ~100 символів (перевірено на Viber для Mac) — довший текст не вставляємо, щоб не відправити обрізаний
+        const short = text && text.length <= SHORT;
+        const draft = short;
         if (text) copyText(text);
         location.href = `viber://chat?number=%2B${d}${draft ? "&draft=" + encodeURIComponent(text) + "&text=" + encodeURIComponent(text) : ""}`; // різні версії Viber читають draft або text
         if (text && !short && !opts.quiet) viberHint(text, d, draft);

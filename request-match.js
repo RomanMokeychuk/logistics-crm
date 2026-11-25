@@ -718,8 +718,7 @@
                 ${x.phones.map(([who, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}" data-vq-who="${esc(who || "")}" data-vq-plate="${esc(x.plate || "")}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
             ${rows.length ? `<button type="button" class="btn btn-primary qm-vq-big" data-vq-next>▶ Відкрити наступний у Viber <span>(1 з ${rows.length})</span></button>
-            <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>
-            <label class="qm-vq-opt"><input type="checkbox" data-vq-draft ${window.furaViberLongDraft?.() ? "checked" : ""}> Пробувати вставляти весь текст прямо в поле Viber (якщо ваш Viber обрізає текст — вимкніть, і буде ⌘V)</label>` : ""}
+            <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>⌘V</b> і <b>Enter</b> → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>` : ""}
         </div>`;
         overlay.querySelector(".qm-modal").appendChild(box);
         box.querySelector("textarea").focus();

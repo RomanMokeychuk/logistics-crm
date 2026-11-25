@@ -158,9 +158,8 @@
     function convHtml() {
         return `<div class="bc-conv">
             <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
-            <p class="bc-muted">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
+            <p class="bc-muted">Конвеєр: кнопка → у Viber <b>⌘V</b> і <b>Enter</b> → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
             <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
-            <label class="bc-chk"><input type="checkbox" class="bc-ld" ${window.furaViberLongDraft?.() ? "checked" : ""}> Пробувати вставляти весь текст прямо в поле Viber (якщо обрізає — вимкніть, буде ⌘V)</label>
             <div class="bc-pause" hidden></div></div>`;
     }
     function bindConv(box, getUi) {
@@ -174,7 +173,6 @@
             btn.innerHTML = left ? `<i class="bx bxl-viber"></i> ▶ Відкрити ${done ? "наступний" : "перший"} у Viber <span>(${done + 1} з ${done + left})</span>` : done ? "✅ Усім обраним відкрито" : `<i class="bx bxl-viber"></i> Оберіть перевізників зліва`;
         };
         box.querySelector(".bc-pers").addEventListener("change", (e) => { try { localStorage.setItem("fura_vq_pers", e.target.checked ? "1" : "0"); } catch (_) { /* */ } });
-        box.querySelector(".bc-ld").addEventListener("change", (e) => window.furaViberLongDraft?.(e.target.checked));
         btn.addEventListener("click", () => {
             const ui = getUi();
             const it = ui?.queue()[0];
