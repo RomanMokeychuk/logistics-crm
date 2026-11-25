@@ -129,3 +129,9 @@ a.qm-cname { color: inherit; }
 .qm-vq-row.sent { background: #f0fdf4; border-color: #bbf7d0; }
 .qm-vq-row.sent .qm-vq-go { background: #16a34a !important; border-color: #16a34a !important; }
 .qm-vq-next { font-size: 13px; color: #6b7280; text-align: center; }
+.qm-vq-big { width: 100%; justify-content: center; padding: 14px !important; font-size: 16px !important; background: #7360f2 !important; border-color: #7360f2 !important; color: #fff !important; }
+.qm-vq-big span { opacity: .8; font-weight: 500; margin-left: 4px; }
+.qm-vq-big:disabled { background: #16a34a !important; border-color: #16a34a !important; opacity: 1; }
+.qm-vq-hint2 { margin: 0; font-size: 12.5px; color: #6b7280; text-align: center; }
+.qm-vq-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: #4b5563; cursor: pointer; }
+.qm-vq-opt input { margin-top: 2px; accent-color: #7360f2; }

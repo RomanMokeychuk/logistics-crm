@@ -693,9 +693,17 @@
             <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}</small></div>
                 ${x.phones.map(([, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
+            ${rows.length ? `<button type="button" class="btn btn-primary qm-vq-big" data-vq-next>▶ Відкрити наступний у Viber <span>(1 з ${rows.length})</span></button>
+            <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>
+            <label class="qm-vq-opt"><input type="checkbox" data-vq-draft ${window.furaViberLongDraft?.() ? "checked" : ""}> Пробувати вставляти весь текст прямо в поле Viber (якщо ваш Viber обрізає текст — вимкніть, і буде ⌘V)</label>` : ""}
         </div>`;
         overlay.querySelector(".qm-modal").appendChild(box);
         box.querySelector("textarea").focus();
+        // Enter у вікні (не в тексті) — наступний перевізник
+        box.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.target.closest("textarea")) { e.preventDefault(); box.querySelector("[data-vq-next]")?.click(); }
+        });
+        box.addEventListener("change", (e) => { if (e.target.matches("[data-vq-draft]")) window.furaViberLongDraft?.(e.target.checked); });
     }
 
     function onChange(e) {
@@ -737,6 +745,12 @@
         }
         if (act === "viber" && picked.size) return viberQueue();
         if (act === "vq-close") return overlay.querySelector(".qm-vq")?.remove();
+        if (e.target.closest("[data-vq-next]")) {
+            const box = overlay.querySelector(".qm-vq");
+            const nx = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");
+            if (nx) nx.click();
+            return;
+        }
         const vs = e.target.closest("[data-vq-send]");
         if (vs) {
             const box = overlay.querySelector(".qm-vq");
@@ -749,6 +763,13 @@
             vs.textContent = "✓ Відкрито";
             const next = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");
             box.querySelector(".qm-vq-next").textContent = next ? "Далі: " + next.closest(".qm-vq-row").querySelector("b").textContent : "Усім відкрито ✅";
+            const big = box.querySelector("[data-vq-next]");
+            if (big) {
+                const all = box.querySelectorAll(".qm-vq-row").length, done = box.querySelectorAll(".qm-vq-row.sent").length;
+                big.innerHTML = next ? `▶ Відкрити наступний у Viber <span>(${done + 1} з ${all})</span>` : "✅ Усім відкрито";
+                big.disabled = !next;
+                big.focus();
+            }
             return;
         }
         if (act === "bids" && picked.size) {

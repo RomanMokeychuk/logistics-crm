@@ -124,14 +124,15 @@
         return ok;
     }
     const SHORT = 90;
-    function viberHint(text, d) {
+    function viberHint(text, d, drafted) {
         document.querySelector(".fv-hint")?.remove();
         const h = document.createElement("div");
         h.className = "fv-hint";
         const paste = touch ? "утримуйте палець на полі повідомлення → <b>«Вставити»</b>" : `клікніть у поле повідомлення → <b>${isMac ? "⌘ Cmd + V" : "Ctrl + V"}</b>`;
         h.innerHTML = `<button type="button" class="fv-x" title="Закрити">✕</button>
             <div class="fv-t">📋 Текст скопійовано (${text.length} символів)</div>
-            <ol><li>Відкрився чат у Viber${d ? " з +" + d : ""}</li><li>${paste}</li><li>Натисніть <b>${touch ? "➤ Надіслати" : "Enter"}</b></li></ol>
+            ${drafted ? `<ol><li>Відкрився чат у Viber${d ? " з +" + d : ""}, текст має стояти в полі</li><li>Якщо текст <b>обрізаний</b>: клікніть у поле → <b>${isMac ? "⌘A, потім ⌘V" : "Ctrl+A, потім Ctrl+V"}</b></li><li>Натисніть <b>${touch ? "➤ Надіслати" : "Enter"}</b></li></ol>`
+                : `<ol><li>Відкрився чат у Viber${d ? " з +" + d : ""}</li><li>${paste}</li><li>Натисніть <b>${touch ? "➤ Надіслати" : "Enter"}</b></li></ol>`}
             <div class="fv-b"><button type="button" class="fv-again">📋 Скопіювати ще раз</button>${d ? `<a class="fv-open" href="viber://chat?number=%2B${d}">Відкрити чат знову</a>` : ""}</div>`;
         document.body.appendChild(h);
         h.addEventListener("click", (e) => {
@@ -142,14 +143,18 @@
         viberHint.t = setTimeout(() => h.remove(), 45000);
     }
     // furaViber("380671234567", "текст") — відкрити чат з текстом; повертає true, якщо текст ліг у поле сам
-    window.furaViber = (digits, text) => {
+    // Налаштування «вставляти довгий текст прямо в поле» — деякі версії Viber Desktop приймають довгу чернетку
+    const longDraft = () => { try { return localStorage.getItem("fura_viber_long_draft") === "1"; } catch (_) { return false; } };
+    window.furaViberLongDraft = (v) => { try { if (v === undefined) return longDraft(); localStorage.setItem("fura_viber_long_draft", v ? "1" : "0"); } catch (_) { /* */ } return !!v; };
+    window.furaViber = (digits, text, opts = {}) => {
         const d = norm(digits);
         text = String(text || "").trim();
         if (!d) return false;
         const short = text && text.length <= SHORT && !/\n/.test(text);
+        const draft = short || (text && longDraft());
         if (text) copyText(text);
-        location.href = `viber://chat?number=%2B${d}${short ? "&draft=" + encodeURIComponent(text) : ""}`;
-        if (text && !short) viberHint(text, d);
+        location.href = `viber://chat?number=%2B${d}${draft ? "&draft=" + encodeURIComponent(text) : ""}`;
+        if (text && !short && !opts.quiet) viberHint(text, d, draft);
         return short;
     };
     window.furaCopyText = copyText;
