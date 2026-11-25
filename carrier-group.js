@@ -38,6 +38,11 @@
             if (error) throw error;
         }
         [a, b].forEach((x) => { x.group_id = gid; patchCache(x.id, { group_id: gid }); });
+        // база об'єднала інформацію компаній (carriers_group_sync.sql) — підтягуємо її в список
+        try {
+            const { data } = await db.from("carriers").select("*").eq("group_id", gid);
+            (data || []).forEach((d) => { patchCache(d.id, d); if (String(d.id) === String(a.id)) Object.assign(a, d); });
+        } catch (_) { /* */ }
         return gid;
     }
     async function unlink(item, m) {
@@ -141,7 +146,9 @@
                     if (!other) return;
                     if (String(other.id) === String(item.id)) return alert("Це та сама компанія.");
                     await link(item, other);
-                    renderCard(item);
+                    // інформація компаній об'єдналась — перемальовуємо всю картку
+                    if (typeof openCarrierCard === "function" && (typeof allCarriersCache !== "undefined" ? allCarriersCache : []).some((c) => String(c.id) === String(item.id))) openCarrierCard(item.id);
+                    else renderCard(item);
                 } catch (err) {
                     alert(/group_id/.test(err?.message || "") ? "Один раз запустіть carriers_group.sql у Supabase." : "Не вдалося: " + (err?.message || err));
                 }

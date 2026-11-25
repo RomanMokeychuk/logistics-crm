@@ -571,9 +571,19 @@ function capCell(item, field, unit) {
 }
 (() => {
     const st = document.createElement("style");
-    st.textContent = ".cap-est{color:#94a3b8;font-style:italic;white-space:nowrap;cursor:help}";
+    st.textContent = ".grp-prof{margin-top:4px;font-size:13px}.grp-prof small{color:#94a3b8;margin-left:4px}.cap-est{color:#94a3b8;font-style:italic;white-space:nowrap;cursor:help}";
     document.head.appendChild(st);
 })();
+
+// Профілі Lardi пов'язаних компаній (той самий власник) — під власним профілем у картці
+function groupProfilesHtml(item) {
+    if (!item?.group_id || typeof allCarriersCache === "undefined") return "";
+    const own = String(item.profile_url || "").replace(/\/+$/, "");
+    const seen = new Set([own]);
+    return allCarriersCache.filter((c) => c.group_id === item.group_id && String(c.id) !== String(item.id) && c.profile_url)
+        .filter((c) => { const u = String(c.profile_url).replace(/\/+$/, ""); if (seen.has(u)) return false; seen.add(u); return true; })
+        .map((c) => `<div class="grp-prof">🔗 <a href="${escapeHtml(c.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(c.profile_url))} <i class='bx bx-link-external'></i></a> <small>${escapeHtml(c.name || "")}</small></div>`).join("");
+}
 
 function cardRow(label, valueHtml, editKey, copyText) {
     const copy = copyText
@@ -733,7 +743,7 @@ function openCarrierCard(id) {
                 ${cardRow("Директор:", escapeHtml(item.director || ""), "director", item.director)}
                 ${cardRow("Область:", escapeHtml(item.region_ukr || ""), "region_ukr")}
                 ${cardRow("Місто / Адреса:", escapeHtml(item.city || ""), "city")}
-                ${cardRow("Lardi / профіль:", item.profile_url ? `<a href="${escapeHtml(item.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(item.profile_url))} <i class='bx bx-link-external'></i></a>` : "", "profile_url")}
+                ${cardRow("Lardi / профіль:", (item.profile_url ? `<a href="${escapeHtml(item.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(item.profile_url))} <i class='bx bx-link-external'></i></a>` : "") + groupProfilesHtml(item), "profile_url")}
                 ${cardRow("Фото (посилання):", item.logo_url ? `<span class="qe-link-muted">${escapeHtml(shortUrl(item.logo_url))}</span>` : "", "logo_url")}
             </div>
 
@@ -1736,6 +1746,15 @@ if (addCarrierForm) {
                     merged.region_ukr, merged.phone_1, merged.phone_2, merged.contact_person_1, merged.contact_person_2]
                     .filter(Boolean).join(" ").toLowerCase();
                 allCarriersCache[idx] = merged;
+            }
+            // пов'язані компанії отримали ту саму інформацію (тригер у базі) — оновлюємо їх у списку
+            if (saved.group_id) {
+                sbClient.from("carriers").select("*").eq("group_id", saved.group_id).neq("id", saved.id).then(({ data }) => {
+                    (data || []).forEach((d) => {
+                        const i = allCarriersCache.findIndex((c) => String(c.id) === String(d.id));
+                        if (i >= 0) { allCarriersCache[i] = { ...allCarriersCache[i], ...d }; if (typeof prepCarrierSearch === "function") prepCarrierSearch(allCarriersCache[i]); }
+                    });
+                }).catch(() => {});
             }
             const box = document.querySelector(".table-card");
             const keepTop = box ? box.scrollTop : 0;
