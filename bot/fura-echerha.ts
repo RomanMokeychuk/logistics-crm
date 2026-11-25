@@ -60,6 +60,62 @@ function rowCapacity(r: Any): { lo: number; hi: number; vlo?: number; vhi?: numb
     return out;
 }
 const rng = (a: number, b: number) => (a === b ? String(a) : `${a}–${b}`);
+/* ---------- «Додатково» в картці перевізника: «🚦 Черга 26.11: Ягодин – Дорогуськ» ----------
+ * Перевізник, чия машина стала в чергу за останні 24 год, отримує позначку в полі «Додатково»
+ * (поруч з ADR, ЕКМТ…). Стара позначка FURA замінюється новою, решта тексту не чіпається. */
+const QUEUE_MARK = /\s*🚦 Черга [^;]*;?/g;
+const kyivNow = () => {
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Kyiv", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+        .formatToParts(new Date()).map((x) => [x.type, x.value]));
+    return Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+};
+const kyivTs = (v: string) => {
+    const m = String(v || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
+    return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) : null;
+};
+async function fillQueueNote(syncId: string) {
+    const rows: Any[] = [];
+    for (let from = 0; from < 20000; from += 1000) {
+        const { data, error } = await db.from("echerha_queue").select("edrpou, reg_at, checkpoint, ua").eq("sync_id", syncId).range(from, from + 999);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < 1000) break;
+    }
+    const now = kyivNow();
+    const by = new Map<string, { cps: Set<string>; n: number; t: number }>();
+    for (const r of rows) {
+        const code = String(r.edrpou || "").replace(/\D/g, "");
+        if (code.length < 8) continue;
+        const t = kyivTs(r.reg_at);
+        if (t !== null && (now - t > 24 * 3600e3 || now - t < -3600e3)) continue; // лише ті, що стали в чергу за останню добу
+        const a = by.get(code) || { cps: new Set<string>(), n: 0, t: 0 };
+        a.cps.add(String(r.checkpoint || "").replace(/\s*\(.*$/, "").trim());
+        a.n++;
+        a.t = Math.max(a.t, t ?? now);
+        by.set(code, a);
+    }
+    let updated = 0;
+    const codes = [...by.keys()];
+    for (let i = 0; i < codes.length; i += 300) {
+        const { data: cs, error } = await db.from("carriers").select("id, edrpou, additional").in("edrpou", codes.slice(i, i + 300));
+        if (error) throw error;
+        for (const c of cs || []) {
+            const a = by.get(String(c.edrpou || "").replace(/\D/g, ""));
+            if (!a) continue;
+            const d = new Date(a.t);
+            const date = `${String(d.getUTCDate()).padStart(2, "0")}.${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+            const cps = [...a.cps].filter(Boolean).slice(0, 3).join(", ");
+            const mark = `🚦 Черга ${date}: ${cps || "кордон"}${a.n > 1 ? ` (${a.n} машини)` : ""}`;
+            const rest = String(c.additional || "").replace(QUEUE_MARK, "").trim().replace(/[;,]\s*$/, "");
+            const next = rest ? `${rest}; ${mark}` : mark;
+            if (next === String(c.additional || "")) continue;
+            const { error: e2 } = await db.from("carriers").update({ additional: next }).eq("id", c.id);
+            if (!e2) updated++;
+        }
+    }
+    return { updated };
+}
+
 async function fillCapacity(syncId: string) {
     // усі машини цього оновлення
     const rows: Any[] = [];
@@ -304,7 +360,9 @@ Deno.serve(async (req) => {
         if (sync.error) console.error("sync_echerha_carriers:", sync.error.message);
         // Тоннаж / об'єм «від–до» з причепів — у картки перевізників (carriers_capacity.sql)
         const cap = await fillCapacity(syncId).catch((e) => { console.error("capacity:", e); return null; });
-        return json(200, { ok: true, rows: count ?? 0, carriers: sync.data ?? null, capacity: cap });
+        // «🚦 Черга dd.mm: пункт» — у поле «Додатково» перевізникам, що стали в чергу за останню добу
+        const qnote = await fillQueueNote(syncId).catch((e) => { console.error("queue note:", e); return null; });
+        return json(200, { ok: true, rows: count ?? 0, carriers: sync.data ?? null, capacity: cap, queue_note: qnote });
     }
 
     // Відправку перервали — прибираємо недовантажене
