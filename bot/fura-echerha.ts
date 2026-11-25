@@ -24,7 +24,7 @@ const s = (v: unknown, max = 300) => (v === null || v === undefined ? null : Str
 
 const ROW_FIELDS = [
     "checkpoint", "country", "qtype", "queue_no", "entry_at", "reg_at", "tractor", "trailer", "carrier",
-    "edrpou", "boss", "trailer_model", "trailer_body", "trailer_kind", "trailer_weight", "note",
+    "edrpou", "boss", "trailer_model", "trailer_body", "trailer_kind", "trailer_weight", "tractor_weight", "note",
 ];
 
 /* ---------- Обрані машини (★): хто з'явився в черзі, хто проїхав ---------- */
@@ -122,6 +122,7 @@ Deno.serve(async (req) => {
             for (const f of ROW_FIELDS) o[f] = s(r[f]);
             // Нове поле — надсилаємо лише коли застосунок його передав (щоб не ламати базу без echerha_weight.sql)
             if (!o.trailer_weight) delete o.trailer_weight;
+            if (!o.tractor_weight) delete o.tractor_weight; // echerha_tractor_weight.sql
             o.checkpoint = o.checkpoint || "—";
             return o;
         });

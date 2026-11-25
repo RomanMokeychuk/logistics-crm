@@ -183,3 +183,4 @@
 .eq-chkbar-sep { width: 1px; height: 18px; background: #d1e7da; margin: 0 4px; }
 @media (max-width: 760px) { .eq-chkbar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .eq-chkbar::-webkit-scrollbar { display: none; } }
 .eq-payload { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #ecfdf3; color: #15803d; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
+.eq-payload.approx { background: #f0fdf4; color: #166534; font-weight: 600; }

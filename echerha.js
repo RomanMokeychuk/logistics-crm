@@ -501,15 +501,19 @@ const EQ = (() => {
         const m = src.match(/(\d{3,5})\s*\/\s*(\d{4,6})/);
         if (!m) return "";
         const t = (kg) => (Number(kg) / 1000).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
-        const pl = payloadT(m[1], m[2]);
+        // вага тягача: справжня (якщо Черга передала «8818 / 20500»), інакше типова 8,5 т
+        const tw = String(r.tractor_weight || "").match(/(\d{4,5})/);
+        const trKg = tw ? Number(tw[1]) : 8500;
+        const pl = payloadT(m[1], m[2], trKg);
+        const how = `40 т (закон, весь автопоїзд) − тягач ${tw ? t(trKg) + " т" : "≈8,5 т (типово; точна вага тягача невідома)"} − причіп ${t(m[1])} т` + (Number(m[2]) - Number(m[1]) < 40000 - trKg - Number(m[1]) ? `; обмежує сам причіп (${t(m[2] - m[1])} т)` : "");
         return `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>` +
-            (pl ? ` <span class="eq-payload" title="Скільки вантажу може взяти (приблизно): 40 т на весь автопоїзд − тягач ≈7,5 т − власна маса причепа ${t(m[1])} т; але не більше, ніж дозволяє сам причіп (${t(m[2] - m[1])} т)">≈ ${pl.toLocaleString("uk-UA")} т вантажу</span>` : "");
+            (pl ? ` <span class="eq-payload ${tw ? "" : "approx"}" title="${how}. Пальне й водій ще трохи зменшують.">${tw ? "" : "≈ "}${pl.toLocaleString("uk-UA")} т вантажу</span>` : "");
     }
-    // Вантажопідйомність напівпричепа (приблизно): ліміт автопоїзда 40 т, тягач ≈7,5 т; округлення вниз до 0,5 т
-    function payloadT(own, full) {
+    // Скільки вантажу бере автопоїзд: 40 т за законом − тягач − причіп (і не більше, ніж дозволяє причіп); вниз до 0,5 т
+    function payloadT(own, full, tractorKg = 8500) {
         own = Number(own); full = Number(full);
         if (!own || !full || full <= own || full < 10000) return 0; // легкі причепи / помилки — не рахуємо
-        const kg = Math.min(full - own, 40000 - 7500 - own);
+        const kg = Math.min(full - own, 40000 - tractorKg - own);
         return kg > 0 ? Math.floor(kg / 500) / 2 : 0;
     }
     function trailerInfo(r) {
