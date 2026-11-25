@@ -165,6 +165,13 @@
     window.furaCopyText = copyText;
     // Короткий текст пропозиції (щоб разом із «Доброго вечора, Олександр!» влізло в ~95 символів —
     // тоді Viber вставляє його в поле сам, без ⌘V)
+    // Кінець повного тексту: «Ціна: 2500 $. Цікавить?» або просто «Цікавить?» (якщо текст уже так не закінчується)
+    window.furaOfferTail = (text, price) => {
+        text = String(text || "").trim();
+        if (/Цікавить\?\s*$/i.test(text)) return text;
+        price = String(price || "").trim();
+        return `${text}\n\n${price ? `Ціна: ${price}. Цікавить?` : "Цікавить?"}`;
+    };
     window.furaShortOffer = (r, max = 66, price = "") => {
         r = r || {};
         const city = (addr, cc) => String(addr || "").split(/[,(]/)[0].replace(/\s+/g, " ").trim() || String(cc || "").trim();

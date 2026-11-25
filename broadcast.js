@@ -115,7 +115,7 @@
         try { sign = localStorage.getItem(SIGN_KEY) || ""; } catch (e) { /* */ }
         return `<div class="bc-text-wrap">
             <label class="bc-lbl">Текст повідомлення <small>${esc(hint)}</small>
-                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"></span>` : ""}</label>
+                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" placeholder="Ціна (необов'язково)" title="З ціною в кінці буде «Ціна: …. Цікавить?», без ціни — «Цікавить?»"></span>` : ""}</label>
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" maxlength="300" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
@@ -127,8 +127,11 @@
         const t = box.querySelector(".bc-text").value.trim();
         // у короткому режимі без підпису: у Viber і так видно, що пишете ви, з вашого номера
         if (box.dataset.short === "1") return t;
+        // повний текст: в кінці «Ціна: …. Цікавить?» / «Цікавить?» (лише для перевізників), потім підпис
+        const pr = box.querySelector(".bc-price");
+        const body = pr && window.furaOfferTail ? window.furaOfferTail(t, pr.value) : t;
         const s = box.querySelector(".bc-sign").value.trim();
-        return s ? `${t}\n\n${s}` : t;
+        return s ? `${body}\n\n${s}` : body;
     };
     function bindText(box) {
         const upd = () => {
@@ -146,13 +149,13 @@
             sb.addEventListener("click", () => {
                 full = box.querySelector(".bc-text").value;
                 box.querySelector(".bc-text").value = window.furaShortOffer ? window.furaShortOffer(curReq, 66, box.querySelector(".bc-price").value) : full.slice(0, 66);
-                box.dataset.short = "1"; sb.hidden = true; lb.hidden = false; box.querySelector(".bc-price").hidden = false;
+                box.dataset.short = "1"; sb.hidden = true; lb.hidden = false;
                 box.querySelector(".bc-sign-note").hidden = false;
                 upd();
             });
             lb.addEventListener("click", () => {
                 if (full) box.querySelector(".bc-text").value = full;
-                box.dataset.short = ""; sb.hidden = false; lb.hidden = true; box.querySelector(".bc-price").hidden = true;
+                box.dataset.short = ""; sb.hidden = false; lb.hidden = true;
                 box.querySelector(".bc-sign-note").hidden = true;
                 upd();
             });
@@ -162,8 +165,7 @@
             if (e.target.matches(".bc-pers, .bc-gk")) upd();
         });
         box.querySelector(".bc-price")?.addEventListener("input", (e) => {
-            if (box.dataset.short !== "1" || !window.furaShortOffer) return;
-            box.querySelector(".bc-text").value = window.furaShortOffer(curReq, 66, e.target.value);
+            if (box.dataset.short === "1" && window.furaShortOffer) box.querySelector(".bc-text").value = window.furaShortOffer(curReq, 66, e.target.value);
             upd();
         });
         box.querySelector(".bc-text").addEventListener("input", upd);

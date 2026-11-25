@@ -677,7 +677,6 @@
             [r.cargo, r.weight].filter(Boolean).length ? `📦 ${[r.cargo, r.weight].filter(Boolean).join(", ")}` : "",
             r.border_crossing ? `🛃 Кордон: ${r.border_crossing}` : "",
             "",
-            "Цікаво? Напишіть, будь ласка, вашу ставку і коли зможете бути на завантаженні.",
             "Грандар, відділ автоперевезень",
         ].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
     }
@@ -712,7 +711,7 @@
         box.innerHTML = `<div class="qm-vq-in">
             <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
-            <div class="qm-vq-tbar"><button type="button" class="qm-vq-mini" data-vq-short title="Стислий текст ~100 символів — Viber вставить його в поле сам">✂️ Коротко</button><button type="button" class="qm-vq-mini" data-vq-long hidden>↩ Повний текст</button><input class="qm-vq-price" data-vq-price hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"><span class="qm-vq-len"></span></div>
+            <div class="qm-vq-tbar"><button type="button" class="qm-vq-mini" data-vq-short title="Стислий текст ~100 символів — Viber вставить його в поле сам">✂️ Коротко</button><button type="button" class="qm-vq-mini" data-vq-long hidden>↩ Повний текст</button><input class="qm-vq-price" data-vq-price placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"><span class="qm-vq-len"></span></div>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
             <label class="qm-vq-opt"><input type="checkbox" data-vq-g ${window.furaViberG?.() ? "checked" : ""}><span>⌨️ У мене налаштована клавіша «ґ» (вставити й надіслати) — тоді в Viber завжди лише «ґ»</span></label>
             <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
@@ -729,23 +728,29 @@
             if (e.key === "Enter" && !e.shiftKey && !e.target.closest("textarea")) { e.preventDefault(); box.querySelector("[data-vq-next]")?.click(); }
         });
         const ta = box.querySelector("textarea"), lenEl = box.querySelector(".qm-vq-len");
+        const finalText = () => {
+            const t = ta.value.trim();
+            const short = !box.querySelector("[data-vq-long]").hidden;
+            return short || !window.furaOfferTail ? t : window.furaOfferTail(t, box.querySelector("[data-vq-price]").value);
+        };
+        box._finalText = finalText;
         const updLen = () => {
-            const n = (pers() ? personalize(ta.value.trim(), "Олександр") : ta.value.trim()).length;
+            const n = (pers() ? personalize(finalText(), "Олександр") : finalText()).length;
             lenEl.innerHTML = `з привітанням ≈ <b>${n}</b> — ${window.furaViberG?.() ? '<span class="ok">у Viber натисніть ґ</span>' : n <= 95 ? '<span class="ok">✅ Viber вставить сам</span>' : '<span class="no">довгий: ⌘V і Enter</span>'}`;
         };
         let fullT = "";
         box.querySelector("[data-vq-short]").addEventListener("click", (e) => {
             fullT = ta.value; ta.value = window.furaShortOffer ? window.furaShortOffer(current.r, 66, box.querySelector("[data-vq-price]").value) : ta.value.slice(0, 66);
-            e.currentTarget.hidden = true; box.querySelector("[data-vq-long]").hidden = false; box.querySelector("[data-vq-price]").hidden = false; updLen();
+            e.currentTarget.hidden = true; box.querySelector("[data-vq-long]").hidden = false; updLen();
         });
         box.querySelector("[data-vq-long]").addEventListener("click", (e) => {
             if (fullT) ta.value = fullT;
-            e.currentTarget.hidden = true; box.querySelector("[data-vq-short]").hidden = false; box.querySelector("[data-vq-price]").hidden = true; updLen();
+            e.currentTarget.hidden = true; box.querySelector("[data-vq-short]").hidden = false; updLen();
         });
         ta.addEventListener("input", updLen);
         box.querySelector("[data-vq-price]").addEventListener("input", (e) => {
-            if (!box.querySelector("[data-vq-short]").hidden || !window.furaShortOffer) return;
-            ta.value = window.furaShortOffer(current.r, 66, e.target.value); updLen();
+            if (box.querySelector("[data-vq-short]").hidden && window.furaShortOffer) ta.value = window.furaShortOffer(current.r, 66, e.target.value);
+            updLen();
         });
         updLen();
         box.addEventListener("change", (e) => {
@@ -803,8 +808,8 @@
         const vs = e.target.closest("[data-vq-send]");
         if (vs) {
             const box = overlay.querySelector(".qm-vq");
-            const text = box.querySelector("textarea").value.trim();
-            if (!text) return box.querySelector("textarea").focus();
+            if (!box.querySelector("textarea").value.trim()) return box.querySelector("textarea").focus();
+            const text = box._finalText ? box._finalText() : box.querySelector("textarea").value.trim();
             try { localStorage.setItem("fura_vq_text", text); } catch (_) { /* */ }
             const row = vs.closest(".qm-vq-row");
             const msg = pers() ? personalize(text, vs.dataset.vqWho, vs.dataset.vqPlate) : text;
