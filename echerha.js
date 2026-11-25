@@ -495,26 +495,59 @@ const EQ = (() => {
         return `<button type="button" class="eq-add" data-add="${esc(code)}" data-name="${esc(name)}" data-bodies="${esc(bodies || "")}" data-extra="${esc(extra || "")}"><i class="bx bx-plus"></i> Додати</button>`;
     }
 
-    // Причіп: марка, тип («Напівпричіп, платформа тентована») і вага (власна / повна, кг)
+    // Причіп: марка, тип і вага (власна / повна, кг) + скільки бере: тонни «від–до» і об'єм «від–до»
+    // Тип кузова → типовий діапазон вантажу (т, при 40 т автопоїзда) і об'єму (м³)
+    const BODY = [
+        [/мега|mega|jumbo/i, "мега-тент", [22, 24], [96, 100]],
+        [/реф|рефриж|холод|ref|kühl|frigo/i, "реф", [20, 22], [80, 88]],
+        [/ізотерм|изотерм|isoth/i, "ізотерм", [21, 23], [82, 90]],
+        [/зерно|самоскид|самосвал|kipper|tipper/i, "зерновоз / самоскид", [22, 25], [45, 60]],
+        [/цистерн|tank/i, "цистерна", [22, 25], null],
+        [/контейнер|container/i, "контейнеровоз", [22, 26], [33, 76]],
+        [/автовоз|платформа(?! тент)|трал|бортов(?!ий тент)|low/i, "платформа / борт", [22, 25], null],
+        [/фургон|box|koffer/i, "фургон", [21, 23], [80, 90]],
+        [/тент|штора|curtain|plane|тентован/i, "тент", [22, 24], [82, 92]],
+    ];
+    const bodyKind = (r) => {
+        const src = [r.trailer_body, r.trailer_kind, r.trailer_model].filter(Boolean).join(" ");
+        return BODY.find(([re]) => re.test(src)) || null;
+    };
+    const nf = (x) => Number(x).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
+    // Вантаж «від–до», т: 40 т − тягач − причіп − пальне/водій; не більше, ніж дозволяє сам причіп; крок 0,5 т
+    function payloadRange(own, full, tractorKg) {
+        own = Number(own); full = Number(full);
+        if (!own || !full || full <= own || full < 10000) return null; // легкі причепи / помилки — не рахуємо
+        const cap = full - own;
+        const lo5 = (kg) => Math.floor(kg / 500) / 2;
+        // тягач невідомий: від важкого (9,5 т) до легкого (7,8 т); відомий — його вага; мінус 0,3–0,8 т пальне й водій
+        const hiKg = Math.min(cap, 40000 - (tractorKg || 7800) - own - 300);
+        const loKg = Math.min(cap, 40000 - (tractorKg || 9500) - own - 800);
+        const hi = lo5(hiKg), lo = lo5(loKg);
+        return hi > 0 ? { lo: Math.max(0, lo), hi, cap: cap < 40000 - (tractorKg || 7800) - own } : null;
+    }
     function trailerWeight(r) {
         const src = [r.trailer_weight, r.trailer_kind, r.trailer_model].filter(Boolean).join(" ");
         const m = src.match(/(\d{3,5})\s*\/\s*(\d{4,6})/);
-        if (!m) return "";
-        const t = (kg) => (Number(kg) / 1000).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
-        // вага тягача: справжня (якщо Черга передала «8818 / 20500»), інакше типова 8,5 т
+        const body = bodyKind(r);
         const tw = String(r.tractor_weight || "").match(/(\d{4,5})/);
-        const trKg = tw ? Number(tw[1]) : 8500;
-        const pl = payloadT(m[1], m[2], trKg);
-        const how = `40 т (закон, весь автопоїзд) − тягач ${tw ? t(trKg) + " т" : "≈8,5 т (типово; точна вага тягача невідома)"} − причіп ${t(m[1])} т` + (Number(m[2]) - Number(m[1]) < 40000 - trKg - Number(m[1]) ? `; обмежує сам причіп (${t(m[2] - m[1])} т)` : "");
-        return `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>` +
-            (pl ? ` <span class="eq-payload ${tw ? "" : "approx"}" title="${how}. Пальне й водій ще трохи зменшують.">${tw ? "" : "≈ "}${pl.toLocaleString("uk-UA")} т вантажу</span>` : "");
-    }
-    // Скільки вантажу бере автопоїзд: 40 т за законом − тягач − причіп (і не більше, ніж дозволяє причіп); вниз до 0,5 т
-    function payloadT(own, full, tractorKg = 8500) {
-        own = Number(own); full = Number(full);
-        if (!own || !full || full <= own || full < 10000) return 0; // легкі причепи / помилки — не рахуємо
-        const kg = Math.min(full - own, 40000 - tractorKg - own);
-        return kg > 0 ? Math.floor(kg / 500) / 2 : 0;
+        const trKg = tw ? Number(tw[1]) : 0;
+        const t = (kg) => nf(Number(kg) / 1000);
+        let out = m ? `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>` : "";
+        // тонни
+        let tons = "", how = "";
+        const pr = m ? payloadRange(m[1], m[2], trKg) : null;
+        if (pr) {
+            tons = pr.lo === pr.hi ? `${nf(pr.hi)} т` : `${nf(pr.lo)}–${nf(pr.hi)} т`;
+            how = `40 т (закон, весь автопоїзд) − тягач ${trKg ? t(trKg) + " т" : "7,8–9,5 т (точна вага невідома)"} − причіп ${t(m[1])} т − пальне й водій 0,3–0,8 т` + (pr.cap ? `; обмежує сам причіп (${t(m[2] - m[1])} т)` : "");
+        } else if (body) {
+            tons = `${body[2][0]}–${body[2][1]} т`;
+            how = `Типово для «${body[1]}» при 40 т автопоїзда (ваги з техпаспорта немає)`;
+        }
+        // об'єм
+        const vol = body && body[3] ? `${body[3][0]}–${body[3][1]} м³` : "";
+        const volHow = body && body[3] ? `Об'єм типовий для «${body[1]}»${body[1] === "контейнеровоз" ? " (20' ≈ 33, 40' ≈ 67, 40'HC ≈ 76 м³)" : ""}` : "";
+        if (tons || vol) out += ` <span class="eq-payload ${pr ? "" : "approx"}" title="${esc([how, volHow].filter(Boolean).join(". "))}">⚖ ${[tons, vol].filter(Boolean).join(" · ")}</span>`;
+        return out;
     }
     function trailerInfo(r) {
         const kind = String(r.trailer_kind || "")
