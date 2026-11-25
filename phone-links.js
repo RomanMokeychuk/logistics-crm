@@ -170,9 +170,9 @@
         const tr = String(r.transport_type || "").split(/[,;/]/)[0].trim().toLowerCase();
         const w = String(r.weight || "").trim();
         const parts = [from && to ? `${from}→${to}` : from || to, tr, w, date && "завант. " + date].filter(Boolean);
-        // ціна вказана → «…, 2500 $. Цікавить?»; не вказана → нічого не додаємо (ставку назве перевізник)
+        // завжди закінчуємо «Цікавить?»; якщо вказана ціна — вона перед цим: «…, 2500 $. Цікавить?»
         price = String(price || "").trim();
-        const make = (p) => (price ? `${p.join(", ")}, ${price}. Цікавить?` : p.join(", "));
+        const make = (p) => `${p.join(", ")}${price ? ", " + price : ""}. Цікавить?`;
         while (parts.length > 1 && make(parts).length > max) parts.splice(parts.length - (parts.length > 2 ? 2 : 1), 1);
         let t = make(parts);
         if (t.length > max) t = t.slice(0, max - 1) + "…";

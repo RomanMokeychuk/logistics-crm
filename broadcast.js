@@ -115,7 +115,7 @@
         try { sign = localStorage.getItem(SIGN_KEY) || ""; } catch (e) { /* */ }
         return `<div class="bc-text-wrap">
             <label class="bc-lbl">Текст повідомлення <small>${esc(hint)}</small>
-                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — додасться «…, ціна. Цікавить?»"></span>` : ""}</label>
+                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"></span>` : ""}</label>
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
