@@ -71,7 +71,7 @@ const EQ = (() => {
     let CPS = [];
     let FURA = new Map(); // ЄДРПОУ (без нулів спереду) -> {id, name}
     let GROUPS = new Map(); // group_id -> [компанії групи]
-    const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], oblast: [], page: 0, sort: "entry" };
+    const st = { view: "trucks", q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], oblast: [], page: 0, sort: "entry", chk: "" };
     // «Стали в чергу» — проміжки, що не перетинаються, тому можна обирати кілька
     const FRESH = [
         { k: "до 1 год", from: 0, to: 1 },
@@ -462,6 +462,7 @@ const EQ = (() => {
             if (st.isNew && !r.is_new) return false;
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
+            if (st.chk && !chkPass(r.edrpou)) return false;
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q)) return false;
             if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
@@ -511,6 +512,81 @@ const EQ = (() => {
     }
 
     // Перевізник: логотип з картки FURA, назва відкриває картку, тоннаж / об'єм з картки
+    /* ---------- ✓ Хто що пробивав: фільтр «не пробиті / мною / колегами / конкретна людина» + хто скільки сьогодні ---------- */
+    let ME = "";
+    (async () => {
+        try {
+            const { data } = await sbClient.auth.getSession();
+            const email = (data?.session?.user?.email || "").toLowerCase();
+            const { data: s2 } = await sbClient.from("staff").select("full_name").ilike("email", email).limit(1);
+            ME = s2?.[0]?.full_name || "";
+            paintChkBar();
+        } catch (_) { /* */ }
+    })();
+    const isToday = (d) => d && new Date(d).toDateString() === new Date().toDateString();
+    function chkPass(code) {
+        const f = FURA.get(codeKey(code));
+        const by = f?.chkAt ? String(f.chkBy || "") : null;
+        if (st.chk === "none") return by === null;
+        if (by === null) return false;
+        if (st.chk === "me") return !!ME && by === ME;
+        if (st.chk === "others") return by !== ME;
+        if (st.chk === "today") return isToday(f.chkAt);
+        if (st.chk.startsWith("p:")) return by === st.chk.slice(2);
+        return true;
+    }
+    function paintChkBar() {
+        let bar = document.getElementById("eqChkBar");
+        if (!bar) {
+            const after = document.getElementById("eqFilters");
+            if (!after) return;
+            after.insertAdjacentHTML("afterend", '<div class="eq-chkbar" id="eqChkBar"></div>');
+            bar = document.getElementById("eqChkBar");
+            bar.addEventListener("click", (e) => {
+                const b = e.target.closest("[data-chk]");
+                if (!b) return;
+                st.chk = st.chk === b.dataset.chk ? "" : b.dataset.chk;
+                st.page = 0;
+                renderAll();
+            });
+        }
+        // хто скільки пробив сьогодні і всього
+        const today = new Map(), all = new Map();
+        let total = 0;
+        for (const f of FURA.values()) {
+            if (!f.chkAt) continue;
+            total++;
+            const who = String(f.chkBy || "—");
+            all.set(who, (all.get(who) || 0) + 1);
+            if (isToday(f.chkAt)) today.set(who, (today.get(who) || 0) + 1);
+        }
+        const btn = (k, t, title = "") => `<button type="button" data-chk="${esc(k)}" class="${st.chk === k ? "on" : ""}" title="${esc(title)}">${t}</button>`;
+        const short = (n) => esc(String(n).split(/\s+/)[0]);
+        const people = [...all.entries()].sort((a, b) => (today.get(b[0]) || 0) - (today.get(a[0]) || 0) || b[1] - a[1]);
+        bar.innerHTML = `<span class="eq-chkbar-l">✓ Пробиті:</span>` +
+            btn("none", "❌ ще не пробиті", "Перевізники, яких ще ніхто не перевіряв через Lardi і не редагував") +
+            (ME ? btn("me", "мною", "Кого пробивали ви") : "") +
+            btn("others", "колегами", "Кого пробивали колеги") +
+            btn("today", `сьогодні <b>${[...today.values()].reduce((a, b) => a + b, 0)}</b>`, "Пробиті сьогодні (усіма)") +
+            (people.length ? `<span class="eq-chkbar-sep"></span>` + people.map(([who, n]) => btn("p:" + who, `${who === ME ? "👤 " : ""}${short(who)} <b>${today.get(who) ? "+" + today.get(who) + " сьогодні · " : ""}${n}</b>`, `${who}: усього пробито ${n}${today.get(who) ? ", сьогодні " + today.get(who) : ""}. Натисніть — показати лише їх`)).join("") : "") +
+            (!total ? `<span class="eq-muted eq-sm">Поки ніхто не пробивав. Відкрийте перевізника → «З Lardi» — тут з'явиться ✓ і ваше ім'я.</span>` : "");
+    }
+    // Колеги пробивають — підтягуємо їхні ✓ щохвилини (лише змінене, без перезавантаження всіх перевізників)
+    let chkSince = new Date(Date.now() - 60 * 1000).toISOString();
+    setInterval(async () => {
+        if (document.hidden || !FURA?.size) return;
+        const from = chkSince;
+        chkSince = new Date().toISOString();
+        const { data, error } = await sbClient.from("carriers").select("edrpou, checked_at, checked_by, checked_how").gt("checked_at", from).limit(500);
+        if (error || !data?.length) return;
+        let n = 0;
+        for (const c of data) {
+            const f = FURA.get(codeKey(c.edrpou));
+            if (f && f.chkAt !== c.checked_at) { Object.assign(f, { chkAt: c.checked_at, chkBy: c.checked_by || "", chkHow: c.checked_how || "" }); n++; }
+        }
+        if (n) renderAll();
+    }, 60 * 1000);
+
     // ✓ Пробито — хтось уже перевіряв цього перевізника через Lardi або редагував картку
     function checkedHtml(code) {
         const f = FURA.get(codeKey(code));
@@ -752,7 +828,7 @@ const EQ = (() => {
     const FT_KEY = "fura_echerha_filters_open";
     function activeFilters() {
         return (st.cps ? 1 : 0) + st.country.length + st.oblast.length + st.qtype.length + st.fresh.length + st.bodies.size +
-            (st.notInFura ? 1 : 0) + (st.isNew ? 1 : 0) + (st.starred ? 1 : 0) + (st.showGone ? 1 : 0) + (st.ua ? 0 : 1);
+            (st.notInFura ? 1 : 0) + (st.isNew ? 1 : 0) + (st.starred ? 1 : 0) + (st.showGone ? 1 : 0) + (st.ua ? 0 : 1) + (st.chk ? 1 : 0);
     }
     function paintFiltersToggle() {
         const n = $("#eqFiltersN");
@@ -774,6 +850,7 @@ const EQ = (() => {
     })();
 
     function renderAll() {
+        paintChkBar();
         paintFiltersToggle();
         save();
         renderTable();
@@ -834,7 +911,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
-            Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], sort: "entry", oblast: [], page: 0 });
+            Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], sort: "entry", oblast: [], page: 0, chk: "" });
             fillSelects();
             renderAll();
         });

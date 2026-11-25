@@ -86,6 +86,7 @@
         if (!body || !item) return;
         const my = ++seq;
         body.querySelector("#carrierGroup")?.remove();
+        body.querySelectorAll(".cg-chk").forEach((x) => x.remove());
         const box = document.createElement("div");
         box.id = "carrierGroup";
         box.className = "cg";
@@ -93,6 +94,14 @@
         const head = body.querySelector(".card-header-block");
         if (head) head.after(box);
         else body.prepend(box);
+        // ✓ хто і коли пробивав цього перевізника (Lardi / редагування) — свіже з бази
+        sbClient.from("carriers").select("checked_at, checked_by, checked_how").eq("id", item.id).maybeSingle().then(({ data: ck }) => { // eslint-disable-line no-undef
+            if (my !== seq || !ck?.checked_at) return;
+            const el = document.createElement("div");
+            el.className = "cg-chk";
+            el.innerHTML = `✓ ${ck.checked_how === "lardi" ? "Пробито через Lardi" : "Відредаговано"}: <b>${esc(ck.checked_by || "—")}</b> · ${esc(new Date(ck.checked_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }))}`;
+            box.before(el);
+        }).catch(() => {});
         const members = await membersOf(item);
         if (my !== seq) return;
         draw(box, item, members);
@@ -159,6 +168,7 @@
 
     const css = document.createElement("style");
     css.textContent = `
+    .cg-chk { margin: 0 0 8px; padding: 6px 12px; border-radius: 10px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; font-size: 13px; }
     .cg { margin: 0 0 14px; padding: 10px 14px; border: 1px solid #ece7dc; border-radius: 14px; background: #fffdf8; }
     .cg-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
     .cg-n { font-size: 12px; font-weight: 700; color: #8a6412; background: #fff3d6; border-radius: 999px; padding: 1px 8px; }
