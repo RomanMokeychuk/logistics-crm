@@ -153,7 +153,7 @@
         const short = text && text.length <= SHORT && !/\n/.test(text);
         const draft = short || (text && longDraft());
         if (text) copyText(text);
-        location.href = `viber://chat?number=%2B${d}${draft ? "&draft=" + encodeURIComponent(text) : ""}`;
+        location.href = `viber://chat?number=%2B${d}${draft ? "&draft=" + encodeURIComponent(text) + "&text=" + encodeURIComponent(text) : ""}`; // різні версії Viber читають draft або text
         if (text && !short && !opts.quiet) viberHint(text, d, draft);
         return short;
     };
