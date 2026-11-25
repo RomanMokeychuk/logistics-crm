@@ -554,7 +554,7 @@
                         <span class="qm-st ${y.loaded ? "" : "empty"}">${y.loaded ? "з вантажем" : "порожня"}</span>
                         <span class="qm-tk-sub">· ${esc(cpShort(y.t.checkpoint))} · ${y.passed ? "проїхав " + fmtDT(y.crossed) : "в'їзд ~" + fmtDT(y.crossed)}${y.t.trailer_body ? " · " + esc(y.t.trailer_body) : ""}</span>
                     </div>`).join("") + (tr.length > 3 ? `<div class="qm-more">ще ${tr.length - 3}…</div>` : "");
-                if (c) (current.byId || (current.byId = {}))[String(c.id)] = { name, phones };
+                if (c) (current.byId || (current.byId = {}))[String(c.id)] = { name, phones, plate: tr[0]?.t.tractor || "" };
                 const isPicked = c && picked.has(String(c.id));
                 return `<div class="qm-card ${best.off > 1 ? "qm-dim" : ""} ${isPicked ? "on" : ""}">
                     <div class="qm-c-head">
@@ -681,6 +681,27 @@
             "Грандар, відділ автоперевезень",
         ].filter((x, i, a) => x !== "" || a[i - 1] !== "").join("\n");
     }
+    // Кожне повідомлення трохи інше: ім'я контакту і номер його машини — так Viber не вважає це розсилкою
+    const firstName = (who) => {
+        const w = String(who || "").replace(/[^\p{L}' -]/gu, " ").trim().split(/\s+/).filter(Boolean);
+        if (!w.length) return "";
+        // «Прізвище Ім'я По-батькові» → Ім'я; з двох слів прізвище впізнаємо за закінченням
+        const SUR = /(енко|ук|юк|чук|ов|ев|єв|ова|ева|ін|іна|ський|цький|ська|цька|ич|як|ак|ко|их|ий)$/i;
+        const n = w.length >= 3 ? w[1] : w.length === 2 ? (SUR.test(w[0]) && !SUR.test(w[1]) ? w[1] : w[0]) : w[0];
+        return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
+    };
+    function personalize(text, who, plate) {
+        const n = firstName(who);
+        let t = text;
+        if (n) t = t.replace(/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*!/i, (m, g) => `${g}, ${n}!`);
+        if (plate) t = t.replace(/для вашої машини:/i, `для вашої машини ${plate}:`);
+        return t;
+    }
+    function alertPause(box, n) {
+        box.querySelector(".qm-vq-pause")?.remove();
+        box.querySelector(".qm-vq-in").insertAdjacentHTML("afterbegin", `<div class="qm-vq-pause">☕ Ви вже написали ${n} перевізникам поспіль. Щоб Viber не прийняв це за розсилку, зробіть паузу <b>10–15 хвилин</b>, потім продовжуйте. <button type="button" onclick="this.parentElement.remove()">Зрозуміло</button></div>`);
+    }
+    const pers = () => { try { return localStorage.getItem("fura_vq_pers") !== "0"; } catch (_) { return true; } };
     function viberQueue() {
         overlay.querySelector(".qm-vq")?.remove();
         const rows = [...picked].map((id) => ({ id, ...(current.byId?.[id] || {}) })).filter((x) => x.phones?.length);
@@ -690,8 +711,9 @@
             <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
-            <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}</small></div>
-                ${x.phones.map(([, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
+            <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Підставляти ім'я контакту і номер машини («Добрий день, Вадим! Є вантаж для вашої машини AI4770OX») — кожне повідомлення різне, Viber не сприйме як спам</label>
+            <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}${x.plate ? " · 🚛 " + esc(x.plate) : ""}</small></div>
+                ${x.phones.map(([who, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}" data-vq-who="${esc(who || "")}" data-vq-plate="${esc(x.plate || "")}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
             ${rows.length ? `<button type="button" class="btn btn-primary qm-vq-big" data-vq-next>▶ Відкрити наступний у Viber <span>(1 з ${rows.length})</span></button>
             <p class="qm-vq-hint2">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або клавіша <b>Enter</b> тут). Відправляєте завжди ви самі.</p>
@@ -703,7 +725,10 @@
         box.addEventListener("keydown", (e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.target.closest("textarea")) { e.preventDefault(); box.querySelector("[data-vq-next]")?.click(); }
         });
-        box.addEventListener("change", (e) => { if (e.target.matches("[data-vq-draft]")) window.furaViberLongDraft?.(e.target.checked); });
+        box.addEventListener("change", (e) => {
+            if (e.target.matches("[data-vq-draft]")) window.furaViberLongDraft?.(e.target.checked);
+            if (e.target.matches("[data-vq-pers]")) { try { localStorage.setItem("fura_vq_pers", e.target.checked ? "1" : "0"); } catch (_) { /* */ } }
+        });
     }
 
     function onChange(e) {
@@ -758,7 +783,12 @@
             if (!text) return box.querySelector("textarea").focus();
             try { localStorage.setItem("fura_vq_text", text); } catch (_) { /* */ }
             const row = vs.closest(".qm-vq-row");
-            window.furaViber ? window.furaViber(vs.dataset.vqSend, text) : (location.href = `viber://chat?number=%2B${vs.dataset.vqSend}`);
+            const msg = pers() ? personalize(text, vs.dataset.vqWho, vs.dataset.vqPlate) : text;
+            window.furaViber ? window.furaViber(vs.dataset.vqSend, msg) : (location.href = `viber://chat?number=%2B${vs.dataset.vqSend}`);
+            // після кожних 20 відкритих чатів — нагадування про паузу (захист вашого номера)
+            let cnt = 0;
+            try { const o = JSON.parse(sessionStorage.getItem("fura_vq_cnt") || "{}"); cnt = Date.now() - (o.t || 0) > 20 * 60e3 ? 1 : (o.n || 0) + 1; sessionStorage.setItem("fura_vq_cnt", JSON.stringify({ n: cnt, t: Date.now() })); } catch (_) { /* */ }
+            if (cnt && cnt % 20 === 0) setTimeout(() => alertPause(box, cnt), 300);
             row.classList.add("sent");
             vs.textContent = "✓ Відкрито";
             const next = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");

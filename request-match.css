@@ -135,3 +135,5 @@ a.qm-cname { color: inherit; }
 .qm-vq-hint2 { margin: 0; font-size: 12.5px; color: #6b7280; text-align: center; }
 .qm-vq-opt { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; color: #4b5563; cursor: pointer; }
 .qm-vq-opt input { margin-top: 2px; accent-color: #7360f2; }
+.qm-vq-pause { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+.qm-vq-pause button { margin-left: 6px; border: 1px solid #fdba74; background: #fff; border-radius: 8px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 12px; }
