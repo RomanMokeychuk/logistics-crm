@@ -777,7 +777,17 @@ function prepCarrierSearch(item) {
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
+    // телефони лише цифрами (останні 9): знайдеться і «0503225360», і «+38 050 322-53-60»
+    item._phones = [item.phone_1, item.phone_2, ...(Array.isArray(item.extra_contacts) ? item.extra_contacts.map((c) => c?.phone) : [])]
+        .flatMap((p) => String(p || "").split(/[,;]/)).map((p) => p.replace(/\D/g, "")).filter((d) => d.length >= 9).map((d) => d.slice(-9)).join(" ");
     return item;
+}
+// пошук за телефоном у будь-якому форматі: від 6 цифр
+function phoneMatch(item, q) {
+    const d = String(q || "").replace(/\D/g, "");
+    if (d.length < 6 || /[a-zа-яіїєґ]/i.test(q)) return false;
+    if (item._phones === undefined) prepCarrierSearch(item);
+    return (item._phones || "").includes(d.length > 9 ? d.slice(-9) : d.replace(/^0/, ""));
 }
 
 const maxStamp = (rows, f, start) => rows.reduce((m, r) => (r[f] && String(r[f]) > m ? String(r[f]) : m), start || "");
@@ -1060,7 +1070,7 @@ function renderCarriers() {
 
         // Пошук за загальним рядком
         if (searchQuery) {
-            if (!(item._search || "").includes(searchQuery.toLowerCase()) && !plateMatch(item, searchQuery))
+            if (!(item._search || "").includes(searchQuery.toLowerCase()) && !plateMatch(item, searchQuery) && !phoneMatch(item, searchQuery))
                 return false;
         }
 

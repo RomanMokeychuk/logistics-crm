@@ -725,6 +725,17 @@ function personNames(c: Any): string[] {
     }
     return out.slice(0, 3);
 }
+// Телефони з картки (основні + додаткові контакти) — останні 9 цифр: 0503225360 / +380503225360 / 38 050 322-53-60 → 503225360
+function phonesOf(c: Any): string[] {
+    const raw: string[] = [c.phone_1, c.phone_2];
+    (Array.isArray(c.extra_contacts) ? c.extra_contacts : []).forEach((x: Any) => raw.push(x?.phone));
+    const out: string[] = [];
+    for (const r of raw) for (const part of String(r || "").split(/[,;/]|\s{2,}/)) {
+        const d = digitsOnly(part);
+        if (d.length >= 9 && d.length <= 13) { const k = d.slice(-9); if (!out.includes(k)) out.push(k); }
+    }
+    return out.slice(0, 5);
+}
 const normWords = (v: unknown) => String(v || "").toLowerCase().replace(/[’']/g, "").replace(/[^a-zа-яіїєґ0-9 ]/gi, " ").split(/\s+/).filter(Boolean);
 // назва профілю — з верхнього рівня (а не town.name тощо)
 const nameOfUser = (u: Any) => String(u?.nameWithBrand || u?.name || u?.fullName || u?.companyName || u?.firmName || "").trim() || pick(walk(u), /^(name|nameWithBrand|fullName|companyName)$/);
@@ -737,12 +748,20 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
     // назва без «ТОВ», лапок тощо: ТОВ "АВАНТОС" → авантос
     const core = normWords(String(c.name || "").replace(/(^|[\s"«(])(ТОВ|ПП|ФОП|ФО-П|ПрАТ|ПАТ|АТ|ТзОВ|LLC|ООО|SP\.? Z O\.?O\.?)(?=$|[\s"»),.])/gi, " ")).filter((w) => w.length > 2).join(" ");
     const people = personNames(c).map((p) => normWords(p));
+    const phones = phonesOf(c);
+    // у профілі Lardi є наш номер телефону
+    const hasPhone = (u: Any) => {
+        if (!phones.length) return "";
+        const d = walk(u).map(([, v]) => digitsOnly(String(v ?? ""))).join(" ");
+        return phones.find((p) => d.includes(p)) || "";
+    };
     // у будь-якому тексті профілю (опис діяльності, назва, примітки) — наш ЄДРПОУ, назва ТОВ або повне ПІБ
     const mentionsUs = (u: Any) => {
         const txt = " " + normWords(walk(u).map(([, v]) => (typeof v === "string" ? v : "")).join(" ")).join(" ") + " ";
         const digits = walk(u).map(([, v]) => digitsOnly(String(v ?? ""))).join(" ");
         if (code && code.length >= 8 && (digits.includes(code) || txt.includes(" " + code + " "))) return "code";
         if (core && core.length >= 4 && txt.includes(" " + core + " ")) return "name";
+        if (hasPhone(u)) return "phone";
         if (people.some((pw) => pw.length >= 3 && pw.every((w) => txt.includes(" " + w + " ")))) return "person";
         return "";
     };
@@ -758,17 +777,35 @@ async function findRef(c: Any): Promise<{ ref: string; user: Any | null; via?: A
             const ref = u.refId ?? u.id ?? u.userId;
             if (ref && core && !own.includes(core)) {
                 const why = mentionsUs(u);
-                return { ref: String(ref), user: u, via: { kind: "text", person: why === "code" ? `ЄДРПОУ ${c.edrpou} в описі профілю` : why === "name" ? `назву «${c.name}» в описі профілю` : "ПІБ з картки в описі профілю", name: nameOfUser(u), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
+                return { ref: String(ref), user: u, via: { kind: "text", person: why === "code" ? `ЄДРПОУ ${c.edrpou} в описі профілю` : why === "name" ? `назву «${c.name}» в описі профілю` : why === "phone" ? `телефон з картки в профілі` : "ПІБ з картки в описі профілю", name: nameOfUser(u), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
             }
         }
-        // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один
+        // збіг за ЄДРПОУ — надійний; за назвою — лише якщо знайшовся один (або один з нашим телефоном)
         const byCode = code ? list.find((u) => walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code)) : null;
+        const byPhone = list.filter((u) => hasPhone(u));
         // пошук за ЄДРПОУ, що дав рівно одну компанію, — це вона (Lardi шукає за кодом, але код не повертає)
-        const u = byCode || (list.length === 1 ? list[0] : null);
+        const u = byCode || (list.length === 1 ? list[0] : byPhone.length === 1 ? byPhone[0] : null);
         const ref = u && (u.refId ?? u.id ?? u.userId);
         if (ref) return { ref: String(ref), user: u };
     }
-    // Запасний шлях: за ПІБ керівника / контакту (напр. ТОВ «АВАНТОС» → у Lardi «Соболівський Олексій Михайлович, ФОП»)
+    // Запасний шлях 1: за номером телефону з картки (Lardi шукає фірми і за телефоном)
+    for (const p of phones.slice(0, 3)) {
+        for (const q of ["380" + p, "0" + p]) {
+            await sleep(300);
+            const r = await lardiGet(`/users/search?query=${encodeURIComponent(q)}&queryLimit=10`);
+            const list: Any[] = Array.isArray(r) ? r : (r?.content || r?.users || r?.items || r?.result || []);
+            if (!list.length) continue;
+            const withPhone = list.filter((u) => hasPhone(u) === p);
+            const u = withPhone.length === 1 ? withPhone[0] : list.length === 1 ? list[0] : null;
+            const ref = u && (u.refId ?? u.id ?? u.userId);
+            if (!ref) continue;
+            const own = normWords(nameOfUser(u)).join(" ");
+            const same = (core && own.includes(core)) || (code && walk(u).some(([k, v]) => /edrpou|okpo|code|inn|tax/i.test(k) && codeKey(v) === code));
+            if (same) return { ref: String(ref), user: u };
+            return { ref: String(ref), user: u, via: { kind: "phone", person: `телефон +380${p} з картки`, name: nameOfUser(u), city: cityOfUser(u) ? pick(walk(u), /^(town|city|townName|cityName|locality)(\.(name|title|value))?$/i, (v) => !/^\d+$/.test(v)) : "", sameCity: false } };
+        }
+    }
+    // Запасний шлях 2: за ПІБ керівника / контакту (напр. ТОВ «АВАНТОС» → у Lardi «Соболівський Олексій Михайлович, ФОП»)
     const myCity = normWords(c.city).find((w) => w.length > 2) || "";
     const myRegion = normWords(c.region_ukr).find((w) => w.length > 3)?.slice(0, 5) || "";
     for (const person of personNames(c)) {
@@ -817,7 +854,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
     const { ref, user, via } = await findRef(c);
     const stamp = { lardi_checked_at: new Date().toISOString(), lardi_found: !!ref };
     if (!ref) { if ("lardi_checked_at" in c) await db.from("carriers").update(stamp).eq("id", c.id); }
-    if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ, назвою і ПІБ керівника чи контактів). Якщо знаєте його профіль — вставте посилання в картку і спробуйте ще раз." } };
+    if (!ref) return { status: 200, data: { found: false, message: "У Lardi не знайшов цього перевізника (за ЄДРПОУ, назвою, телефонами і ПІБ керівника чи контактів). Якщо знаєте його профіль — вставте посилання в картку і спробуйте ще раз." } };
 
     // Методи профілю: беремо ті, що дає ключ (решта просто пропускаються)
     const tried: Record<string, boolean> = {};

@@ -177,7 +177,7 @@ const EQ = (() => {
     async function loadFura() {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
-        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, checked_at, checked_by, checked_how";
+        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, phone_1, phone_2, checked_at, checked_by, checked_how";
         const get = (cols) => Promise.all(Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select(cols).range(i * 1000, i * 1000 + 999)));
         const BASE = COLS.replace(", checked_at, checked_by, checked_how", "");
         let parts = await get(COLS + ", group_id");
@@ -187,7 +187,8 @@ const EQ = (() => {
         GROUPS = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "" };
+            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "",
+                phones: [c.phone_1, c.phone_2].flatMap((p) => String(p || "").split(/[,;]/)).map((p) => p.replace(/\D/g, "")).filter((d) => d.length >= 9).map((d) => d.slice(-9)).join(" ") };
             if (k && !FURA.has(k)) FURA.set(k, row);
             if (row.group) (GROUPS.get(row.group) || GROUPS.set(row.group, []).get(row.group)).push(row);
         }));
@@ -451,6 +452,9 @@ const EQ = (() => {
 
     function filtered() {
         const q = norm(st.q);
+        // пошук за телефоном перевізника (з його картки у FURA), будь-який формат, від 6 цифр
+        const qd = String(st.q || "").replace(/\D/g, "");
+        const qPhone = qd.length >= 6 && !/[a-zа-яіїєґ]/i.test(st.q) ? (qd.length > 9 ? qd.slice(-9) : qd.replace(/^0/, "")) : "";
         let gone = 0;
         const list = ROWS.filter((r) => {
             if (st.ua && !r.ua) return false;
@@ -463,7 +467,7 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (st.chk && !chkPass(r.edrpou)) return false;
-            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q)) return false;
+            if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q) && !(qPhone && (FURA.get(codeKey(r.edrpou))?.phones || "").includes(qPhone))) return false;
             if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
                 if (!t) return false;
