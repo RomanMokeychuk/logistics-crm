@@ -114,23 +114,48 @@
         let sign = "";
         try { sign = localStorage.getItem(SIGN_KEY) || ""; } catch (e) { /* */ }
         return `<div class="bc-text-wrap">
-            <label class="bc-lbl">Текст повідомлення <small>${esc(hint)}</small></label>
+            <label class="bc-lbl">Текст повідомлення <small>${esc(hint)}</small>
+                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button></span>` : ""}</label>
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
             <div class="bc-len"></div></div>`;
     }
+    let curReq = null; // запит, з якого пишемо перевізникам (для «✂️ Коротко»)
     const fullText = (box) => {
         const t = box.querySelector(".bc-text").value.trim();
+        // у короткому режимі без підпису: у Viber і так видно, що пишете ви, з вашого номера
+        if (box.dataset.short === "1") return t;
         const s = box.querySelector(".bc-sign").value.trim();
         return s ? `${t}\n\n${s}` : t;
     };
     function bindText(box) {
         const upd = () => {
             const n = fullText(box).length;
-            box.querySelector(".bc-len").textContent = `${n} / 1000 символів`;
+            // скільки вийде разом із привітанням і ім'ям (беремо довге ім'я — «Олександр»)
+            const withHi = (personalOn(box) ? personalize(fullText(box), "Олександр") : fullText(box)).length;
+            const fits = withHi <= 95;
+            box.querySelector(".bc-len").innerHTML = `${n} / 1000 · з привітанням ≈ <b>${withHi}</b> — ${fits ? '<span class="bc-fit">✅ Viber вставить у поле сам, лишиться Enter</span>' : '<span class="bc-nofit">довгий: у Viber натисніть ґ (або ⌘V і Enter)</span>'}`;
             box.querySelector(".bc-len").classList.toggle("over", n > 1000);
         };
+        const sb = box.querySelector(".bc-short"), lb = box.querySelector(".bc-long");
+        if (sb) {
+            let full = "";
+            sb.addEventListener("click", () => {
+                full = box.querySelector(".bc-text").value;
+                box.querySelector(".bc-text").value = window.furaShortOffer ? window.furaShortOffer(curReq) : full.slice(0, 66);
+                box.dataset.short = "1"; sb.hidden = true; lb.hidden = false;
+                box.querySelector(".bc-sign").disabled = true;
+                upd();
+            });
+            lb.addEventListener("click", () => {
+                if (full) box.querySelector(".bc-text").value = full;
+                box.dataset.short = ""; sb.hidden = false; lb.hidden = true;
+                box.querySelector(".bc-sign").disabled = false;
+                upd();
+            });
+        }
+        box.addEventListener("change", (e) => { if (e.target.matches(".bc-pers")) upd(); });
         box.querySelector(".bc-text").addEventListener("input", upd);
         box.querySelector(".bc-sign").addEventListener("input", (e) => { try { localStorage.setItem(SIGN_KEY, e.target.value); } catch (err) { /* */ } upd(); });
         upd();
@@ -155,6 +180,7 @@
         // своє привітання з тексту прибираємо — ставимо правильне за часом і з ім'ям
         return `${greet()}${n ? ", " + n : ""}!\n${text.replace(GREET_RE, "").trimStart()}`;
     }
+    const personalOn = (box) => { const c = box.querySelector(".bc-pers"); return c ? c.checked : persOn(); };
     function convHtml() {
         return `<div class="bc-conv">
             <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
@@ -255,6 +281,7 @@
     /* ---------- логіст → перевізникам ---------- */
     async function openCarriers(r) {
         const body = shell("💬 Написати перевізникам у Viber (по черзі)");
+        curReq = r || {};
         const loadC = r.load_country, unloadC = r.unload_country;
         const foreign = !isUA(unloadC) ? unloadC : !isUA(loadC) ? loadC : "";
         const country = ALIAS[upper(foreign)] || upper(foreign);
@@ -351,6 +378,7 @@
     /* ---------- Sales → клієнтам ---------- */
     async function openClients() {
         const body = shell("💬 Написати клієнтам у Viber (по черзі)");
+        curReq = null;
         const STAT = ["Працюємо", "Переговори", "Контакт", "Новий"];
         const c = { boss: false };
         try {
@@ -485,6 +513,10 @@
     .bc-type { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: #374151; padding: 6px 0; }
     .bc-type small { color: #9ca3af; }
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
+    .bc-shortbar { float: right; display: inline-flex; gap: 6px; }
+    .bc-mini { border: 1px solid #ddd6fe; background: #f5f3ff; color: #5b21b6; border-radius: 8px; padding: 2px 9px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .bc-mini[hidden] { display: none; }
+    .bc-fit { color: #15803d; font-weight: 600; } .bc-nofit { color: #9a3412; }
     .bc-conv { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
     .bc-next { width: 100%; justify-content: center; padding: 14px !important; font-size: 16px !important; }
     .bc-next span { opacity: .8; font-weight: 500; margin-left: 4px; }
