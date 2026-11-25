@@ -1,5 +1,7 @@
 /* ================================================================= *
- * FURA — 📣 VIBER-РОЗСИЛКИ (Київстар)                                  *
+ * FURA — 📣 НАПИСАТИ У VIBER ПО ЧЕРЗІ (конвеєр, з вашого Viber)        *
+ * Платний партнер (Київстар) не використовується: FURA відкриває чати *
+ * по одному з готовим текстом, Enter у Viber натискаєте ви.           *
  *   Логіст: запит → перевізникам, підібраним під маршрут (+ кого       *
  *           вкажете вручну). Текст — опис вантажу без клієнта і цін.   *
  *   Sales:  свої клієнти / ліди (за статусом, пошуком).                *
@@ -53,17 +55,10 @@
         root = document.createElement("div");
         root.className = "bc-overlay";
         root.innerHTML = `<div class="bc-modal"><div class="bc-head"><b>${title}</b>
-            <span class="bc-mode"></span>
-            <button type="button" class="bc-tab-hist" title="Історія розсилок"><i class="bx bx-history"></i> Історія</button>
             <button type="button" class="bc-x" title="Закрити">&times;</button></div><div class="bc-body"></div></div>`;
         document.body.appendChild(root);
         root.querySelector(".bc-x").onclick = close;
-        root.querySelector(".bc-tab-hist").onclick = () => history();
         root.addEventListener("mousedown", (e) => { if (e.target === root) close(); });
-        config().then((c) => {
-            const m = root?.querySelector(".bc-mode");
-            if (m) m.innerHTML = c.test ? `<span class="bc-test" title="Київстар ще не підключено: повідомлення НЕ надсилаються, лише перевірка">🧪 тестовий режим</span>` : c.sender ? `<span class="bc-live">Viber: ${esc(c.sender)}</span>` : "";
-        });
         return root.querySelector(".bc-body");
     }
     function close() { root?.remove(); root = null; }
@@ -73,16 +68,17 @@
     // items: [{ id, name, phone, sub, score }]
     function listUi(box, items, opt) {
         const sel = new Set(items.filter((x) => x.phone && x.checked !== false).map((x) => String(x.id)));
+        const sent = new Set();
         let q = "";
         const paint = () => {
             const s = q.toLowerCase();
             const shown = items.filter((x) => !s || (x.name + " " + x.sub + " " + x.phone).toLowerCase().includes(s));
-            box.querySelector(".bc-list").innerHTML = shown.length ? shown.map((x) => `<label class="bc-row ${x.phone ? "" : "nophone"}">
+            box.querySelector(".bc-list").innerHTML = shown.length ? shown.map((x) => `<label class="bc-row ${x.phone ? "" : "nophone"} ${sent.has(String(x.id)) ? "sent" : ""}">
                 <input type="checkbox" data-id="${esc(x.id)}" ${sel.has(String(x.id)) ? "checked" : ""} ${x.phone ? "" : "disabled"}>
                 <span class="bc-nm"><b>${esc(x.name || "—")}</b><small>${esc(x.sub || "")}</small></span>
-                <span class="bc-ph">${x.phone ? fmtPhone(x.phone) : "немає мобільного"}</span></label>`).join("") : `<div class="bc-empty">${esc(opt.empty || "Нікого не знайдено")}</div>`;
+                <span class="bc-ph">${sent.has(String(x.id)) ? '<b class="bc-ok">✓ відкрито</b> ' : ""}${x.phone ? fmtPhone(x.phone) : "немає мобільного"}</span></label>`).join("") : `<div class="bc-empty">${esc(opt.empty || "Нікого не знайдено")}</div>`;
             const n = sel.size;
-            box.querySelector(".bc-count").innerHTML = `Обрано <b>${n}</b> з ${items.filter((x) => x.phone).length} · ≈ ${(n * price()).toFixed(n * price() < 100 ? 1 : 0)} грн`;
+            box.querySelector(".bc-count").innerHTML = `Обрано <b>${n}</b> з ${items.filter((x) => x.phone).length}${sent.size ? ` · відкрито ${sent.size}` : ""}`;
             opt.onChange?.(n);
         };
         box.querySelector(".bc-list").addEventListener("change", (e) => {
@@ -104,6 +100,10 @@
                 paint();
             },
             repaint: paint,
+            sent,
+            // черга: обрані, ще не відкриті — у порядку списку
+            queue: () => items.filter((x) => x.phone && sel.has(String(x.id)) && !sent.has(String(x.id))),
+            markSent(id) { sent.add(String(id)); paint(); },
         };
     }
     const listHtml = (ph) => `<div class="bc-listbar"><input type="search" class="bc-q" placeholder="${esc(ph)}">
@@ -118,10 +118,7 @@
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
-            <div class="bc-len"></div>
-            <div class="bc-type"><span>Тип повідомлення у Київстару:</span>
-                <label><input type="radio" name="bcType" value="promo" ${msgType === "promo" ? "checked" : ""}> рекламне <small>≈1,75 грн</small></label>
-                <label title="Дешевше, але працює лише коли Київстар погодив шаблон тексту, і текст йому відповідає"><input type="radio" name="bcType" value="service" ${msgType === "service" ? "checked" : ""}> сервісне за шаблоном <small>≈0,85 грн</small></label></div></div>`;
+            <div class="bc-len"></div></div>`;
     }
     const fullText = (box) => {
         const t = box.querySelector(".bc-text").value.trim();
@@ -134,17 +131,72 @@
             box.querySelector(".bc-len").textContent = `${n} / 1000 символів`;
             box.querySelector(".bc-len").classList.toggle("over", n > 1000);
         };
-        box.querySelector(".bc-self")?.addEventListener("click", () => selfTest(box));
-        box.querySelectorAll('input[name="bcType"]').forEach((r) => r.addEventListener("change", () => {
-            msgType = r.value;
-            try { localStorage.setItem("fura_bc_type", msgType); } catch (e) { /* */ }
-            box.querySelector(".bc-q")?.dispatchEvent(new Event("input"));
-        }));
         box.querySelector(".bc-text").addEventListener("input", upd);
         box.querySelector(".bc-sign").addEventListener("input", (e) => { try { localStorage.setItem(SIGN_KEY, e.target.value); } catch (err) { /* */ } upd(); });
         upd();
     }
 
+
+    /* ---------- Конвеєр: по одному чату у ВАШОМУ Viber, Enter натискаєте ви ---------- */
+    // Ім'я з контакту: «Зубов Вадим Олексійович» → «Вадим»
+    const firstName = (who) => {
+        const w = String(who || "").replace(/[^\p{L}' -]/gu, " ").trim().split(/\s+/).filter(Boolean);
+        if (!w.length) return "";
+        const SUR = /(енко|ук|юк|чук|ов|ев|єв|ова|ева|ін|іна|ський|цький|ська|цька|ич|як|ак|ко|их|ий)$/i;
+        const n = w.length >= 3 ? w[1] : w.length === 2 ? (SUR.test(w[0]) && !SUR.test(w[1]) ? w[1] : w[0]) : w[0];
+        return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
+    };
+    const persOn = () => { try { return localStorage.getItem("fura_vq_pers") !== "0"; } catch (_) { return true; } };
+    function personalize(text, who) {
+        const n = firstName(who);
+        if (/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*[!,.]/i.test(text)) return n ? text.replace(/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*[!,.]/i, (m, g) => `${g}, ${n}!`) : text;
+        return `Добрий день${n ? ", " + n : ""}!\n${text}`;
+    }
+    function convHtml() {
+        return `<div class="bc-conv">
+            <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
+            <p class="bc-muted">Конвеєр: кнопка → у Viber <b>Enter</b> → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
+            <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Звертатися на ім'я («Добрий день, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
+            <label class="bc-chk"><input type="checkbox" class="bc-ld" ${window.furaViberLongDraft?.() ? "checked" : ""}> Пробувати вставляти весь текст прямо в поле Viber (якщо обрізає — вимкніть, буде ⌘V)</label>
+            <div class="bc-pause" hidden></div></div>`;
+    }
+    function bindConv(box, getUi) {
+        const btn = box.querySelector(".bc-next");
+        let opened = 0;
+        const paint = () => {
+            const ui = getUi();
+            if (!ui) return;
+            const left = ui.queue().length, done = ui.sent.size;
+            btn.disabled = !left;
+            btn.innerHTML = left ? `<i class="bx bxl-viber"></i> ▶ Відкрити ${done ? "наступний" : "перший"} у Viber <span>(${done + 1} з ${done + left})</span>` : done ? "✅ Усім обраним відкрито" : `<i class="bx bxl-viber"></i> Оберіть перевізників зліва`;
+        };
+        box.querySelector(".bc-pers").addEventListener("change", (e) => { try { localStorage.setItem("fura_vq_pers", e.target.checked ? "1" : "0"); } catch (_) { /* */ } });
+        box.querySelector(".bc-ld").addEventListener("change", (e) => window.furaViberLongDraft?.(e.target.checked));
+        btn.addEventListener("click", () => {
+            const ui = getUi();
+            const it = ui?.queue()[0];
+            if (!it) return;
+            const text = fullText(box);
+            if (text.length < 5) { box.querySelector(".bc-text").focus(); return alert("Напишіть текст повідомлення."); }
+            const msg = box.querySelector(".bc-pers").checked ? personalize(text, it.who) : text;
+            if (window.furaViber) window.furaViber(it.phone, msg); else location.href = `viber://chat?number=%2B${it.phone}`;
+            ui.markSent(it.id);
+            opened++;
+            if (opened % 20 === 0) {
+                const p = box.querySelector(".bc-pause");
+                p.hidden = false;
+                p.innerHTML = `☕ Ви вже написали ${opened} поспіль. Щоб Viber не прийняв це за розсилку, зробіть паузу <b>10–15 хвилин</b>. <button type="button">Зрозуміло</button>`;
+                p.querySelector("button").onclick = () => (p.hidden = true);
+            }
+            paint();
+            btn.focus();
+        });
+        // Enter у вікні (не в тексті) — наступний
+        box.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey && !e.target.closest("textarea, input")) { e.preventDefault(); btn.click(); }
+        });
+        return paint;
+    }
 
     async function selfTest(box) {
         const text = fullText(box);
@@ -201,7 +253,7 @@
 
     /* ---------- логіст → перевізникам ---------- */
     async function openCarriers(r) {
-        const body = shell("📣 Розсилка перевізникам у Viber");
+        const body = shell("💬 Написати перевізникам у Viber (по черзі)");
         const loadC = r.load_country, unloadC = r.unload_country;
         const foreign = !isUA(unloadC) ? unloadC : !isUA(loadC) ? loadC : "";
         const country = ALIAS[upper(foreign)] || upper(foreign);
@@ -218,16 +270,14 @@
                 ${listHtml("Пошук у списку…")}
             </section>
             <section class="bc-col">${textHtml(text, "без клієнта і ціни — як «Текст перевізнику»")}
-                <div class="bc-foot"><span class="bc-muted">Відповідати будуть дзвінком або повідомленням вам — за підписом.</span>
-                <span class="bc-btns"><button type="button" class="bc-btn-s bc-self" title="Надіслати цей текст лише на свій номер — подивитись, як виглядатиме у Viber">📱 Тест собі</button>
-                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></span></div>
+                ${convHtml()}
             </section></div>`;
         bindText(body);
         body.querySelector(".bc-list").innerHTML = `<div class="bc-empty">Підбираю перевізників…</div>`;
 
         let ui = null;
         async function load() {
-            let qb = client().from("carriers").select("id, name, edrpou, phone_1, phone_2, region_ukr, city, trailer_type, destinations, lardi_found, lardi_rating").limit(1500);
+            let qb = client().from("carriers").select("id, name, edrpou, phone_1, phone_2, contact_person_1, contact_person_2, director, region_ukr, city, trailer_type, destinations, lardi_found, lardi_rating").limit(1500);
             if (country) {
                 const alts = [country, ...Object.keys(ALIAS).filter((k) => ALIAS[k] === country)];
                 qb = qb.or(alts.map((a) => `destinations.ilike.%${a.replace(/[,()]/g, " ")}%`).join(","));
@@ -239,6 +289,7 @@
             if (error) { body.querySelector(".bc-list").innerHTML = `<div class="bc-empty">Помилка: ${esc(error.message)}</div>`; return; }
             const items = (data || []).map((c) => ({
                 id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2),
+                who: normPhone(c.phone_1) ? c.contact_person_1 || c.director || "" : c.contact_person_2 || c.director || "",
                 sub: [c.region_ukr, c.trailer_type, c.lardi_rating ? `Lardi ★${c.lardi_rating}` : ""].filter(Boolean).join(" · "),
                 score: (c.lardi_found ? 2 : 0) + Number(c.lardi_rating || 0) / 10,
             })).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, "uk"));
@@ -248,8 +299,8 @@
             extra.forEach((id) => items.some((x) => String(x.id) === id) && ui.sel.add(id));
             ui.repaint();
         }
-        body.querySelector(".bc-tr")?.addEventListener("change", load);
-        body.querySelector(".bc-lardi").addEventListener("change", load);
+        body.querySelector(".bc-tr")?.addEventListener("change", () => load().then(() => body._paintConv?.()));
+        body.querySelector(".bc-lardi").addEventListener("change", () => load().then(() => body._paintConv?.()));
         await load();
 
         // додати конкретного перевізника
@@ -264,9 +315,9 @@
                 const s = v.replace(/[,()%]/g, " ");
                 const ors = [`name.ilike.%${s}%`, `edrpou.ilike.%${s}%`];
                 if (d.length >= 5) ors.push(`phone_1.ilike.%${d.slice(-9)}%`, `phone_2.ilike.%${d.slice(-9)}%`);
-                const { data } = await client().from("carriers").select("id, name, edrpou, phone_1, phone_2, region_ukr, trailer_type").or(ors.join(",")).limit(8);
+                const { data } = await client().from("carriers").select("id, name, edrpou, phone_1, phone_2, contact_person_1, contact_person_2, director, region_ukr, trailer_type").or(ors.join(",")).limit(8);
                 sugg.hidden = false;
-                sugg.innerHTML = (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
+                sugg.innerHTML = (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), who: (normPhone(c.phone_1) ? c.contact_person_1 : c.contact_person_2) || c.director || "", sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
                     <b>${esc(c.name)}</b> <small>${esc(c.edrpou || "")} · ${esc(fmtPhone(normPhone(c.phone_1) || normPhone(c.phone_2)) || "немає мобільного")}</small></button>`).join("") || `<div class="bc-empty">Не знайдено</div>`;
             }, 250);
         });
@@ -278,14 +329,24 @@
             ui?.add(it);
             find.value = ""; sugg.hidden = true;
         });
-        body.querySelector(".bc-send").onclick = () => doSend(body, "carriers", ui, { request_id: r.id });
+        const paintConv = bindConv(body, () => ui);
+        body.querySelector(".bc-list").addEventListener("change", () => setTimeout(paintConv, 0));
+        body.querySelectorAll("[data-top], [data-all], [data-none]").forEach((b) => b.addEventListener("click", () => setTimeout(paintConv, 0)));
+        sugg.addEventListener("click", () => setTimeout(paintConv, 0));
+        body._paintConv = paintConv;
+        paintConv();
     }
 
     /* ---------- Sales → клієнтам ---------- */
     async function openClients() {
-        const body = shell("📣 Розсилка клієнтам у Viber");
-        const c = await config();
+        const body = shell("💬 Написати клієнтам у Viber (по черзі)");
         const STAT = ["Працюємо", "Переговори", "Контакт", "Новий"];
+        const c = { boss: false };
+        try {
+            const { data: { user: u0 } } = await client().auth.getUser();
+            const { data: me0 } = await client().from("staff").select("role, roles").ilike("email", u0?.email || "-").limit(1);
+            c.boss = !!me0?.[0] && (/(^|[^a-z_])(head|admin)([^a-z_]|$)/.test(JSON.stringify(me0[0].roles || "")) || ["head", "admin"].includes(me0[0].role));
+        } catch (_) { /* */ }
         body.innerHTML = `<div class="bc-grid">
             <section class="bc-col">
                 <div class="bc-filt">${STAT.map((s) => `<label class="bc-chk"><input type="checkbox" class="bc-st" value="${s}" ${s === "Працюємо" ? "checked" : ""}> ${s}</label>`).join("")}
@@ -293,9 +354,7 @@
                 ${listHtml("Пошук: назва, телефон…")}
             </section>
             <section class="bc-col">${textHtml("", "напр. вільні машини, нові напрямки, акція")}
-                <div class="bc-foot"><span class="bc-muted">Відповідати будуть дзвінком або повідомленням вам — за підписом.</span>
-                <span class="bc-btns"><button type="button" class="bc-btn-s bc-self" title="Надіслати цей текст лише на свій номер — подивитись, як виглядатиме у Viber">📱 Тест собі</button>
-                <button type="button" class="bc-btn bc-send"><i class="bx bxl-viber"></i> Надіслати</button></span></div>
+                ${convHtml()}
             </section></div>`;
         bindText(body);
         const { data: { user } } = await client().auth.getUser();
@@ -312,13 +371,18 @@
                 .map((l) => ({
                     id: l.id, name: l.name || "",
                     phone: [l.phone, ...(Array.isArray(l.contacts) ? l.contacts.map((x) => x?.phone) : [])].map(normPhone).find(Boolean) || "",
+                    who: l.contact_person || (Array.isArray(l.contacts) ? l.contacts.find((x) => x?.name)?.name : "") || "",
                     sub: [l.status, l.city, c.boss ? nameOf(l.sales_id) : ""].filter(Boolean).join(" · "),
                 }));
             ui = listUi(body, items, { empty: "Немає клієнтів з такими статусами." });
         };
         body.querySelectorAll(".bc-st, .bc-mine").forEach((x) => x.addEventListener("change", load));
         load();
-        body.querySelector(".bc-send").onclick = () => doSend(body, "clients", ui, {});
+        const paintConv = bindConv(body, () => ui);
+        body.querySelectorAll(".bc-st, .bc-mine").forEach((x) => x.addEventListener("change", () => setTimeout(paintConv, 0)));
+        body.querySelector(".bc-list").addEventListener("change", () => setTimeout(paintConv, 0));
+        body.querySelectorAll("[data-top], [data-all], [data-none]").forEach((b) => b.addEventListener("click", () => setTimeout(paintConv, 0)));
+        paintConv();
     }
 
     /* ---------- історія ---------- */
@@ -410,6 +474,14 @@
     .bc-type { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: #374151; padding: 6px 0; }
     .bc-type small { color: #9ca3af; }
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
+    .bc-conv { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
+    .bc-next { width: 100%; justify-content: center; padding: 14px !important; font-size: 16px !important; }
+    .bc-next span { opacity: .8; font-weight: 500; margin-left: 4px; }
+    .bc-next:disabled { opacity: .7; cursor: default; }
+    .bc-row.sent { background: #f0fdf4; }
+    .bc-ok { color: #15803d; font-weight: 700; margin-right: 6px; }
+    .bc-pause { background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.5; }
+    .bc-pause button { margin-left: 6px; border: 1px solid #fdba74; background: #fff; border-radius: 8px; padding: 2px 10px; cursor: pointer; font: inherit; font-size: 12px; }
     .bc-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; }
     .bc-muted { color: #6b7280; font-size: 12.5px; }
     .bc-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 1px solid #7c3aed; border-radius: 11px; background: linear-gradient(180deg, #8b5cf6, #7c3aed); color: #fff; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }

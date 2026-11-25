@@ -1866,7 +1866,7 @@ function openRequestCard(id) {
 
         <div class="card-section rq-details">
             <div class="card-section-title"><span><i class='bx bx-package'></i> Деталі запиту</span>
-                <span class="rq-title-acts">${currentStaff && hasRole(currentStaff, ["logist", "head", "admin"]) ? `<button type="button" class="btn-answer rq-carrier-text rq-bc-btn" id="carrierBcBtn" title="Розіслати цей запит перевізникам у Viber (без клієнта і цін)"><i class='bx bxl-viber'></i> Розіслати перевізникам</button>` : ""}<button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button></span>
+                <span class="rq-title-acts">${currentStaff && hasRole(currentStaff, ["logist", "head", "admin"]) ? `<button type="button" class="btn-answer rq-carrier-text rq-bc-btn" id="carrierBcBtn" title="Написати перевізникам у ваш Viber по черзі — готовий текст без клієнта і цін"><i class='bx bxl-viber'></i> Написати перевізникам</button>` : ""}<button type="button" class="btn-answer rq-carrier-text" id="carrierTextBtn" title="Готовий текст про вантаж — скопіювати й надіслати перевізнику (без клієнта і цін)"><i class='bx bx-copy-alt'></i> Текст перевізнику</button></span>
             </div>
             <div class="rq-grid">
                 <div class="rq-group">
