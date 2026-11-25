@@ -572,7 +572,8 @@
     /* ---------------------------------------------------------------- *
      * 3. Нижня панель на телефоні                                      *
      * ---------------------------------------------------------------- */
-    const page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
+    let page = (location.pathname.split("/").pop() || "home.html").toLowerCase();
+    if (!page.includes(".")) page += ".html";
     const NO_BAR = /^(login|cabinet|tg-answer|tg-request|truck)\.html$/;
     function buildBar() {
         if (window.top !== window.self || NO_BAR.test(page) || document.querySelector(".mk-bar") || !document.querySelector("main.main-content")) return;

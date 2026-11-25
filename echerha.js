@@ -58,7 +58,7 @@ const EQ = (() => {
         const f = FURA.get(codeKey(code));
         const others = f?.group ? (GROUPS.get(f.group) || []).filter((x) => x.id !== f.id) : [];
         if (!others.length) return "";
-        return `<div class="eq-sm eq-group" title="Пов'язані компанії — той самий власник">🔗 ${others.map((x) => `<a href="index.html?open=${encodeURIComponent(x.id)}" data-carrier-card="${esc(x.id)}" class="eq-glink">${esc(x.name)}</a>${x.edrpou ? ` <span class="eq-mono">${esc(x.edrpou)}</span>` : ""}`).join(", ")}</div>`;
+        return `<div class="eq-sm eq-group" title="Пов'язані компанії — той самий власник">🔗 ${others.map((x) => `<a href="carriers.html?open=${encodeURIComponent(x.id)}" data-carrier-card="${esc(x.id)}" class="eq-glink">${esc(x.name)}</a>${x.edrpou ? ` <span class="eq-mono">${esc(x.edrpou)}</span>` : ""}`).join(", ")}</div>`;
     };
     // Пошук не залежить від розкладки: кирилична «АТ4287СА» = латинська «AT4287CA»
     const LOOK = { а: "a", в: "b", е: "e", і: "i", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", х: "x", у: "y" };
@@ -484,7 +484,7 @@ const EQ = (() => {
         const k = codeKey(code);
         if (!k) return `<span class="eq-muted">—</span>`;
         const f = FURA.get(k);
-        if (f) return `<a class="eq-in" href="index.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" title="Відкрити картку у FURA"><i class="bx bx-check-circle"></i> Картка</a>`;
+        if (f) return `<a class="eq-in" href="carriers.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" title="Відкрити картку у FURA"><i class="bx bx-check-circle"></i> Картка</a>`;
         return `<button type="button" class="eq-add" data-add="${esc(code)}" data-name="${esc(name)}" data-bodies="${esc(bodies || "")}" data-extra="${esc(extra || "")}"><i class="bx bx-plus"></i> Додати</button>`;
     }
 
@@ -517,7 +517,7 @@ const EQ = (() => {
             ? `<img class="eq-clogo" src="${esc(f.logo)}" alt="" loading="lazy" onerror="this.remove()">`
             : "";
         const cap = [f.tonnage ? `до ${esc(f.tonnage)} т` : "", f.volume ? `${esc(f.volume)} м³` : ""].filter(Boolean).join(" · ");
-        return `<a href="index.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" class="eq-carrier" title="Відкрити картку перевізника">${logo}<span>${name}</span></a>` +
+        return `<a href="carriers.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" class="eq-carrier" title="Відкрити картку перевізника">${logo}<span>${name}</span></a>` +
             (cap ? `<div class="eq-cap" title="З картки перевізника у FURA">⚖ ${cap}</div>` : "");
     }
 

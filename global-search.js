@@ -96,7 +96,7 @@
                 group(deals, (d) => d.carrier_id || d.carrier_name).slice(0, 4).forEach((a) => {
                     const d = a[0];
                     out.push({
-                        href: d.carrier_id ? `index.html?open=${encodeURIComponent(d.carrier_id)}` : `deals.html?q=${encodeURIComponent(d.carrier_name)}`,
+                        href: d.carrier_id ? `carriers.html?open=${encodeURIComponent(d.carrier_id)}` : `deals.html?q=${encodeURIComponent(d.carrier_name)}`,
                         carrier: d.carrier_id || null,
                         title: `🚛 ${d.carrier_name || "Перевізник"}`,
                         sub: `возив: ${goods(a)} · ${a.length} рейс(и) · останній ${dShort(d.load_date)}`,
@@ -122,7 +122,7 @@
                         seenC.add(String(c.id));
                         const recs = a.reduce((n, r) => n + (Number(r.records) || 1), 0);
                         out.push({
-                            href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id,
+                            href: `carriers.html?open=${encodeURIComponent(c.id)}`, carrier: c.id,
                             title: `🚛 ${c.name}`,
                             sub: `митниця: ${snip(a[0].goods)} · ${recs} запис(и) · ${[...new Set(a.map((r) => r.country))].slice(0, 3).join(", ")}`,
                         });
@@ -144,14 +144,14 @@
                         const last = a.map((r) => r.last_month).sort().pop() || "";
                         const sub = `${[...new Set(a.map((r) => r.direction))].join("+").toLowerCase()} · ${snip(a[0].goods)} · ${recs} перевез. · ост. ${last.split("-").reverse().join(".")} · ${String(a[0].countries || "").split(", ").slice(0, 2).join(", ")}`;
                         out.push(c
-                            ? { href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub }
+                            ? { href: `carriers.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub }
                             : { href: `https://opendatabot.ua/c/${encodeURIComponent(a[0].edrpou)}`, title: `🚚 ${a[0].carrier || a[0].edrpou} · немає у FURA`, sub: `ЄДРПОУ ${a[0].edrpou} · ${sub}` });
                     });
                 }
                 notes.forEach((c) => {
                     if (seenC.has(String(c.id)) || out.length >= 10) return;
                     seenC.add(String(c.id));
-                    out.push({ href: `index.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub: `у картці: ${snip(c.notes)}` });
+                    out.push({ href: `carriers.html?open=${encodeURIComponent(c.id)}`, carrier: c.id, title: `🚛 ${c.name}`, sub: `у картці: ${snip(c.notes)}` });
                 });
                 // Клієнти, які відправляли (угоди + запити) і в кого це у «Що возить / виробляє»
                 const cl = group([...deals.map((d) => ({ name: d.client, cargo: d.cargo })), ...reqs.map((r) => ({ name: r.client, cargo: r.cargo, id: r.lead_id }))], (x) => String(x.name || "").trim().toLowerCase());
@@ -256,7 +256,7 @@
                     .filter((x) => !seen.has(x.c.id) && seen.add(x.c.id))
                     .slice(0, 8)
                     .map(({ c, plate }) => ({
-                        href: `index.html?open=${encodeURIComponent(c.id)}`,
+                        href: `carriers.html?open=${encodeURIComponent(c.id)}`,
                         carrier: c.id,
                         title: c.name || "Без назви",
                         sub: [plate && `🚛 возив ${plate}`, c.edrpou && `ЄДРПОУ ${c.edrpou}`, c.city, c.trailer_type, c.phone_1].filter(Boolean).join(" · "),

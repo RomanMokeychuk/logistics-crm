@@ -315,7 +315,7 @@ function setCarrier(c) {
         }</span>`;
     } else {
         hint.innerHTML = $("deal_carrier").value.trim()
-            ? `<span class="deal-warn">Оберіть перевізника зі списку. Немає в реєстрі? <a href="index.html?new=1" target="_blank">Додати перевізника</a>, потім оберіть тут.</span>`
+            ? `<span class="deal-warn">Оберіть перевізника зі списку. Немає в реєстрі? <a href="carriers.html?new=1" target="_blank">Додати перевізника</a>, потім оберіть тут.</span>`
             : "";
     }
 }

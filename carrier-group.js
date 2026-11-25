@@ -74,10 +74,10 @@
     window.furaCarrierGroup = { link, findOrCreate, membersOf };
 
     function openCarrier(id) {
-        if (POPUP) return (location.href = `index.html?cpop=1&open=${encodeURIComponent(id)}`);
+        if (POPUP) return (location.href = `carriers.html?cpop=1&open=${encodeURIComponent(id)}`);
         const inCache = typeof allCarriersCache !== "undefined" && allCarriersCache.some((c) => String(c.id) === String(id));
         if (inCache && typeof openCarrierCard === "function") openCarrierCard(id);
-        else location.href = `index.html?open=${encodeURIComponent(id)}`;
+        else location.href = `carriers.html?open=${encodeURIComponent(id)}`;
     }
 
     let seq = 0;

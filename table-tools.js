@@ -33,7 +33,7 @@
         const state = new Map(); // колонка → Set дозволених значень
         let pop = null;
         // пам'ять фільтрів (після оновлення сторінки — ті самі)
-        const KEY = "fura_cf_" + location.pathname.split("/").pop() + "_" + (table.id || "t");
+        const KEY = "fura_cf_" + (location.pathname.split("/").pop() || "home").replace(/\.html$/, "") + "_" + (table.id || "t");
         const save = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries([...state].map(([k, v]) => [k, [...v]])))); } catch (e) { /* без пам'яті */ } };
         try { Object.entries(JSON.parse(localStorage.getItem(KEY) || "{}")).forEach(([k, arr]) => { if (Array.isArray(arr)) state.set(Number(k), new Set(arr)); }); } catch (e) { /* немає */ }
         const api = { reset() { state.clear(); save(); apply(); paintIcons(); }, active: () => state.size > 0 };

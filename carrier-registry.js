@@ -3,7 +3,7 @@
  * Телефони, e-mail, область і адреса з реєстру ФОП / компаній         *
  * з КВЕД 49.41 (таблиця carrier_registry, carrier_registry.sql).      *
  * Збіг: за кодом ЄДРПОУ — точно; за ПІБ / назвою — «ймовірно».        *
- * Підключається на index.html після script.js.                       *
+ * Підключається на carriers.html після script.js.                       *
  * ================================================================= */
 (function () {
     const client = typeof sbClient !== "undefined" ? sbClient : null;

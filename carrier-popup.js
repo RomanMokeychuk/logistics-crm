@@ -104,7 +104,7 @@
         spinner.style.display = "";
         frame = document.createElement("iframe");
         frame.title = "Картка перевізника";
-        frame.src = `index.html?cpop=1&open=${encodeURIComponent(id)}&t=${Date.now()}`; // t= — завжди свіжа версія картки, без старого кешу
+        frame.src = `carriers.html?cpop=1&open=${encodeURIComponent(id)}&t=${Date.now()}`; // t= — завжди свіжа версія картки, без старого кешу
         setParam(id);
         wrap.appendChild(frame);
         wrap.classList.add("active");
@@ -159,7 +159,7 @@
             digits(code) ? `data-carrier-code="${esc(digits(code))}"` : "",
             !id ? `data-carrier-name="${esc(name || text)}"` : "",
         ].join(" ");
-        return `<a href="${id ? `index.html?open=${encodeURIComponent(id)}` : "#"}" class="fura-clink" ${attrs} title="Відкрити картку перевізника">${esc(text)}</a>`;
+        return `<a href="${id ? `carriers.html?open=${encodeURIComponent(id)}` : "#"}" class="fura-clink" ${attrs} title="Відкрити картку перевізника">${esc(text)}</a>`;
     }
 
     // Після оновлення сторінки — відкрити ту саму картку

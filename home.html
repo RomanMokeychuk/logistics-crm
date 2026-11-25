@@ -22,16 +22,16 @@
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" />
-        <link rel="stylesheet" href="style.css?v=202611242008" />
-        <link rel="stylesheet" href="requests.css?v=202611242008" />
-        <link rel="stylesheet" href="home.css?v=202611242008" />
+        <link rel="stylesheet" href="style.css?v=202611250718" />
+        <link rel="stylesheet" href="requests.css?v=202611250718" />
+        <link rel="stylesheet" href="home.css?v=202611250718" />
         <link
             href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css"
             rel="stylesheet" />
-            <link rel="stylesheet" href="theme.css?v=202611242008" />
-        <link rel="stylesheet" href="agents.css?v=202611242008" />
-        <link rel="stylesheet" href="rop.css?v=202611242008" />
-        <link rel="stylesheet" href="design.css?v=202611242008" />
+            <link rel="stylesheet" href="theme.css?v=202611250718" />
+        <link rel="stylesheet" href="agents.css?v=202611250718" />
+        <link rel="stylesheet" href="rop.css?v=202611250718" />
+        <link rel="stylesheet" href="design.css?v=202611250718" />
     </head>
     <body>
         <aside class="sidebar">
@@ -49,13 +49,13 @@
                 <a href="leads.html"><i class="bx bx-briefcase-alt-2"></i> Ліди</a>
                 <a href="requests.html"><i class="bx bx-list-ul"></i> Запити</a>
                 <a href="deals.html"><i class="bx bx-file"></i> Угоди</a>
-                <a href="index.html"><i class="bx bx-group"></i> Перевізники</a>
+                <a href="carriers.html"><i class="bx bx-group"></i> Перевізники</a>
                 <a href="trips.html"><i class="bx bx-map-alt"></i> Рейси</a>
                 <a href="#" onclick="openShlyahModal(); return false;"><i class="bx bx-search-alt"></i> Шлях</a>
                 <a href="staff.html"><i class="bx bx-id-card"></i> Співробітники</a>
             </nav>
         </aside>
-        <script>/* FURA: меню з пам'яті вкладки — одразу, без «блимання» (shell.js потім оновить його) */try{var a=document.querySelector("aside.sidebar"),h=sessionStorage.getItem("fura_sb");if(a&&h&&innerWidth>900){a.innerHTML=h;a.classList.add("fura-sidebar");var p=(location.pathname.split("/").pop()||"index.html").toLowerCase();a.querySelectorAll(".fura-nav-item.active").forEach(function(x){x.classList.remove("active")});var l=a.querySelector('.fura-nav-item[href="'+p+'"]');if(l)l.classList.add("active");var n=a.querySelector(".fura-nav");if(n)n.scrollTop=+sessionStorage.getItem("fura_nav_scroll")||0}}catch(e){}</script>
+        <script>/* FURA: меню з пам'яті вкладки — одразу, без «блимання» (shell.js потім оновить його) */try{var a=document.querySelector("aside.sidebar"),h=sessionStorage.getItem("fura_sb");if(a&&h&&innerWidth>900){a.innerHTML=h;a.classList.add("fura-sidebar");var p=(location.pathname.split("/").pop()||"home.html").toLowerCase();if(p.indexOf(".")<0)p+=".html";a.querySelectorAll(".fura-nav-item.active").forEach(function(x){x.classList.remove("active")});var l=a.querySelector('.fura-nav-item[href="'+p+'"]');if(l)l.classList.add("active");var n=a.querySelector(".fura-nav");if(n)n.scrollTop=+sessionStorage.getItem("fura_nav_scroll")||0}}catch(e){}</script>
 
         <button
             type="button"
@@ -95,7 +95,7 @@
                 <div class="home-sections">
                     <section class="home-section">
                         <h2 class="home-h2 hs-blue"><i class="bx bx-buildings"></i> Базис</h2>
-                        <a href="index.html">Перевізники</a>
+                        <a href="carriers.html">Перевізники</a>
                         <a href="leads.html">Ліди (клієнти)</a>
                         <a href="staff.html">Співробітники</a>
                     </section>
@@ -169,11 +169,11 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-        <script src="home.js?v=202611242008"></script>
-        <script src="rop-tasks.js?v=202611242008"></script>
-        <script src="shell.js?v=202611242008"></script>
-        <script src="notify.js?v=202611242008"></script>
-        <script src="lock.js?v=202611242008"></script>
-            <script src="gd-logo.js?v=202611242008"></script>
+        <script src="home.js?v=202611250718"></script>
+        <script src="rop-tasks.js?v=202611250718"></script>
+        <script src="shell.js?v=202611250718"></script>
+        <script src="notify.js?v=202611250718"></script>
+        <script src="lock.js?v=202611250718"></script>
+            <script src="gd-logo.js?v=202611250718"></script>
     </body>
 </html>

@@ -93,7 +93,7 @@ async function renderHome(session) {
         quickCard({ href: "requests.html?new=1", icon: "bx-plus-circle", color: "#2a78d6", title: "Новий запит", sub: "Створити запит для логіста" }),
         quickCard({ href: "leads.html?new=1", icon: "bx-user-plus", color: "#1baf7a", title: "Новий лід", sub: "Додати клієнта" }),
         quickCard({ href: "deals.html?new=1", icon: "bx-file", color: "#0d9488", title: "Нова угода", sub: "Перевізник, авто, водій, дати" }),
-        quickCard({ href: "index.html?new=1", icon: "bx-car", color: "#6250d6", title: "Додати перевізника", sub: "У реєстр перевізників" }),
+        quickCard({ href: "carriers.html?new=1", icon: "bx-car", color: "#6250d6", title: "Додати перевізника", sub: "У реєстр перевізників" }),
         quickCard({
             href: "requests.html",
             icon: "bx-time-five",

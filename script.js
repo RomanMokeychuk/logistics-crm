@@ -227,7 +227,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     restoreCarriersView();
-    // index.html?open=<id> — одразу картка перевізника (посилання з AI-помічника)
+    // carriers.html?open=<id> — одразу картка перевізника (посилання з AI-помічника)
     const openCarrierId = new URLSearchParams(location.search).get("open");
     loadCarriers().then(() => {
         if (openCarrierId) openCarrierCard(openCarrierId);
@@ -236,7 +236,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setupScrollTopButton();
     renderDirectionSelects();
 
-    // З головної сторінки: index.html?new=1 — одразу форма нового перевізника
+    // З головної сторінки: carriers.html?new=1 — одразу форма нового перевізника
     if (new URLSearchParams(location.search).get("new") === "1") {
         resetForm();
         modalOverlay.classList.add("active");
@@ -725,7 +725,7 @@ function openCarrierCard(id) {
 // і кладе в кеш. Викликається тільки при відкритті сторінки та після
 // додавання / зміни / видалення. Пошук, фільтри, сортування і сторінки
 // працюють з кешем — миттєво, без звернень до бази.
-// Картка відкрита у вікні поверх іншої сторінки (carrier-popup.js): index.html?cpop=1&open=<id>
+// Картка відкрита у вікні поверх іншої сторінки (carrier-popup.js): carriers.html?cpop=1&open=<id>
 const CARRIER_POPUP = new URLSearchParams(location.search).get("cpop") === "1";
 
 async function loadCarriers() {

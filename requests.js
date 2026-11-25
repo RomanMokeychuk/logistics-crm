@@ -2446,7 +2446,7 @@ function matchLinkHtml(r) {
     if (!country) return "";
     const trailer = splitTypes(r.transport_type)[0] || "";
     const q = new URLSearchParams({ match: "1", dir, country, ...(trailer ? { trailer } : {}) });
-    return `<a class="btn-match" href="index.html?${q.toString()}" title="Хто реально возить цим напрямком (митні дані)">🎯 Підібрати перевізників</a>`;
+    return `<a class="btn-match" href="carriers.html?${q.toString()}" title="Хто реально возить цим напрямком (митні дані)">🎯 Підібрати перевізників</a>`;
 }
 
 // Блок "Відповіді логістів" в картці запиту
@@ -3001,7 +3001,7 @@ async function openCarrierQuickCard(id) {
             ${cardRow("Замітки:", c.notes ? `<div style="white-space:pre-wrap">${escapeHtml(c.notes)}</div>` : "—")}
         </div>
         <div class="form-actions">
-            <a class="btn btn-secondary" href="index.html?open=${encodeURIComponent(c.id)}"><i class='bx bx-edit'></i> Редагувати в реєстрі</a>
+            <a class="btn btn-secondary" href="carriers.html?open=${encodeURIComponent(c.id)}"><i class='bx bx-edit'></i> Редагувати в реєстрі</a>
             <button type="button" class="btn btn-primary" data-close-quick>Готово</button>
         </div>`;
     body.querySelector("[data-close-quick]").addEventListener("click", () =>

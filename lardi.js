@@ -263,7 +263,7 @@ const LD = (() => {
 
     // Позначка «є у FURA» з посиланням на картку перевізника
     const furaBadge = (r) => (r.carrier_id
-        ? `<a class="ld-fura ld-fura-yes" href="index.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника у FURA">✓ у FURA ↗</a>`
+        ? `<a class="ld-fura ld-fura-yes" href="carriers.html?open=${encodeURIComponent(r.carrier_id)}" target="_blank" rel="noopener" title="Відкрити картку перевізника у FURA">✓ у FURA ↗</a>`
         : `<span class="ld-fura ld-fura-no" title="Цього перевізника немає в «Перевізниках» FURA">немає у FURA</span>`);
 
     // Порівняння вантажів і машин: на «Авто» — з вантажами (повні, EUR), на «Вантажах» — з машинами (EUR).

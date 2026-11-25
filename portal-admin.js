@@ -3,7 +3,7 @@
  *  • Клієнти: «🌐 Кабінет клієнта» — видати доступ (посилання), вимкнути *
  *  • Перевізники: «🌐 Кабінет перевізника» — Telegram або посилання     *
  *  • Запити: ціна для клієнта, яку він бачить і погоджує в кабінеті    *
- * Підключається на requests.html, clients.html, index.html.           *
+ * Підключається на requests.html, clients.html, carriers.html.           *
  * ================================================================= */
 (function () {
     const client = typeof sbClient !== "undefined" ? sbClient : null;
@@ -394,7 +394,7 @@
     }
 
     /* ---------- Нові реєстрації (самі зареєструвались у кабінеті) ---------- */
-    const REG_KIND = /clients\.html$/.test(location.pathname) ? "client" : /перевізник/i.test(document.querySelector("main .top-bar h1")?.textContent || "") ? "carrier" : null;
+    const REG_KIND = /clients(\.html)?$/.test(location.pathname) ? "client" : /перевізник/i.test(document.querySelector("main .top-bar h1")?.textContent || "") ? "carrier" : null;
     async function pendingBox() {
         if (!REG_KIND) return;
         let box = document.getElementById("paPending");
