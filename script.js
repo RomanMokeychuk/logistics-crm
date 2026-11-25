@@ -403,7 +403,25 @@ let lastFilteredIds = [];
 const lastCarrierId = () => new URLSearchParams(location.search).get("last") || "";
 // Кого щойно змінювали (у цій вкладці) — у списку позначаємо ✏️
 const editedCarrierId = () => { try { return sessionStorage.getItem("fura_carrier_edited") || ""; } catch (e) { return ""; } };
-window.furaMarkEdited = (id) => { try { sessionStorage.setItem("fura_carrier_edited", String(id)); } catch (e) { /* */ } };
+// «✓ Пробито»: запам'ятовуємо в базі, хто і коли перевіряв (Lardi) або редагував перевізника — видно в «Черзі»
+let furaMyName = null;
+async function furaWhoAmI() {
+    if (furaMyName !== null) return furaMyName;
+    try {
+        const { data } = await sbClient.auth.getSession();
+        const email = (data?.session?.user?.email || "").toLowerCase();
+        const { data: st } = await sbClient.from("staff").select("full_name").ilike("email", email).limit(1);
+        furaMyName = st?.[0]?.full_name || email.split("@")[0] || "";
+    } catch (e) { furaMyName = ""; }
+    return furaMyName;
+}
+window.furaMarkEdited = (id, how = "edit") => {
+    try { sessionStorage.setItem("fura_carrier_edited", String(id)); } catch (e) { /* */ }
+    if (!id) return;
+    furaWhoAmI().then((who) => sbClient.from("carriers").update({ checked_at: new Date().toISOString(), checked_by: who || null, checked_how: how }).eq("id", id))
+        .then((r) => { if (r?.error && !/checked_/.test(r.error.message || "")) console.warn("checked:", r.error.message); }) // ще не запущено carriers_checked.sql — мовчки
+        .catch(() => {});
+};
 function showCarrierInList(id) {
     id = String(id);
     let tr = carriersTableBody?.querySelector(`tr[data-carrier-id="${CSS.escape(id)}"]`);

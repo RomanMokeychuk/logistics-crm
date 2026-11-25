@@ -177,15 +177,17 @@ const EQ = (() => {
     async function loadFura() {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
-        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume";
+        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, checked_at, checked_by, checked_how";
         const get = (cols) => Promise.all(Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select(cols).range(i * 1000, i * 1000 + 999)));
+        const BASE = COLS.replace(", checked_at, checked_by, checked_how", "");
         let parts = await get(COLS + ", group_id");
-        if (parts.some((p) => p.error)) parts = await get(COLS); // ще не запущено carriers_group.sql
+        if (parts.some((p) => p.error)) parts = await get(BASE + ", group_id"); // ще не запущено carriers_checked.sql
+        if (parts.some((p) => p.error)) parts = await get(BASE); // ще не запущено carriers_group.sql
         FURA = new Map();
         GROUPS = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "" };
+            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "" };
             if (k && !FURA.has(k)) FURA.set(k, row);
             if (row.group) (GROUPS.get(row.group) || GROUPS.set(row.group, []).get(row.group)).push(row);
         }));
@@ -509,6 +511,18 @@ const EQ = (() => {
     }
 
     // Перевізник: логотип з картки FURA, назва відкриває картку, тоннаж / об'єм з картки
+    // ✓ Пробито — хтось уже перевіряв цього перевізника через Lardi або редагував картку
+    function checkedHtml(code) {
+        const f = FURA.get(codeKey(code));
+        if (!f?.chkAt) return "";
+        const d = new Date(f.chkAt);
+        const days = (Date.now() - d) / 86400e3;
+        const when = d.toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" });
+        const who = String(f.chkBy || "").trim();
+        const first = String(f.chkBy || "").trim().split(/\s+/)[0] || "";
+        const what = f.chkHow === "lardi" ? "пробито через Lardi" : "відредаговано";
+        return `<span class="eq-chk ${days > 30 ? "old" : ""}" title="${esc(what)} ${esc(d.toLocaleString("uk-UA"))}${who ? " — " + esc(who) : ""}">✓ ${f.chkHow === "lardi" ? "Lardi" : "пробито"} ${when}${first ? " · " + esc(first) : ""}</span>`;
+    }
     function carrierCell(r) {
         const f = FURA.get(codeKey(r.edrpou));
         const name = esc(r.carrier || "—");
@@ -593,7 +607,7 @@ const EQ = (() => {
                 <td class="eq-mono">${esc(r.tractor)}</td>
                 <td class="eq-mono">${esc(r.trailer || "—")}${trailerInfo(r)}</td>
                 <td>${r.trailer_body ? `<span class="eq-body">${esc(r.trailer_body)}</span>` : `<span class="eq-muted">—</span>`}</td>
-                <td>${carrierCell(r)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}${groupHtml(r.edrpou)}${r.edrpou && !FURA.has(codeKey(r.edrpou)) ? `<div class="eq-add-wrap">${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</div>` : ""}</td>
+                <td>${carrierCell(r)}${checkedHtml(r.edrpou)}${r.is_new ? ` <span class="eq-new">новий</span>` : ""}${r.edrpou ? `<div class="eq-muted eq-sm eq-mono">${esc(r.edrpou)}</div>` : ""}${regionHtml(r.edrpou)}${groupHtml(r.edrpou)}${r.edrpou && !FURA.has(codeKey(r.edrpou)) ? `<div class="eq-add-wrap">${furaCell(r.edrpou, r.carrier, r.trailer_body, `${cpShort(r.checkpoint)}, ${r.tractor}${r.trailer ? "/" + r.trailer : ""}`)}</div>` : ""}</td>
                 <td>${esc(r.boss || "—")}</td>
             </tr>`).join("") || `<tr><td colspan="8" class="eq-empty">Нічого не знайдено</td></tr>`) + "</tbody>";
         $("#eqCount").textContent = `Машин: ${list.length.toLocaleString("uk-UA")}`;
@@ -617,7 +631,7 @@ const EQ = (() => {
         $("#eqTable").innerHTML =
             `<thead><tr><th>Перевізник</th><th>ЄДРПОУ</th><th>Керівник</th><th>Машин</th><th>Пункти</th><th>Найближчий в'їзд</th><th>Кузови</th><th>FURA</th></tr></thead><tbody>` +
             (rows.map((c) => `<tr>
-                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${c.isNew ? ` <span class="eq-new">новий</span>` : ""}${regionHtml(c.code)}${groupHtml(c.code)}</td>
+                <td><b>${FURA.get(codeKey(c.code)) ? `<a href="#" data-carrier-card="${esc(FURA.get(codeKey(c.code)).id)}" class="fura-clink" title="Відкрити картку перевізника">${esc(c.name)}</a>` : esc(c.name)}</b>${checkedHtml(c.code)}${c.isNew ? ` <span class="eq-new">новий</span>` : ""}${regionHtml(c.code)}${groupHtml(c.code)}</td>
                 <td class="eq-mono">${esc(c.code)}</td>
                 <td>${esc(c.boss || "—")}</td>
                 <td title="${esc(c.trucks.join("\n"))}"><b>${c.trucks.length}</b><div class="eq-muted eq-sm eq-clip eq-mono">${esc(c.trucks.slice(0, 2).join(", "))}${c.trucks.length > 2 ? "…" : ""}</div></td>

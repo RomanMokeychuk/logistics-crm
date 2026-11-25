@@ -46,6 +46,7 @@
                 new Promise((_, rej) => setTimeout(() => rej(new Error("Lardi не відповів за 90 с. Ліміт ключа ще не відновився — спробуйте через 10–15 хв.")), 90000))]);
         } catch (e) { clearInterval(tick); return modal(`<div class="le-err">${esc(e.message)}</div>`); }
         clearInterval(tick);
+        window.furaMarkEdited?.(id, "lardi"); // пробили через Lardi (навіть якщо не знайшли)
         if (!r.found) return modal(`<div class="le-err">${esc(r.message || "Не знайдено")}</div>`);
         // автоматичний обхід міг уже записати дані в базу — картка в браузері старіша; підтягуємо свіжу
         if (!(r.changes || []).length) await refresh(id);
@@ -87,7 +88,7 @@
             const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); // eslint-disable-line no-undef
             if (i >= 0) allCarriersCache[i] = { ...allCarriersCache[i], ...data }; // eslint-disable-line no-undef
         }
-        window.furaMarkEdited?.(id);
+        try { sessionStorage.setItem("fura_carrier_edited", String(id)); } catch (e) { /* */ }
         // одразу оновлюємо і рядок у списку перевізників (і кеш браузера), не лише картку
         try {
             if (typeof prepCarrierSearch === "function") { const i = allCarriersCache.findIndex((c) => String(c.id) === String(id)); if (i >= 0) prepCarrierSearch(allCarriersCache[i]); } // eslint-disable-line no-undef
@@ -469,11 +470,12 @@
                     upd.notes = [upd.notes ?? c.notes, x.field === "notes" ? x.new : x.value].filter(Boolean).join("\n");
                 } else upd[x.field] = x.value ?? x.new;
             }
-            if (!Object.keys(upd).length) return (box.hidden = true);
+            if (!Object.keys(upd).length) { window.furaMarkEdited?.(id, "lardi"); return (box.hidden = true); }
             e.target.disabled = true; e.target.textContent = "Зберігаю…";
             const { error } = await sbClient.from("carriers").update(upd).eq("id", id); // eslint-disable-line no-undef
             if (error) { e.target.disabled = false; e.target.textContent = "Зберегти обране"; return alert("Не вдалося зберегти: " + error.message); }
             box.hidden = true;
+            window.furaMarkEdited?.(id, "lardi");
             await refresh(id);
         });
     }
