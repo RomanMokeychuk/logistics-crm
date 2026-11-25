@@ -1101,6 +1101,17 @@ function openColumnFilter(event, col) {
         });
     });
 
+    // Sales / логісти: показуємо ВСІХ працюючих співробітників з цією роллю — навіть тих, у кого зараз немає запитів
+    if (MULTI_NAME_COLS.has(col)) {
+        const roles = col === "sales" ? ["sales", "head"] : ["logist", "head"];
+        staffCache
+            .filter((s) => s.active !== false && hasRole(s, roles) && s.full_name)
+            .forEach((s) => { if (!unique.has(s.full_name)) unique.set(s.full_name, s.full_name); });
+    }
+    // скільки запитів у кожного (з урахуванням інших фільтрів не рахуємо — просто всього в списку)
+    const counts = new Map();
+    if (MULTI_NAME_COLS.has(col)) requestsCache.forEach((r) => filterValues(r, col).forEach((v) => counts.set(v, (counts.get(v) || 0) + 1)));
+
     const options = Array.from(unique.entries()).sort((a, b) => {
         if (a[0] === EMPTY_LABEL) return 1;
         if (b[0] === EMPTY_LABEL) return -1;
@@ -1116,7 +1127,7 @@ function openColumnFilter(event, col) {
             return `
             <label class="filter-option-item">
                 <input type="checkbox" value="${escapeHtml(label)}" ${checked}>
-                <span>${escapeHtml(label)}</span>
+                <span>${escapeHtml(label)}${MULTI_NAME_COLS.has(col) ? ` <small style="color:#9ca3af">(${counts.get(label) || 0})</small>` : ""}</span>
             </label>`;
         })
         .join("");
