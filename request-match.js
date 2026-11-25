@@ -694,7 +694,6 @@
         const n = firstName(who);
         let t = text;
         if (n) t = t.replace(/^(Добрий день|Доброго дня|Вітаю|Привіт)\s*!/i, (m, g) => `${g}, ${n}!`);
-        if (plate) t = t.replace(/для вашої машини:/i, `для вашої машини ${plate}:`);
         return t;
     }
     function alertPause(box, n) {
@@ -711,7 +710,7 @@
             <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
-            <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Підставляти ім'я контакту і номер машини («Добрий день, Вадим! Є вантаж для вашої машини AI4770OX») — кожне повідомлення різне, Viber не сприйме як спам</label>
+            <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Підставляти ім'я контакту («Добрий день, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}${x.plate ? " · 🚛 " + esc(x.plate) : ""}</small></div>
                 ${x.phones.map(([who, d], k) => `<button type="button" class="btn btn-primary qm-vq-go" data-vq-send="${d}" data-vq-who="${esc(who || "")}" data-vq-plate="${esc(x.plate || "")}">${x.phones.length > 1 ? "Viber " + (k + 1) : "Viber"} ➜</button>`).join("")}</div>`).join("") || '<p class="qm-empty">В обраних немає телефонів.</p>'}</div>
             <div class="qm-vq-next">${rows.length ? "Почніть з першого ↑" : ""}</div>
