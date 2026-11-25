@@ -801,6 +801,14 @@
         if (act === "vq-close") return overlay.querySelector(".qm-vq")?.remove();
         if (e.target.closest("[data-vq-next]")) {
             const box = overlay.querySelector(".qm-vq");
+            const bigB = e.target.closest("[data-vq-next]");
+            if (bigB.dataset.again === "1") {
+                if (!confirm("Пройти список ще раз? Тим, кому вже писали, повідомлення піде вдруге.")) return;
+                box.querySelectorAll(".qm-vq-row.sent").forEach((r) => { r.classList.remove("sent"); r.querySelectorAll("[data-vq-send]").forEach((b, k, all) => (b.textContent = (all.length > 1 ? "Viber " + (k + 1) : "Viber") + " ➜")); });
+                bigB.dataset.again = ""; bigB.innerHTML = `▶ Відкрити наступний у Viber <span>(1 з ${box.querySelectorAll(".qm-vq-row").length})</span>`;
+                box.querySelector(".qm-vq-next").textContent = "Почніть з першого ↑";
+                return;
+            }
             const nx = box.querySelector(".qm-vq-row:not(.sent) [data-vq-send]");
             if (nx) nx.click();
             return;
@@ -827,8 +835,8 @@
             const big = box.querySelector("[data-vq-next]");
             if (big) {
                 const all = box.querySelectorAll(".qm-vq-row").length, done = box.querySelectorAll(".qm-vq-row.sent").length;
-                big.innerHTML = next ? `▶ Відкрити наступний у Viber <span>(${done + 1} з ${all})</span>` : "✅ Усім відкрито";
-                big.disabled = !next;
+                big.innerHTML = next ? `▶ Відкрити наступний у Viber <span>(${done + 1} з ${all})</span>` : "✅ Усім відкрито <span>· ↺ пройти ще раз</span>";
+                big.dataset.again = next ? "" : "1";
                 big.focus();
             }
             return;

@@ -216,12 +216,17 @@
                 return;
             }
             pz.hidden = !L; pz.className = "bc-pause bc-lim-ok"; pz.textContent = L ? L.text : "";
-            btn.disabled = !left;
-            btn.innerHTML = left ? `<i class="bx bxl-viber"></i> ▶ Відкрити ${done ? "наступний" : "перший"} у Viber <span>(${done + 1} з ${done + left})</span>` : done ? "✅ Усім обраним відкрито" : `<i class="bx bxl-viber"></i> Оберіть перевізників зліва`;
+            btn.disabled = !left && !done;
+            btn.dataset.again = !left && done ? "1" : "";
+            btn.innerHTML = left ? `<i class="bx bxl-viber"></i> ▶ Відкрити ${done ? "наступний" : "перший"} у Viber <span>(${done + 1} з ${done + left})</span>` : done ? `✅ Усім обраним відкрито <span>· ↺ пройти ще раз</span>` : `<i class="bx bxl-viber"></i> Оберіть перевізників зліва`;
         };
         box.querySelector(".bc-pers").addEventListener("change", (e) => { try { localStorage.setItem("fura_vq_pers", e.target.checked ? "1" : "0"); } catch (_) { /* */ } });
         btn.addEventListener("click", () => {
             const ui = getUi();
+            if (btn.dataset.again === "1") {
+                if (!confirm("Пройти список ще раз? Тим, кому вже писали, повідомлення піде вдруге.")) return;
+                ui.sent.clear(); ui.repaint(); return paint();
+            }
             const it = ui?.queue()[0];
             if (!it) return;
             if (window.furaViberLimit && !window.furaViberLimit.state().ok) return paint();
