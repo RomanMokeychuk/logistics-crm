@@ -27,6 +27,82 @@ const ROW_FIELDS = [
     "edrpou", "boss", "trailer_model", "trailer_body", "trailer_kind", "trailer_weight", "tractor_weight", "note",
 ];
 
+
+/* ---------- Тоннаж і об'єм «від–до» у картку перевізника (як «⚖» у Черзі) ---------- */
+// тип кузова → типовий вантаж (т, при 40 т автопоїзда) і об'єм (м³)
+const BODY: [RegExp, number[], number[] | null][] = [
+    [/мега|mega|jumbo/i, [22, 24], [96, 100]],
+    [/реф|рефриж|холод|ref|kühl|frigo/i, [20, 22], [80, 88]],
+    [/ізотерм|изотерм|isoth/i, [21, 23], [82, 90]],
+    [/зерно|самоскид|самосвал|kipper|tipper/i, [22, 25], [45, 60]],
+    [/цистерн|tank/i, [22, 25], null],
+    [/контейнер|container/i, [22, 26], [33, 76]],
+    [/автовоз|платформа(?! тент)|трал|бортов(?!ий тент)|low/i, [22, 25], null],
+    [/фургон|box|koffer/i, [21, 23], [80, 90]],
+    [/тент|штора|curtain|plane|тентован/i, [22, 24], [82, 92]],
+];
+function rowCapacity(r: Any): { lo: number; hi: number; vlo?: number; vhi?: number } | null {
+    const src = [r.trailer_body, r.trailer_kind, r.trailer_model].filter(Boolean).join(" ");
+    const body = BODY.find(([re]) => re.test(src));
+    const m = [r.trailer_weight, r.trailer_kind, r.trailer_model].filter(Boolean).join(" ").match(/(\d{3,5})\s*\/\s*(\d{4,6})/);
+    const tw = String(r.tractor_weight || "").match(/(\d{4,5})/);
+    const trKg = tw ? Number(tw[1]) : 0;
+    let lo = 0, hi = 0;
+    if (m && Number(m[2]) > Number(m[1]) && Number(m[2]) >= 10000) {
+        const own = Number(m[1]), cap = Number(m[2]) - own;
+        const f = (kg: number) => Math.floor(kg / 500) / 2;
+        hi = f(Math.min(cap, 40000 - (trKg || 7800) - own - 300));
+        lo = f(Math.min(cap, 40000 - (trKg || 9500) - own - 800));
+    } else if (body) { lo = body[1][0]; hi = body[1][1]; }
+    if (hi <= 0) return null;
+    const out: Any = { lo: Math.max(0, lo), hi };
+    if (body?.[2]) { out.vlo = body[2][0]; out.vhi = body[2][1]; }
+    return out;
+}
+const rng = (a: number, b: number) => (a === b ? String(a) : `${a}–${b}`);
+async function fillCapacity(syncId: string) {
+    // усі машини цього оновлення
+    const rows: Any[] = [];
+    for (let from = 0; from < 20000; from += 1000) {
+        const { data, error } = await db.from("echerha_queue").select("edrpou, trailer_weight, tractor_weight, trailer_kind, trailer_body, trailer_model").eq("sync_id", syncId).range(from, from + 999);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < 1000) break;
+    }
+    const by = new Map<string, { lo: number; hi: number; vlo: number; vhi: number }>();
+    for (const r of rows) {
+        const code = String(r.edrpou || "").replace(/\D/g, "");
+        if (code.length < 8) continue;
+        const c = rowCapacity(r);
+        if (!c) continue;
+        const a = by.get(code) || { lo: 99, hi: 0, vlo: 999, vhi: 0 };
+        a.lo = Math.min(a.lo, c.lo); a.hi = Math.max(a.hi, c.hi);
+        if (c.vlo) { a.vlo = Math.min(a.vlo, c.vlo); a.vhi = Math.max(a.vhi, c.vhi!); }
+        by.set(code, a);
+    }
+    let updated = 0;
+    const codes = [...by.keys()];
+    for (let i = 0; i < codes.length; i += 300) {
+        const part = codes.slice(i, i + 300);
+        const { data: cs, error } = await db.from("carriers").select("id, edrpou, tonnage, volume, cap_auto_t, cap_auto_v").in("edrpou", part);
+        if (error) { if (/cap_auto/.test(error.message)) return { skipped: "run carriers_capacity.sql" }; throw error; }
+        for (const c of cs || []) {
+            const a = by.get(String(c.edrpou || "").replace(/\D/g, ""));
+            if (!a) continue;
+            const t = rng(a.lo, a.hi), v = a.vhi ? rng(a.vlo, a.vhi) : "";
+            const upd: Any = {};
+            const tNow = String(c.tonnage ?? "").trim(), vNow = String(c.volume ?? "").trim();
+            // лише порожнє або те, що FURA сама вписала раніше (ручне не чіпаємо)
+            if ((!tNow || tNow === String(c.cap_auto_t ?? "")) && tNow !== t) { upd.tonnage = t; upd.cap_auto_t = t; }
+            if (v && (!vNow || vNow === String(c.cap_auto_v ?? "")) && vNow !== v) { upd.volume = v; upd.cap_auto_v = v; }
+            if (!Object.keys(upd).length) continue;
+            const { error: e2 } = await db.from("carriers").update(upd).eq("id", c.id);
+            if (e2) { console.error("capacity upd:", e2.message); if (/numeric|invalid input/i.test(e2.message)) return { error: e2.message }; continue; }
+            updated++;
+        }
+    }
+    return { carriers: by.size, updated };
+}
 /* ---------- Обрані машини (★): хто з'явився в черзі, хто проїхав ---------- */
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const APP_URL = (Deno.env.get("APP_URL") ?? "https://romanmokeychuk.github.io/logistics-crm").replace(/\/[^/]*\.html.*$/, "").replace(/\/$/, "");
@@ -167,7 +243,9 @@ Deno.serve(async (req) => {
         // Нових перевізників з черги — у «Перевізники», наявним — нові типи причепа (echerha_carriers.sql)
         const sync = await db.rpc("sync_echerha_carriers");
         if (sync.error) console.error("sync_echerha_carriers:", sync.error.message);
-        return json(200, { ok: true, rows: count ?? 0, carriers: sync.data ?? null });
+        // Тоннаж / об'єм «від–до» з причепів — у картки перевізників (carriers_capacity.sql)
+        const cap = await fillCapacity(syncId).catch((e) => { console.error("capacity:", e); return null; });
+        return json(200, { ok: true, rows: count ?? 0, carriers: sync.data ?? null, capacity: cap });
     }
 
     // Відправку перервали — прибираємо недовантажене

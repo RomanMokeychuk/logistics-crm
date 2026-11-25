@@ -656,7 +656,7 @@ const EQ = (() => {
         const logo = f.logo && /^https?:\/\//.test(f.logo)
             ? `<img class="eq-clogo" src="${esc(f.logo)}" alt="" loading="lazy" onerror="this.remove()">`
             : "";
-        const cap = [f.tonnage ? `до ${esc(f.tonnage)} т` : "", f.volume ? `${esc(f.volume)} м³` : ""].filter(Boolean).join(" · ");
+        const cap = [f.tonnage ? `${/[–-]/.test(f.tonnage) ? "" : "до "}${esc(f.tonnage)} т` : "", f.volume ? `${esc(f.volume)} м³` : ""].filter(Boolean).join(" · ");
         return `<a href="carriers.html?open=${encodeURIComponent(f.id)}" data-carrier-card="${esc(f.id)}" class="eq-carrier" title="Відкрити картку перевізника">${logo}<span>${name}</span></a>` +
             (cap ? `<div class="eq-cap" title="З картки перевізника у FURA">⚖ ${cap}</div>` : "");
     }
