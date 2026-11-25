@@ -112,7 +112,8 @@
     const byName = new Map(); // «ПОЛЬЩА|слупськ» → {state, kv}
     const putRow = (cname, city, g) => { if (g && g.found) byName.set(`${PRETTY[cname] || cname}|${String(city).trim().toLowerCase()}`, g); };
     let geoVer = 0, loaded = false;
-    const SKEY = "fura_geo_filter";
+    const isEq = () => !!document.getElementById("eqFiltersToggle"); // сторінка «Черга»
+    const SKEY = /echerha/i.test(location.pathname) ? "fura_geo_filter_eq" : "fura_geo_filter";
     let sel = new Set((() => { try { return JSON.parse(sessionStorage.getItem(SKEY) || "[]"); } catch (_) { return []; } })());
     const saveSel = () => { try { sessionStorage.setItem(SKEY, JSON.stringify([...sel])); } catch (_) { /* */ } };
 
@@ -159,12 +160,13 @@
     }
     window.furaGeoPass = (item) => {
         if (!sel.size) return true;
+        if (!item) return false; // машина без картки у FURA — напрямків не знаємо
         const t = tagsOf(item);
         for (const x of sel) if (t.has(x)) return true;
         return false;
     };
     window.furaGeoReset = () => { sel.clear(); saveSel(); paintBtn(); };
-    const rerender = () => { if (typeof renderCarriers === "function") { try { currentPage = 1; } catch (_) { /* */ } renderCarriers(); } }; // eslint-disable-line no-undef
+    const rerender = () => { if (window.furaEqRender) return window.furaEqRender(); if (typeof renderCarriers === "function") { try { currentPage = 1; } catch (_) { /* */ } renderCarriers(); } }; // eslint-disable-line no-undef
 
     let btn;
     function paintBtn() {
@@ -181,7 +183,7 @@
             <input type="search" class="geo-q" placeholder="Пошук: Поморське, 76, Анкара…">
             <div class="geo-list"><div class="geo-empty">Завантаження…</div></div>
             <div class="geo-foot"><button type="button" class="btn btn-secondary geo-clr">Очистити</button><button type="button" class="btn btn-primary geo-ok">Застосувати</button></div>
-            <div class="geo-note">Воєводство (Польща) / регіон і «квадрат» — перші 2 цифри поштового індексу. Міста розпізнаються автоматично у фоні; поки не всі — список доповнюється.</div>`;
+            <div class="geo-note">${isEq() ? "Числа — скільки машин у черзі. Беремо «Напрямки» з картки перевізника у FURA; машини без картки при фільтрі не показуються. " : ""}Воєводство (Польща) / регіон і «квадрат» — перші 2 цифри поштового індексу. Міста розпізнаються автоматично у фоні; поки не всі — список доповнюється.</div>`;
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
         pop.style.top = `${Math.min(r.bottom + 6, innerHeight - 120)}px`;
@@ -220,22 +222,23 @@
         q.addEventListener("keydown", (e) => { if (e.key === "Enter") pop.querySelector(".geo-ok").click(); if (e.key === "Escape") close(); });
         (loaded ? Promise.resolve() : loadAll()).then(() => {
             counts = new Map();
-            const data = typeof allCarriersCache !== "undefined" ? allCarriersCache || [] : []; // eslint-disable-line no-undef
+            const data = window.furaEqGeoItems ? window.furaEqGeoItems() : typeof allCarriersCache !== "undefined" ? allCarriersCache || [] : []; // eslint-disable-line no-undef
             data.forEach((it) => tagsOf(it).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
             draw();
             q.focus();
         });
     }
     function mount() {
-        const anchor = document.getElementById("openModalBtn");
+        const eq = isEq();
+        const anchor = eq ? document.getElementById("eqFiltersToggle") : document.getElementById("openModalBtn");
         if (!anchor || document.getElementById("geoFltBtn") || window.self !== window.top) return !!anchor;
         btn = document.createElement("button");
         btn.type = "button";
         btn.id = "geoFltBtn";
-        btn.className = "btn btn-secondary geo-btn";
-        btn.title = "Фільтр за воєводством (Польща) / регіоном і квадратом поштового індексу";
+        btn.className = eq ? "eq-filters-toggle geo-btn" : "btn btn-secondary geo-btn";
+        btn.title = eq ? "Машини перевізників, які їздять у вибране воєводство / квадрат (за «Напрямками» в картці FURA)" : "Фільтр за воєводством (Польща) / регіоном і квадратом поштового індексу";
         btn.onclick = openPop;
-        anchor.parentNode.insertBefore(btn, anchor);
+        anchor.parentNode.insertBefore(btn, eq ? anchor.nextSibling : anchor);
         paintBtn();
         // якщо фільтр збережений — підвантажуємо довідник і перемальовуємо список
         if (sel.size) loadAll().then(rerender);

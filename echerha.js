@@ -177,7 +177,7 @@ const EQ = (() => {
     async function loadFura() {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
-        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, phone_1, phone_2, checked_at, checked_by, checked_how";
+        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, phone_1, phone_2, destinations, checked_at, checked_by, checked_how";
         const get = (cols) => Promise.all(Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select(cols).range(i * 1000, i * 1000 + 999)));
         const BASE = COLS.replace(", checked_at, checked_by, checked_how", "");
         let parts = await get(COLS + ", group_id");
@@ -187,7 +187,7 @@ const EQ = (() => {
         GROUPS = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "",
+            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", destinations: c.destinations || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "",
                 phones: [c.phone_1, c.phone_2].flatMap((p) => String(p || "").split(/[,;]/)).map((p) => p.replace(/\D/g, "")).filter((d) => d.length >= 9).map((d) => d.slice(-9)).join(" ") };
             if (k && !FURA.has(k)) FURA.set(k, row);
             if (row.group) (GROUPS.get(row.group) || GROUPS.set(row.group, []).get(row.group)).push(row);
@@ -467,6 +467,7 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (st.chk && !chkPass(r.edrpou)) return false;
+            if (window.furaGeoPass && !window.furaGeoPass(FURA.get(codeKey(r.edrpou)))) return false; // 📍 Регіон / квадрат (geo-places.js)
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q) && !(qPhone && (FURA.get(codeKey(r.edrpou))?.phones || "").includes(qPhone))) return false;
             if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
@@ -899,6 +900,9 @@ const EQ = (() => {
         btn.addEventListener("click", () => set(!open));
     })();
 
+    // для фільтра «📍 Регіон / квадрат»: картки FURA машин у черзі (по одній на машину — для лічильників)
+    window.furaEqGeoItems = () => ROWS.filter((r) => !st.ua || r.ua).map((r) => FURA.get(codeKey(r.edrpou))).filter(Boolean);
+    window.furaEqRender = () => { st.page = 0; renderAll(); };
     function renderAll() {
         paintChkBar();
         paintFiltersToggle();
@@ -961,6 +965,7 @@ const EQ = (() => {
         [["#eqUa", "ua"], ["#eqNotInFura", "notInFura"], ["#eqNew", "isNew"], ["#eqStarred", "starred"], ["#eqGone", "showGone"]].forEach(([id, k]) =>
             $(id).addEventListener("change", (e) => { st[k] = e.target.checked; st.page = 0; renderAll(); }));
         $("#eqReset").addEventListener("click", () => {
+            window.furaGeoReset?.();
             Object.assign(st, { q: "", cps: null, country: [], qtype: [], bodies: new Set(), ua: true, notInFura: false, isNew: false, starred: false, showGone: false, fresh: [], sort: "entry", oblast: [], page: 0, chk: "" });
             fillSelects();
             renderAll();
