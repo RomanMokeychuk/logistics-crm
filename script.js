@@ -1091,6 +1091,7 @@ function renderCarriers() {
 
     // JS-фільтрація
     const colFilterKeys = Object.entries(activeFiltersState).map(([c, v]) => [c, selectedKeys(c, v)]);
+    const preGeo = []; // пройшли всі інші фільтри — для лічильників у «📍 Регіон / квадрат»
     let filteredData = data.filter((item) => {
         const name = (item.name || item.company || "").toLowerCase();
         const edrpou = (item.edrpou || "").toLowerCase();
@@ -1108,9 +1109,6 @@ function renderCarriers() {
             const st = !item.lardi_checked_at ? "none" : item.lardi_found ? "found" : "notfound";
             if (lardiFilterVal === "checked" ? st === "none" : st !== lardiFilterVal) return false;
         }
-
-        // Фільтр «📍 Регіон / квадрат» (geo-places.js)
-        if (window.furaGeoPass && !window.furaGeoPass(item)) return false;
 
         // Пошук за загальним рядком
         if (searchQuery) {
@@ -1137,8 +1135,12 @@ function renderCarriers() {
             if (!itemPassesColumn(item, colKey, keys)) return false;
         }
 
+        // Фільтр «📍 Регіон / квадрат» (geo-places.js) — останнім
+        preGeo.push(item);
+        if (window.furaGeoPass && !window.furaGeoPass(item)) return false;
         return true;
     });
+    window.furaCarriersPreGeo = preGeo;
 
     // Локальне сортування
     if (currentSortColumn) {

@@ -72,3 +72,7 @@ select cron.schedule(
 );
 select jobname, schedule, active from cron.job where jobname = 'fura-geo';
 -- Скільки вже розпізнано:  select count(*) filter (where found) as знайдено, count(*) as всього from public.geo_places;
+
+-- ===== Виправлення: старі записи з «обрізаними» назвами («Нижньос езьке в.», «С езьке в.») =====
+-- Видаляємо їх — сервер за кілька хвилин розпізнає ці міста заново вже з правильними назвами.
+delete from public.geo_places where state ~ '[а-яіїєґ] [а-яіїєґ]' and state !~* '(повіт|округ|район|муніципалітет|громада|графство|департамент)';

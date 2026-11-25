@@ -152,7 +152,7 @@ const geoKv = (cc: string, pc: string) => {
     const d = pc.replace(/\D/g, "");
     return d.length >= 2 ? d.slice(0, 2) : "";
 };
-const geoState = (st: string) => String(st || "").replace(/\s*(воєводство|województwo|область|провінція|регіон|земля|край|province|region)\s*/gi, " ").replace(/\s+/g, " ").trim();
+const geoState = (st: string) => ` ${String(st || "")} `.replace(/\s(воєводство|województwo|область|провінція|регіон|земля|край|іл|province|region)(?=\s)/gi, " ").replace(/\s+/g, " ").trim();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function nominatim(path: string, params: Record<string, string>) {
     await sleep(1100); // правила OpenStreetMap: не частіше 1 запиту на секунду

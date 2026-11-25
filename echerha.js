@@ -111,6 +111,7 @@ const EQ = (() => {
     const GONE_AFTER = 3 * 3600 * 1000;
     // Коли машина стала в чергу: reg_at з Черги; якщо його немає — номер у черзі (більший = пізніше)
     let HAS_REG = true;
+    let PRE_GEO = null; // машини, що пройшли всі фільтри, крім «📍 Регіон / квадрат»
     const regTime = (r) => entryTime(r.reg_at)?.getTime() || null;
     const queueNum = (r) => Number(String(r.queue_no || "").replace(/\D/g, "")) || 0;
     function sortTrucks(list) {
@@ -456,6 +457,7 @@ const EQ = (() => {
         const qd = String(st.q || "").replace(/\D/g, "");
         const qPhone = qd.length >= 6 && !/[a-zа-яіїєґ]/i.test(st.q) ? (qd.length > 9 ? qd.slice(-9) : qd.replace(/^0/, "")) : "";
         let gone = 0;
+        const preGeo = [];
         const list = ROWS.filter((r) => {
             if (st.ua && !r.ua) return false;
             if (st.cps && !st.cps.has(r.checkpoint)) return false;
@@ -467,7 +469,6 @@ const EQ = (() => {
             if (st.starred && !WATCH.has(r.tractor)) return false;
             if (st.notInFura && (!r.edrpou || FURA.has(codeKey(r.edrpou)))) return false;
             if (st.chk && !chkPass(r.edrpou)) return false;
-            if (window.furaGeoPass && !window.furaGeoPass(FURA.get(codeKey(r.edrpou)))) return false; // 📍 Регіон / квадрат (geo-places.js)
             if (q && !norm([r.tractor, r.trailer, r.carrier, r.edrpou, r.boss, r.checkpoint, placeOf(r.edrpou), groupText(r.edrpou)].join(" ")).includes(q) && !(qPhone && (FURA.get(codeKey(r.edrpou))?.phones || "").includes(qPhone))) return false;
             if (st.fresh.length && HAS_REG) {
                 const t = regTime(r);
@@ -479,8 +480,12 @@ const EQ = (() => {
                 gone++;
                 return false;
             }
+            // 📍 Регіон / квадрат (geo-places.js) — останнім; лічильники рахуються з тих, що пройшли решту фільтрів
+            preGeo.push(r);
+            if (window.furaGeoPass && !window.furaGeoPass(FURA.get(codeKey(r.edrpou)))) return false;
             return true;
         });
+        PRE_GEO = preGeo;
         filtered.gone = gone;
         const el = document.getElementById("eqGoneN");
         if (el) el.textContent = gone ? ` (${gone.toLocaleString("uk-UA")})` : "";
@@ -901,7 +906,7 @@ const EQ = (() => {
     })();
 
     // для фільтра «📍 Регіон / квадрат»: картки FURA машин у черзі (по одній на машину — для лічильників)
-    window.furaEqGeoItems = () => ROWS.filter((r) => !st.ua || r.ua).map((r) => FURA.get(codeKey(r.edrpou))).filter(Boolean);
+    window.furaEqGeoItems = () => (PRE_GEO || ROWS).map((r) => FURA.get(codeKey(r.edrpou))).filter(Boolean);
     window.furaEqRender = () => { st.page = 0; renderAll(); };
     function renderAll() {
         paintChkBar();

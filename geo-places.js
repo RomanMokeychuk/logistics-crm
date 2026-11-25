@@ -19,7 +19,7 @@
         "УЗБЕКИСТАН": "uz", "КИРГИЗСТАН": "kg", "ТАДЖИКИСТАН": "tj", "ТУРКМЕНІСТАН": "tm", "УКРАЇНА": "ua",
     };
     const ccOf = (country) => CC[String(country || "").trim().toUpperCase().replace(/\s+/g, " ")] || "";
-    const LKEY = "fura_geo_cache_v1";
+    const LKEY = "fura_geo_cache_v2"; // v1 мав зіпсовані назви («Нижньос езьке»)
     const mem = (() => { try { return JSON.parse(localStorage.getItem(LKEY) || "{}"); } catch (_) { return {}; } })();
     const saveMem = () => { try { localStorage.setItem(LKEY, JSON.stringify(mem)); } catch (_) { /* */ } };
     const keyOf = (cc, city) => `${cc}|${String(city).trim().toLowerCase()}`;
@@ -31,7 +31,8 @@
         const d = pc.replace(/\D/g, "");
         return d.length >= 2 ? d.slice(0, 2) : "";
     };
-    const cleanState = (s) => String(s || "").replace(/\s*(воєводство|województwo|область|провінція|регіон|земля|край|іл|province|region)\s*/gi, " ").replace(/\s+/g, " ").trim();
+    // лише окремі слова («іл» усередині «Нижньосілезьке» не чіпаємо)
+    const cleanState = (s) => ` ${String(s || "")} `.replace(/\s(воєводство|województwo|область|провінція|регіон|земля|край|іл|province|region)(?=\s)/gi, " ").replace(/\s+/g, " ").trim();
     // місто вже записане як квадрат / індекс («PL-80», «44», «76-200») — не шукаємо
     const isKv = (s) => /^[A-Z]{0,2}[\s-]?\d{2,5}(-\d{3})?$/i.test(String(s).trim());
 
@@ -113,6 +114,7 @@
     const putRow = (cname, city, g) => { if (g && g.found) byName.set(`${PRETTY[cname] || cname}|${String(city).trim().toLowerCase()}`, g); };
     let geoVer = 0, loaded = false;
     const isEq = () => !!document.getElementById("eqFiltersToggle"); // сторінка «Черга»
+    try { localStorage.removeItem("fura_geo_cache_v1"); } catch (_) { /* */ }
     const SKEY = /echerha/i.test(location.pathname) ? "fura_geo_filter_eq" : "fura_geo_filter";
     let sel = new Set((() => { try { return JSON.parse(sessionStorage.getItem(SKEY) || "[]"); } catch (_) { return []; } })());
     const saveSel = () => { try { sessionStorage.setItem(SKEY, JSON.stringify([...sel])); } catch (_) { /* */ } };
@@ -183,7 +185,7 @@
             <input type="search" class="geo-q" placeholder="Пошук: Поморське, 76, Анкара…">
             <div class="geo-list"><div class="geo-empty">Завантаження…</div></div>
             <div class="geo-foot"><button type="button" class="btn btn-secondary geo-clr">Очистити</button><button type="button" class="btn btn-primary geo-ok">Застосувати</button></div>
-            <div class="geo-note">${isEq() ? "Числа — скільки машин у черзі. Беремо «Напрямки» з картки перевізника у FURA; машини без картки при фільтрі не показуються. " : ""}Воєводство (Польща) / регіон і «квадрат» — перші 2 цифри поштового індексу. Міста розпізнаються автоматично у фоні; поки не всі — список доповнюється.</div>`;
+            <div class="geo-note">${isEq() ? "Числа — скільки машин у черзі (з урахуванням інших фільтрів). Беремо «Напрямки» з картки перевізника у FURA; машини без картки при фільтрі не показуються. " : ""}Воєводство (Польща) / регіон і «квадрат» — перші 2 цифри поштового індексу. Міста розпізнаються автоматично у фоні; поки не всі — список доповнюється.</div>`;
         document.body.appendChild(pop);
         const r = btn.getBoundingClientRect();
         pop.style.top = `${Math.min(r.bottom + 6, innerHeight - 120)}px`;
@@ -201,7 +203,7 @@
                 (groups[cn] ||= []).push([tag, lab, n]);
             });
             const names = Object.keys(groups).sort((a, b) => (a === "ПОЛЬЩА" ? -1 : b === "ПОЛЬЩА" ? 1 : a.localeCompare(b, "uk")));
-            if (!names.length) { list.innerHTML = `<div class="geo-empty">${counts.size ? "Нічого не знайдено" : "Ще немає розпізнаних міст — зачекайте, поки сервер їх обробить"}</div>`; return; }
+            if (!names.length) { list.innerHTML = `<div class="geo-empty">${counts.size ? "Нічого не знайдено" : "У показаних перевізників ще немає розпізнаних міст (або «Напрямки» порожні). Міста розпізнаються у фоні — зазирніть пізніше."}</div>`; return; }
             list.innerHTML = names.map((cn) => {
                 const rows = groups[cn].sort((a, b) => {
                     const ka = a[1].startsWith("кв."), kb = b[1].startsWith("кв.");
@@ -222,7 +224,7 @@
         q.addEventListener("keydown", (e) => { if (e.key === "Enter") pop.querySelector(".geo-ok").click(); if (e.key === "Escape") close(); });
         (loaded ? Promise.resolve() : loadAll()).then(() => {
             counts = new Map();
-            const data = window.furaEqGeoItems ? window.furaEqGeoItems() : typeof allCarriersCache !== "undefined" ? allCarriersCache || [] : []; // eslint-disable-line no-undef
+            const data = window.furaEqGeoItems ? window.furaEqGeoItems() : window.furaCarriersPreGeo || (typeof allCarriersCache !== "undefined" ? allCarriersCache || [] : []); // eslint-disable-line no-undef — лише ті, що пройшли інші фільтри
             data.forEach((it) => tagsOf(it).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
             draw();
             q.focus();
