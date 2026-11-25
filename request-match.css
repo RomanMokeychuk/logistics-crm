@@ -141,3 +141,5 @@ a.qm-cname { color: inherit; }
 .qm-vq-mini { border: 1px solid #ddd6fe; background: #f5f3ff; color: #5b21b6; border-radius: 8px; padding: 3px 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .qm-vq-mini[hidden] { display: none; }
 .qm-vq-len .ok { color: #15803d; font-weight: 600; } .qm-vq-len .no { color: #9a3412; }
+.qm-vq-price { width: 150px; border: 1px solid #ddd6fe; border-radius: 8px; padding: 3px 8px; font: inherit; font-size: 12.5px; }
+.qm-vq-price[hidden] { display: none; }

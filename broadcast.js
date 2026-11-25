@@ -115,7 +115,7 @@
         try { sign = localStorage.getItem(SIGN_KEY) || ""; } catch (e) { /* */ }
         return `<div class="bc-text-wrap">
             <label class="bc-lbl">Текст повідомлення <small>${esc(hint)}</small>
-                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button></span>` : ""}</label>
+                ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — додасться «…, ціна. Цікавить?»"></span>` : ""}</label>
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
             <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
@@ -143,19 +143,24 @@
             let full = "";
             sb.addEventListener("click", () => {
                 full = box.querySelector(".bc-text").value;
-                box.querySelector(".bc-text").value = window.furaShortOffer ? window.furaShortOffer(curReq) : full.slice(0, 66);
-                box.dataset.short = "1"; sb.hidden = true; lb.hidden = false;
+                box.querySelector(".bc-text").value = window.furaShortOffer ? window.furaShortOffer(curReq, 66, box.querySelector(".bc-price").value) : full.slice(0, 66);
+                box.dataset.short = "1"; sb.hidden = true; lb.hidden = false; box.querySelector(".bc-price").hidden = false;
                 box.querySelector(".bc-sign").disabled = true;
                 upd();
             });
             lb.addEventListener("click", () => {
                 if (full) box.querySelector(".bc-text").value = full;
-                box.dataset.short = ""; sb.hidden = false; lb.hidden = true;
+                box.dataset.short = ""; sb.hidden = false; lb.hidden = true; box.querySelector(".bc-price").hidden = true;
                 box.querySelector(".bc-sign").disabled = false;
                 upd();
             });
         }
         box.addEventListener("change", (e) => { if (e.target.matches(".bc-pers")) upd(); });
+        box.querySelector(".bc-price")?.addEventListener("input", (e) => {
+            if (box.dataset.short !== "1" || !window.furaShortOffer) return;
+            box.querySelector(".bc-text").value = window.furaShortOffer(curReq, 66, e.target.value);
+            upd();
+        });
         box.querySelector(".bc-text").addEventListener("input", upd);
         box.querySelector(".bc-sign").addEventListener("input", (e) => { try { localStorage.setItem(SIGN_KEY, e.target.value); } catch (err) { /* */ } upd(); });
         upd();
@@ -515,7 +520,8 @@
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
     .bc-shortbar { float: right; display: inline-flex; gap: 6px; }
     .bc-mini { border: 1px solid #ddd6fe; background: #f5f3ff; color: #5b21b6; border-radius: 8px; padding: 2px 9px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
-    .bc-mini[hidden] { display: none; }
+    .bc-mini[hidden], .bc-price[hidden] { display: none; }
+    .bc-price { width: 150px; border: 1px solid #ddd6fe; border-radius: 8px; padding: 2px 8px; font: inherit; font-size: 12px; }
     .bc-fit { color: #15803d; font-weight: 600; } .bc-nofit { color: #9a3412; }
     .bc-conv { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 8px; }
     .bc-next { width: 100%; justify-content: center; padding: 14px !important; font-size: 16px !important; }

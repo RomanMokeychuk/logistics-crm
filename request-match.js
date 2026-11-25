@@ -712,7 +712,7 @@
         box.innerHTML = `<div class="qm-vq-in">
             <div class="qm-vq-h"><b>💬 Написати у Viber по черзі</b><button type="button" class="qm-close" data-qm="vq-close" title="Закрити"><i class="bx bx-x"></i></button></div>
             <p class="qm-vq-hint">Перевірте текст. Біля кожного перевізника натисніть <b>«Viber ➜»</b>: відкриється його чат у вашому Viber, текст уже буде скопійований — вставте <b>${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘V" : "Ctrl+V"}</b> і натисніть <b>Enter</b>. Потім — наступний.</p>
-            <div class="qm-vq-tbar"><button type="button" class="qm-vq-mini" data-vq-short title="Стислий текст ~100 символів — Viber вставить його в поле сам">✂️ Коротко</button><button type="button" class="qm-vq-mini" data-vq-long hidden>↩ Повний текст</button><span class="qm-vq-len"></span></div>
+            <div class="qm-vq-tbar"><button type="button" class="qm-vq-mini" data-vq-short title="Стислий текст ~100 символів — Viber вставить його в поле сам">✂️ Коротко</button><button type="button" class="qm-vq-mini" data-vq-long hidden>↩ Повний текст</button><input class="qm-vq-price" data-vq-price hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — додасться «…, ціна. Цікавить?»"><span class="qm-vq-len"></span></div>
             <textarea rows="9">${esc(offerText(current.r))}</textarea>
             <label class="qm-vq-opt"><input type="checkbox" data-vq-pers ${pers() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="qm-vq-list">${rows.map((x) => `<div class="qm-vq-row"><div><b>${esc(x.name || "Перевізник")}</b><small>${x.phones.map(([who, d]) => (who ? esc(who) + " " : "") + "+" + d).join(" · ")}${x.plate ? " · 🚛 " + esc(x.plate) : ""}</small></div>
@@ -734,14 +734,18 @@
         };
         let fullT = "";
         box.querySelector("[data-vq-short]").addEventListener("click", (e) => {
-            fullT = ta.value; ta.value = window.furaShortOffer ? window.furaShortOffer(current.r) : ta.value.slice(0, 66);
-            e.currentTarget.hidden = true; box.querySelector("[data-vq-long]").hidden = false; updLen();
+            fullT = ta.value; ta.value = window.furaShortOffer ? window.furaShortOffer(current.r, 66, box.querySelector("[data-vq-price]").value) : ta.value.slice(0, 66);
+            e.currentTarget.hidden = true; box.querySelector("[data-vq-long]").hidden = false; box.querySelector("[data-vq-price]").hidden = false; updLen();
         });
         box.querySelector("[data-vq-long]").addEventListener("click", (e) => {
             if (fullT) ta.value = fullT;
-            e.currentTarget.hidden = true; box.querySelector("[data-vq-short]").hidden = false; updLen();
+            e.currentTarget.hidden = true; box.querySelector("[data-vq-short]").hidden = false; box.querySelector("[data-vq-price]").hidden = true; updLen();
         });
         ta.addEventListener("input", updLen);
+        box.querySelector("[data-vq-price]").addEventListener("input", (e) => {
+            if (!box.querySelector("[data-vq-short]").hidden || !window.furaShortOffer) return;
+            ta.value = window.furaShortOffer(current.r, 66, e.target.value); updLen();
+        });
         updLen();
         box.addEventListener("change", (e) => {
             if (e.target.matches("[data-vq-draft]")) window.furaViberLongDraft?.(e.target.checked);

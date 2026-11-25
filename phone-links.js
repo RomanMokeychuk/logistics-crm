@@ -161,7 +161,7 @@
     window.furaCopyText = copyText;
     // Короткий текст пропозиції (щоб разом із «Доброго вечора, Олександр!» влізло в ~95 символів —
     // тоді Viber вставляє його в поле сам, без ⌘V)
-    window.furaShortOffer = (r, max = 66) => {
+    window.furaShortOffer = (r, max = 66, price = "") => {
         r = r || {};
         const city = (addr, cc) => String(addr || "").split(/[,(]/)[0].replace(/\s+/g, " ").trim() || String(cc || "").trim();
         const from = city(r.load_address, r.load_country), to = city(r.unload_address, r.unload_country);
@@ -170,7 +170,9 @@
         const tr = String(r.transport_type || "").split(/[,;/]/)[0].trim().toLowerCase();
         const w = String(r.weight || "").trim();
         const parts = [from && to ? `${from}→${to}` : from || to, tr, w, date && "завант. " + date].filter(Boolean);
-        const make = (p) => `${p.join(", ")}. Ставка?`;
+        // ціна вказана → «…, 2500 $. Цікавить?»; не вказана → нічого не додаємо (ставку назве перевізник)
+        price = String(price || "").trim();
+        const make = (p) => (price ? `${p.join(", ")}, ${price}. Цікавить?` : p.join(", "));
         while (parts.length > 1 && make(parts).length > max) parts.splice(parts.length - (parts.length > 2 ? 2 : 1), 1);
         let t = make(parts);
         if (t.length > max) t = t.slice(0, max - 1) + "…";
