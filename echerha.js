@@ -501,7 +501,16 @@ const EQ = (() => {
         const m = src.match(/(\d{3,5})\s*\/\s*(\d{4,6})/);
         if (!m) return "";
         const t = (kg) => (Number(kg) / 1000).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
-        return `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>`;
+        const pl = payloadT(m[1], m[2]);
+        return `<span class="eq-weight" title="Власна маса ${Number(m[1]).toLocaleString("uk-UA")} кг · повна ${Number(m[2]).toLocaleString("uk-UA")} кг">${t(m[1])} / ${t(m[2])} т</span>` +
+            (pl ? ` <span class="eq-payload" title="Скільки вантажу може взяти (приблизно): 40 т на весь автопоїзд − тягач ≈7,5 т − власна маса причепа ${t(m[1])} т; але не більше, ніж дозволяє сам причіп (${t(m[2] - m[1])} т)">≈ ${pl.toLocaleString("uk-UA")} т вантажу</span>` : "");
+    }
+    // Вантажопідйомність напівпричепа (приблизно): ліміт автопоїзда 40 т, тягач ≈7,5 т; округлення вниз до 0,5 т
+    function payloadT(own, full) {
+        own = Number(own); full = Number(full);
+        if (!own || !full || full <= own || full < 10000) return 0; // легкі причепи / помилки — не рахуємо
+        const kg = Math.min(full - own, 40000 - 7500 - own);
+        return kg > 0 ? Math.floor(kg / 500) / 2 : 0;
     }
     function trailerInfo(r) {
         const kind = String(r.trailer_kind || "")
