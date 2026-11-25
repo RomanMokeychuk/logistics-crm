@@ -1153,3 +1153,10 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 .fura-tr-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 auto; margin-left: auto; border: 1px solid var(--f-line, #e4e8ef); border-radius: 10px; background: #fff; font-size: 18px; text-decoration: none; }
 .fura-tr-btn + .fura-bell { margin-left: 8px !important; }
 .fura-tr-btn:hover, .fura-tr-btn.on { border-color: #d9a944; background: #fdf6e3; }
+
+/* Запити (квадратики): рядок фільтрів ховається кнопкою «Фільтри» */
+.table-card.fura-tiles.req-fhide thead { display: none !important; }
+.req-fbtn { display: inline-flex; align-items: center; gap: 6px; }
+.req-fbtn[hidden] { display: none !important; }
+.req-fbtn.on { background: #fdf3d8 !important; border-color: #d9a944 !important; }
+.req-fn { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #d9a944; color: #fff; font-size: 11px; }

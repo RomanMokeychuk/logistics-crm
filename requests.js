@@ -1075,6 +1075,7 @@ function buildFilterIcons() {
 }
 
 function updateFilterIcons() {
+    setTimeout(() => window.furaReqFiltersPaint?.(), 0);
     document
         .querySelectorAll(".requests-table .filter-icon")
         .forEach((icon) => {
@@ -3629,9 +3630,28 @@ function openCarrierText(r) {
     const sw = document.getElementById("reqView");
     if (!area || !sw) return;
     const get = () => { try { return localStorage.getItem(KEY) === "tiles" ? "tiles" : "rows"; } catch (e) { return "rows"; } };
+    // Кнопка «Фільтри»: у квадратиках рядок фільтрів (Клієнт · Тип · Звідки…) ховається і показується за потреби
+    const FKEY = "fura_req_filters_open";
+    const fb = document.createElement("button");
+    fb.type = "button";
+    fb.className = "btn btn-secondary req-fbtn";
+    fb.title = "Показати / сховати фільтри (Клієнт, Тип, Звідки, Куди, Статус, Sales…)";
+    sw.before(fb);
+    const fOpen = () => { try { return localStorage.getItem(FKEY) === "1"; } catch (e) { return false; } };
+    const paintF = () => {
+        const n = Object.keys(typeof activeFilters !== "undefined" ? activeFilters : {}).filter((k) => activeFilters[k]).length;
+        const open = fOpen();
+        area.classList.toggle("req-fhide", !open);
+        fb.classList.toggle("on", open);
+        fb.innerHTML = `<i class="bx bx-slider-alt"></i> Фільтри${n ? ` <b class="req-fn">${n}</b>` : ""} <i class="bx bx-chevron-${open ? "up" : "down"}"></i>`;
+    };
+    fb.addEventListener("click", () => { try { localStorage.setItem(FKEY, fOpen() ? "0" : "1"); } catch (e) { /* */ } paintF(); });
+    window.furaReqFiltersPaint = paintF;
     const apply = (v) => {
         area.classList.toggle("fura-tiles", v === "tiles");
         sw.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
+        fb.hidden = v !== "tiles"; // у рядках це заголовки колонок — їх не ховаємо
+        paintF();
     };
     sw.addEventListener("click", (e) => {
         const v = e.target.closest("[data-view]")?.dataset.view;
