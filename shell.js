@@ -15,7 +15,7 @@
             document.documentElement.classList.add("fura-cpop");
             const css = document.createElement("link");
             css.rel = "stylesheet";
-            css.href = "mobile.css?v=202611250718";
+            css.href = "mobile.css?v=202611251214";
             document.head.appendChild(css);
             // Посилання з картки на інші сторінки CRM відкриваємо в головному вікні, а не всередині картки
             document.addEventListener(
@@ -410,18 +410,18 @@
         mark.dataset.furaAssistant = "1";
         document.head.appendChild(mark);
         if (ASSISTANT_ENABLED) return addScript("assistant.js?v=202610192330");
-        if (!window.furaCarrierSearch) await addScript("carrier-search.js?v=202610192350");
-        await addScript("helper.js?v=202611250718");
+        // carrier-search.js був потрібен лише «Помічнику»
+        // «Помічник» (кнопка внизу справа) вимкнено на прохання — helper.js не завантажуємо
     }
 
     // Телефон: меню виїжджає зліва по кнопці ☰
     function setupMobileMenu() {
         const css = document.createElement("link");
         css.rel = "stylesheet";
-        css.href = "mobile.css?v=202611250718";
+        css.href = "mobile.css?v=202611251214";
         document.head.appendChild(css);
-        addScript("mobile-ux.js?v=202611250718");
-        addScript("mobile-kit.js?v=202611250718");
+        addScript("mobile-ux.js?v=202611251214");
+        addScript("mobile-kit.js?v=202611251214");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
@@ -600,7 +600,7 @@
         keepSessionFresh();
         checkClock();
         // Клік по назві перевізника будь-де — повна картка у вікні (carrier-popup.js)
-        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611250718");
+        if (!window.furaCarrierPopup) addScript("carrier-popup.js?v=202611251214");
         const label = buildSidebar();
         paintNavBadges();
         keepSidebarScroll();
@@ -611,20 +611,19 @@
         fillUser();
         loadAssistant();
         // Номер телефону → дзвінок / Viber / WhatsApp / Telegram (phone-links.js)
-        addScript("phone-links.js?v=202611250718");
+        addScript("phone-links.js?v=202611251214");
         // ✨ Помічник тексту в полях для листів і повідомлень (ai-writer.js)
-        addScript("ai-writer.js?v=202611250718");
+        addScript("ai-writer.js?v=202611251214");
         // Один пошук на всю CRM у верхній смузі (global-search.js)
         if (window.top === window.self) {
-            addScript("global-search.js?v=202611250718");
-            // Фурик — персонаж із нагадуваннями (furik.js)
-            addScript("furik.js?v=202611250718");
+            addScript("global-search.js?v=202611251214");
+            // Фурик (персонаж внизу справа) вимкнено на прохання — furik.js не завантажуємо
             // «Зараз у FURA» — хто з колег онлайн (presence.js)
-            addScript("presence.js?v=202611250718");
+            addScript("presence.js?v=202611251214");
             // Сповіщення: обрана (★) машина з «Черги» пройшла кордон (watch-notify.js)
             addScript("watch-notify.js?v=202610251500");
             // Нові листи на пошті → сповіщення (mail-watch.js)
-            addScript("mail-watch.js?v=202611250718");
+            addScript("mail-watch.js?v=202611251214");
         }
     }
 
