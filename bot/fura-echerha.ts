@@ -103,6 +103,59 @@ async function fillCapacity(syncId: string) {
     }
     return { carriers: by.size, updated };
 }
+
+/* ---------- 📍 Міста з «Напрямків»: воєводство / регіон і «квадрат» (OpenStreetMap) ---------- */
+const GEO_CC: Record<string, string> = {
+    "ПОЛЬЩА": "pl", "ПОЛЬША": "pl", "НІМЕЧЧИНА": "de", "ТУРЕЧЧИНА": "tr", "РУМУНІЯ": "ro", "МОЛДОВА": "md", "БОЛГАРІЯ": "bg",
+    "ГРЕЦІЯ": "gr", "АВСТРІЯ": "at", "ЧЕХІЯ": "cz", "СЛОВАЧЧИНА": "sk", "УГОРЩИНА": "hu", "ЛИТВА": "lt", "ЛАТВІЯ": "lv",
+    "ЕСТОНІЯ": "ee", "ІТАЛІЯ": "it", "ФРАНЦІЯ": "fr", "ІСПАНІЯ": "es", "ПОРТУГАЛІЯ": "pt", "НІДЕРЛАНДИ": "nl", "ГОЛЛАНДІЯ": "nl",
+    "БЕЛЬГІЯ": "be", "ЛЮКСЕМБУРГ": "lu", "ДАНІЯ": "dk", "ШВЕЦІЯ": "se", "ФІНЛЯНДІЯ": "fi", "НОРВЕГІЯ": "no", "СЛОВЕНІЯ": "si",
+    "ХОРВАТІЯ": "hr", "СЕРБІЯ": "rs", "БОСНІЯ": "ba", "ЧОРНОГОРІЯ": "me", "АЛБАНІЯ": "al", "МАКЕДОНІЯ": "mk", "ШВЕЙЦАРІЯ": "ch",
+    "ВЕЛИКОБРИТАНІЯ": "gb", "ІРЛАНДІЯ": "ie", "ГРУЗІЯ": "ge", "ВІРМЕНІЯ": "am", "АЗЕРБАЙДЖАН": "az", "КАЗАХСТАН": "kz",
+    "УЗБЕКИСТАН": "uz", "КИРГИЗСТАН": "kg", "ТАДЖИКИСТАН": "tj", "ТУРКМЕНІСТАН": "tm",
+};
+const geoKv = (cc: string, pc: string) => {
+    pc = String(pc || "").trim().toUpperCase();
+    if (!pc) return "";
+    if (cc === "gb" || cc === "ie") return (pc.match(/^[A-Z]{1,2}/) || [""])[0];
+    const d = pc.replace(/\D/g, "");
+    return d.length >= 2 ? d.slice(0, 2) : "";
+};
+const geoState = (st: string) => String(st || "").replace(/\s*(воєводство|województwo|область|провінція|регіон|земля|край|province|region)\s*/gi, " ").replace(/\s+/g, " ").trim();
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+async function nominatim(path: string, params: Record<string, string>) {
+    await sleep(1100); // правила OpenStreetMap: не частіше 1 запиту на секунду
+    const r = await fetch(`https://nominatim.openstreetmap.org/${path}?${new URLSearchParams({ format: "jsonv2", addressdetails: "1", "accept-language": "uk", ...params })}`, {
+        headers: { "User-Agent": "FURA-CRM/1.0 (logistics CRM, grandarltd.com)", "Accept-Language": "uk" },
+    });
+    return r.ok ? r.json() : null;
+}
+async function geoTick() {
+    const t0 = Date.now();
+    const { data: miss, error } = await db.rpc("geo_missing", { p_limit: 30 });
+    if (error) return { ok: false, error: /geo_missing/.test(error.message) ? "Запустіть geo_places.sql" : error.message };
+    let done = 0;
+    for (const m of miss || []) {
+        if (Date.now() - t0 > 90000) break;
+        const cc = GEO_CC[m.country];
+        const city = String(m.city || "").trim();
+        const key = `${cc || "xx-" + String(m.country).toLowerCase()}|${city.toLowerCase()}`;
+        let out: Any = { found: false, state: "", postcode: "", kv: "" };
+        if (cc) {
+            const res = await nominatim("search", { q: city, countrycodes: cc, limit: "1" }).catch(() => null);
+            const hit = Array.isArray(res) && res[0];
+            if (hit) {
+                const a = hit.address || {};
+                let pc = a.postcode || "";
+                if (!pc) pc = (await nominatim("reverse", { lat: hit.lat, lon: hit.lon, zoom: "18" }).catch(() => null))?.address?.postcode || "";
+                out = { found: true, state: geoState(a.state || a.province || a.region || a.county || ""), postcode: pc, kv: geoKv(cc, pc), lat: Number(hit.lat), lon: Number(hit.lon) };
+            }
+        }
+        await db.from("geo_places").upsert([{ key, country: cc || null, cname: m.country, city, ...out, updated_at: new Date().toISOString() }], { onConflict: "key" });
+        done++;
+    }
+    return { ok: true, done, left: (miss || []).length - done };
+}
 /* ---------- Обрані машини (★): хто з'явився в черзі, хто проїхав ---------- */
 const BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") ?? "";
 const APP_URL = (Deno.env.get("APP_URL") ?? "https://romanmokeychuk.github.io/logistics-crm").replace(/\/[^/]*\.html.*$/, "").replace(/\/$/, "");
@@ -179,6 +232,12 @@ async function checkWatched(syncId: string) {
 
 Deno.serve(async (req) => {
     if (req.method !== "POST") return json(405, { ok: false, error: "POST only" });
+    // Розклад (geo_places.sql): розпізнати нові міста з «Напрямків» — воєводство / квадрат
+    if (req.headers.get("x-push-token")) {
+        const { data: pc } = await db.from("push_cron").select("token").eq("id", 1).maybeSingle();
+        if (!pc?.token || req.headers.get("x-push-token") !== pc.token) return json(401, { ok: false, error: "невірний токен" });
+        return json(200, await geoTick().catch((e) => ({ ok: false, error: String(e?.message || e) })));
+    }
     if (!TOKEN || req.headers.get("x-echerha-token") !== TOKEN) return json(401, { ok: false, error: "невірний токен" });
 
     let body: Any;

@@ -917,6 +917,7 @@ function resetCarriersFilters() {
     const lf = document.getElementById("lardiChkFilter");
     if (lf) { lf.value = ""; lf.classList.remove("on"); try { sessionStorage.removeItem("fura_lardi_chk"); } catch (e) { /* */ } }
     activeFiltersState = {};
+    window.furaGeoReset?.();
     const gs = document.getElementById("gsInput");
     if (gs) gs.value = "";
     currentPage = 1;
@@ -1069,6 +1070,9 @@ function renderCarriers() {
             const st = !item.lardi_checked_at ? "none" : item.lardi_found ? "found" : "notfound";
             if (lardiFilterVal === "checked" ? st === "none" : st !== lardiFilterVal) return false;
         }
+
+        // Фільтр «📍 Регіон / квадрат» (geo-places.js)
+        if (window.furaGeoPass && !window.furaGeoPass(item)) return false;
 
         // Пошук за загальним рядком
         if (searchQuery) {
