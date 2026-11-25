@@ -266,7 +266,7 @@
                     ${trailers.length ? `<label class="bc-chk"><input type="checkbox" class="bc-tr" checked> лише ${esc(trailers.join(" / ").toLowerCase())}</label>` : ""}
                     <label class="bc-chk"><input type="checkbox" class="bc-lardi"> лише знайдені на Lardi</label>
                 </div>
-                <div class="bc-add"><input type="search" class="bc-find" placeholder="➕ Додати конкретного перевізника: назва, ЄДРПОУ або телефон…"><div class="bc-sugg" hidden></div></div>
+                <div class="bc-add"><input type="search" class="bc-find" placeholder="➕ Додати перевізника: назва, ЄДРПОУ або телефон (можна будь-який номер з ім'ям)…"><div class="bc-sugg" hidden></div></div>
                 ${listHtml("Пошук у списку…")}
             </section>
             <section class="bc-col">${textHtml(text, "без клієнта і ціни — як «Текст перевізнику»")}
@@ -317,11 +317,21 @@
                 if (d.length >= 5) ors.push(`phone_1.ilike.%${d.slice(-9)}%`, `phone_2.ilike.%${d.slice(-9)}%`);
                 const { data } = await client().from("carriers").select("id, name, edrpou, phone_1, phone_2, contact_person_1, contact_person_2, director, region_ukr, trailer_type").or(ors.join(",")).limit(8);
                 sugg.hidden = false;
-                sugg.innerHTML = (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), who: (normPhone(c.phone_1) ? c.contact_person_1 : c.contact_person_2) || c.director || "", sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
+                // будь-який номер (навіть не з бази): «+380671234567 Сергій» або кілька рядків
+                // «+380673257717 Сергій +380979925552 Наталя» — кожен номер з іменем після нього
+                const raw = [...v.matchAll(/(\+?\d[\d\s()-]{8,}\d)([^+\d]*)/g)].map(([, num, rest]) => {
+                    const ph = normPhone(num);
+                    const nm = String(rest || "").replace(/[*•\-–—:,;]+/g, " ").replace(/\s+/g, " ").trim();
+                    return ph ? { id: "tel:" + ph, name: nm || "Номер " + fmtPhone(ph), phone: ph, who: nm, sub: "номер не з бази" } : null;
+                }).filter((x, i, arr) => x && arr.findIndex((y) => y && y.phone === x.phone) === i);
+                const rawHtml = raw.length ? `<button type="button" data-raw='${esc(JSON.stringify(raw))}'><b>➕ Додати ${raw.length > 1 ? raw.length + " номери" : "номер " + esc(fmtPhone(raw[0].phone))}${raw.length === 1 && raw[0].who ? " — " + esc(raw[0].who) : ""}</b> <small>навіть якщо його немає в базі</small></button>` : "";
+                sugg.innerHTML = rawHtml + (data || []).map((c) => `<button type="button" data-c='${esc(JSON.stringify({ id: c.id, name: c.name || "", phone: normPhone(c.phone_1) || normPhone(c.phone_2), who: (normPhone(c.phone_1) ? c.contact_person_1 : c.contact_person_2) || c.director || "", sub: [c.edrpou, c.region_ukr, c.trailer_type].filter(Boolean).join(" · ") }))}'>
                     <b>${esc(c.name)}</b> <small>${esc(c.edrpou || "")} · ${esc(fmtPhone(normPhone(c.phone_1) || normPhone(c.phone_2)) || "немає мобільного")}</small></button>`).join("") || `<div class="bc-empty">Не знайдено</div>`;
             }, 250);
         });
         sugg.addEventListener("click", (e) => {
+            const rb = e.target.closest("[data-raw]");
+            if (rb) { JSON.parse(rb.dataset.raw).forEach((it) => ui?.add(it)); find.value = ""; sugg.hidden = true; return; }
             const b = e.target.closest("[data-c]");
             if (!b) return;
             const it = JSON.parse(b.dataset.c);
