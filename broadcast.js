@@ -118,7 +118,8 @@
                 ${curReq ? `<span class="bc-shortbar"><button type="button" class="bc-mini bc-short" title="Стислий текст ~100 символів — Viber вставить його в поле сам, без ґ і ⌘V">✂️ Коротко</button><button type="button" class="bc-mini bc-long" hidden>↩ Повний текст</button><input class="bc-price" hidden placeholder="Ціна (необов'язково)" title="Якщо вкажете — ціна стане перед «Цікавить?»"></span>` : ""}</label>
             <textarea class="bc-text" data-ai-write maxlength="1000">${esc(text)}</textarea>
             <label class="bc-lbl">Підпис (ваш телефон — щоб дзвонили саме вам)</label>
-            <input class="bc-sign" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
+            <input class="bc-sign" maxlength="300" placeholder="Напр.: Роман, ТОВ «Грандар», +380 99 123 45 67" value="${esc(sign)}">
+            <div class="bc-sign-note" hidden>У режимі «✂️ Коротко» підпис не додається (щоб текст влазив у Viber). Натисніть «↩ Повний текст» — і він знову буде в кінці.</div>
             <div class="bc-len"></div></div>`;
     }
     let curReq = null; // запит, з якого пишемо перевізникам (для «✂️ Коротко»)
@@ -146,13 +147,13 @@
                 full = box.querySelector(".bc-text").value;
                 box.querySelector(".bc-text").value = window.furaShortOffer ? window.furaShortOffer(curReq, 66, box.querySelector(".bc-price").value) : full.slice(0, 66);
                 box.dataset.short = "1"; sb.hidden = true; lb.hidden = false; box.querySelector(".bc-price").hidden = false;
-                box.querySelector(".bc-sign").disabled = true;
+                box.querySelector(".bc-sign-note").hidden = false;
                 upd();
             });
             lb.addEventListener("click", () => {
                 if (full) box.querySelector(".bc-text").value = full;
                 box.dataset.short = ""; sb.hidden = false; lb.hidden = true; box.querySelector(".bc-price").hidden = true;
-                box.querySelector(".bc-sign").disabled = false;
+                box.querySelector(".bc-sign-note").hidden = true;
                 upd();
             });
         }
@@ -194,7 +195,7 @@
         return `<div class="bc-conv">
             <button type="button" class="bc-btn bc-next"><i class="bx bxl-viber"></i> ▶ Відкрити наступний у Viber</button>
             <p class="bc-muted">Конвеєр: кнопка → у Viber <b>ґ</b> (або ⌘V і Enter) → повернулись сюди → знову кнопка (або <b>Enter</b>). Безкоштовно, з вашого Viber, відправляєте ви самі.</p>
-            <label class="bc-chk bc-g"><input type="checkbox" class="bc-gk" ${window.furaViberG?.() ? "checked" : ""}> ⌨️ У мене налаштована клавіша <b>ґ</b> (вставити й надіслати) — тоді в Viber завжди лише <b>ґ</b></label>
+            <label class="bc-chk bc-g"><input type="checkbox" class="bc-gk" ${window.furaViberG?.() ? "checked" : ""}><span>⌨️ У мене налаштована клавіша «ґ» (вставити й надіслати) — тоді в Viber завжди лише «ґ»</span></label>
             <label class="bc-chk"><input type="checkbox" class="bc-pers" ${persOn() ? "checked" : ""}> Привітання за часом і на ім'я («Доброго ранку / Добрий день / Доброго вечора, Вадим!») — кожне повідомлення різне, Viber не сприйме як спам</label>
             <div class="bc-pause" hidden></div></div>`;
     }
@@ -523,6 +524,8 @@
     .bc-type { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 12.5px; color: #374151; padding: 6px 0; }
     .bc-type small { color: #9ca3af; }
     .bc-btns { display: inline-flex; gap: 8px; align-items: center; }
+    .bc-sign-note { font-size: 12px; color: #9a3412; background: #fff7ed; border-radius: 8px; padding: 5px 9px; margin-top: 4px; }
+    .bc-sign-note[hidden] { display: none; }
     .bc-shortbar { float: right; display: inline-flex; gap: 6px; }
     .bc-mini { border: 1px solid #ddd6fe; background: #f5f3ff; color: #5b21b6; border-radius: 8px; padding: 2px 9px; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
     .bc-mini[hidden], .bc-price[hidden] { display: none; }
