@@ -358,7 +358,9 @@
             const when = (x) => new Date(x.born || x.at || 0).getTime();
             const thisW = pool.filter((x) => nowT - when(x) <= 7 * day).map((x) => x.price);
             const prevW = pool.filter((x) => nowT - when(x) > 7 * day && nowT - when(x) <= 14 * day).map((x) => x.price);
-            const trend = thisW.length >= 2 && prevW.length >= 2 ? { now: median(thisW), prev: median(prevW), pct: Math.round(((median(thisW) - median(prevW)) / median(prevW)) * 100), thisW, prevW } : null;
+            // % рахуємо від тієї ціни, яку показуємо (медіана джерела), щоб знак збігався з цифрами
+            const nowMed = median(prices);
+            const trend = thisW.length >= 2 && prevW.length >= 2 ? { now: nowMed, prev: median(prevW), pct: Math.round(((nowMed - median(prevW)) / median(prevW)) * 100) } : null;
             return {
                 trend,
                 cur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, oldest: p.oldest, same: b.same, wsame: w.wsame, prices,
@@ -382,9 +384,13 @@
         if (same.some((x) => x.fresh)) same = same.filter((x) => x.fresh);
         out.target = same.length ? r50(same.reduce((s2, x) => s2 + x.med, 0) / same.length) : 0;
         out.used = same.length;
-        // Загальна зміна за тиждень — по всіх джерелах разом
-        const tw = same.flatMap((x) => x.trend?.thisW || []), pw = same.flatMap((x) => x.trend?.prevW || []);
-        if (tw.length >= 2 && pw.length >= 2) out.trend = { pct: Math.round(((median(tw) - median(pw)) / median(pw)) * 100), prev: r50(median(pw)) };
+        // Загальна зміна за тиждень: ті самі джерела зараз проти минулого тижня (знак збігається з цифрами джерел)
+        const withT = same.filter((x) => x.trend);
+        if (withT.length && out.target) {
+            const nowA = withT.reduce((a, x) => a + x.med, 0) / withT.length;
+            const prevA = withT.reduce((a, x) => a + x.trend.prev, 0) / withT.length;
+            if (prevA) out.trend = { pct: Math.round(((nowA - prevA) / prevA) * 100), prev: r50(prevA) };
+        }
         // «від – до»: середина ринку (20–80 %) по всіх цінах, що пішли в розрахунок
         const all = same.flatMap((x) => x.prices);
         if (all.length) { out.lo = r50(pct(all, 0.2)); out.hi = r50(pct(all, 0.8)); }
