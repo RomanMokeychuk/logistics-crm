@@ -1897,6 +1897,8 @@ function openRequestCard(id) {
 
         ${answerSectionHtml(r)}
 
+        ${window.furaTargetRate ? window.furaTargetRate.sectionHtml(r) : ""}
+
         ${chatSectionHtml(r)}
 
         <div id="routeMapBox" style="margin-top:16px"></div>
@@ -1951,6 +1953,7 @@ function openRequestCard(id) {
     requestCardOverlay.classList.add("active");
     initRequestChat(r.id);
     window.furaBids?.mount(r); // ставки перевізників (bids.js)
+    window.furaTargetRate?.mount(r); // цільова ставка: логісти + Lardi (target-rate.js)
     window.furikReply?.mount(r); // Фурик підкаже: ціни логісту, відповідь клієнту Sales (furik-reply.js)
 
     // Карта маршруту (route-map.js)
@@ -3198,6 +3201,7 @@ function openAnswerModal(id) {
             ? `<i class='bx bx-info-circle'></i> Після збереження статус зміниться на «${STATUS_QUOTE}», і запит стане зеленим.`
             : "";
 
+    window.furaTargetRate?.hintFor(r, document.getElementById("answerTargetHint"));
     if (preN) hint.innerHTML = `<i class='bx bx-check-circle'></i> З Блокнота додано перевізників: ${preN}. Перевірте ціни й дати, далі — «Зберегти».` + (hint.innerHTML ? "<br>" + hint.innerHTML : "");
     answerModalOverlay.classList.add("active");
 }
