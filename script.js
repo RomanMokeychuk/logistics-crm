@@ -748,7 +748,7 @@ function renderDestinationsHtml(str) {
 
             if (country && region) {
                 return `
-                <div style="margin-bottom: 8px;">
+                <div class="dest-blk" style="margin-bottom: 8px;">
                     <div><span class="badge-country">${country}</span></div>
                     <div style="font-size: 13px; color: #475569; margin-top: 2px; padding-left: 2px;">
                         <strong>Квадрат / Воєводство:</strong> ${region}
@@ -756,7 +756,7 @@ function renderDestinationsHtml(str) {
                 </div>`;
             } else if (country) {
                 return `
-                <div style="margin-bottom: 8px;">
+                <div class="dest-blk dest-blk-short" style="margin-bottom: 8px;">
                     <span class="badge-country">${country}</span>
                 </div>`;
             }
@@ -881,7 +881,7 @@ function openCarrierCard(id) {
                 ${cardRow("Додатково:", presetChipsHtml(item, "additional"), "additional")}
             </div>
 
-            <div class="card-section" data-def-open="1">
+            <div class="card-section cc-dirs" data-def-open="1">
                 <div class="card-section-title">🧭 Напрямки</div>
                 ${cardRow("Закордон:", renderDestinationsHtml(item.destinations), "dirs")}
                 ${cardRow("В Україні:", renderListBadges(item.ukraine_directions, "badge-country"), "dirs")}
@@ -2634,6 +2634,17 @@ function carrierPopupReady(id) {
         grid.classList.toggle("cc-masonry", two);
         if (!two) { [...grid.children].forEach((el) => (el.style.gridRowEnd = "")); return; }
         const gap = 8;
+        // Довгі «Напрямки» при 3 колонках — на дві колонки (заповнюють порожнє місце під «Основне» і «Контакти»)
+        const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
+        const dirs = grid.querySelector(".cc-dirs");
+        if (dirs) {
+            dirs.classList.remove("cc-wide");
+            if (cols >= 3) {
+                const others = [...grid.children].filter((el) => el !== dirs && !el.classList.contains("card-section-wide"));
+                const maxOther = Math.max(0, ...others.map((el) => el.getBoundingClientRect().height));
+                if (dirs.getBoundingClientRect().height > Math.max(420, maxOther * 1.4)) dirs.classList.add("cc-wide");
+            }
+        }
         [...grid.children].forEach((el) => {
             el.style.gridRowEnd = "";
             const h = el.getBoundingClientRect().height;
