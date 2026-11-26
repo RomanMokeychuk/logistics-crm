@@ -595,7 +595,28 @@ const PRESET_EXTRA = [
 ];
 const splitTrailers = (v) => String(v || "").split(/[;,]/).map((t) => t.trim()).filter(Boolean);
 const splitExtra = (v) => String(v || "").split(/\s*[,;]\s*/).map((t) => t.trim()).filter(Boolean);
+const PRESET_NUM = {
+    tonnage: { unit: "т", list: ["1.5", "3.5", "5", "10", "12", "20", "22", "24"] },
+    volume: { unit: "м³", list: ["20", "33", "45", "60", "76", "82", "86", "90", "92", "96", "100", "120"] },
+};
+const numNorm = (v) => String(v ?? "").replace(",", ".").replace(/\s*(т|м³|м3)\s*$/i, "").replace(/\s*-\s*/g, "–").trim();
 function presetChipsHtml(item, kind) {
+    if (PRESET_NUM[kind]) {
+        // одне значення: клік — вибрати, клік по вибраному — очистити
+        const { unit, list } = PRESET_NUM[kind];
+        const cur = numNorm(item[kind]);
+        const est = !cur && capEstimate(item);
+        const r = est && (kind === "tonnage" ? est.t : est.v);
+        const typical = r ? `${r[0]}–${r[1]}` : "";
+        const vals = [...list];
+        if (typical) vals.unshift(typical);
+        if (cur && !vals.includes(cur)) vals.unshift(cur);
+        return `${!cur && typical ? `<div class="pc-est">${capCell(item, kind, unit)}</div>` : ""}<div class="pc-chips" data-pc="${kind}">${vals.map((v) => {
+            const on = v === cur;
+            const isTyp = v === typical && !on;
+            return `<button type="button" class="pc-chip${on ? " on" : ""}${isTyp ? " typ" : ""}" data-pc-v="${escapeHtml(v)}"${isTyp ? ` title="Типово для: ${escapeHtml(est.names)} — клік, щоб записати"` : ""}>${on ? "✓ " : isTyp ? "≈ " : ""}${escapeHtml(v)} ${unit}</button>`;
+        }).join("")}</div>`;
+    }
     if (kind === "trailer_type") {
         const have = splitTrailers(item.trailer_type);
         const up = have.map((t) => t.toUpperCase());
@@ -609,6 +630,7 @@ function presetChipsHtml(item, kind) {
 }
 // новий текст поля після кліку на заготовку
 function togglePreset(item, kind, val) {
+    if (PRESET_NUM[kind]) return numNorm(item[kind]) === val ? null : val;
     if (kind === "trailer_type") {
         const have = splitTrailers(item.trailer_type);
         const has = have.some((t) => t.toUpperCase() === val.toUpperCase());
@@ -629,7 +651,9 @@ function togglePreset(item, kind, val) {
 .pc-chip.on{border:1px solid #f0c674;background:#fdf0d5;color:#92650c}
 .pc-chip.on:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
 .pc-chip:disabled{opacity:.5;cursor:wait}
-.pc-rest{margin-top:6px;color:#0284c7;font-size:13px}`;
+.pc-rest{margin-top:6px;color:#0284c7;font-size:13px}
+.pc-est{margin-bottom:5px;font-size:13px}
+.pc-chip.typ{border-style:solid;border-color:#bfdbfe;background:#eff6ff;color:#2563eb}`;
     document.head.appendChild(st);
 })();
 
@@ -805,8 +829,8 @@ function openCarrierCard(id) {
             <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🚛 Техніка</div>
                 ${cardRow("Тип причепу:", presetChipsHtml(item, "trailer_type"), "trailer_type")}
-                ${cardRow("Об'єм:", item.volume || capEstimate(item)?.v ? capCell(item, "volume", "м³") : "", "volume")}
-                ${cardRow("Тоннаж:", item.tonnage || capEstimate(item)?.t ? capCell(item, "tonnage", "т") : "", "tonnage")}
+                ${cardRow("Об'єм:", presetChipsHtml(item, "volume"), "volume")}
+                ${cardRow("Тоннаж:", presetChipsHtml(item, "tonnage"), "tonnage")}
                 ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(String(item.fleet_params).replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"))}</div>`) : ""}
                 ${cardRow("Додатково:", presetChipsHtml(item, "additional"), "additional")}
             </div>
