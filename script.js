@@ -616,7 +616,12 @@ const PRESET_HINT = {
 };
 const numNorm = (v) => String(v ?? "").replace(",", ".").replace(/\s*(т|м³|м3)\s*$/i, "").replace(/\s*-\s*/g, "–").trim();
 const splitNums = (v) => String(v ?? "").split(/\s*;\s*|\s*\/\s*|,\s+/).map(numNorm).filter(Boolean);
+const PC_OPEN = new Set(); // які рядки розгорнуті (показати всі варіанти)
 function presetChipsHtml(item, kind) {
+    const open = PC_OPEN.has(kind);
+    return `<div class="pc-wrap${open ? " open" : ""}" data-pck="${kind}">${presetChipsInner(item, kind)}<button type="button" class="pc-more">${open ? "▴ згорнути" : "＋ додати / змінити"}</button></div>`;
+}
+function presetChipsInner(item, kind) {
     if (PRESET_NUM[kind]) {
         // одне значення: клік — вибрати, клік по вибраному — очистити
         const { unit, groups } = PRESET_NUM[kind];
@@ -633,7 +638,7 @@ function presetChipsHtml(item, kind) {
             return `<button type="button" class="pc-chip${on ? " on" : ""}${isTyp ? " typ" : ""}${extra}" data-pc-v="${escapeHtml(v)}"${hint ? ` title="${escapeHtml(hint)}"` : ""}>${on ? "✓ " : isTyp ? "≈ " : ""}${escapeHtml(v)} ${unit}</button>`;
         };
         const top = [...new Set([typical, ...curList.filter((v) => !all.includes(v))])].filter(Boolean);
-        return `${!cur && typical ? `<div class="pc-est">${capCell(item, kind, unit)}</div>` : ""}<div class="pc-num" data-pc="${kind}">${top.length ? `<div class="pc-chips">${top.map((v) => chip(v)).join("")}</div>` : ""}${groups.map(([lab, l]) => `<div class="pc-grp"><span class="pc-gl">${lab}</span><div class="pc-chips">${l.map((v) => chip(v)).join("")}</div></div>`).join("")}</div>`;
+        return `<div class="pc-num" data-pc="${kind}">${top.length ? `<div class="pc-chips">${top.map((v) => chip(v)).join("")}</div>` : ""}${groups.map(([lab, l]) => `<div class="pc-grp"><span class="pc-gl">${lab}</span><div class="pc-chips">${l.map((v) => chip(v)).join("")}</div></div>`).join("")}</div>`;
     }
     if (kind === "trailer_type") {
         const have = splitTrailers(item.trailer_type);
@@ -670,7 +675,21 @@ function togglePreset(item, kind, val) {
 (() => {
     const st = document.createElement("style");
     st.textContent = `.pc-chips{display:flex;flex-wrap:wrap;gap:5px}
-.pc-chip{border:1px dashed #cbd5e1;background:#f8fafc;color:#94a3b8;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.4;transition:.15s}
+.pc-chips{gap:3px!important}
+.pc-chip{border:1px dashed #cbd5e1;background:#f8fafc;color:#94a3b8;border-radius:6px;padding:1px 7px;font-size:11.5px;font-weight:600;cursor:pointer;line-height:1.5;transition:.15s}
+.pc-wrap{display:flex;flex-wrap:wrap;align-items:center;gap:3px 6px}
+.pc-wrap>.pc-chips,.pc-wrap>.pc-num{display:contents}
+.pc-wrap.open>.pc-chips,.pc-wrap.open>.pc-num{display:flex;flex-basis:100%}
+.pc-wrap.open>.pc-num{flex-direction:column;gap:3px}
+.pc-wrap:not(.open) .pc-chip:not(.on):not(.typ){display:none}
+.pc-wrap:not(.open) .pc-gl{display:none}
+.pc-wrap:not(.open) .pc-grp,.pc-wrap:not(.open) .pc-num>.pc-chips{display:contents}
+.pc-wrap:not(.open) .pc-grp>.pc-chips{display:contents}
+.pc-wrap>.pc-est,.pc-wrap>.pc-rest{flex-basis:100%;order:-1}
+.pc-wrap>.pc-rest{order:5;margin-top:2px}
+.pc-more{border:0;background:none;color:#2563eb;font-size:11.5px;font-weight:600;cursor:pointer;padding:1px 2px;order:4}
+.pc-more:hover{text-decoration:underline}
+.pc-wrap.open .pc-more{flex-basis:100%;text-align:left}
 .pc-chip:hover{border-color:#d4a72c;color:#92650c;background:#fffbeb}
 .pc-chip.on{border:1px solid #f0c674;background:#fdf0d5;color:#92650c}
 .pc-chip.on:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
@@ -679,7 +698,7 @@ function togglePreset(item, kind, val) {
 .pc-est{margin-bottom:5px;font-size:13px}
 .pc-num{display:flex;flex-direction:column;gap:5px}
 .pc-grp{display:flex;gap:6px;align-items:flex-start}
-.pc-gl{flex:0 0 58px;font-size:11px;color:#94a3b8;padding-top:5px}
+.pc-gl{flex:0 0 52px;font-size:10.5px;color:#94a3b8;padding-top:3px}
 .pc-chip.typ{border-style:solid;border-color:#bfdbfe;background:#eff6ff;color:#2563eb}`;
     document.head.appendChild(st);
 })();
@@ -2519,6 +2538,17 @@ function carrierPopupReady(id) {
             return;
         }
         if (body.classList.contains("cc-editing")) return; // повна форма відкрита
+        // «＋ додати / змінити» — показати всі варіанти (або згорнути до вибраних)
+        const more = e.target.closest(".pc-more");
+        if (more) {
+            const w = more.closest(".pc-wrap");
+            const k = w.dataset.pck;
+            const on = !w.classList.contains("open");
+            w.classList.toggle("open", on);
+            on ? PC_OPEN.add(k) : PC_OPEN.delete(k);
+            more.textContent = on ? "▴ згорнути" : "＋ додати / змінити";
+            return;
+        }
         // Заготовки «Тип причепу» / «Додатково»: один клік — є / немає, зберігається одразу
         const pc = e.target.closest(".pc-chip");
         if (pc && !(open && open.el.contains(pc))) {
@@ -2603,7 +2633,7 @@ function carrierPopupReady(id) {
         const two = getComputedStyle(grid).gridTemplateColumns.split(" ").length > 1;
         grid.classList.toggle("cc-masonry", two);
         if (!two) { [...grid.children].forEach((el) => (el.style.gridRowEnd = "")); return; }
-        const gap = 12;
+        const gap = 8;
         [...grid.children].forEach((el) => {
             el.style.gridRowEnd = "";
             const h = el.getBoundingClientRect().height;

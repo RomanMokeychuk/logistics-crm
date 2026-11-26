@@ -1160,3 +1160,12 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 .req-fbtn[hidden] { display: none !important; }
 .req-fbtn.on { background: #fdf3d8 !important; border-color: #d9a944 !important; }
 .req-fn { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #d9a944; color: #fff; font-size: 11px; }
+
+/* ── Картка перевізника: ширша і щільніша (як профіль у Lardi) ── */
+#carrierCardOverlay .carrier-card-modal { max-width: min(1340px, 96vw) !important; }
+@media (min-width: 1250px) { #carrierCardBody .card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+#carrierCardBody .card-row { padding: 5px 12px; grid-template-columns: 108px 1fr; font-size: 13px; line-height: 1.4; }
+#carrierCardBody .card-section-title, #carrierCardBody .ch-title { padding: 7px 12px !important; font-size: 13px !important; }
+#carrierCardBody .card-block-text { padding: 7px 12px; font-size: 13px; }
+#carrierCardBody .card-row-label { font-size: 12px; }
+#carrierCardBody .card-grid.cc-masonry > * { margin-bottom: 8px !important; }
