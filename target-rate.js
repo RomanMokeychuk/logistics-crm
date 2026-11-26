@@ -137,6 +137,9 @@
             .map((x) => x.trim().split(/\s+/)[0])
             .filter(Boolean);
 
+    const bkey = (ref, name) => (ref ? "r:" + ref : "n:" + String(name || "").trim().toLowerCase());
+    const blkBtn = (x) => (canEdit() && x.who ? `<button type="button" class="tr-blk" data-blk="${esc(x.bkey)}" data-blk-name="${esc(x.who)}" title="Заблокувати: нереальні ціни — не враховувати">🚫</button>` : "");
+
     /* ---------- Курс НБУ (грн за 1 одиницю валюти) — раз на день ---------- */
     let FX = null;
     async function loadFx() {
@@ -188,7 +191,7 @@
         const sinceD = new Date(Date.now() - LARDI_DAYS * 864e5).toISOString();
         const a = ISO[String(r.load_country || "").toUpperCase()];
         const b = ISO[String(r.unload_country || "").toUpperCase()];
-        const [q1, q2, q3, q4] = await Promise.all([
+        const [q1, q2, q3, q4, q5] = await Promise.all([
             client
                 .from("requests")
                 .select("id, created_at, client, load_country, unload_country, load_address, unload_address, transport_type, weight, answers, offers, logistician, logistician_id, logist_notes, answered_at, chosen_offer")
@@ -200,7 +203,7 @@
             a && b
                 ? client
                       .from("lardi_cargo")
-                      .select("id, seen_first, seen_last, date_from, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, owner_type")
+                      .select("id, seen_first, seen_last, date_from, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, owner_type, owner_ref")
                       .eq("from_country", a)
                       .eq("to_country", b)
                       .gte("seen_last", sinceD)
@@ -211,7 +214,7 @@
             a && b
                 ? client
                       .from("lardi_trucks")
-                      .select("id, seen_first, seen_last, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, carrier_id")
+                      .select("id, seen_first, seen_last, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, owner_ref, carrier_id")
                       .eq("from_country", a)
                       .eq("to_country", b)
                       .gte("seen_last", sinceD)
@@ -221,8 +224,9 @@
                       .then((x) => x, () => ({ data: [] }))
                 : Promise.resolve({ data: [] }),
             client.from("lardi_runs").select("finished_at, kind").not("finished_at", "is", null).order("finished_at", { ascending: false }).limit(1).then((x) => x, () => ({ data: [] })),
+            client.from("lardi_blocked").select("key, name, blocked_by").then((x) => x, () => ({ data: [] })),
         ]);
-        const res = { at: Date.now(), reqs: q1.data || [], lardi: q2.data || [], trucks: q3?.data || [], lardiAt: q4?.data?.[0]?.finished_at || null };
+        const res = { at: Date.now(), reqs: q1.data || [], lardi: q2.data || [], trucks: q3?.data || [], lardiAt: q4?.data?.[0]?.finished_at || null, blocked: q5?.data || [] };
         cache.set(key, res);
         return res;
     }
@@ -276,7 +280,7 @@
 
     async function compute(r) {
         if (!r?.load_country || !r?.unload_country) return null;
-        const [{ reqs, lardi, trucks, lardiAt }] = await Promise.all([fetchDir(r), loadFx()]);
+        const [{ reqs, lardi, trucks, lardiAt, blocked }] = await Promise.all([fetchDir(r), loadFx()]);
         const ca = ISO[String(r.load_country || "").toUpperCase()], cb = ISO[String(r.unload_country || "").toUpperCase()];
         const lp = placeOfAddress(r.load_address, ca);
         const up = placeOfAddress(r.unload_address, cb);
@@ -311,9 +315,14 @@
             }
         }
         // 2. Lardi: вантажі (хто виставив вантаж і за скільки) і машини (за скільки перевізник готовий їхати)
+        // Заблоковані компанії (ті самі, що на сторінці «Ларді»: r:<профіль> або n:<назва>) — не рахуємо
+        const BL = new Set((blocked || []).map((b) => b.key));
+        let hidden = 0;
+        const isBl = (x) => BL.has(bkey(x.owner_ref, null)) || BL.has(bkey(null, x.owner_name));
         const lardiRows = (rows) =>
             rows
                 .filter((x) => x.from_country === ca && x.to_country === cb)
+                .filter((x) => (isBl(x) ? (hidden++, false) : true))
                 .filter((x) => !x.payment_unit || /рейс/i.test(String(x.payment_unit)))
                 .map((x) => ({
                     price: num(x.price),
@@ -326,6 +335,7 @@
                     mass: x.mass_t,
                     t: num(x.mass_t),
                     who: x.owner_name || "",
+                    bkey: x.owner_ref ? bkey(x.owner_ref, null) : bkey(null, x.owner_name),
                     type: x.owner_type || "",
                     carrier_id: x.carrier_id || null,
                     id: x.id,
@@ -357,10 +367,11 @@
             };
         };
 
-        const out = { cur: null, lp, up, lardiAt };
+        const out = { cur: null, lp, up, lardiAt, blocked: blocked || [] };
         out.logist = summarize(lg, MIN_LOGIST);
         out.lardi = summarize(lardiRows(lardi), MIN_LARDI);
         out.trucks = summarize(lardiRows(trucks || []), 2);
+        out.hidden = hidden;
 
         // Підсумок: середнє медіан усіх джерел в одній валюті (валюта — логістів, інакше першого джерела)
         const srcs = [out.logist, out.lardi, out.trucks].filter(Boolean);
@@ -407,9 +418,11 @@
             ${lg.length ? `<div class="tr-sub">Відповіді логістів</div>
             ${lg.map((x) => `<a class="tr-it${isOld(x.at) ? " tr-stale" : ""}" href="requests.html?open=${encodeURIComponent(x.id)}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.t ? `<span class="tr-hint"> · ${esc(String(Math.round(x.t * 10) / 10).replace(".", ","))} т</span>` : ""}<span class="tr-hint"> · ${esc(x.who)}</span></span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}${x.chosen ? " ✓" : ""}</b></a>`).join("")}` : ""}
             ${ld.length ? `<div class="tr-sub">Lardi — хто виставив вантаж і за скільки</div>
-            ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.type ? ` <span class="tr-tag">${esc(TYPE_SHORT[x.type] || x.type)}</span>` : ""}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
+            ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.type ? ` <span class="tr-tag">${esc(TYPE_SHORT[x.type] || x.type)}</span>` : ""}${blkBtn(x)}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
             ${tk.length ? `<div class="tr-sub">Lardi — машини: за скільки перевізник готовий їхати</div>
-            ${tk.map((x) => `<${x.carrier_id ? `a href="carriers.html?open=${encodeURIComponent(x.carrier_id)}"` : "div"} class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.carrier_id ? ` <span class="tr-tag tr-tag-f">є у FURA</span>` : ""}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></${x.carrier_id ? "a" : "div"}>`).join("")}` : ""}
+            ${tk.map((x) => `<${x.carrier_id ? `a href="carriers.html?open=${encodeURIComponent(x.carrier_id)}"` : "div"} class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.carrier_id ? ` <span class="tr-tag tr-tag-f">є у FURA</span>` : ""}${blkBtn(x)}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></${x.carrier_id ? "a" : "div"}>`).join("")}` : ""}
+            ${t.blocked.length ? `<details class="tr-bl"><summary>🚫 Заблоковані (${t.blocked.length})${t.hidden ? ` · у цьому напрямку не враховано цін: ${t.hidden}` : ""}</summary>
+                ${t.blocked.map((b) => `<div class="tr-bl-row"><span>${esc(b.name || b.key)}<span class="tr-hint">${b.blocked_by ? " · " + esc(b.blocked_by) : ""}</span></span>${canEdit() ? `<button type="button" class="tr-btn" data-unblk="${esc(b.key)}">розблокувати</button>` : ""}</div>`).join("")}</details>` : ""}
             <div class="tr-hint tr-legend"><span class="tr-lv tr-lv3"></span> та сама область / воєводство / квадрат <span class="tr-lv tr-lv2"></span> сусідні області / той самий округ <span class="tr-lv tr-lv1"></span> та сама частина України <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
     }
 
@@ -475,6 +488,23 @@
         const body = box.querySelector(".tr-body");
         body.innerHTML = bodyHtml(r, t);
         body.onclick = async (e) => {
+            const bl = e.target.closest("[data-blk],[data-unblk]");
+            if (bl) {
+                e.preventDefault();
+                e.stopPropagation();
+                const on = !!bl.dataset.blk;
+                const key = bl.dataset.blk || bl.dataset.unblk;
+                if (on && !confirm(`Заблокувати «${bl.dataset.blkName}»?\nЙого ціни не враховуватимуться в цільовій ставці, і його заявки та машини не показуватимуться на сторінці «Ларді» (для всіх).`)) return;
+                const { error } = on
+                    ? await client.from("lardi_blocked").upsert({ key, name: bl.dataset.blkName, blocked_by: currentStaff?.full_name || "" }, { onConflict: "key" })
+                    : await client.from("lardi_blocked").delete().eq("key", key);
+                if (error) return alert(/lardi_blocked/.test(error.message) ? "Спершу один раз виконайте lardi_blocked.sql у Supabase → SQL Editor." : "Не вдалося: " + error.message);
+                cache.clear();
+                const wasOpen = !!body.querySelector(".tr-more[open]");
+                await mount(r);
+                if (wasOpen) body.querySelector(".tr-more")?.setAttribute("open", "");
+                return;
+            }
             const b = e.target.closest("[data-tr]");
             if (!b) return;
             const act = b.dataset.tr;
@@ -551,7 +581,7 @@
             .tr-d{color:#6b7280;font-size:12px}.tr-r{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
             .tr-lv{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cbd5e1}
             .tr-lv3{background:#16a34a}.tr-lv2{background:#f59e0b}.tr-lv1{background:#60a5fa}.tr-old{color:#b45309}
-            .tr-stale{opacity:.55}.tr-upd{margin-top:6px}.tr-tag{font-size:11px;background:#f1f5f9;color:#475569;border-radius:6px;padding:0 6px;margin-left:4px}.tr-tag-f{background:#dcfce7;color:#166534}.tr-types{flex-basis:100%}.tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+            .tr-stale{opacity:.55}.tr-blk{border:0;background:none;cursor:pointer;font-size:12px;margin-left:6px;opacity:0;padding:0 2px}.tr-it:hover .tr-blk{opacity:.8}.tr-blk:hover{opacity:1!important}.tr-bl{margin-top:8px;font-size:13px}.tr-bl summary{cursor:pointer;color:#b91c1c;font-weight:600}.tr-bl-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0;border-bottom:1px dashed #eef1f5}.tr-upd{margin-top:6px}.tr-tag{font-size:11px;background:#f1f5f9;color:#475569;border-radius:6px;padding:0 6px;margin-left:4px}.tr-tag-f{background:#dcfce7;color:#166534}.tr-types{flex-basis:100%}.tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
             .tr-msg{font-size:12.5px;min-height:0}.tr-msg.bad{color:#b91c1c;margin-top:6px}
             .tr-answer-hint{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fbf7ec;border:1px solid #efe3c2;font-size:13.5px}
             .tr-answer-hint:empty{display:none}
