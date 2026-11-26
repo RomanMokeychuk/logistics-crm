@@ -595,27 +595,43 @@ const PRESET_EXTRA = [
 ];
 const splitTrailers = (v) => String(v || "").split(/[;,]/).map((t) => t.trim()).filter(Boolean);
 const splitExtra = (v) => String(v || "").split(/\s*[,;]\s*/).map((t) => t.trim()).filter(Boolean);
+// Типові класи машин (групи — щоб швидко знайти потрібне)
 const PRESET_NUM = {
-    tonnage: { unit: "т", list: ["1.5", "3.5", "5", "10", "12", "20", "22", "24"] },
-    volume: { unit: "м³", list: ["20", "33", "45", "60", "76", "82", "86", "90", "92", "96", "100", "120"] },
+    tonnage: { unit: "т", groups: [
+        ["Бус", ["1", "1.5", "2", "3", "3.5"]],
+        ["Середні", ["5", "7", "10", "12", "15"]],
+        ["Фури", ["18", "20", "21", "22", "23", "24", "25"]],
+        ["Спец", ["26", "30", "40"]],
+    ] },
+    volume: { unit: "м³", groups: [
+        ["Бус", ["10", "14", "18", "20", "22"]],
+        ["Середні", ["30", "33", "36", "40", "45", "50", "55"]],
+        ["Фури", ["60", "67", "76", "82", "86", "90", "92"]],
+        ["Великі", ["96", "100", "105", "110", "120"]],
+    ] },
+};
+const PRESET_HINT = {
+    tonnage: { "1": "бус до 1 т", "1.5": "бус", "3.5": "Sprinter / Crafter", "5": "«п'ятитонник»", "10": "одиночка 12–15 т", "15": "одиночка 18 т / мала зчіпка", "20": "реф / зчіпка", "22": "тент 13,6 м", "24": "легкий тягач + причіп", "25": "самоскид / зерновоз", "26": "самоскид / цистерна", "40": "трал (негабарит)" },
+    volume: { "14": "бус 3,5 т", "20": "бус 4–5 т", "33": "контейнер 20'", "36": "5-тонник", "45": "10-тонник / зерновоз", "55": "одиночка 12–15 т", "67": "контейнер 40'", "76": "контейнер 40' HC", "82": "тент / реф 13,6 м", "86": "тент 13,6 м", "92": "тент 13,6 м (2,7 висота)", "100": "мега (3 м висота)", "110": "зчіпка", "120": "зчіпка / автопоїзд" },
 };
 const numNorm = (v) => String(v ?? "").replace(",", ".").replace(/\s*(т|м³|м3)\s*$/i, "").replace(/\s*-\s*/g, "–").trim();
 function presetChipsHtml(item, kind) {
     if (PRESET_NUM[kind]) {
         // одне значення: клік — вибрати, клік по вибраному — очистити
-        const { unit, list } = PRESET_NUM[kind];
+        const { unit, groups } = PRESET_NUM[kind];
         const cur = numNorm(item[kind]);
         const est = !cur && capEstimate(item);
         const r = est && (kind === "tonnage" ? est.t : est.v);
         const typical = r ? `${r[0]}–${r[1]}` : "";
-        const vals = [...list];
-        if (typical) vals.unshift(typical);
-        if (cur && !vals.includes(cur)) vals.unshift(cur);
-        return `${!cur && typical ? `<div class="pc-est">${capCell(item, kind, unit)}</div>` : ""}<div class="pc-chips" data-pc="${kind}">${vals.map((v) => {
+        const all = groups.flatMap(([, l]) => l);
+        const chip = (v, extra = "") => {
             const on = v === cur;
             const isTyp = v === typical && !on;
-            return `<button type="button" class="pc-chip${on ? " on" : ""}${isTyp ? " typ" : ""}" data-pc-v="${escapeHtml(v)}"${isTyp ? ` title="Типово для: ${escapeHtml(est.names)} — клік, щоб записати"` : ""}>${on ? "✓ " : isTyp ? "≈ " : ""}${escapeHtml(v)} ${unit}</button>`;
-        }).join("")}</div>`;
+            const hint = isTyp ? `Типово для: ${est.names} — клік, щоб записати` : PRESET_HINT[kind][v] || "";
+            return `<button type="button" class="pc-chip${on ? " on" : ""}${isTyp ? " typ" : ""}${extra}" data-pc-v="${escapeHtml(v)}"${hint ? ` title="${escapeHtml(hint)}"` : ""}>${on ? "✓ " : isTyp ? "≈ " : ""}${escapeHtml(v)} ${unit}</button>`;
+        };
+        const top = [typical, cur && !all.includes(cur) && cur !== typical ? cur : ""].filter(Boolean);
+        return `${!cur && typical ? `<div class="pc-est">${capCell(item, kind, unit)}</div>` : ""}<div class="pc-num" data-pc="${kind}">${top.length ? `<div class="pc-chips">${top.map((v) => chip(v)).join("")}</div>` : ""}${groups.map(([lab, l]) => `<div class="pc-grp"><span class="pc-gl">${lab}</span><div class="pc-chips">${l.map((v) => chip(v)).join("")}</div></div>`).join("")}</div>`;
     }
     if (kind === "trailer_type") {
         const have = splitTrailers(item.trailer_type);
@@ -653,6 +669,9 @@ function togglePreset(item, kind, val) {
 .pc-chip:disabled{opacity:.5;cursor:wait}
 .pc-rest{margin-top:6px;color:#0284c7;font-size:13px}
 .pc-est{margin-bottom:5px;font-size:13px}
+.pc-num{display:flex;flex-direction:column;gap:5px}
+.pc-grp{display:flex;gap:6px;align-items:flex-start}
+.pc-gl{flex:0 0 58px;font-size:11px;color:#94a3b8;padding-top:5px}
 .pc-chip.typ{border-style:solid;border-color:#bfdbfe;background:#eff6ff;color:#2563eb}`;
     document.head.appendChild(st);
 })();
@@ -2501,11 +2520,11 @@ function carrierPopupReady(id) {
             const kind = pc.closest("[data-pc]")?.dataset.pc;
             if (!item || !kind) return;
             const val = togglePreset(item, kind, pc.dataset.pcV);
-            pc.closest(".pc-chips").querySelectorAll(".pc-chip").forEach((b) => (b.disabled = true));
+            pc.closest("[data-pc]").querySelectorAll(".pc-chip").forEach((b) => (b.disabled = true));
             const res = await sbClient.from("carriers").update({ [kind]: val }).eq("id", item.id).select("*");
             if (res.error || !res.data?.length) {
                 alert("Не вдалося зберегти: " + (res.error?.message || "немає прав або перевізника видалили. Оновіть сторінку."));
-                pc.closest(".pc-chips")?.querySelectorAll(".pc-chip").forEach((b) => (b.disabled = false));
+                pc.closest("[data-pc]")?.querySelectorAll(".pc-chip").forEach((b) => (b.disabled = false));
                 return;
             }
             const idx = allCarriersCache.findIndex((c) => String(c.id) === String(item.id));
