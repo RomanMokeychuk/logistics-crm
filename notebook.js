@@ -401,9 +401,23 @@ const NB = (() => {
                 ${cs.map((c, i) => carrierHtml(c, i)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
                 <button type="button" class="nb-addc nb-qbtn${st.sugFor === r.id ? " on" : ""}" data-qsug title="Машини, що зараз у черзі на виїзд або щойно пройшли кордон у бік завантаження">🚦<span>з черги</span></button>
+                ${matchLink(r)}
             </div>
             ${st.sugFor === r.id ? queueSuggestHtml(r) : ""}
         </div>`;
+    }
+
+    /* ---------- «🎯 Підібрати» — як у «Запитах»: хто реально возить цим напрямком (митні дані) ---------- */
+    function matchLink(r) {
+        const [from, to] = String(r.direction || "").split(/\s*[-–—]\s*/).map((x) => x.trim().toUpperCase());
+        const ua = (c) => c === "УКРАЇНА";
+        let dir = "", country = "";
+        if (to && ua(to) && from && !ua(from)) [dir, country] = ["Імпорт", from];
+        else if (from && ua(from) && to && !ua(to)) [dir, country] = ["Експорт", to];
+        if (!country) return "";
+        const trailer = String(r.truck || "").split(/[;,/]/)[0].trim().toUpperCase();
+        const q = new URLSearchParams({ match: "1", dir, country, ...(trailer ? { trailer } : {}) });
+        return `<a class="nb-addc nb-mbtn" href="carriers.html?${q.toString()}" title="Хто реально возить цим напрямком — за митними даними і роботою з нами">🎯<span>підібрати</span></a>`;
     }
 
     /* ---------- Підбір машин з «Черги»: хто зараз їде або щойно виїхав у бік завантаження ---------- */
