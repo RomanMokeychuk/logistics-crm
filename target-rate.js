@@ -316,13 +316,16 @@
         // Підсумок: середнє медіан усіх джерел в одній валюті (валюта — логістів, інакше першого джерела)
         const srcs = [out.logist, out.lardi, out.trucks].filter(Boolean);
         out.cur = srcs[0]?.cur || null;
-        const same = srcs.filter((x) => x.cur === out.cur);
+        let same = srcs.filter((x) => x.cur === out.cur);
+        // є свіжі джерела (7 днів) — старі в підсумок не беремо, лише показуємо
+        if (same.some((x) => x.fresh)) same.filter((x) => !x.fresh).forEach((x) => (x.skipped = true));
+        if (same.some((x) => x.fresh)) same = same.filter((x) => x.fresh);
         out.target = same.length ? r50(same.reduce((s2, x) => s2 + x.med, 0) / same.length) : 0;
         out.used = same.length;
         // «від – до»: середина ринку (20–80 %) по всіх цінах, що пішли в розрахунок
         const all = same.flatMap((x) => x.prices);
         if (all.length) { out.lo = r50(pct(all, 0.2)); out.hi = r50(pct(all, 0.8)); }
-        out.weak = srcs.reduce((s2, x) => s2 + x.n, 0) < 3 || srcs.some((x) => !x.fresh);
+        out.weak = same.reduce((s2, x) => s2 + x.n, 0) < 3 || same.some((x) => !x.fresh);
         return out;
     }
 
@@ -332,7 +335,7 @@
     const srcLine = (s, label) =>
         s
             ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>
-               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — взято старіші (з ${dmy(s.oldest)})</span>`}</span>
+               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — тут старіші (з ${dmy(s.oldest)})${s.skipped ? ", у підсумок не пішли" : ""}</span>`}</span>
                ${s.types.length > 1 ? `<span class="tr-hint tr-types">${s.types.map((x) => `${esc(TYPE_SHORT[x.type] || x.type)}: <b>${money(x.med)}</b> (${x.n})`).join(" · ")}</span>` : ""}</div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Логісти" ? LOGIST_DAYS : LARDI_DAYS} днів</span></div>`;
 
