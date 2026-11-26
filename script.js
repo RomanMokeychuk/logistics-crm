@@ -585,6 +585,54 @@ function groupProfilesHtml(item) {
         .map((c) => `<div class="grp-prof">🔗 <a href="${escapeHtml(c.profile_url)}" target="_blank" rel="noopener" class="qe-link">${escapeHtml(shortUrl(c.profile_url))} <i class='bx bx-link-external'></i></a> <small>${escapeHtml(c.name || "")}</small></div>`).join("");
 }
 
+// ── Заготовки в картці: клік — є / немає (Тип причепу, Додатково) ──
+const PRESET_TRAILERS = ["ТЕНТ", "РЕФ", "ІЗОТЕРМ", "ЦІЛЬНОМЕТ", "КОНТЕЙНЕРОВОЗ", "МЕГА", "СЦЕПКА", "БУС", "ЦИСТЕРНА", "ЗЕРНОВОЗ", "САМОСКИД", "ПЛАТФОРМА", "ТРАЛ", "АВТОВОЗ"];
+const PRESET_EXTRA = [
+    ["ADR", /^(adr|адр)$/i], ["ЕКМТ", /^(екмт|єкмт|ekmt|cemt)$/i], ["1-24", /^1\s*[-–]\s*24$/],
+    ["CMR-страхування", /^(cmr|смр)([\s-]*(страх\S*|insurance))?$/i], ["T1", /^(t1|т1)$/i], ["TIR", /^(tir|тір|тир)$/i],
+    ["Догруз / LTL", /^(догруз\S*|ltl|догруз\s*\/\s*ltl)$/i], ["Гідроборт", /^гідроборт$/i], ["Коники", /^коники$/i],
+    ["Термописець", /^термописець$/i], ["GPS", /^(gps|джипіес)$/i],
+];
+const splitTrailers = (v) => String(v || "").split(/[;,]/).map((t) => t.trim()).filter(Boolean);
+const splitExtra = (v) => String(v || "").split(/\s*[,;]\s*/).map((t) => t.trim()).filter(Boolean);
+function presetChipsHtml(item, kind) {
+    if (kind === "trailer_type") {
+        const have = splitTrailers(item.trailer_type);
+        const up = have.map((t) => t.toUpperCase());
+        const own = have.filter((t) => !PRESET_TRAILERS.includes(t.toUpperCase()));
+        return `<div class="pc-chips" data-pc="trailer_type">${PRESET_TRAILERS.map((t) => `<button type="button" class="pc-chip${up.includes(t) ? " on" : ""}" data-pc-v="${t}">${up.includes(t) ? "✓ " : "+ "}${t}</button>`).join("")}${own.map((t) => `<button type="button" class="pc-chip on" data-pc-v="${escapeHtml(t)}">✓ ${escapeHtml(t)}</button>`).join("")}</div>`;
+    }
+    const toks = splitExtra(item.additional);
+    const on = (re) => toks.some((t) => re.test(t));
+    const rest = toks.filter((t) => !PRESET_EXTRA.some(([, re]) => re.test(t)));
+    return `<div class="pc-chips" data-pc="additional">${PRESET_EXTRA.map(([lab, re]) => `<button type="button" class="pc-chip${on(re) ? " on" : ""}" data-pc-v="${escapeHtml(lab)}">${on(re) ? "✓ " : "+ "}${escapeHtml(lab)}</button>`).join("")}</div>${rest.length ? `<div class="pc-rest" title="Двічі натисніть, щоб змінити">${escapeHtml(rest.join(", "))}</div>` : ""}`;
+}
+// новий текст поля після кліку на заготовку
+function togglePreset(item, kind, val) {
+    if (kind === "trailer_type") {
+        const have = splitTrailers(item.trailer_type);
+        const has = have.some((t) => t.toUpperCase() === val.toUpperCase());
+        const next = has ? have.filter((t) => t.toUpperCase() !== val.toUpperCase()) : [...have, val];
+        return next.join(";") || null;
+    }
+    const toks = splitExtra(item.additional);
+    const re = (PRESET_EXTRA.find(([lab]) => lab === val) || [])[1] || new RegExp(`^${val.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    const has = toks.some((t) => re.test(t));
+    const next = has ? toks.filter((t) => !re.test(t)) : [...toks, val];
+    return next.join(", ") || null;
+}
+(() => {
+    const st = document.createElement("style");
+    st.textContent = `.pc-chips{display:flex;flex-wrap:wrap;gap:5px}
+.pc-chip{border:1px dashed #cbd5e1;background:#f8fafc;color:#94a3b8;border-radius:8px;padding:3px 9px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.4;transition:.15s}
+.pc-chip:hover{border-color:#d4a72c;color:#92650c;background:#fffbeb}
+.pc-chip.on{border:1px solid #f0c674;background:#fdf0d5;color:#92650c}
+.pc-chip.on:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
+.pc-chip:disabled{opacity:.5;cursor:wait}
+.pc-rest{margin-top:6px;color:#0284c7;font-size:13px}`;
+    document.head.appendChild(st);
+})();
+
 function cardRow(label, valueHtml, editKey, copyText) {
     const copy = copyText
         ? `<button type="button" class="qe-copy" data-copy="${escapeHtml(copyText)}" title="Копіювати"><i class='bx bx-copy'></i></button>`
@@ -756,11 +804,11 @@ function openCarrierCard(id) {
 
             <div class="card-section" data-def-open="1">
                 <div class="card-section-title">🚛 Техніка</div>
-                ${cardRow("Тип причепу:", trailersHtml, "trailer_type")}
+                ${cardRow("Тип причепу:", presetChipsHtml(item, "trailer_type"), "trailer_type")}
                 ${cardRow("Об'єм:", item.volume || capEstimate(item)?.v ? capCell(item, "volume", "м³") : "", "volume")}
                 ${cardRow("Тоннаж:", item.tonnage || capEstimate(item)?.t ? capCell(item, "tonnage", "т") : "", "tonnage")}
                 ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(String(item.fleet_params).replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"))}</div>`) : ""}
-                ${cardRow("Додатково:", item.additional ? `<span style="color:#0284c7;">${escapeHtml(item.additional)}</span>` : "", "additional")}
+                ${cardRow("Додатково:", presetChipsHtml(item, "additional"), "additional")}
             </div>
 
             <div class="card-section" data-def-open="1">
@@ -2420,6 +2468,28 @@ function carrierPopupReady(id) {
             return;
         }
         if (body.classList.contains("cc-editing")) return; // повна форма відкрита
+        // Заготовки «Тип причепу» / «Додатково»: один клік — є / немає, зберігається одразу
+        const pc = e.target.closest(".pc-chip");
+        if (pc && !(open && open.el.contains(pc))) {
+            if (open) await save();
+            if (open) return;
+            const item = itemNow();
+            const kind = pc.closest("[data-pc]")?.dataset.pc;
+            if (!item || !kind) return;
+            const val = togglePreset(item, kind, pc.dataset.pcV);
+            pc.closest(".pc-chips").querySelectorAll(".pc-chip").forEach((b) => (b.disabled = true));
+            const res = await sbClient.from("carriers").update({ [kind]: val }).eq("id", item.id).select("*");
+            if (res.error || !res.data?.length) {
+                alert("Не вдалося зберегти: " + (res.error?.message || "немає прав або перевізника видалили. Оновіть сторінку."));
+                pc.closest(".pc-chips")?.querySelectorAll(".pc-chip").forEach((b) => (b.disabled = false));
+                return;
+            }
+            const idx = allCarriersCache.findIndex((c) => String(c.id) === String(item.id));
+            const merged = { ...item, ...res.data[0], [kind]: val };
+            if (idx >= 0) { allCarriersCache[idx] = merged; if (typeof prepCarrierSearch === "function") prepCarrierSearch(merged); }
+            rerender(item.id);
+            return;
+        }
         if (open && open.el.contains(e.target)) {
             if (e.target.closest(".qe-save")) save();
             else if (e.target.closest(".qe-cancel")) cancel();
