@@ -37,8 +37,8 @@
 .fura-online-name{color:#e6ebf5;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fura-online-page{color:#8392b4;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fura-online-empty{color:#8392b4;font-size:12px}
-body.sidebar-collapsed .fura-online-title span,body.sidebar-collapsed .fura-online-text,body.sidebar-collapsed .fura-online-empty{display:none}
-body.sidebar-collapsed .fura-online-item{justify-content:center}`;
+body.sidebar-collapsed:not(.sb-peek) .fura-online-title span,body.sidebar-collapsed:not(.sb-peek) .fura-online-text,body.sidebar-collapsed:not(.sb-peek) .fura-online-empty{display:none}
+body.sidebar-collapsed:not(.sb-peek) .fura-online-item{justify-content:center}`;
         document.head.appendChild(st);
     }
 
