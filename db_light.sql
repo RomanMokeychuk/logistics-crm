@@ -6,7 +6,6 @@
 -- 1) Індекси, щоб часті запити не перечитували всю таблицю
 create index if not exists requests_created_at_idx on public.requests (created_at desc);
 create index if not exists carriers_checked_at_idx on public.carriers (checked_at);
-create index if not exists carriers_group_id_idx on public.carriers (group_id) where group_id is not null;
 create index if not exists carriers_edrpou_idx on public.carriers (edrpou);
 
 -- 2) Фонові завдання рідше (результат той самий, база відпочиває)
