@@ -160,7 +160,7 @@
             a && b
                 ? client
                       .from("lardi_cargo")
-                      .select("id, seen_last, date_from, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, owner_type")
+                      .select("id, seen_first, seen_last, date_from, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, owner_type")
                       .eq("from_country", a)
                       .eq("to_country", b)
                       .gte("seen_last", sinceD)
@@ -171,7 +171,7 @@
             a && b
                 ? client
                       .from("lardi_trucks")
-                      .select("id, seen_last, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, carrier_id")
+                      .select("id, seen_first, seen_last, from_country, to_country, from_town, from_region, from_zone, to_town, to_region, to_zone, price, currency, body_types, mass_t, payment_unit, owner_name, carrier_id")
                       .eq("from_country", a)
                       .eq("to_country", b)
                       .gte("seen_last", sinceD)
@@ -281,6 +281,7 @@
                     level: routeLevel(lp, up, placeOfLardi(ca, x.from_town, x.from_region, x.from_zone), placeOfLardi(cb, x.to_town, x.to_region, x.to_zone), ca, cb),
                     body: bodyWords(x.body_types),
                     at: x.seen_last,
+                    born: x.seen_first || x.seen_last,
                     route: `${placeLabelL(x.from_town, x.from_region, x.from_zone) || "?"} → ${placeLabelL(x.to_town, x.to_region, x.to_zone) || "будь-куди"}`,
                     mass: x.mass_t,
                     t: num(x.mass_t),
@@ -301,7 +302,15 @@
             const prices = p.use.map((x) => x.price);
             const byType = {};
             for (const x of p.use) if (x.type) (byType[x.type] = byType[x.type] || []).push(x.price);
+            // Зміна ціни: цей тиждень проти минулого (той самий рівень близькості маршруту)
+            const day = 864e5, nowT = Date.now();
+            const pool = b.use.filter((x) => x.level >= p.level);
+            const when = (x) => new Date(x.born || x.at || 0).getTime();
+            const thisW = pool.filter((x) => nowT - when(x) <= 7 * day).map((x) => x.price);
+            const prevW = pool.filter((x) => nowT - when(x) > 7 * day && nowT - when(x) <= 14 * day).map((x) => x.price);
+            const trend = thisW.length >= 2 && prevW.length >= 2 ? { now: median(thisW), prev: median(prevW), pct: Math.round(((median(thisW) - median(prevW)) / median(prevW)) * 100), thisW, prevW } : null;
             return {
+                trend,
                 cur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, oldest: p.oldest, same: b.same, wsame: w.wsame, prices,
                 types: Object.entries(byType).map(([k, v]) => ({ type: k, med: median(v), n: v.length })),
                 list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))),
@@ -322,6 +331,9 @@
         if (same.some((x) => x.fresh)) same = same.filter((x) => x.fresh);
         out.target = same.length ? r50(same.reduce((s2, x) => s2 + x.med, 0) / same.length) : 0;
         out.used = same.length;
+        // Загальна зміна за тиждень — по всіх джерелах разом
+        const tw = same.flatMap((x) => x.trend?.thisW || []), pw = same.flatMap((x) => x.trend?.prevW || []);
+        if (tw.length >= 2 && pw.length >= 2) out.trend = { pct: Math.round(((median(tw) - median(pw)) / median(pw)) * 100), prev: r50(median(pw)) };
         // «від – до»: середина ринку (20–80 %) по всіх цінах, що пішли в розрахунок
         const all = same.flatMap((x) => x.prices);
         if (all.length) { out.lo = r50(pct(all, 0.2)); out.hi = r50(pct(all, 0.8)); }
@@ -332,9 +344,16 @@
     /* ---------- Розмітка ---------- */
     const UNIT = { "Логісти": "відповідей", "Lardi вантажі": "вантажів", "Lardi машини": "машин" };
     const TYPE_SHORT = { "Вантажовласник": "вантажовласники", "Експедиція / інші": "експедиції", "Перевізник": "перевізники" };
+    const trendHtml = (tr, cur, long) => {
+        if (!tr) return "";
+        const cls = tr.pct > 1 ? "up" : tr.pct < -1 ? "down" : "flat";
+        const arrow = cls === "up" ? "▲" : cls === "down" ? "▼" : "▬";
+        const txt = `${arrow} ${tr.pct > 0 ? "+" : ""}${tr.pct}%`;
+        return `<span class="tr-trend tr-${cls}" title="Медіана цього тижня проти минулого">${txt}${long ? ` за тиждень <span class="tr-hint">(минулого тижня ≈ ${money(tr.prev, cur)})</span>` : ""}</span>`;
+    };
     const srcLine = (s, label) =>
         s
-            ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>
+            ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>${trendHtml(s.trend, s.cur)}
                <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — тут старіші (з ${dmy(s.oldest)})${s.skipped ? ", у підсумок не пішли" : ""}</span>`}</span>
                ${s.types.length > 1 ? `<span class="tr-hint tr-types">${s.types.map((x) => `${esc(TYPE_SHORT[x.type] || x.type)}: <b>${money(x.med)}</b> (${x.n})`).join(" · ")}</span>` : ""}</div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Логісти" ? LOGIST_DAYS : LARDI_DAYS} днів</span></div>`;
@@ -361,7 +380,7 @@
         const main = manual
             ? `<b class="tr-big">${money(num(r.target_price), cur)}</b><span class="tr-hint">вказав ${esc(r.target_by || "логіст")}${auto ? ` · розрахунок ≈ ${auto}${t.lo && t.hi ? ` (від ${money(t.lo)} до ${money(t.hi)})` : ""}` : ""}</span>`
             : auto
-              ? `<b class="tr-big">≈ ${auto}</b>${t.lo && t.hi && t.lo !== t.hi ? `<span class="tr-range">від <b>${money(t.lo)}</b> до <b>${money(t.hi, t.cur)}</b></span>` : ""}<span class="tr-hint">${t.used > 1 ? "середнє джерел нижче" : t.logist ? "за відповідями логістів" : "за Lardi"}${t.weak ? " · мало даних, орієнтуйтесь обережно" : ""}</span>`
+              ? `<b class="tr-big">≈ ${auto}</b>${t.lo && t.hi && t.lo !== t.hi ? `<span class="tr-range">від <b>${money(t.lo)}</b> до <b>${money(t.hi, t.cur)}</b></span>` : ""}${trendHtml(t.trend, t.cur, true)}<span class="tr-hint">${t.used > 1 ? "середнє джерел нижче" : t.logist ? "за відповідями логістів" : "за Lardi"}${t.weak ? " · мало даних, орієнтуйтесь обережно" : ""}</span>`
               : `<b class="tr-big tr-muted">не визначено</b><span class="tr-hint">на цьому напрямку поки немає цін</span>`;
         return `
             <div class="tr-main">${main}
@@ -451,7 +470,7 @@
         if (t?.logist) bits.push(`логісти ${money(t.logist.med, t.logist.cur)} (${t.logist.n})`);
         if (t?.lardi) bits.push(`Lardi вантажі ${money(t.lardi.med, t.lardi.cur)} (${t.lardi.n})`);
         if (t?.trucks) bits.push(`Lardi машини ${money(t.trucks.med, t.trucks.cur)} (${t.trucks.n})`);
-        el.innerHTML = `<i class='bx bx-target-lock'></i> Цільова: <b>${manual ? money(num(r.target_price), r.target_currency) : "≈ " + money(t.target, t.cur)}</b>${!manual && t.lo && t.hi && t.lo !== t.hi ? ` (від ${money(t.lo)} до ${money(t.hi, t.cur)})` : ""}${bits.length ? ` <span class="tr-hint">· ${esc(bits.join(" · "))}</span>` : ""}`;
+        el.innerHTML = `<i class='bx bx-target-lock'></i> Цільова: <b>${manual ? money(num(r.target_price), r.target_currency) : "≈ " + money(t.target, t.cur)}</b>${!manual && t.lo && t.hi && t.lo !== t.hi ? ` (від ${money(t.lo)} до ${money(t.hi, t.cur)})` : ""}${!manual && t?.trend ? " " + trendHtml(t.trend, t.cur, true) : ""}${bits.length ? ` <span class="tr-hint">· ${esc(bits.join(" · "))}</span>` : ""}`;
     }
 
     if (!document.getElementById("tr-style")) {
@@ -461,7 +480,7 @@
             .tr-section .card-section-title i{color:#c8a14a}
             .tr-body{padding:4px 16px 12px}
             .tr-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-            .tr-big{font-size:20px}.tr-range{font-size:14px;color:#334155}.tr-muted{color:#94a3b8;font-size:16px}
+            .tr-big{font-size:20px}.tr-range{font-size:14px;color:#334155}.tr-trend{font-size:13px;font-weight:700;border-radius:8px;padding:1px 8px}.tr-up{background:#fee2e2;color:#b91c1c}.tr-down{background:#dcfce7;color:#166534}.tr-flat{background:#f1f5f9;color:#475569}.tr-muted{color:#94a3b8;font-size:16px}
             .tr-hint{font-size:12px;color:#6b7280}
             .tr-acts{margin-left:auto;display:flex;gap:6px}
             .tr-btn{border:1px solid #d6dbe3;background:#fff;border-radius:8px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:#334155}
