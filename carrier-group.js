@@ -100,8 +100,8 @@
         if (head) head.after(box);
         else body.prepend(box);
         // ✓ хто і коли пробивав цього перевізника (Lardi / редагування) — свіже з бази
-        sbClient.from("carriers").select("checked_at, checked_by, checked_how").eq("id", item.id).maybeSingle().then(({ data: ck }) => { // eslint-disable-line no-undef
-            if (my !== seq || !ck?.checked_at) return;
+        sbClient.from("carriers").select("checked_at, checked_by, checked_how, profile_url").eq("id", item.id).maybeSingle().then(({ data: ck }) => { // eslint-disable-line no-undef
+            if (my !== seq || !ck?.checked_at || !ck.profile_url) return; // без посилання на Lardi — не «пробито»
             const el = document.createElement("div");
             el.className = "cg-chk";
             el.innerHTML = `✓ ${ck.checked_how === "lardi" ? "Пробито через Lardi" : "Відредаговано"}: <b>${esc(ck.checked_by || "—")}</b> · ${esc(new Date(ck.checked_at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }))}`;

@@ -178,7 +178,7 @@ const EQ = (() => {
     async function loadFura() {
         const { count } = await sbClient.from("carriers").select("id", { count: "exact", head: true });
         const pages = Math.ceil((count || 0) / 1000);
-        const COLS = "id, name, edrpou, region_ukr, city, logo_url, tonnage, volume, phone_1, phone_2, destinations, checked_at, checked_by, checked_how";
+        const COLS = "id, name, edrpou, region_ukr, city, logo_url, profile_url, tonnage, volume, phone_1, phone_2, destinations, checked_at, checked_by, checked_how";
         const get = (cols) => Promise.all(Array.from({ length: pages }, (_, i) => sbClient.from("carriers").select(cols).range(i * 1000, i * 1000 + 999)));
         const BASE = COLS.replace(", checked_at, checked_by, checked_how", "");
         let parts = await get(COLS + ", group_id");
@@ -188,7 +188,7 @@ const EQ = (() => {
         GROUPS = new Map();
         parts.forEach((p) => (p.data || []).forEach((c) => {
             const k = codeKey(c.edrpou);
-            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", destinations: c.destinations || "", group: c.group_id || "", chkAt: c.checked_at || "", chkBy: c.checked_by || "", chkHow: c.checked_how || "",
+            const row = { id: c.id, name: c.name, edrpou: c.edrpou || "", region: c.region_ukr || "", city: c.city || "", logo: c.logo_url || "", tonnage: c.tonnage || "", volume: c.volume || "", destinations: c.destinations || "", group: c.group_id || "", chkAt: (c.profile_url && c.checked_at) || "", // ✓ «пробито» — лише якщо в картці є посилання на профіль Lardi chkBy: c.checked_by || "", chkHow: c.checked_how || "",
                 phones: [c.phone_1, c.phone_2].flatMap((p) => String(p || "").split(/[,;]/)).map((p) => p.replace(/\D/g, "")).filter((d) => d.length >= 9).map((d) => d.slice(-9)).join(" ") };
             if (k && !FURA.has(k)) FURA.set(k, row);
             if (row.group) (GROUPS.get(row.group) || GROUPS.set(row.group, []).get(row.group)).push(row);
@@ -649,12 +649,13 @@ const EQ = (() => {
         if (document.hidden || !FURA?.size) return;
         const from = chkSince;
         chkSince = new Date().toISOString();
-        const { data, error } = await sbClient.from("carriers").select("edrpou, checked_at, checked_by, checked_how").gt("checked_at", from).limit(500);
+        const { data, error } = await sbClient.from("carriers").select("edrpou, checked_at, checked_by, checked_how, profile_url").gt("checked_at", from).limit(500);
         if (error || !data?.length) return;
         let n = 0;
         for (const c of data) {
             const f = FURA.get(codeKey(c.edrpou));
-            if (f && f.chkAt !== c.checked_at) { Object.assign(f, { chkAt: c.checked_at, chkBy: c.checked_by || "", chkHow: c.checked_how || "" }); n++; }
+            const at = c.profile_url ? c.checked_at : ""; // без профілю Lardi — не вважаємо пробитим
+            if (f && f.chkAt !== at) { Object.assign(f, { chkAt: at, chkBy: c.checked_by || "", chkHow: c.checked_how || "" }); n++; }
         }
         if (n) renderAll();
     }, 60 * 1000);
