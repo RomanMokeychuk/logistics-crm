@@ -615,22 +615,24 @@ const PRESET_HINT = {
     volume: { "14": "бус 3,5 т", "20": "бус 4–5 т", "33": "контейнер 20'", "36": "5-тонник", "45": "10-тонник / зерновоз", "55": "одиночка 12–15 т", "67": "контейнер 40'", "76": "контейнер 40' HC", "82": "тент / реф 13,6 м", "86": "тент 13,6 м", "92": "тент 13,6 м (2,7 висота)", "100": "мега (3 м висота)", "110": "зчіпка", "120": "зчіпка / автопоїзд" },
 };
 const numNorm = (v) => String(v ?? "").replace(",", ".").replace(/\s*(т|м³|м3)\s*$/i, "").replace(/\s*-\s*/g, "–").trim();
+const splitNums = (v) => String(v ?? "").split(/\s*;\s*|\s*\/\s*|,\s+/).map(numNorm).filter(Boolean);
 function presetChipsHtml(item, kind) {
     if (PRESET_NUM[kind]) {
         // одне значення: клік — вибрати, клік по вибраному — очистити
         const { unit, groups } = PRESET_NUM[kind];
-        const cur = numNorm(item[kind]);
+        const curList = splitNums(item[kind]);
+        const cur = curList.join(", ");
         const est = !cur && capEstimate(item);
         const r = est && (kind === "tonnage" ? est.t : est.v);
         const typical = r ? `${r[0]}–${r[1]}` : "";
         const all = groups.flatMap(([, l]) => l);
         const chip = (v, extra = "") => {
-            const on = v === cur;
+            const on = curList.includes(v);
             const isTyp = v === typical && !on;
             const hint = isTyp ? `Типово для: ${est.names} — клік, щоб записати` : PRESET_HINT[kind][v] || "";
             return `<button type="button" class="pc-chip${on ? " on" : ""}${isTyp ? " typ" : ""}${extra}" data-pc-v="${escapeHtml(v)}"${hint ? ` title="${escapeHtml(hint)}"` : ""}>${on ? "✓ " : isTyp ? "≈ " : ""}${escapeHtml(v)} ${unit}</button>`;
         };
-        const top = [typical, cur && !all.includes(cur) && cur !== typical ? cur : ""].filter(Boolean);
+        const top = [...new Set([typical, ...curList.filter((v) => !all.includes(v))])].filter(Boolean);
         return `${!cur && typical ? `<div class="pc-est">${capCell(item, kind, unit)}</div>` : ""}<div class="pc-num" data-pc="${kind}">${top.length ? `<div class="pc-chips">${top.map((v) => chip(v)).join("")}</div>` : ""}${groups.map(([lab, l]) => `<div class="pc-grp"><span class="pc-gl">${lab}</span><div class="pc-chips">${l.map((v) => chip(v)).join("")}</div></div>`).join("")}</div>`;
     }
     if (kind === "trailer_type") {
@@ -646,7 +648,13 @@ function presetChipsHtml(item, kind) {
 }
 // новий текст поля після кліку на заготовку
 function togglePreset(item, kind, val) {
-    if (PRESET_NUM[kind]) return numNorm(item[kind]) === val ? null : val;
+    if (PRESET_NUM[kind]) {
+        // кілька машин — кілька значень: «10, 22»
+        const list = splitNums(item[kind]);
+        const next = list.includes(val) ? list.filter((v) => v !== val) : [...list, val];
+        const num = (v) => parseFloat(String(v).split("–")[0]) || 0;
+        return next.sort((a, b) => num(a) - num(b)).join(", ") || null;
+    }
     if (kind === "trailer_type") {
         const have = splitTrailers(item.trailer_type);
         const has = have.some((t) => t.toUpperCase() === val.toUpperCase());
