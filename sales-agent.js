@@ -1533,6 +1533,63 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (_) { /* не критично */ } finally { prefetching = false; }
     }
+    /* ---------- 🧵 Увесь ланцюжок листа — вхідні й надіслані разом, як в Outlook ---------- */
+    const CONV = new Map(); // тема → { at, items }
+    const myEmail = () => (String(status?.mail_box || status?.from || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [""])[0].toLowerCase();
+    // текст листа без цитати попередніх листів (вони й так є в списку)
+    const stripQuote = (t) => {
+        const lines = String(t || "").replace(/\r/g, "").split("\n");
+        const i = lines.findIndex((l, k) => k > 0 && /^\s*(From|Від|От|Von|Od)\s*:\s*\S/i.test(l) && lines.slice(k, k + 5).some((x) => /^\s*(Sent|Надіслано|Отправлено|Gesendet|Wysłano|Date|Дата)\s*:/i.test(x))
+            || /^-{2,}\s*(Original Message|Вихідне повідомлення|Исходное сообщение|Переслане)/i.test(l) || (/^On .+ wrote:$/i.test(l.trim())));
+        const out = (i > 0 ? lines.slice(0, i) : lines).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        return out.length > 6000 ? out.slice(0, 6000) + "…" : out;
+    };
+    async function loadConv(m, fp) {
+        const key = thrKey(m.subject);
+        const box = $("mlConv");
+        if (!key || !box) return;
+        let hit = CONV.get(key);
+        if (!hit || Date.now() - hit.at > 60000) {
+            const items = new Map();
+            const add = (x, f) => { if (thrKey(x.subject) === key) items.set(f + ":" + x.uid, { ...x, fp: f }); };
+            ML.list.forEach((x) => add(x, x.fp));
+            // інші папки: «Вхідні» і «Надіслані» (пошук за темою на сервері пошти)
+            const q = String(m.subject || "").replace(/^\s*((re|fw|fwd|aw|wg|tr|sv|vs|odp|ответ|отв|пересл)\s*(\[\d+\]|\(\d+\))?\s*[:：]\s*)+/i, "").trim().slice(0, 60);
+            const paths = [...new Set([pathOf("\\Inbox"), pathOf("\\Sent")].filter(Boolean))];
+            await Promise.all(paths.map((p) => api({ action: "mail_list", folder: p, q, limit: 40 }).then((r) => (r.list || []).forEach((x) => add(x, p))).catch(() => {})));
+            hit = { at: Date.now(), items: [...items.values()].sort((a, b) => new Date(b.date) - new Date(a.date)) };
+            CONV.set(key, hit);
+        }
+        if (ML.open?.uid !== m.uid || ML.open?.fp !== fp) return; // відкрили інший лист
+        const list = hit.items;
+        if (list.length < 2) { box.innerHTML = ""; return; }
+        const me = myEmail();
+        box.innerHTML = `<div class="ml-conv-h">🧵 Ланцюжок: ${list.length} ${list.length < 5 ? "листи" : "листів"} <span class="sa-muted">— вхідні й надіслані, найновіший зверху</span></div>` +
+            list.map((x) => {
+                const mine = me && String(x.from_email || "").toLowerCase() === me;
+                const cur = x.uid === m.uid && x.fp === fp;
+                return `<div class="ml-conv-it${mine ? " mine" : ""}${cur ? " cur" : ""}" data-cuid="${x.uid}" data-cfp="${escapeHtml(x.fp)}">
+                    <div class="ml-conv-top"><span class="ml-conv-dir" title="${mine ? "Надісланий вами" : "Вхідний"}">${mine ? "📤" : "📥"}</span>
+                        <b>${escapeHtml(mine ? "Ви" : String(x.from || x.from_email || "").replace(/<.*>/, ""))}</b>
+                        <span class="sa-muted ml-conv-to">→ ${escapeHtml(String(x.to || "").split(",").slice(0, 2).join(", "))}</span>
+                        <span class="ml-conv-date">${escapeHtml(x.date ? new Date(x.date).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "")}</span>
+                        ${cur ? '<span class="ml-conv-curtag">відкритий</span>' : `<button type="button" class="ml-conv-open" data-copen title="Відкрити цей лист">Відкрити</button>`}
+                    </div>
+                    <div class="ml-conv-body">${cur ? escapeHtml(stripQuote(m.text || plain(m))) : '<span class="sa-muted">Натисніть, щоб показати текст…</span>'}</div>
+                </div>`;
+            }).join("");
+        box.querySelectorAll(".ml-conv-it.cur .ml-conv-body").forEach((b) => b.classList.add("on"));
+    }
+    async function convExpand(el) {
+        const b = el.querySelector(".ml-conv-body");
+        if (b.classList.contains("on")) { b.classList.remove("on"); b.innerHTML = '<span class="sa-muted">Натисніть, щоб показати текст…</span>'; return; }
+        const uid = Number(el.dataset.cuid), fp = el.dataset.cfp;
+        b.classList.add("on");
+        b.innerHTML = '<span class="sa-muted">Завантажую…</span>';
+        let x = MCACHE.get(ck(fp, uid));
+        if (!x) { try { x = await api({ action: "mail_read", folder: fp, uid, peek: true }); MCACHE.set(ck(fp, uid), x); } catch (e) { b.textContent = "Не вдалося: " + e.message; return; } }
+        b.innerHTML = escapeHtml(stripQuote(x.text || plain(x))) || '<span class="sa-muted">(порожній лист)</span>';
+    }
     async function openMail(uid, fp) {
         fp = fp || realPaths(ML.folder)[0];
         ML.open = { uid, fp };
@@ -1582,12 +1639,13 @@ document.addEventListener("DOMContentLoaded", async () => {
             </div>
             ${whoChip(m.from_email, true) ? `<div class="ml-who-line">${whoChip(m.from_email, true)}</div>` : ""}
             ${(() => {
-                const th = ML.thread(m).filter((x) => !(x.uid === m.uid && x.fp === fp));
+                const th = [];
                 if (!th.length) return "";
                 return `<details class="ml-thread"${th.length <= 4 ? " open" : ""}><summary>🧵 У цьому ланцюжку ще ${th.length} ${th.length === 1 ? "лист" : th.length < 5 ? "листи" : "листів"}</summary>${th.map((x) => `<button type="button" class="ml-th-it ${x.seen ? "" : "unseen"}" data-uid="${x.uid}" data-fp="${escapeHtml(x.fp)}"><b>${escapeHtml(String(x.from || x.from_email || "").replace(/<.*>/, ""))}</b><span>${escapeHtml(when(x.date))}</span></button>`).join("")}</details>`;
             })()}
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
-            <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>`;
+            <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
+            <div class="ml-conv" id="mlConv"></div>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
         const fr = $("mlRead").querySelector(".sa-mr-body");
         const paint = () => {
@@ -1602,6 +1660,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
         };
         fr.onload = () => { try { fr.style.height = Math.max(300, fr.contentDocument.body.scrollHeight + 30) + "px"; } catch (_) { fr.style.height = "600px"; } };
+        loadConv(m, fp).catch(() => {}); // 🧵 увесь ланцюжок — під листом
         paint();
         if (m.html && m.inline?.length && !m._imgs) {
             const uid0 = m.uid, fp0 = fp;
@@ -1965,6 +2024,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const b = e.target.closest("[data-mr]");
         if (b) return act(b.dataset.mr, b).catch((er) => toast(er.message, true));
+        const co = e.target.closest("[data-copen]");
+        if (co) { const it = co.closest(".ml-conv-it"); return openFrom(Number(it.dataset.cuid), it.dataset.cfp).catch((er) => toast(er.message, true)); }
+        const ci = e.target.closest(".ml-conv-it:not(.cur)");
+        if (ci && !window.getSelection()?.toString()) return convExpand(ci);
         const th = e.target.closest(".ml-th-it[data-uid]");
         if (th) return openMail(Number(th.dataset.uid), th.dataset.fp).catch((er) => toast(er.message, true));
         const a = e.target.closest("[data-att]");
