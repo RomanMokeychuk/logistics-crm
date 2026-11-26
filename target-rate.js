@@ -23,7 +23,7 @@
         "ХОРВАТІЯ": "HR", "СЕРБІЯ": "RS", "ГРЕЦІЯ": "GR", "ШВЕЙЦАРІЯ": "CH",
     };
     const LOGIST_DAYS = 60;
-    const LARDI_DAYS = 14;
+    const LARDI_DAYS = 30;
     const MIN_LOGIST = 2; // скільки відповідей треба на рівні, щоб ним користуватися
     const MIN_LARDI = 3;
     const LEVEL = { 3: "та сама область / воєводство / квадрат", 2: "сусідні області / той самий округ", 1: "та сама частина країни", 0: "ті самі країни" };
@@ -209,7 +209,7 @@
                       .gte("seen_last", sinceD)
                       .gt("price", 0)
                       .order("seen_last", { ascending: false })
-                      .limit(600)
+                      .limit(1000)
                 : Promise.resolve({ data: [] }),
             a && b
                 ? client
@@ -238,17 +238,24 @@
         return Object.keys(c).sort((p, q) => c[q] - c[p])[0] || "EUR";
     }
 
-    // Беремо найвужчий рівень, де достатньо цін; якщо ніде — усі
-    // Спершу свіжі (21 день) на найближчому маршруті, далі — старіші, і лише потім «ті самі країни»
+    // Вікно днів росте поступово: 7 → 14 → 30 → 60. Спершу найближчий маршрут (область / сусідні / частина країни)
+    // у вікні 7 і 14 днів; потім ті самі рівні за 30–60 днів; «ті самі країни» — лише якщо ближчого немає зовсім.
+    const WINDOWS = [7, 14, 30, 60];
+    const IN_TARGET_DAYS = 14; // у підсумок ідуть джерела з цінами не старше 14 днів (якщо такі є)
     function pickLevel(items, min) {
-        const edge = Date.now() - FRESH_DAYS * 864e5;
-        const isFresh = (x) => new Date(x.at || 0).getTime() >= edge;
-        const tries = [[3, 1], [2, 1], [1, 1], [3, 0], [2, 0], [1, 0], [0, 1], [0, 0]];
-        for (const [lv, fresh] of tries) {
-            const use = items.filter((x) => x.level >= lv && (!fresh || isFresh(x)));
-            if (use.length >= min) return { level: lv, use, fresh: !!fresh || use.every(isFresh), oldest: use.reduce((m, x) => (!m || String(x.at) < m ? String(x.at) : m), "") };
+        const ageOk = (x, d) => new Date(x.at || 0).getTime() >= Date.now() - d * 864e5;
+        const tries = [];
+        for (const d of [7, 14]) for (const lv of [3, 2, 1]) tries.push([lv, d]);
+        for (const d of [30, 60]) for (const lv of [3, 2, 1]) tries.push([lv, d]);
+        for (const d of WINDOWS) tries.push([0, d]);
+        const pack = (lv, d, use) => ({ level: lv, use, days: d, fresh: d <= IN_TARGET_DAYS, oldest: use.reduce((m, x) => (x.at && (!m || String(x.at) < m) ? String(x.at) : m), "") });
+        for (const [lv, d] of tries) {
+            const use = items.filter((x) => x.level >= lv && ageOk(x, d));
+            if (use.length >= min) return pack(lv, d, use);
         }
-        return { level: 0, use: items, fresh: items.every(isFresh), oldest: "" };
+        // замало навіть за 60 днів — показуємо, що є, але в підсумок не беремо
+        const d = WINDOWS.find((w) => items.every((x) => ageOk(x, w))) || 60;
+        return { ...pack(0, d, items), fresh: false, few: true };
     }
 
     // Вага: «22т», «22 000 кг», «до 20 т» → тонни; клас: бус / до 10 т / до 17 т / фура
@@ -363,7 +370,7 @@
             const trend = thisW.length >= 2 && prevW.length >= 2 ? { now: nowMed, prev: median(prevW), pct: Math.round(((nowMed - median(prevW)) / median(prevW)) * 100) } : null;
             return {
                 trend,
-                cur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, oldest: p.oldest, same: b.same, wsame: w.wsame, prices,
+                cur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, days: p.days, few: p.few, oldest: p.oldest, same: b.same, wsame: w.wsame, prices,
                 types: Object.entries(byType).map(([k, v]) => ({ type: k, med: median(v), n: v.length })),
                 list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))),
             };
@@ -378,7 +385,8 @@
         // Підсумок: середнє медіан усіх джерел в одній валюті (валюта — логістів, інакше першого джерела)
         const srcs = [out.logist, out.lardi, out.trucks].filter(Boolean);
         out.cur = srcs[0]?.cur || null;
-        let same = srcs.filter((x) => x.cur === out.cur);
+        let same = srcs.filter((x) => x.cur === out.cur && !x.few);
+        if (!same.length) same = srcs.filter((x) => x.cur === out.cur);
         // є свіжі джерела (7 днів) — старі в підсумок не беремо, лише показуємо
         if (same.some((x) => x.fresh)) same.filter((x) => !x.fresh).forEach((x) => (x.skipped = true));
         if (same.some((x) => x.fresh)) same = same.filter((x) => x.fresh);
@@ -411,7 +419,7 @@
     const srcLine = (s, label) =>
         s
             ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>${fx(s.med, s.cur)}${trendHtml(s.trend, s.cur)}
-               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — тут старіші (з ${dmy(s.oldest)})${s.skipped ? ", у підсумок не пішли" : ""}</span>`}</span>
+               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.few ? ` · <span class="tr-old">⚠ лише ${s.n} — замало для оцінки, у підсумок не пішло</span>` : s.fresh ? ` · за ${s.days} дн.` : ` · <span class="tr-old">⚠ за ${IN_TARGET_DAYS} дн. мало цін — взято за ${s.days} дн. (з ${dmy(s.oldest)})${s.skipped ? ", у підсумок не пішли" : ""}</span>`}</span>
                ${s.types.length > 1 ? `<span class="tr-hint tr-types">${s.types.map((x) => `${esc(TYPE_SHORT[x.type] || x.type)}: <b>${money(x.med)}</b> (${x.n})`).join(" · ")}</span>` : ""}</div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Логісти" ? LOGIST_DAYS : LARDI_DAYS} днів</span></div>`;
 
