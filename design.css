@@ -1172,8 +1172,9 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 #carrierCardBody .card-grid.cc-masonry > * { margin-bottom: 8px !important; }
 /* «Напрямки»: довгий список — на 2 колонки картки, країни в 2 стовпчики; області України в рядок */
 #carrierCardBody .card-grid { grid-auto-flow: row dense; }
-#carrierCardBody .cc-dirs.cc-wide { grid-column: span 2; }
-#carrierCardBody .cc-dirs.cc-wide > .card-row:nth-child(2) .card-row-value { column-count: 2; column-gap: 22px; }
+#carrierCardBody .cc-dirs.cc-wide { grid-column: 1 / -1; }
+#carrierCardBody .cc-dirs.cc-wide > .card-row:nth-child(2) .card-row-value { column-count: 3; column-gap: 26px; }
+@media (max-width: 1250px) { #carrierCardBody .cc-dirs.cc-wide > .card-row:nth-child(2) .card-row-value { column-count: 2; } }
 #carrierCardBody .cc-dirs .dest-blk { break-inside: avoid; }
 #carrierCardBody .cc-dirs .dest-blk-short { display: inline-block; margin-right: 4px; }
 #carrierCardBody .cc-dirs > .card-row:nth-child(3) .card-row-value { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; }

@@ -2654,7 +2654,7 @@ function carrierPopupReady(id) {
         grid.classList.toggle("cc-masonry", two);
         if (!two) { [...grid.children].forEach((el) => (el.style.gridRowEnd = "")); return; }
         const gap = 8;
-        // Довгі «Напрямки» при 3 колонках — на дві колонки (заповнюють порожнє місце під «Основне» і «Контакти»)
+        // Довгі «Напрямки» при 3 колонках — на всю ширину картки, країни в 3 стовпчики
         const cols = getComputedStyle(grid).gridTemplateColumns.split(" ").length;
         const dirs = grid.querySelector(".cc-dirs");
         if (dirs) {
