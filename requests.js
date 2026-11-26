@@ -2436,7 +2436,7 @@ function offerRowsHtml(offers, opts = {}) {
             return `
             <div class="offer-row${cls}">
                 <span class="offer-num">${i + 1}</span>
-                <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}` : "—"}</div>
+                <div class="offer-price">${o.price ? `${escapeHtml(formatPrice(o.price))} ${escapeHtml(o.currency || "")}<span class="fx-slot" data-v="${escapeHtml(o.price)}" data-c="${escapeHtml(o.currency || "")}"></span>` : "—"}</div>
                 <div class="offer-date">${offerDateHtml(o)}</div>
                 <div class="offer-comment">${escapeHtml(o.comment || "")}${o.carrier ? `<div class="offer-carrier"><i class='bx bxs-truck'></i> ${o.carrier_id ? `<a href="#" data-carrier-card="${escapeHtml(o.carrier_id)}" title="Відкрити картку перевізника">${escapeHtml(o.carrier)} <i class='bx bx-link-external'></i></a>` : escapeHtml(o.carrier)}</div>` : ""}</div>
                 <div class="offer-action">${btn}</div>

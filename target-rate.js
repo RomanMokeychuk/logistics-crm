@@ -137,6 +137,46 @@
             .map((x) => x.trim().split(/\s+/)[0])
             .filter(Boolean);
 
+    /* ---------- Курс НБУ (грн за 1 одиницю валюти) — раз на день ---------- */
+    let FX = null;
+    async function loadFx() {
+        if (FX) return FX;
+        const d = new Date();
+        const key = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+        try {
+            const c = JSON.parse(sessionStorage.getItem("fura_nbu_" + key) || "null");
+            if (c?.EUR) return (FX = c);
+        } catch (_) { /* */ }
+        try {
+            const ctl = new AbortController();
+            setTimeout(() => ctl.abort(), 4000);
+            const list = await (await fetch(`https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?date=${key}&json`, { signal: ctl.signal })).json();
+            const f = { UAH: 1, date: list[0]?.exchangedate || "" };
+            for (const cc of ["EUR", "USD", "PLN"]) f[cc] = list.find((x) => x.cc === cc)?.rate || 0;
+            if (f.EUR) {
+                FX = f;
+                try { sessionStorage.setItem("fura_nbu_" + key, JSON.stringify(f)); } catch (_) { /* */ }
+            }
+        } catch (_) { /* немає доступу до НБУ — просто без перерахунку */ }
+        return FX;
+    }
+    // Валюта → у дужках гривні; гривні → у дужках євро
+    function fx(v, cur) {
+        if (!FX || !v) return "";
+        cur = String(cur || "").toUpperCase();
+        if (cur === "UAH") return FX.EUR ? `<span class="tr-fx">(≈ ${money(Math.round(v / FX.EUR / 10) * 10, "€")})</span>` : "";
+        const r = FX[cur];
+        return r ? `<span class="tr-fx">(≈ ${money(Math.round((v * r) / 100) * 100, "грн")})</span>` : "";
+    }
+
+    function fxRange(lo, hi, cur) {
+        if (!FX) return "";
+        cur = String(cur || "").toUpperCase();
+        const c = (v) => (cur === "UAH" ? Math.round(v / FX.EUR / 10) * 10 : Math.round((v * (FX[cur] || 0)) / 100) * 100);
+        if (cur !== "UAH" && !FX[cur]) return "";
+        return `<span class="tr-fx">(≈ ${money(c(lo))} – ${money(c(hi), cur === "UAH" ? "€" : "грн")})</span>`;
+    }
+
     /* ---------- Збір даних ---------- */
     const cache = new Map(); // "UA|PL" → { at, reqs, lardi }
 
@@ -236,7 +276,7 @@
 
     async function compute(r) {
         if (!r?.load_country || !r?.unload_country) return null;
-        const { reqs, lardi, trucks, lardiAt } = await fetchDir(r);
+        const [{ reqs, lardi, trucks, lardiAt }] = await Promise.all([fetchDir(r), loadFx()]);
         const ca = ISO[String(r.load_country || "").toUpperCase()], cb = ISO[String(r.unload_country || "").toUpperCase()];
         const lp = placeOfAddress(r.load_address, ca);
         const up = placeOfAddress(r.unload_address, cb);
@@ -353,7 +393,7 @@
     };
     const srcLine = (s, label) =>
         s
-            ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>${trendHtml(s.trend, s.cur)}
+            ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>${fx(s.med, s.cur)}${trendHtml(s.trend, s.cur)}
                <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — тут старіші (з ${dmy(s.oldest)})${s.skipped ? ", у підсумок не пішли" : ""}</span>`}</span>
                ${s.types.length > 1 ? `<span class="tr-hint tr-types">${s.types.map((x) => `${esc(TYPE_SHORT[x.type] || x.type)}: <b>${money(x.med)}</b> (${x.n})`).join(" · ")}</span>` : ""}</div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Логісти" ? LOGIST_DAYS : LARDI_DAYS} днів</span></div>`;
@@ -365,11 +405,11 @@
         const lv = (x) => `<span class="tr-lv tr-lv${x.level}" title="${LEVEL[x.level]}"></span>`;
         return `
             ${lg.length ? `<div class="tr-sub">Відповіді логістів</div>
-            ${lg.map((x) => `<a class="tr-it${isOld(x.at) ? " tr-stale" : ""}" href="requests.html?open=${encodeURIComponent(x.id)}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.t ? `<span class="tr-hint"> · ${esc(String(Math.round(x.t * 10) / 10).replace(".", ","))} т</span>` : ""}<span class="tr-hint"> · ${esc(x.who)}</span></span><b>${money(x.price, x.cur)}${x.chosen ? " ✓" : ""}</b></a>`).join("")}` : ""}
+            ${lg.map((x) => `<a class="tr-it${isOld(x.at) ? " tr-stale" : ""}" href="requests.html?open=${encodeURIComponent(x.id)}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.t ? `<span class="tr-hint"> · ${esc(String(Math.round(x.t * 10) / 10).replace(".", ","))} т</span>` : ""}<span class="tr-hint"> · ${esc(x.who)}</span></span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}${x.chosen ? " ✓" : ""}</b></a>`).join("")}` : ""}
             ${ld.length ? `<div class="tr-sub">Lardi — хто виставив вантаж і за скільки</div>
-            ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.type ? ` <span class="tr-tag">${esc(TYPE_SHORT[x.type] || x.type)}</span>` : ""}</span><b>${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
+            ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.type ? ` <span class="tr-tag">${esc(TYPE_SHORT[x.type] || x.type)}</span>` : ""}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
             ${tk.length ? `<div class="tr-sub">Lardi — машини: за скільки перевізник готовий їхати</div>
-            ${tk.map((x) => `<${x.carrier_id ? `a href="carriers.html?open=${encodeURIComponent(x.carrier_id)}"` : "div"} class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.carrier_id ? ` <span class="tr-tag tr-tag-f">є у FURA</span>` : ""}</span><b>${money(x.price, x.cur)}</b></${x.carrier_id ? "a" : "div"}>`).join("")}` : ""}
+            ${tk.map((x) => `<${x.carrier_id ? `a href="carriers.html?open=${encodeURIComponent(x.carrier_id)}"` : "div"} class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.carrier_id ? ` <span class="tr-tag tr-tag-f">є у FURA</span>` : ""}</span><b>${fx(x.price, x.cur)} ${money(x.price, x.cur)}</b></${x.carrier_id ? "a" : "div"}>`).join("")}` : ""}
             <div class="tr-hint tr-legend"><span class="tr-lv tr-lv3"></span> та сама область / воєводство / квадрат <span class="tr-lv tr-lv2"></span> сусідні області / той самий округ <span class="tr-lv tr-lv1"></span> та сама частина України <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
     }
 
@@ -378,9 +418,9 @@
         const cur = r.target_currency || t?.cur || "EUR";
         const auto = t?.target ? money(t.target, t.cur) : "";
         const main = manual
-            ? `<b class="tr-big">${money(num(r.target_price), cur)}</b><span class="tr-hint">вказав ${esc(r.target_by || "логіст")}${auto ? ` · розрахунок ≈ ${auto}${t.lo && t.hi ? ` (від ${money(t.lo)} до ${money(t.hi)})` : ""}` : ""}</span>`
+            ? `<b class="tr-big">${money(num(r.target_price), cur)}</b>${fx(num(r.target_price), cur)}<span class="tr-hint">вказав ${esc(r.target_by || "логіст")}${auto ? ` · розрахунок ≈ ${auto}${t.lo && t.hi ? ` (від ${money(t.lo)} до ${money(t.hi)})` : ""}` : ""}</span>`
             : auto
-              ? `<b class="tr-big">≈ ${auto}</b>${t.lo && t.hi && t.lo !== t.hi ? `<span class="tr-range">від <b>${money(t.lo)}</b> до <b>${money(t.hi, t.cur)}</b></span>` : ""}${trendHtml(t.trend, t.cur, true)}<span class="tr-hint">${t.used > 1 ? "середнє джерел нижче" : t.logist ? "за відповідями логістів" : "за Lardi"}${t.weak ? " · мало даних, орієнтуйтесь обережно" : ""}</span>`
+              ? `<b class="tr-big">≈ ${auto}</b>${fx(t.target, t.cur)}${t.lo && t.hi && t.lo !== t.hi ? `<span class="tr-range">від <b>${money(t.lo)}</b> до <b>${money(t.hi, t.cur)}</b>${fxRange(t.lo, t.hi, t.cur)}</span>` : ""}${trendHtml(t.trend, t.cur, true)}<span class="tr-hint">${t.used > 1 ? "середнє джерел нижче" : t.logist ? "за відповідями логістів" : "за Lardi"}${t.weak ? " · мало даних, орієнтуйтесь обережно" : ""}</span>`
               : `<b class="tr-big tr-muted">не визначено</b><span class="tr-hint">на цьому напрямку поки немає цін</span>`;
         return `
             <div class="tr-main">${main}
@@ -395,6 +435,7 @@
                 <button type="button" class="tr-btn tr-save" data-tr="save">Зберегти</button>
             </div>
             ${t ? `<div class="tr-srcs">${srcLine(t.logist, "Логісти")}${srcLine(t.lardi, "Lardi вантажі")}${srcLine(t.trucks, "Lardi машини")}</div>` : ""}
+            ${FX ? `<div class="tr-hint tr-upd">Курс НБУ${FX.date ? ` на ${esc(FX.date)}` : ""}: 1 € = ${String(FX.EUR.toFixed(2)).replace(".", ",")} грн · 1 $ = ${String((FX.USD || 0).toFixed(2)).replace(".", ",")} грн</div>` : ""}
             ${t?.lardiAt ? `<div class="tr-hint tr-upd"><i class='bx bx-refresh'></i> Lardi оновлюється автоматично ~3 рази на день · останнє оновлення ${new Date(t.lardiAt).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` : ""}
             ${t && (t.logist || t.lardi || t.trucks) ? `<details class="tr-more"><summary>Звідки ціни</summary>${listHtml(t)}</details>` : ""}
             <div class="tr-msg" role="status"></div>`;
@@ -409,9 +450,19 @@
         </div>`;
     }
 
+    // Ціни у відповідях логістів (картка запиту): у дужках — гривні / євро за НБУ
+    async function fillFx(root) {
+        await loadFx();
+        (root || document).querySelectorAll(".fx-slot:not([data-done])").forEach((el) => {
+            el.dataset.done = "1";
+            el.innerHTML = fx(num(el.dataset.v), el.dataset.c || "EUR");
+        });
+    }
+
     let cur = null;
     async function mount(r) {
         cur = r;
+        fillFx(document.getElementById("requestCardBody"));
         const box = document.getElementById("targetRateBox");
         if (!box) return;
         let t = null;
@@ -470,7 +521,7 @@
         if (t?.logist) bits.push(`логісти ${money(t.logist.med, t.logist.cur)} (${t.logist.n})`);
         if (t?.lardi) bits.push(`Lardi вантажі ${money(t.lardi.med, t.lardi.cur)} (${t.lardi.n})`);
         if (t?.trucks) bits.push(`Lardi машини ${money(t.trucks.med, t.trucks.cur)} (${t.trucks.n})`);
-        el.innerHTML = `<i class='bx bx-target-lock'></i> Цільова: <b>${manual ? money(num(r.target_price), r.target_currency) : "≈ " + money(t.target, t.cur)}</b>${!manual && t.lo && t.hi && t.lo !== t.hi ? ` (від ${money(t.lo)} до ${money(t.hi, t.cur)})` : ""}${!manual && t?.trend ? " " + trendHtml(t.trend, t.cur, true) : ""}${bits.length ? ` <span class="tr-hint">· ${esc(bits.join(" · "))}</span>` : ""}`;
+        el.innerHTML = `<i class='bx bx-target-lock'></i> Цільова: <b>${manual ? money(num(r.target_price), r.target_currency) : "≈ " + money(t.target, t.cur)}</b> ${manual ? fx(num(r.target_price), r.target_currency) : fx(t.target, t.cur)}${!manual && t.lo && t.hi && t.lo !== t.hi ? ` (від ${money(t.lo)} до ${money(t.hi, t.cur)})` : ""}${!manual && t?.trend ? " " + trendHtml(t.trend, t.cur, true) : ""}${bits.length ? ` <span class="tr-hint">· ${esc(bits.join(" · "))}</span>` : ""}`;
     }
 
     if (!document.getElementById("tr-style")) {
@@ -480,7 +531,7 @@
             .tr-section .card-section-title i{color:#c8a14a}
             .tr-body{padding:4px 16px 12px}
             .tr-main{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-            .tr-big{font-size:20px}.tr-range{font-size:14px;color:#334155}.tr-trend{font-size:13px;font-weight:700;border-radius:8px;padding:1px 8px}.tr-up{background:#fee2e2;color:#b91c1c}.tr-down{background:#dcfce7;color:#166534}.tr-flat{background:#f1f5f9;color:#475569}.tr-muted{color:#94a3b8;font-size:16px}
+            .tr-big{font-size:20px}.tr-fx{font-size:12.5px;color:#6b7280;font-weight:500;margin-left:4px}.offer-price .tr-fx{display:block;margin:0}.tr-it b .tr-fx{margin:0 6px 0 0}.tr-range{font-size:14px;color:#334155}.tr-trend{font-size:13px;font-weight:700;border-radius:8px;padding:1px 8px}.tr-up{background:#fee2e2;color:#b91c1c}.tr-down{background:#dcfce7;color:#166534}.tr-flat{background:#f1f5f9;color:#475569}.tr-muted{color:#94a3b8;font-size:16px}
             .tr-hint{font-size:12px;color:#6b7280}
             .tr-acts{margin-left:auto;display:flex;gap:6px}
             .tr-btn{border:1px solid #d6dbe3;background:#fff;border-radius:8px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:#334155}
@@ -510,5 +561,5 @@
         document.head.appendChild(st);
     }
 
-    window.furaTargetRate = { sectionHtml, mount, hintFor, compute, _place: placeOfAddress };
+    window.furaTargetRate = { sectionHtml, mount, hintFor, compute, fillFx, _place: placeOfAddress };
 })();
