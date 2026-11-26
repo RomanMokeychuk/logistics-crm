@@ -25,7 +25,8 @@
     const LARDI_DAYS = 14;
     const MIN_LOGIST = 2; // скільки відповідей треба на рівні, щоб ним користуватися
     const MIN_LARDI = 3;
-    const LEVEL = { 2: "те саме місто / квадрат", 1: "той самий регіон", 0: "ті самі країни" };
+    const LEVEL = { 3: "те саме місто / квадрат", 2: "той самий регіон", 1: "та сама частина країни", 0: "ті самі країни" };
+    const FRESH_DAYS = 30; // ціни швидко змінюються — спершу беремо свіжі
 
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
     const num = (v) => {
@@ -41,27 +42,51 @@
     const r50 = (v) => Math.round(v / 50) * 50;
     const money = (v, cur) => `${Math.round(v).toLocaleString("uk-UA").replace(/ /g, " ")} ${cur || ""}`.trim();
     const dmy = (v) => (v ? String(v).slice(0, 10).split("-").reverse().slice(0, 2).join(".") : "");
+    const isOld = (v) => new Date(v || 0).getTime() < Date.now() - FRESH_DAYS * 864e5;
     const canEdit = () => typeof currentStaff !== "undefined" && currentStaff && typeof hasRole === "function" && hasRole(currentStaff, ["logist", "head", "admin"]);
 
     /* ---------- Місце: місто, квадрат (2 цифри індексу), регіон ---------- */
     const norm = (s) => String(s || "").toLowerCase().replace(/ё/g, "е").replace(/^(м\.|с\.|смт\.?|г\.)\s*/, "").replace(/[«»"'`’]/g, "").trim();
     const regionKey = (s) => norm(s).replace(/\s*(область|обл\.?|воєводство|воєв\.?|край|земля|регіон|county)\s*$/i, "").split(/[\s-]+/)[0] || "";
 
-    function placeOfAddress(addr) {
+    // Частина країни: Польща — перша цифра індексу (поштові округи), Україна — захід / південь / центр-схід
+    const PL_REG = { "поморське": "8", "куявсько": "8", "мазовецьке": "0", "підляське": "1", "вармінсько": "1", "люблінське": "2", "свєнтокшиське": "2", "малопольське": "3", "підкарпатське": "3", "сілезьке": "4", "опольське": "4", "нижньосілезьке": "5", "великопольське": "6", "любуське": "6", "західнопоморське": "7", "лодзинське": "9", "лодзьке": "9" };
+    function macroOf(cc, p) {
+        if (cc === "PL") {
+            if (p.zone) return "pl" + p.zone[0];
+            const k = Object.keys(PL_REG).find((x) => p.region && p.region.startsWith(x.slice(0, 6)));
+            return k ? "pl" + PL_REG[k] : "";
+        }
+        if (cc === "UA") {
+            const r = p.region || "";
+            if (/^(львів|волин|рівн|терноп|івано|закарпат|чернів|хмельн)/.test(r)) return "ua-w";
+            if (/^(одес|микола|херсон)/.test(r)) return "ua-s";
+            if (r || /^київ/.test(p.town)) return "ua-c";
+            return "";
+        }
+        return p.region ? cc + p.region : "";
+    }
+    function placeOfAddress(addr, cc) {
         const parts = String(addr || "").split(",").map((x) => x.trim()).filter(Boolean);
         const pc = String(addr || "").match(/\b(\d{2})[-\s]?\d{2,4}\b/);
         const reg = parts.find((p) => /(обл|воєв|край|область|земля)/i.test(p)) || (parts.length > 1 ? parts[parts.length - 1] : "");
-        return { town: norm(parts[0]), zone: pc ? pc[1] : "", region: /\d/.test(reg) ? "" : regionKey(reg) };
+        const p = { town: norm(parts[0]), zone: pc ? pc[1] : "", region: /\d/.test(reg) ? "" : regionKey(reg) };
+        p.macro = macroOf(cc, p);
+        return p;
     }
-    const placeOfLardi = (town, region, zone) => ({ town: norm(town), zone: String(zone || "").slice(0, 2), region: regionKey(region) });
+    const placeOfLardi = (cc, town, region, zone) => {
+        const p = { town: norm(town), zone: String(zone || "").slice(0, 2), region: regionKey(region) };
+        p.macro = macroOf(cc, p);
+        return p;
+    };
 
     function closeness(a, b) {
         if (!a || !b) return 0;
-        if ((a.town && a.town === b.town) || (a.zone && a.zone === b.zone)) return 2;
-        if (a.region && a.region === b.region) return 1;
+        if ((a.town && a.town === b.town) || (a.zone && a.zone === b.zone)) return 3;
+        if (a.region && a.region === b.region) return 2;
+        if (a.macro && a.macro === b.macro) return 1;
         return 0;
     }
-    // рівень маршруту = найгірший з двох кінців
     const routeLevel = (la, ua, lb, ub) => Math.min(closeness(la, lb), closeness(ua, ub));
 
     const bodyWords = (s) =>
@@ -116,12 +141,16 @@
     }
 
     // Беремо найвужчий рівень, де достатньо цін; якщо ніде — усі
+    // Спершу свіжі (21 день) на найближчому маршруті, далі — старіші, і лише потім «ті самі країни»
     function pickLevel(items, min) {
-        for (const lv of [2, 1]) {
-            const use = items.filter((x) => x.level >= lv);
-            if (use.length >= min) return { level: lv, use };
+        const edge = Date.now() - FRESH_DAYS * 864e5;
+        const isFresh = (x) => new Date(x.at || 0).getTime() >= edge;
+        const tries = [[3, 1], [2, 1], [1, 1], [3, 0], [2, 0], [1, 0], [0, 1], [0, 0]];
+        for (const [lv, fresh] of tries) {
+            const use = items.filter((x) => x.level >= lv && (!fresh || isFresh(x)));
+            if (use.length >= min) return { level: lv, use, fresh: !!fresh || use.every(isFresh), oldest: use.reduce((m, x) => (!m || String(x.at) < m ? String(x.at) : m), "") };
         }
-        return { level: 0, use: items };
+        return { level: 0, use: items, fresh: items.every(isFresh), oldest: "" };
     }
 
     function preferBody(items, want, min) {
@@ -133,8 +162,9 @@
     async function compute(r) {
         if (!r?.load_country || !r?.unload_country) return null;
         const { reqs, lardi } = await fetchDir(r);
-        const lp = placeOfAddress(r.load_address);
-        const up = placeOfAddress(r.unload_address);
+        const ca = ISO[String(r.load_country || "").toUpperCase()], cb = ISO[String(r.unload_country || "").toUpperCase()];
+        const lp = placeOfAddress(r.load_address, ca);
+        const up = placeOfAddress(r.unload_address, cb);
         const want = bodyWords(r.transport_type);
         const answersOf = (x) => (typeof getAnswers === "function" ? getAnswers(x) : Array.isArray(x.answers) ? x.answers : []);
 
@@ -142,7 +172,7 @@
         let lg = [];
         for (const q of reqs) {
             if (String(q.id) === String(r.id) || q.load_country !== r.load_country || q.unload_country !== r.unload_country) continue;
-            const level = routeLevel(lp, up, placeOfAddress(q.load_address), placeOfAddress(q.unload_address));
+            const level = routeLevel(lp, up, placeOfAddress(q.load_address, ca), placeOfAddress(q.unload_address, cb));
             const chosen = q.chosen_offer || null;
             for (const a of answersOf(q)) {
                 for (const [i, o] of (a.offers || []).entries()) {
@@ -164,14 +194,13 @@
             }
         }
         // 2. Lardi (лише ціна за рейс)
-        const ca = ISO[String(r.load_country || "").toUpperCase()], cb = ISO[String(r.unload_country || "").toUpperCase()];
         let ld = lardi
             .filter((x) => x.from_country === ca && x.to_country === cb)
             .filter((x) => !x.payment_unit || /рейс/i.test(String(x.payment_unit)))
             .map((x) => ({
                 price: num(x.price),
                 cur: String(x.currency || "EUR").toUpperCase(),
-                level: routeLevel(lp, up, placeOfLardi(x.from_town, x.from_region, x.from_zone), placeOfLardi(x.to_town, x.to_region, x.to_zone)),
+                level: routeLevel(lp, up, placeOfLardi(ca, x.from_town, x.from_region, x.from_zone), placeOfLardi(cb, x.to_town, x.to_region, x.to_zone)),
                 body: bodyWords(x.body_types),
                 at: x.seen_last,
                 route: [x.from_town, x.to_town].filter(Boolean).join(" → "),
@@ -191,13 +220,13 @@
             const b = preferBody(lg, want, MIN_LOGIST);
             const p = pickLevel(b.use, MIN_LOGIST);
             const prices = p.use.map((x) => x.price);
-            out.logist = { cur: lgCur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, same: b.same, list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))) };
+            out.logist = { cur: lgCur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, oldest: p.oldest, same: b.same, list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))) };
         }
         if (ld.length) {
             const b = preferBody(ld, want, MIN_LARDI);
             const p = pickLevel(b.use, MIN_LARDI);
             const prices = p.use.map((x) => x.price);
-            out.lardi = { cur: ldCur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, same: b.same, list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))) };
+            out.lardi = { cur: ldCur, med: median(prices), min: Math.min(...prices), max: Math.max(...prices), n: p.use.length, level: p.level, fresh: p.fresh, oldest: p.oldest, same: b.same, list: [...b.use].sort((x, y) => y.level - x.level || String(y.at).localeCompare(String(x.at))) };
         }
         // Підсумок: обидва джерела — середнє двох медіан; одне — його медіана
         // Підсумок: обидва джерела в одній валюті — середнє двох медіан; інакше — логісти, далі Lardi
@@ -206,7 +235,7 @@
         else if (L) { out.target = r50(L.med); out.cur = L.cur; }
         else if (D) { out.target = r50(D.med); out.cur = D.cur; }
         else out.target = 0;
-        out.weak = (out.logist?.n || 0) + (out.lardi?.n || 0) < 3;
+        out.weak = (out.logist?.n || 0) + (out.lardi?.n || 0) < 3 || (out.logist && !out.logist.fresh) || (out.lardi && !out.lardi.fresh);
         return out;
     }
 
@@ -214,7 +243,7 @@
     const srcLine = (s, label) =>
         s
             ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>
-               <span class="tr-hint">${label === "Lardi" ? "заявок" : "відповідей"}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.same ? " · той самий кузов" : ""}</span></div>`
+               <span class="tr-hint">${label === "Lardi" ? "заявок" : "відповідей"}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ є старі ціни (з ${dmy(s.oldest)})</span>`}</span></div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Lardi" ? LARDI_DAYS : LOGIST_DAYS} днів</span></div>`;
 
     function listHtml(t) {
@@ -223,10 +252,10 @@
         const lv = (x) => `<span class="tr-lv tr-lv${x.level}" title="${LEVEL[x.level]}"></span>`;
         return `
             ${lg.length ? `<div class="tr-sub">Відповіді логістів</div>
-            ${lg.map((x) => `<a class="tr-it" href="requests.html?open=${encodeURIComponent(x.id)}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}<span class="tr-hint"> · ${esc(x.who)}</span></span><b>${money(x.price, x.cur)}${x.chosen ? " ✓" : ""}</b></a>`).join("")}` : ""}
+            ${lg.map((x) => `<a class="tr-it${isOld(x.at) ? " tr-stale" : ""}" href="requests.html?open=${encodeURIComponent(x.id)}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}<span class="tr-hint"> · ${esc(x.who)}</span></span><b>${money(x.price, x.cur)}${x.chosen ? " ✓" : ""}</b></a>`).join("")}` : ""}
             ${ld.length ? `<div class="tr-sub">Lardi</div>
-            ${ld.map((x) => `<div class="tr-it">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}</span><b>${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
-            <div class="tr-hint tr-legend"><span class="tr-lv tr-lv2"></span> те саме місто / квадрат <span class="tr-lv tr-lv1"></span> регіон <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
+            ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}</span><b>${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
+            <div class="tr-hint tr-legend"><span class="tr-lv tr-lv3"></span> те саме місто / квадрат <span class="tr-lv tr-lv2"></span> регіон <span class="tr-lv tr-lv1"></span> та сама частина країни <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
     }
 
     function bodyHtml(r, t) {
@@ -353,8 +382,8 @@
             a.tr-it:hover{background:#f8fafc}
             .tr-d{color:#6b7280;font-size:12px}.tr-r{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
             .tr-lv{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cbd5e1}
-            .tr-lv2{background:#16a34a}.tr-lv1{background:#f59e0b}
-            .tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+            .tr-lv3{background:#16a34a}.tr-lv2{background:#f59e0b}.tr-lv1{background:#60a5fa}.tr-old{color:#b45309}
+            .tr-stale{opacity:.55}.tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
             .tr-msg{font-size:12.5px;min-height:0}.tr-msg.bad{color:#b91c1c;margin-top:6px}
             .tr-answer-hint{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fbf7ec;border:1px solid #efe3c2;font-size:13.5px}
             .tr-answer-hint:empty{display:none}
