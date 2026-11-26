@@ -22,7 +22,7 @@
         "ГРУЗІЯ": "GE", "ВІРМЕНІЯ": "AM", "АЗЕРБАЙДЖАН": "AZ", "КАЗАХСТАН": "KZ", "УЗБЕКИСТАН": "UZ", "СЛОВЕНІЯ": "SI",
         "ХОРВАТІЯ": "HR", "СЕРБІЯ": "RS", "ГРЕЦІЯ": "GR", "ШВЕЙЦАРІЯ": "CH",
     };
-    const LOGIST_DAYS = 60;
+    const LOGIST_DAYS = 30;
     const LARDI_DAYS = 30;
     const MIN_LOGIST = 2; // скільки відповідей треба на рівні, щоб ним користуватися
     const MIN_LARDI = 3;
@@ -238,23 +238,23 @@
         return Object.keys(c).sort((p, q) => c[q] - c[p])[0] || "EUR";
     }
 
-    // Вікно днів росте поступово: 7 → 14 → 30 → 60. Спершу найближчий маршрут (область / сусідні / частина країни)
-    // у вікні 7 і 14 днів; потім ті самі рівні за 30–60 днів; «ті самі країни» — лише якщо ближчого немає зовсім.
-    const WINDOWS = [7, 14, 30, 60];
+    // Вікно днів росте поступово: 7 → 14 → 21 → 30 (не більше). Спершу найближчий маршрут (область / сусідні / частина країни)
+    // у вікні 7 і 14 днів; потім ті самі рівні за 21–30 днів; «ті самі країни» — лише якщо ближчого немає зовсім.
+    const WINDOWS = [7, 14, 21, 30]; // максимум 30 днів
     const IN_TARGET_DAYS = 14; // у підсумок ідуть джерела з цінами не старше 14 днів (якщо такі є)
     function pickLevel(items, min) {
         const ageOk = (x, d) => new Date(x.at || 0).getTime() >= Date.now() - d * 864e5;
         const tries = [];
         for (const d of [7, 14]) for (const lv of [3, 2, 1]) tries.push([lv, d]);
-        for (const d of [30, 60]) for (const lv of [3, 2, 1]) tries.push([lv, d]);
+        for (const d of [21, 30]) for (const lv of [3, 2, 1]) tries.push([lv, d]);
         for (const d of WINDOWS) tries.push([0, d]);
         const pack = (lv, d, use) => ({ level: lv, use, days: d, fresh: d <= IN_TARGET_DAYS, oldest: use.reduce((m, x) => (x.at && (!m || String(x.at) < m) ? String(x.at) : m), "") });
         for (const [lv, d] of tries) {
             const use = items.filter((x) => x.level >= lv && ageOk(x, d));
             if (use.length >= min) return pack(lv, d, use);
         }
-        // замало навіть за 60 днів — показуємо, що є, але в підсумок не беремо
-        const d = WINDOWS.find((w) => items.every((x) => ageOk(x, w))) || 60;
+        // замало навіть за 30 днів — показуємо, що є, але в підсумок не беремо
+        const d = WINDOWS.find((w) => items.every((x) => ageOk(x, w))) || 30;
         return { ...pack(0, d, items), fresh: false, few: true };
     }
 
