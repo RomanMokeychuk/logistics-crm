@@ -26,7 +26,7 @@
     const LARDI_DAYS = 14;
     const MIN_LOGIST = 2; // скільки відповідей треба на рівні, щоб ним користуватися
     const MIN_LARDI = 3;
-    const LEVEL = { 3: "те саме місто / квадрат", 2: "той самий регіон", 1: "та сама частина країни", 0: "ті самі країни" };
+    const LEVEL = { 3: "та сама область / воєводство / квадрат", 2: "сусідні області / той самий округ", 1: "та сама частина країни", 0: "ті самі країни" };
     const FRESH_DAYS = 30; // ціни швидко змінюються — спершу беремо свіжі
 
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
@@ -65,7 +65,7 @@
             if (r || /^київ/.test(p.town)) return "ua-c";
             return "";
         }
-        return p.region ? cc + p.region : "";
+        return p.zone ? cc + p.zone[0] : "";
     }
     function placeOfAddress(addr, cc) {
         const parts = String(addr || "").split(",").map((x) => x.trim()).filter(Boolean);
@@ -81,14 +81,54 @@
         return p;
     };
 
-    function closeness(a, b) {
+    // Області України та їхні сусіди (за початком назви)
+    const UA_OBL = ["вінниц", "волин", "дніпро", "донец", "житомир", "закарпат", "запоріз", "івано", "київ", "кіровоград", "луган", "львів", "микола", "одес", "полтав", "рівн", "сум", "терноп", "харків", "херсон", "хмельн", "черкас", "чернівец", "черніг"];
+    const UA_NEAR = {
+        вінниц: ["житомир", "київ", "черкас", "кіровоград", "одес", "хмельн", "чернівец"], волин: ["львів", "рівн"],
+        дніпро: ["харків", "полтав", "кіровоград", "микола", "херсон", "запоріз", "донец"], донец: ["дніпро", "харків", "луган", "запоріз"],
+        житомир: ["рівн", "хмельн", "вінниц", "київ"], закарпат: ["львів", "івано"], запоріз: ["дніпро", "донец", "херсон"],
+        івано: ["львів", "закарпат", "чернівец", "терноп"], київ: ["житомир", "вінниц", "черкас", "полтав", "черніг"],
+        кіровоград: ["вінниц", "черкас", "полтав", "дніпро", "микола", "одес"], луган: ["донец", "харків"],
+        львів: ["волин", "рівн", "терноп", "івано", "закарпат"], микола: ["одес", "кіровоград", "дніпро", "херсон"],
+        одес: ["микола", "кіровоград", "вінниц"], полтав: ["київ", "черкас", "кіровоград", "дніпро", "харків", "сум", "черніг"],
+        рівн: ["волин", "львів", "терноп", "хмельн", "житомир"], сум: ["черніг", "полтав", "харків"],
+        терноп: ["рівн", "львів", "івано", "чернівец", "хмельн"], харків: ["сум", "полтав", "дніпро", "донец", "луган"],
+        херсон: ["микола", "дніпро", "запоріз"], хмельн: ["рівн", "терноп", "чернівец", "вінниц", "житомир"],
+        черкас: ["київ", "вінниц", "кіровоград", "полтав"], чернівец: ["івано", "терноп", "хмельн", "вінниц"], черніг: ["київ", "полтав", "сум"],
+    };
+    const UA_CITY = { "київ": "київ", "львів": "львів", "одеса": "одес", "дніпро": "дніпро", "харків": "харків", "запоріжжя": "запоріз", "вінниця": "вінниц", "луцьк": "волин", "рівне": "рівн", "тернопіль": "терноп", "ужгород": "закарпат", "мукачево": "закарпат", "чернівці": "чернівец", "хмельницький": "хмельн", "житомир": "житомир", "черкаси": "черкас", "полтава": "полтав", "суми": "сум", "чернігів": "черніг", "миколаїв": "микола", "херсон": "херсон", "кропивницький": "кіровоград", "бровари": "київ", "бориспіль": "київ", "біла церква": "київ" };
+    const uaObl = (p) => UA_OBL.find((k) => (p.region || "").startsWith(k)) || UA_CITY[p.town] || "";
+
+    // Україна: та сама область → сусідні області → та сама частина країни.
+    // Інші країни: не місто, а воєводство / регіон або квадрат (2 цифри індексу) → той самий поштовий округ (1 цифра).
+    // «Ґданськ (Поморське, 80)» — щоб було видно область / квадрат
+    const cap1 = (w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : "");
+    const placeLabelL = (town, region, zone) => {
+        const reg = String(region || "").split(/\s+/)[0];
+        const extra = [reg && norm(reg) !== norm(town) ? reg : "", zone ? String(zone).slice(0, 2) : ""].filter(Boolean).join(", ");
+        return town ? `${town}${extra ? ` (${extra})` : ""}` : reg;
+    };
+    function placeLabel(addr, cc) {
+        const parts = String(addr || "").split(",").map((x) => x.trim()).filter(Boolean);
+        const p = placeOfAddress(addr, cc);
+        const raw = parts.slice(1).find((x) => /(обл|воєв|край|область|земля)/i.test(x)) || (p.region ? cap1(p.region) : "");
+        return parts[0] ? placeLabelL(parts[0], raw, p.zone) : "";
+    }
+
+    function closeness(a, b, cc) {
         if (!a || !b) return 0;
-        if ((a.town && a.town === b.town) || (a.zone && a.zone === b.zone)) return 3;
-        if (a.region && a.region === b.region) return 2;
-        if (a.macro && a.macro === b.macro) return 1;
+        if (cc === "UA") {
+            const x = uaObl(a), y = uaObl(b);
+            if (x && x === y) return 3;
+            if (x && y && (UA_NEAR[x] || []).includes(y)) return 2;
+            if (a.macro && a.macro === b.macro) return 1;
+            return 0;
+        }
+        if ((a.zone && a.zone === b.zone) || (a.region && a.region === b.region) || (a.town && a.town === b.town)) return 3;
+        if (a.macro && a.macro === b.macro) return 2;
         return 0;
     }
-    const routeLevel = (la, ua, lb, ub) => Math.min(closeness(la, lb), closeness(ua, ub));
+    const routeLevel = (la, ua, lb, ub, ca, cb) => Math.min(closeness(la, lb, ca), closeness(ua, ub, cb));
 
     const bodyWords = (s) =>
         String(s || "")
@@ -185,7 +225,7 @@
         let lg = [];
         for (const q of reqs) {
             if (String(q.id) === String(r.id) || q.load_country !== r.load_country || q.unload_country !== r.unload_country) continue;
-            const level = routeLevel(lp, up, placeOfAddress(q.load_address, ca), placeOfAddress(q.unload_address, cb));
+            const level = routeLevel(lp, up, placeOfAddress(q.load_address, ca), placeOfAddress(q.unload_address, cb), ca, cb);
             const chosen = q.chosen_offer || null;
             for (const a of answersOf(q)) {
                 for (const [i, o] of (a.offers || []).entries()) {
@@ -198,7 +238,7 @@
                         body: bodyWords(q.transport_type),
                         at: a.at || q.answered_at || q.created_at,
                         who: a.logist || "",
-                        route: [q.load_address, q.unload_address].map((a) => String(a || "").split(",")[0].trim()).filter(Boolean).join(" → "),
+                        route: [[q.load_address, ca], [q.unload_address, cb]].map(([a, c]) => placeLabel(a, c)).filter(Boolean).join(" → "),
                         client: q.client,
                         id: q.id,
                         chosen: !!chosen && String(chosen.logist_id ?? "") === String(a.logist_id ?? "") && Number(chosen.index ?? chosen.offer_index ?? -1) === i,
@@ -214,10 +254,10 @@
                 .map((x) => ({
                     price: num(x.price),
                     cur: String(x.currency || "EUR").toUpperCase(),
-                    level: routeLevel(lp, up, placeOfLardi(ca, x.from_town, x.from_region, x.from_zone), placeOfLardi(cb, x.to_town, x.to_region, x.to_zone)),
+                    level: routeLevel(lp, up, placeOfLardi(ca, x.from_town, x.from_region, x.from_zone), placeOfLardi(cb, x.to_town, x.to_region, x.to_zone), ca, cb),
                     body: bodyWords(x.body_types),
                     at: x.seen_last,
-                    route: [x.from_town, x.to_town].filter(Boolean).join(" → "),
+                    route: [placeLabelL(x.from_town, x.from_region, x.from_zone), placeLabelL(x.to_town, x.to_region, x.to_zone)].filter(Boolean).join(" → "),
                     mass: x.mass_t,
                     who: x.owner_name || "",
                     type: x.owner_type || "",
@@ -279,7 +319,7 @@
             ${ld.map((x) => `<div class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.type ? ` <span class="tr-tag">${esc(TYPE_SHORT[x.type] || x.type)}</span>` : ""}</span><b>${money(x.price, x.cur)}</b></div>`).join("")}` : ""}
             ${tk.length ? `<div class="tr-sub">Lardi — машини: за скільки перевізник готовий їхати</div>
             ${tk.map((x) => `<${x.carrier_id ? `a href="carriers.html?open=${encodeURIComponent(x.carrier_id)}"` : "div"} class="tr-it${isOld(x.at) ? " tr-stale" : ""}">${lv(x)}<span class="tr-d">${dmy(x.at)}</span><span class="tr-r">${esc(x.route || "—")}${x.mass ? `<span class="tr-hint"> · ${esc(x.mass)} т</span>` : ""}${x.who ? `<span class="tr-hint"> · ${esc(x.who)}</span>` : ""}${x.carrier_id ? ` <span class="tr-tag tr-tag-f">є у FURA</span>` : ""}</span><b>${money(x.price, x.cur)}</b></${x.carrier_id ? "a" : "div"}>`).join("")}` : ""}
-            <div class="tr-hint tr-legend"><span class="tr-lv tr-lv3"></span> те саме місто / квадрат <span class="tr-lv tr-lv2"></span> регіон <span class="tr-lv tr-lv1"></span> та сама частина країни <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
+            <div class="tr-hint tr-legend"><span class="tr-lv tr-lv3"></span> та сама область / воєводство / квадрат <span class="tr-lv tr-lv2"></span> сусідні області / той самий округ <span class="tr-lv tr-lv1"></span> та сама частина України <span class="tr-lv tr-lv0"></span> лише країни · ✓ — варіант, який обрав Sales</div>`;
     }
 
     function bodyHtml(r, t) {
