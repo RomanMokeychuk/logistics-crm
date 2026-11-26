@@ -1647,9 +1647,11 @@ document.addEventListener("DOMContentLoaded", async () => {
             return;
         }
         if (kind === "reply" || kind === "replyall") {
-            const mine = [status?.from, status?.mail_box].join(",").toLowerCase();
             const emails = (v) => String(v || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/gi) || [];
-            const notMe = (x) => !mine.includes(String(x).toLowerCase());
+            // «я» — лише ВЛАСНА підключена пошта. (status.from — загальна адреса відправки FURA, нею може бути
+            // пошта колеги — раніше через це колегу викидало з копії при «Відповісти всім».)
+            const mine = new Set(emails(status?.mail_box || status?.from).map((x) => x.toLowerCase()));
+            const notMe = (x) => !mine.has(String(x).toLowerCase());
             const uniq = (a) => [...new Map(a.map((x) => [x.toLowerCase(), x])).values()];
             let to, cc;
             if (!notMe(m.from_email || "")) {
