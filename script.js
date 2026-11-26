@@ -723,6 +723,37 @@ function fleetHtml(v) {
     document.head.appendChild(st);
 })();
 
+// «▾ Більше» внизу картки: видно лише основне + «Зараз у черзі»; решта — по кліку
+function ccMoreSetup(body) {
+    if (body._ccMore) return;
+    body._ccMore = true;
+    const ensure = () => {
+        let b = body.querySelector(":scope > .cc-more-btn");
+        if (!b) {
+            b = document.createElement("button");
+            b.type = "button";
+            b.className = "cc-more-btn";
+            b.addEventListener("click", () => { body.classList.toggle("cc-more"); paint(); if (body.classList.contains("cc-more")) setTimeout(() => b.previousElementSibling?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }), 50); });
+        }
+        if (body.lastElementChild !== b) body.appendChild(b); // завжди в самому низу
+        paint();
+    };
+    const paint = () => {
+        const b = body.querySelector(":scope > .cc-more-btn");
+        if (!b) return;
+        const open = body.classList.contains("cc-more");
+        b.innerHTML = open ? "▴ Згорнути" : "▾ Більше: нотатки, реєстр, відгуки, тягачі, напрямки за митними даними, історія, кабінет";
+    };
+    new MutationObserver(() => { if (!body.classList.contains("cc-editing")) ensure(); }).observe(body, { childList: true });
+    const st = document.createElement("style");
+    st.textContent = `#carrierCardBody:not(.cc-more):not(.cc-editing) .card-grid > .card-section-wide,
+#carrierCardBody:not(.cc-more):not(.cc-editing) > .card-grid ~ *:not(#eqCardBox):not(.cc-more-btn) { display: none !important; }
+#carrierCardBody.cc-editing > .cc-more-btn { display: none; }
+.cc-more-btn { display: block; width: 100%; margin: 10px 0 2px; padding: 9px 12px; border: 1px dashed #d6c7a1; border-radius: 12px; background: #fffdf7; color: #92650c; font-weight: 700; font-size: 13px; cursor: pointer; text-align: center; }
+.cc-more-btn:hover { background: #fdf6e3; border-style: solid; }`;
+    document.head.appendChild(st);
+}
+
 function cardRow(label, valueHtml, editKey, copyText) {
     const copy = copyText
         ? `<button type="button" class="qe-copy" data-copy="${escapeHtml(copyText)}" title="Копіювати"><i class='bx bx-copy'></i></button>`
@@ -855,6 +886,9 @@ function openCarrierCard(id) {
 
     const body = document.getElementById("carrierCardBody");
     if (!body) return;
+    // нижні блоки (нотатки, реєстр, відгуки, митні дані…) — сховані; новий перевізник — знову згорнуто
+    if (body.dataset.ccMoreFor !== String(item.id)) { body.classList.remove("cc-more"); body.dataset.ccMoreFor = String(item.id); }
+    ccMoreSetup(body);
 
     body.innerHTML = `
         <div class="card-header-block">
