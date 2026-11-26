@@ -840,3 +840,9 @@ a.ml-who:hover { background: #dbe8ff; }
 .ml-conv-curtag { font-size: 11px; color: #92400e; background: #fde68a; border-radius: 6px; padding: 1px 6px; }
 .ml-conv-body { margin-top: 6px; font-size: 13px; color: #334155; white-space: pre-wrap; word-break: break-word; max-height: 1.6em; overflow: hidden; }
 .ml-conv-body.on { max-height: none; }
+.ml-conv-atts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ml-conv-att { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; padding: 3px 9px; font-size: 12.5px; cursor: pointer; color: #1e293b; }
+.ml-conv-att:hover { border-color: #93c5fd; background: #eff6ff; }
+.ml-conv-att small { color: #94a3b8; }
+.ml-conv-it { cursor: default; }
+.ml-conv-body { max-height: none; }
