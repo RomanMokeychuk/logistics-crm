@@ -395,3 +395,7 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-mfull { margin-left: auto; font-size: 12px; color: #2563eb; text-decoration: none; font-weight: 600; }
 .nb-mfull:hover { text-decoration: underline; }
 .nb-mpanel .nb-qhead { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+/* «→» у «Запити»: завжди видно */
+.nb-rbtn.nb-go { opacity: 1 !important; display: inline-flex; align-items: center; justify-content: center; text-decoration: none; background: #fef3c7; border-color: #f5c96b; color: #92400e; font-size: 17px; }
+.nb-rbtn.nb-go:hover { background: #fde68a; color: #78350f; }
+.nb-rbtn.nb-go-off { background: #f8fafc; border-style: dashed; color: #cbd5e1; cursor: help; }

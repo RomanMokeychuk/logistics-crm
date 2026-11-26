@@ -170,6 +170,42 @@ const NB = (() => {
         sc.scrollTop = k;
     }
 
+    /* ---------- «→» перейти в цей запит у «Запитах» (дати відповідь) ---------- */
+    // запис без зв'язку — шукаємо серед моїх запитів той самий маршрут і тихо зв'язуємо
+    const cityKey = (v) => norm(String(v || "").split(/[,(]/)[0]).replace(/\s+/g, " ").trim();
+    function guessRequest(r) {
+        const hay = norm(r.addresses || "");
+        if (!hay) return null;
+        let best = null, bestScore = 0;
+        for (const q of REQS.values()) {
+            if (!q.load_address && !q.load_country) continue;
+            const a = cityKey(q.load_address || q.load_country), b = cityKey(q.unload_address || q.unload_country);
+            if (!a || !b || !hay.includes(a) || !hay.includes(b)) continue;
+            let sc = 2;
+            const cw = norm(q.cargo || "").split(" ").filter((w) => w.length >= 4);
+            if (cw.some((w) => norm(r.cargo || "").includes(w.slice(0, 5)))) sc += 2;
+            if (sc > bestScore) { best = q; bestScore = sc; }
+        }
+        return best;
+    }
+    const linking = new Set();
+    function reqGoHtml(r) {
+        let id = r.request_id;
+        if (!id) {
+            const q = guessRequest(r);
+            if (q) {
+                id = q.id;
+                if (!linking.has(r.id)) { // запам'ятовуємо зв'язок
+                    linking.add(r.id);
+                    sbClient.from("my_requests").update({ request_id: q.id }).eq("id", r.id).then(({ error }) => { if (!error) r.request_id = q.id; }).catch(() => {});
+                }
+            }
+        }
+        if (!id) return `<span class="nb-rbtn nb-go nb-go-off" title="Цей запис не пов'язаний із запитом у «Запитах» (створений вручну)"><i class="bx bx-right-arrow-alt"></i></span>`;
+        const st0 = REQS.get(id)?.status;
+        return `<a class="nb-rbtn nb-go" href="requests.html?open=${encodeURIComponent(id)}" title="Перейти в цей запит у «Запитах»${st0 ? " (" + esc(st0) + ")" : ""} — дати відповідь"><i class="bx bx-right-arrow-alt"></i></a>`;
+    }
+
     /* ---------- перевізники: Ларді (профіль з картки FURA) і чи стоять зараз у Черзі ---------- */
     let LINKS = new Map(); // id картки FURA → { lardi }
     let DEALS = new Map(); // id → { n, last }
@@ -390,6 +426,7 @@ const NB = (() => {
                     <span class="nb-dir">${esc(r.direction || "")}</span>
                     ${r.request_id ? `<a class="nb-req" href="requests.html?open=${encodeURIComponent(r.request_id)}" title="Відкрити запит у «Запитах»">📋 Запит${REQS.get(r.request_id)?.status ? " · " + esc(REQS.get(r.request_id).status) : ""}</a>` : ""}
                     <span class="nb-date">${new Date(r.updated_at || r.created_at).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</span>
+                    ${reqGoHtml(r)}
                     <button type="button" class="nb-rbtn" data-redit title="Змінити"><i class="bx bx-edit-alt"></i></button>
                     <button type="button" class="nb-rbtn nb-rdel" data-rdel title="Видалити запит"><i class="bx bx-trash"></i></button>
                 </div>
