@@ -3169,9 +3169,20 @@ function openAnswerModal(id) {
         getAnswers(r).find(
             (a) => String(a.logist_id) === String(currentStaff.id),
         ) || {};
-    const offers = mine.offers || [];
+    let offers = [...(mine.offers || [])];
+    // Перевізники, обрані в «Блокноті» кнопкою «＋ у відповідь» — підставляємо у варіанти
+    let pre = null;
+    try { pre = JSON.parse(localStorage.getItem("fura_answer_prefill") || "null"); } catch (_) { pre = null; }
+    let preN = 0;
+    if (pre && String(pre.request_id) === String(r.id) && Date.now() - (pre.at || 0) < 30 * 60 * 1000) {
+        const has = (o) => offers.some((x) => (o.carrier_id && String(x.carrier_id) === String(o.carrier_id)) || (o.carrier && String(x.carrier || "").toLowerCase() === String(o.carrier).toLowerCase()));
+        // порожні варіанти (без ціни й перевізника) не рахуємо
+        offers = offers.filter((x) => x && (x.price || x.carrier || x.date || x.comment));
+        for (const o of pre.offers || []) if (!has(o)) { offers.push({ price: o.price || "", currency: o.currency || "", comment: o.comment || "", carrier: o.carrier || "", carrier_id: o.carrier_id || "" }); preN++; }
+        try { localStorage.removeItem("fura_answer_prefill"); } catch (_) { /* */ }
+    }
     let rowsHtml = "";
-    for (let i = 1; i <= OFFERS_COUNT; i++) {
+    for (let i = 1; i <= Math.max(OFFERS_COUNT, offers.length); i++) {
         rowsHtml += offerFormRowHtml(i, offers[i - 1]);
     }
     document.getElementById("answerOptions").innerHTML = rowsHtml;
@@ -3187,6 +3198,7 @@ function openAnswerModal(id) {
             ? `<i class='bx bx-info-circle'></i> Після збереження статус зміниться на «${STATUS_QUOTE}», і запит стане зеленим.`
             : "";
 
+    if (preN) hint.innerHTML = `<i class='bx bx-check-circle'></i> З Блокнота додано перевізників: ${preN}. Перевірте ціни й дати, далі — «Зберегти».` + (hint.innerHTML ? "<br>" + hint.innerHTML : "");
     answerModalOverlay.classList.add("active");
 }
 
@@ -3419,8 +3431,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     searchInput?.addEventListener("input", renderRequests);
     // requests.html?open=<id> — одразу картка запиту (посилання з бота й AI-помічника)
     const openRequestId = new URLSearchParams(location.search).get("open");
+    const openAnswer = new URLSearchParams(location.search).get("answer") === "1";
     loadRequests().then(() => {
-        if (openRequestId) openRequestCard(openRequestId);
+        if (openRequestId) {
+            openRequestCard(openRequestId);
+            // з Блокнота: «✅ Дати відповідь» — одразу форма відповіді з обраними перевізниками
+            if (openAnswer) {
+                setTimeout(() => openAnswerModal(openRequestId), 150);
+                const u = new URL(location.href); u.searchParams.delete("answer"); history.replaceState(history.state, "", u);
+            }
+        }
         else showLastInList();
     });
     renderTransportPicker();

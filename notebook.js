@@ -398,11 +398,49 @@ const NB = (() => {
         $("#nbStatus").innerHTML = chips.map((c) => `<button type="button" class="nb-chip ${c.cls ? "st-" + c.cls : ""} ${(c.k ? st.status.has(c.k) : !st.status.size) ? "active" : ""}" data-st="${esc(c.k)}">${esc(c.label)}</button>`).join("");
     }
     const cleanPrice = (p) => String(p || "").replace(/^\d{1,3}\s+(?=\d{3,5}\b)/, "");
-    function carrierHtml(c, i) {
+    /* ---------- «＋ у відповідь»: обрані перевізники → форма «Дати відповідь» у «Запитах» ---------- */
+    const ANS_KEY = "fura_nb_ans";
+    const ansGet = () => { try { return JSON.parse(sessionStorage.getItem(ANS_KEY) || "{}"); } catch (_) { return {}; } };
+    const ansSel = (rid) => new Set(ansGet()[rid] || []);
+    function ansToggle(rid, key) {
+        const all = ansGet();
+        const set = new Set(all[rid] || []);
+        set.has(key) ? set.delete(key) : set.add(key);
+        all[rid] = [...set];
+        try { sessionStorage.setItem(ANS_KEY, JSON.stringify(all)); } catch (_) { /* */ }
+    }
+    const ansKey = (c) => String(c.id || c.edrpou || c.name || "");
+    // «4200-4300€» → ціна «4200-4300», валюта EUR
+    function priceParts(p) {
+        const t = cleanPrice(p);
+        const cur = /€|eur|євро/i.test(t) ? "EUR" : /\$|usd|дол/i.test(t) ? "USD" : /грн|uah|₴/i.test(t) ? "UAH" : /pln|zł|зл/i.test(t) ? "PLN" : "";
+        const m = t.replace(/\s+/g, "").match(/\d+(?:[.,]\d+)?(?:[-–]\d+(?:[.,]\d+)?)?/);
+        return { price: m ? m[0].replace("–", "-") : "", currency: cur };
+    }
+    function sendToAnswer(r) {
+        const sel = ansSel(r.id);
+        const cs = (r.carriers || []).filter((c) => sel.has(ansKey(c)));
+        const reqId = r.request_id || guessRequest(r)?.id;
+        if (!reqId) return alert("Цей запис не пов'язаний із запитом у «Запитах».");
+        if (!cs.length) return alert("Позначте перевізників кнопкою «＋ у відповідь» на їхніх картках.");
+        const offers = cs.map((c) => {
+            const pp = priceParts(c.price);
+            const ph = (c.contacts || [])[0];
+            return { price: pp.price, currency: pp.currency, carrier: c.name || c.edrpou || "", carrier_id: c.id || "",
+                comment: [ph?.name, ph?.phone].filter(Boolean).join(" ").slice(0, 80) };
+        });
+        try { localStorage.setItem("fura_answer_prefill", JSON.stringify({ request_id: reqId, at: Date.now(), offers })); } catch (_) { /* */ }
+        const all = ansGet(); delete all[r.id];
+        try { sessionStorage.setItem(ANS_KEY, JSON.stringify(all)); } catch (_) { /* */ }
+        location.href = `requests.html?open=${encodeURIComponent(reqId)}&answer=1`;
+    }
+    function carrierHtml(c, i, r) {
         const name = esc(c.name || "Перевізник");
         const nameEl = `<div class="nb-cnrow"><span class="nb-cname">${c.id ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i> ' : ""}${name}</span>${cpBtn(c.name, "Копіювати назву")}</div>`;
-        return `<div class="nb-carrier" data-ci="${i}" title="Натисніть, щоб відкрити">
+        const on = r && ansSel(r.id).has(ansKey(c));
+        return `<div class="nb-carrier${on ? " nb-ans-on" : ""}" data-ci="${i}" title="Натисніть, щоб відкрити">
             ${nameEl}
+            ${r ? `<button type="button" class="nb-ansbtn${on ? " on" : ""}" data-ans="${esc(ansKey(c))}" title="${on ? "Прибрати з відповіді" : "Додати в «Дати відповідь» (ціна, перевізник)"}">${on ? "✓ у відповіді" : "＋ у відповідь"}</button>` : ""}
             ${c.edrpou ? `<button type="button" class="nb-code" data-copy="${esc(c.edrpou)}" title="Копіювати">${esc(c.edrpou)} <i class="bx bx-copy"></i></button>` : ""}
             ${c.price ? `<div class="nb-price">${esc(cleanPrice(c.price))}</div>` : ""}
             ${(c.contacts || []).slice(0, 2).map((k) => `<div class="nb-cph">📞 ${esc(k.name || "")}${k.name && k.phone ? " · " : ""}${k.phone ? `<button type="button" class="nb-code" data-copy="${esc(k.phone)}" title="Копіювати номер">${esc(k.phone)} <i class="bx bx-copy"></i></button>` : ""}</div>`).join("")}
@@ -426,6 +464,7 @@ const NB = (() => {
                     <span class="nb-dir">${esc(r.direction || "")}</span>
                     ${r.request_id ? `<a class="nb-req" href="requests.html?open=${encodeURIComponent(r.request_id)}" title="Відкрити запит у «Запитах»">📋 Запит${REQS.get(r.request_id)?.status ? " · " + esc(REQS.get(r.request_id).status) : ""}</a>` : ""}
                     <span class="nb-date">${new Date(r.updated_at || r.created_at).toLocaleDateString("uk-UA", { day: "2-digit", month: "2-digit" })}</span>
+                    ${(() => { const n = (r.carriers || []).filter((c) => ansSel(r.id).has(ansKey(c))).length; return n ? `<button type="button" class="nb-ansgo" data-ansgo title="Відкрити «Дати відповідь» у «Запитах» з обраними перевізниками">✅ Дати відповідь (${n})</button>` : ""; })()}
                     ${reqGoHtml(r)}
                     <button type="button" class="nb-rbtn" data-redit title="Змінити"><i class="bx bx-edit-alt"></i></button>
                     <button type="button" class="nb-rbtn nb-rdel" data-rdel title="Видалити запит"><i class="bx bx-trash"></i></button>
@@ -435,7 +474,7 @@ const NB = (() => {
                 <div class="nb-meta">${r.truck ? `<span class="nb-tag">${esc(r.truck)}</span>` : ""}${r.comment ? `<span>${esc(r.comment)}</span>` : ""}</div>
             </div>
             <div class="nb-carriers">
-                ${cs.map((c, i) => carrierHtml(c, i)).join("")}
+                ${cs.map((c, i) => carrierHtml(c, i, r)).join("")}
                 <button type="button" class="nb-addc" data-addc title="Додати перевізника"><i class="bx bx-plus"></i><span>${cs.length ? "" : "перевізник"}</span></button>
                 <button type="button" class="nb-addc nb-qbtn${st.sugFor === r.id ? " on" : ""}" data-qsug title="Машини, що зараз у черзі на виїзд або щойно пройшли кордон у бік завантаження">🚦<span>з черги</span></button>
                 ${matchLink(r)}
@@ -1407,6 +1446,9 @@ const NB = (() => {
             }
             const main = e.target.closest(".nb-main");
             if (main && !e.target.closest("a, button, input")) { setFocus(st.focus === rid ? "" : rid); return; }
+            const ab = e.target.closest("[data-ans]");
+            if (ab) { ansToggle(rid, ab.dataset.ans); render(); return; }
+            if (e.target.closest("[data-ansgo]")) { sendToAnswer(ROWS.find((r) => r.id === rid)); return; }
             const ch = e.target.closest(".nb-carrier");
             if (ch && e.target.closest("a.nb-lardi")) return;
             if (ch) {
