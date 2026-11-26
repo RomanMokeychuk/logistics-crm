@@ -889,13 +889,14 @@ async function carrierEnrich(body: Any, row: Any = null) {
     const seen = new Set<string>();
     for (const p of parts) {
         const contacts: Any[] = [];
-        const visit = (o: Any) => {
+        // ім'я — з самого контакту або з батьківського (номер часто лежить у вкладеному phones: [...])
+        const visit = (o: Any, parent = "") => {
             if (!o || typeof o !== "object") return;
-            if (Array.isArray(o)) return o.forEach(visit);
-            const nm = String(o.face ?? o.name ?? o.contactName ?? "").trim();
+            if (Array.isArray(o)) return o.forEach((x) => visit(x, parent));
+            const nm = String(o.face ?? o.contactName ?? o.name ?? "").trim() || parent;
             for (const [k, v] of Object.entries(o)) {
                 if (/phone|tel|mobile/i.test(k) && (typeof v === "string" || typeof v === "number")) contacts.push({ name: nm, phone: String(v) });
-                else if (v && typeof v === "object") visit(v);
+                else if (v && typeof v === "object") visit(v, nm);
             }
         };
         visit(p);
@@ -1026,11 +1027,20 @@ async function carrierEnrich(body: Any, row: Any = null) {
         .flatMap((v) => String(v || "").split(/[,;]/)).map((v) => digitsOnly(v).slice(-9)).filter((v) => v.length === 9));
     const newPh = phones.filter((p) => !haveP.has(digitsOnly(p.phone).slice(-9)));
     // телефон уже є, а підпису нема — підписуємо ім'ям з Lardi
+    // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
+    const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня)?$/i;
+    const extras: Any[] = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
+    const renamed = extras.map((x: Any) => {
+        const k = digitsOnly(x?.phone).slice(-9);
+        const y = k && GENERIC.test(String(x?.name || "").trim()) && phones.find((p) => p.name && !GENERIC.test(p.name) && digitsOnly(p.phone).slice(-9) === k);
+        return y ? { ...x, name: y.name } : x;
+    });
+    if (renamed.some((x: Any, i: number) => x !== extras[i])) changes.push({ field: "extra_contacts", label: "Імена до телефонів", old: extras.map((x: Any) => `${x?.name || "—"}: ${x?.phone}`).join("; "), new: renamed.map((x: Any) => `${x?.name || "—"}: ${x?.phone}`).join("; "), value: renamed });
     for (const n of [1, 2]) {
         const ph = digitsOnly(c[`phone_${n}`]).slice(-9);
         const nm = String(c[`contact_person_${n}`] || "").trim();
-        if (!ph || (nm && !/^власник/i.test(nm))) continue;
-        const x = phones.find((p) => p.name && digitsOnly(p.phone).slice(-9) === ph);
+        if (!ph || !GENERIC.test(nm)) continue;
+        const x = phones.find((p) => p.name && !GENERIC.test(p.name) && digitsOnly(p.phone).slice(-9) === ph);
         if (x && x.name !== nm) changes.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
     }
     if (newPh.length) changes.push({ field: "contacts", label: "Нові телефони", old: "", new: newPh.map((p) => `${p.name ? p.name + ": " : ""}${p.phone}`).join("; "), phones: newPh });
@@ -1040,11 +1050,12 @@ async function carrierEnrich(body: Any, row: Any = null) {
         const upd: Any = { ...ratingUpd, ...("lardi_checked_at" in c ? stamp : {}) };
         for (const ch of changes) {
             if (!want.has(ch.field)) continue;
+            if (ch.field === "extra_contacts") { upd.extra_contacts = [...ch.value, ...(Array.isArray(upd.extra_contacts) ? upd.extra_contacts.slice(extras.length) : [])]; continue; }
             if (ch.field !== "contacts") { upd[ch.field] = ch.new; continue; }
             const list = [...ch.phones];
             if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
             if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
-            if (list.length && "extra_contacts" in c) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+            if (list.length && "extra_contacts" in c) upd.extra_contacts = [...(Array.isArray(upd.extra_contacts) ? upd.extra_contacts : extras), ...list];
         }
         if (!Object.keys(upd).length) return { status: 200, data: { applied: 0 } };
         const { error } = await db.from("carriers").update(upd).eq("id", c.id);

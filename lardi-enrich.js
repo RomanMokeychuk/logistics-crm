@@ -192,7 +192,7 @@
         const contacts = [];
         const seen = new Set();
         let name = "";
-        const isName = (l) => !PHONE.test(l) && !/[:@]|http|обл|Україна|Украина|вул\.|просп|Усього|Leaflet|OpenStreet|Контакти|Загальна|автопарк|Документи|Відгуки|Претензії|Новини|Паспорт|нотатка|замовлення|Повідомлення|Інформація|Copyright|^(ФОП|ТОВ|ПП|ЧП|ПрАТ|ТзОВ)(?=[\s"«]|$)/i.test(l) && /^[A-Za-zА-Яа-яІіЇїЄєҐґ'’ .,-]{2,40}$/.test(l);
+        const isName = (l) => !PHONE.test(l) && !/[:@]|http|обл|Україна|Украина|вул\.|просп|Усього|Leaflet|OpenStreet|Контакти|Загальна|автопарк|Документи|Відгуки|Претензії|Новини|Паспорт|нотатка|замовлення|Повідомлення|Інформація|Copyright|^(ФОП|ТОВ|ПП|ЧП|ПрАТ|ТзОВ)(?=[\s"«]|$)/i.test(l) && /^[A-ZА-ЯІЇЄҐ][A-Za-zА-Яа-яІіЇїЄєҐґ'’ .,()\/-]{1,45}$/.test(l); // «Людмила (цистерни)»; рядок з малої («цистерни») — це опис, не ім'я
         for (const l of lines) {
             const ph = l.match(new RegExp(PHONE.source, "g"));
             if (ph) {
@@ -311,10 +311,20 @@
         // «Телефон 2» = той самий номер, що й «Телефон 1» — пропонуємо прибрати повтор
         const dup2 = digits(c.phone_1).slice(-9) && digits(c.phone_1).slice(-9) === digits(c.phone_2).slice(-9);
         if (dup2) ch.push({ field: "dup_phone_2", label: "Повтор телефону", old: `${c.contact_person_2 || ""} ${c.phone_2 || ""}`.trim(), new: "прибрати (той самий номер, що й Телефон 1)" });
+        // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
+        const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня)?$/i;
+        const extras = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
+        const renamed = extras.map((x) => {
+            const k = digits(x?.phone).slice(-9);
+            const y = k && GENERIC.test(String(x?.name || "").trim()) && d.contacts.find((p) => p.name && !GENERIC.test(p.name) && digits(p.phone).slice(-9) === k);
+            return y ? { ...x, name: y.name } : x;
+        });
+        const nRen = renamed.filter((x, i) => x !== extras[i]);
+        if (nRen.length) ch.push({ field: "extra_names", label: "Імена до телефонів", old: extras.filter((x, i) => renamed[i] !== x).map((x) => `${x.name || "—"}: ${x.phone}`).join("\n"), new: nRen.map((x) => `${x.name}: ${x.phone}`).join("\n"), value: renamed });
         for (const n of dup2 ? [1] : [1, 2]) {
             const ph = digits(c[`phone_${n}`]).slice(-9);
             const nm = String(c[`contact_person_${n}`] || "").trim();
-            if (!ph || (nm && !/^(власник|офіс)/i.test(nm))) continue;
+            if (!ph || !GENERIC.test(nm)) continue;
             const x = d.contacts.find((p) => p.name && digits(p.phone).slice(-9) === ph);
             if (x && x.name !== nm) ch.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
         }
@@ -463,7 +473,10 @@
                     const list = [...x.phones];
                     if (!c.phone_1 && list.length) { const p = list.shift(); upd.phone_1 = p.phone; if (!c.contact_person_1 && p.name) upd.contact_person_1 = p.name; }
                     if (!c.phone_2 && list.length) { const p = list.shift(); upd.phone_2 = p.phone; if (!c.contact_person_2 && p.name) upd.contact_person_2 = p.name; }
-                    if (list.length) upd.extra_contacts = [...(Array.isArray(c.extra_contacts) ? c.extra_contacts : []), ...list];
+                    if (list.length) upd.extra_contacts = [...(upd.extra_contacts || (Array.isArray(c.extra_contacts) ? c.extra_contacts : [])), ...list];
+                } else if (x.field === "extra_names") {
+                    const byK = new Map(x.value.map((v) => [digits(v?.phone).slice(-9), v.name]));
+                    upd.extra_contacts = (upd.extra_contacts || x.value).map((v) => { const nm = byK.get(digits(v?.phone).slice(-9)); return nm ? { ...v, name: nm } : v; });
                 } else if (x.field === "dup_phone_2") {
                     upd.phone_2 = null; upd.contact_person_2 = null;
                 } else if (x.field === "notes" || x.field === "notes_routes") {
