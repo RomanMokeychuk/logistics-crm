@@ -1625,6 +1625,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const junk = kindOf(ML.folder) === "\\Junk";
         $("mlRead").innerHTML = `
             ${junk ? '<div class="sa-mr-junk"><i class="bx bx-error-circle"></i> Цей лист у «Спамі». Якщо це клієнт чи перевізник — натисніть «Не спам», і такі листи йтимуть у Вхідні.</div>' : ""}
+            <div class="ml-sticky">
             <div class="sa-mr-actions">
                 <button type="button" class="btn btn-primary" data-mr="reply"><i class="bx bx-reply"></i> Відповісти</button>
                 <button type="button" class="btn btn-secondary" data-mr="replyall"><i class="bx bx-reply-all"></i> Усім</button>
@@ -1644,6 +1645,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 <div class="sa-mr-line"><span class="sa-mr-lbl">Кому:</span> ${people(m.to)}</div>
                 ${m.cc ? `<div class="sa-mr-line"><span class="sa-mr-lbl">Копія:</span> ${people(m.cc)}</div>` : ""}
                 <div class="sa-muted">${m.date ? escapeHtml(new Date(m.date).toLocaleString("uk-UA")) : ""}</div></div>
+            </div>
             </div>
             ${whoChip(m.from_email, true) ? `<div class="ml-who-line">${whoChip(m.from_email, true)}</div>` : ""}
             ${(() => {

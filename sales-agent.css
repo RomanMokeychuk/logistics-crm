@@ -846,3 +846,8 @@ a.ml-who:hover { background: #dbe8ff; }
 .ml-conv-att small { color: #94a3b8; }
 .ml-conv-it { cursor: default; }
 .ml-conv-body { max-height: none; }
+/* Як в Outlook: кнопки, тема й «від / кому / копія» стоять угорі, гортається лише текст листа з усією історією */
+.sa-mail-read .ml-sticky { position: sticky; top: -18px; z-index: 2; background: #fff; margin: -18px -22px 0; padding: 18px 22px 0; box-shadow: 0 8px 12px -12px rgba(15, 23, 42, .25); }
+.sa-mail-read .ml-sticky .sa-mr-actions { position: static; margin-top: 0; }
+.sa-mail-read .ml-sticky .sa-mr-subj { font-size: 16px; margin: 6px 0 4px; }
+.sa-mail-read .ml-sticky .sa-mr-meta { padding-bottom: 8px; }
