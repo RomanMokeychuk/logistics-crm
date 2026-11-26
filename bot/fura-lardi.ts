@@ -1028,7 +1028,7 @@ async function carrierEnrich(body: Any, row: Any = null) {
     const newPh = phones.filter((p) => !haveP.has(digitsOnly(p.phone).slice(-9)));
     // телефон уже є, а підпису нема — підписуємо ім'ям з Lardi
     // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
-    const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня)?$/i;
+    const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня|менеджер|логіст)?\s*(\(.*\))?\s*:?\s*$/i; // «Власник (ФОП)», «Офіс», порожній
     const extras: Any[] = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
     const renamed = extras.map((x: Any) => {
         const k = digitsOnly(x?.phone).slice(-9);

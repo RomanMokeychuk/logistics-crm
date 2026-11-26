@@ -312,7 +312,7 @@
         const dup2 = digits(c.phone_1).slice(-9) && digits(c.phone_1).slice(-9) === digits(c.phone_2).slice(-9);
         if (dup2) ch.push({ field: "dup_phone_2", label: "Повтор телефону", old: `${c.contact_person_2 || ""} ${c.phone_2 || ""}`.trim(), new: "прибрати (той самий номер, що й Телефон 1)" });
         // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
-        const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня)?$/i;
+        const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня|менеджер|логіст)?\s*(\(.*\))?\s*:?\s*$/i; // «Власник (ФОП)», «Офіс», порожній
         const extras = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
         const renamed = extras.map((x) => {
             const k = digits(x?.phone).slice(-9);
