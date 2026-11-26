@@ -404,20 +404,175 @@ const NB = (() => {
                 ${matchLink(r)}
             </div>
             ${st.sugFor === r.id ? queueSuggestHtml(r) : ""}
+            ${st.mFor === r.id ? matchSuggestHtml(r) : ""}
         </div>`;
     }
 
-    /* ---------- «🎯 Підібрати» — як у «Запитах»: хто реально возить цим напрямком (митні дані) ---------- */
-    function matchLink(r) {
+    /* ---------- «🎯 підібрати»: хто реально возить цим напрямком (митні дані + робота з нами) — прямо тут, як «з черги» ---------- */
+    const MS = { opt: { body: true, fura: false, deals: false, phone: false, fresh: false, active: false, goods: false } };
+    const C_DB = { "ПОЛЬЩА": ["ПОЛЬША", "ПОЛЬЩА"], "ВЕЛИКА БРИТАНІЯ": ["ВЕЛИКОБРИТАНІЯ"], "ОАЕ": ["ОБ ЄДНАНІ АРАБСЬКІ ЕМІРАТИ"] };
+    function matchParams(r) {
         const [from, to] = String(r.direction || "").split(/\s*[-–—]\s*/).map((x) => x.trim().toUpperCase());
         const ua = (c) => c === "УКРАЇНА";
-        let dir = "", country = "";
-        if (to && ua(to) && from && !ua(from)) [dir, country] = ["Імпорт", from];
-        else if (from && ua(from) && to && !ua(to)) [dir, country] = ["Експорт", to];
-        if (!country) return "";
-        const trailer = String(r.truck || "").split(/[;,/]/)[0].trim().toUpperCase();
-        const q = new URLSearchParams({ match: "1", dir, country, ...(trailer ? { trailer } : {}) });
-        return `<a class="nb-addc nb-mbtn" href="carriers.html?${q.toString()}" title="Хто реально возить цим напрямком — за митними даними і роботою з нами">🎯<span>підібрати</span></a>`;
+        if (to && ua(to) && from && !ua(from)) return { dir: "Імпорт", country: from };
+        if (from && ua(from) && to && !ua(to)) return { dir: "Експорт", country: to };
+        return null;
+    }
+    function matchLink(r) {
+        if (!matchParams(r)) return "";
+        return `<button type="button" class="nb-addc nb-mbtn${st.mFor === r.id ? " on" : ""}" data-msug title="Хто реально возить цим напрямком — за митними даними і роботою з нами">🎯<span>підібрати</span></button>`;
+    }
+    async function openMatchSuggest(r) {
+        st.mFor = st.mFor === r.id ? "" : r.id;
+        if (st.mFor) st.sugFor = ""; // одна панель за раз
+        MS.r = r; MS.list = null; MS.err = ""; MS.shown = 60;
+        if (!st.mFor) return render();
+        st.focus = r.id;
+        render();
+        const p = matchParams(r);
+        MS.p = p;
+        try {
+            const countries = C_DB[p.country] || [p.country];
+            const rows = [];
+            for (let from = 0; from < 20000; from += 1000) {
+                const { data, error } = await sbClient.from("carrier_routes").select("edrpou, month, trucks, records, trailer_types, border, goods, cities, ua_region")
+                    .in("country", countries).eq("direction", p.dir).order("id").range(from, from + 999);
+                if (error) throw error;
+                rows.push(...(data || []));
+                if (!data || data.length < 1000) break;
+            }
+            const latest = rows.reduce((m, x) => (x.month > m ? x.month : m), "");
+            const by = new Map();
+            for (const x of rows) {
+                const k = qKey(x.edrpou);
+                const a = by.get(k) || { code: String(x.edrpou), trucks: 0, records: 0, months: new Set(), borders: new Map(), trailers: new Set(), goods: new Set(), cities: new Map() };
+                a.trucks += x.trucks || 0; a.records += x.records || 0; a.months.add(x.month);
+                if (x.border) a.borders.set(x.border, (a.borders.get(x.border) || 0) + (x.records || 0));
+                String(x.trailer_types || "").split(";").map((t) => t.trim()).filter(Boolean).forEach((t) => a.trailers.add(t));
+                String(x.goods || "").split(";").map((t) => t.trim()).filter(Boolean).slice(0, 2).forEach((t) => a.goods.add(t));
+                String(x.cities || "").split(/,\s*/).forEach((c) => { const m = c.match(/^(.+?)(?:\s*\((\d+)\))?$/); if (m && m[1].trim()) a.cities.set(m[1].trim(), (a.cities.get(m[1].trim()) || 0) + (Number(m[2]) || 1)); });
+                by.set(k, a);
+            }
+            // найактивніші 400 — збагачуємо даними FURA (картка, телефони, угоди)
+            const top = [...by.values()].sort((a, b) => b.records - a.records).slice(0, 400);
+            MS.fura = new Map(); MS.deals = new Map();
+            const variants = [...new Set(top.flatMap((a) => [a.code, qKey(a.code), qKey(a.code).padStart(8, "0")]))];
+            const ids = [];
+            for (let i = 0; i < variants.length; i += 300) {
+                const { data } = await sbClient.from("carriers").select("id, edrpou, name, region_ukr, city, phone_1, contact_person_1, phone_2, contact_person_2, profile_url, trailer_type, rating").in("edrpou", variants.slice(i, i + 300));
+                (data || []).forEach((c) => { MS.fura.set(qKey(c.edrpou), c); ids.push(c.id); });
+            }
+            for (let i = 0; i < ids.length; i += 300) {
+                const { data } = await sbClient.from("deals").select("carrier_id, load_date").in("carrier_id", ids.slice(i, i + 300)).limit(5000);
+                (data || []).forEach((d) => { const o = MS.deals.get(String(d.carrier_id)) || { n: 0, last: "" }; o.n++; if ((d.load_date || "") > o.last) o.last = d.load_date || ""; MS.deals.set(String(d.carrier_id), o); });
+            }
+            MS.mine = new Map();
+            ROWS.forEach((x) => (x.carriers || []).forEach((c) => { const k = qKey(c.edrpou); if (k) MS.mine.set(k, (MS.mine.get(k) || 0) + 1); }));
+            MS.latest = latest;
+            MS.list = top;
+        } catch (e) {
+            MS.err = /carrier_routes/.test(e.message || "") ? "Ще не завантажені митні напрямки (carrier_routes)." : "Не вдалося підібрати: " + e.message;
+            MS.list = [];
+        }
+        if (st.mFor === r.id) render();
+    }
+    function matchSuggestHtml(r) {
+        const p = MS.p || matchParams(r);
+        const full = p ? `carriers.html?${new URLSearchParams({ match: "1", dir: p.dir, country: (C_DB[p.country] || [p.country])[0], ...(r.truck ? { trailer: String(r.truck).split(/[;,/]/)[0].trim().toUpperCase() } : {}) })}` : "carriers.html";
+        const head = `<div class="nb-qhead"><b>🎯 Хто возить${p ? `: ${p.dir === "Імпорт" ? `${esc(p.country.charAt(0) + p.country.slice(1).toLowerCase())} → Україна` : `Україна → ${esc(p.country.charAt(0) + p.country.slice(1).toLowerCase())}`}` : ""}</b> <span class="nb-muted">за митними даними + робота з нами</span> <a class="nb-mfull" href="${esc(full)}">повний підбір у реєстрі ↗</a></div>`;
+        if (MS.err) return `<div class="nb-qs">${head}<div class="nb-muted">${esc(MS.err)}</div></div>`;
+        if (!MS.list) return `<div class="nb-qs">${head}<div class="nb-muted">🎯 Шукаю в митних даних…</div></div>`;
+        const o = MS.opt, want = o.body ? bodyWant(r.truck) : null;
+        const added = new Set((r.carriers || []).map((c) => qKey(c.edrpou)));
+        const words = String(r.cargo || "").toLowerCase().split(/[^a-zа-яіїєґ']+/i).filter((w) => w.length >= 4 && !/^(коробк|палет|мішк|вага|тонн|рулон|кг)/.test(w)).slice(0, 3).map((w) => w.slice(0, Math.max(4, w.length - 2)));
+        const items = MS.list.map((a) => {
+            const code = qKey(a.code);
+            const fc = MS.fura?.get(code);
+            const deals = fc ? MS.deals?.get(String(fc.id)) : null;
+            const active = a.months.has(MS.latest);
+            const phones = fc ? [[fc.contact_person_1, fc.phone_1], [fc.contact_person_2, fc.phone_2]]
+                .flatMap(([n, ph]) => String(ph || "").split(/[,;]\s*/).filter((v) => v.replace(/\D/g, "").length >= 6).map((v) => [n, v.trim()])) : [];
+            const trailers = fc?.trailer_type ? String(fc.trailer_type).split(/[;,]/).map((t) => t.trim()).filter(Boolean) : [...a.trailers];
+            const goodsHit = words.length && [...a.goods].some((g) => words.some((w) => g.toLowerCase().includes(w)));
+            if (want && trailers.length && !trailers.some((t) => want.test(norm(t)))) return null;
+            if (o.fura && !fc) return null;
+            if (o.deals && !deals) return null;
+            if (o.phone && !phones.length) return null;
+            if (o.active && !active) return null;
+            if (o.goods && !goodsHit) return null;
+            if (o.fresh && MS.mine?.get(code)) return null;
+            if (o.q) {
+                const hq = norm([fc?.name, a.code, ...a.cities.keys()].join(" "));
+                if (!norm(o.q).split(" ").every((w) => hq.includes(w))) return null;
+            }
+            let score = a.records + a.trucks * 3 + (deals ? 200 + deals.n * 25 : 0) + (fc?.rating || 0) * 6 + (active ? 15 : 0) + (phones.length ? 30 : 0) + (goodsHit ? 60 : 0);
+            if (!fc) score *= 0.4;
+            return { a, code, fc, deals, active, phones, trailers, goodsHit, score, mine: MS.mine?.get(code) || 0, added: added.has(code) };
+        }).filter(Boolean).sort((x, y) => (o.sort === "many" ? y.a.trucks - x.a.trucks : o.sort === "deals" ? (y.deals?.n || 0) - (x.deals?.n || 0) || y.score - x.score : y.score - x.score));
+        const total = items.length;
+        items.length = Math.min(items.length, MS.shown || 60);
+        const tg = (k, label, tip) => `<label class="nb-qopt nb-qchip"${tip ? ` title="${esc(tip)}"` : ""}><input type="checkbox" data-mopt="${k}" ${o[k] ? "checked" : ""}/> ${label}</label>`;
+        return `<div class="nb-qs nb-mpanel">
+            ${head.replace("</b>", `</b> <span class="nb-muted">· перевізників: ${total}</span>`)}
+            <div class="nb-qbar">
+            <div class="nb-qopts">${r.truck ? tg("body", `лише ${esc(r.truck)}`) : ""}${tg("active", "возили останній місяць")}${tg("phone", "з телефоном")}<span class="nb-qsep"></span>${tg("fura", "у FURA")}${tg("deals", "були угоди")}${words.length ? tg("goods", "возили цей вантаж") : ""}${tg("fresh", "нові для мене", "Ще не в моїх запитах")}</div>
+            <div class="nb-qopts nb-qsel">
+                <span class="nb-qview" title="Як показувати перевізників"><button type="button" data-qview="tiles" class="${qRows() ? "" : "on"}" title="Квадратиками">▦</button><button type="button" data-qview="rows" class="${qRows() ? "on" : ""}" title="Рядками">☰</button></span>
+                <input class="nb-qq nb-mq" data-min="q" placeholder="Пошук: перевізник, ЄДРПОУ, місто…" value="${esc(o.q || "")}" />
+                <select data-min="sort" title="Порядок">${[["", "Рекомендовані"], ["many", "Більше машин"], ["deals", "Більше угод з нами"]].map(([v, l]) => `<option value="${v}" ${(o.sort || "") === v ? "selected" : ""}>${l}</option>`).join("")}</select>
+            </div>
+            </div>
+            <div class="nb-qlist${qRows() ? " nb-qrows" : ""}">${items.map((it) => {
+                const a = it.a, name = it.fc?.name || "Немає в реєстрі FURA";
+                const cities = [...a.cities.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4).map(([c, n]) => `${c}${n > 1 ? ` (${n})` : ""}`).join(", ");
+                const border = [...a.borders.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+                return `<div class="nb-qitem">
+                    <div class="nb-qrow nb-qtitle">
+                        ${it.fc ? '<i class="bx bxs-check-circle nb-infura" title="Є у FURA"></i>' : ""}
+                        ${it.fc ? `<a href="#" class="nb-qname" data-carrier-card="${esc(it.fc.id)}" title="Відкрити картку">${esc(name)}</a>` : `<span class="nb-qname nb-muted">${esc(name)}</span>`}
+                        ${it.fc ? cpBtn(name, "Копіювати назву") : ""}
+                    </div>
+                    <div class="nb-qrow nb-qmeta">
+                        <span>ЄДРПОУ <b>${esc(a.code)}</b></span>${cpBtn(a.code, "Копіювати ЄДРПОУ")}
+                        <span class="nb-qcount" title="Машин за митними даними">🚛 ${a.trucks}</span>
+                        ${it.fc?.profile_url ? `<a class="nb-qb nb-lardi" href="${esc(it.fc.profile_url)}" target="_blank" rel="noopener">Ларді ↗</a>` : ""}
+                    </div>
+                    <div class="nb-qbad">
+                        ${it.fc?.region_ukr ? `<span class="nb-qb">📍 ${esc(it.fc.region_ukr)}${it.fc.city ? ", " + esc(String(it.fc.city).split(",")[0]) : ""}</span>` : ""}
+                        ${it.active ? '<span class="nb-qb nb-qb-g" title="Возив цим напрямком в останньому місяці даних">активний</span>' : ""}
+                        ${it.deals ? `<span class="nb-qb nb-qb-g" title="Остання ${esc(String(it.deals.last).slice(0, 10))}">🤝 угод: ${it.deals.n}</span>` : ""}
+                        ${it.goodsHit ? '<span class="nb-qb nb-qb-y">📦 возив цей вантаж</span>' : ""}
+                        ${it.mine ? `<span class="nb-qb nb-qb-b" title="Уже є в інших ваших запитах">📝 у ${it.mine} запит.</span>` : ""}
+                        ${it.trailers.slice(0, 3).map((t) => `<span class="nb-qb">${esc(t)}</span>`).join("")}
+                    </div>
+                    ${it.phones.length ? `<div class="nb-qphones">${it.phones.map(([n, ph]) => `<div class="nb-qrow nb-qph"><span class="nb-qphn">📞 ${esc(n || "")}</span><b>${esc(ph)}</b>${cpBtn(ph, "Копіювати номер")}</div>`).join("")}</div>` : ""}
+                    <div class="nb-qtrucks">
+                        <div class="nb-qtr">📄 ${a.records} відправ. · ${[...a.months].sort().slice(-3).map((m) => m.slice(5, 7) + "." + m.slice(2, 4)).join(", ")}${border ? ` · 🛂 ${esc(border)}` : ""}</div>
+                        ${cities ? `<div class="nb-qtr">🏁 ${esc(cities)}</div>` : ""}
+                        ${a.goods.size ? `<div class="nb-qtr nb-muted" title="${esc([...a.goods].join("\n"))}">везли: ${esc([...a.goods].slice(0, 2).join("; ").slice(0, 90))}</div>` : ""}
+                    </div>
+                    <button type="button" class="nb-btn ${it.added ? "nb-btn-ghost" : ""} nb-qadd" data-madd="${esc(it.code)}" ${it.added ? "disabled" : ""}>${it.added ? "✓ уже в запиті" : "+ у запит"}</button>
+                </div>`;
+            }).join("") || '<div class="nb-muted">Нікого не знайшов — зніміть частину галочок.</div>'}</div>
+            ${total > items.length ? `<button type="button" class="nb-more" data-mmore>Показати ще (${total - items.length})</button>` : ""}
+        </div>`;
+    }
+    async function addFromMatch(r, code) {
+        const a = (MS.list || []).find((x) => qKey(x.code) === code);
+        if (!a) return;
+        const fc = MS.fura?.get(code);
+        const contacts = fc ? [[fc.contact_person_1, fc.phone_1], [fc.contact_person_2, fc.phone_2]].filter(([n, p]) => n || p).map(([n, p]) => ({ name: n || "", phone: p || "" })) : [];
+        const now = new Date().toISOString();
+        const cities = [...a.cities.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3).map(([c]) => c).join(", ");
+        const note = `підбір: ${a.trucks} маш., ${a.records} відправ. за митними даними${cities ? " · " + cities : ""}`;
+        const list = [...(r.carriers || []), { id: fc?.id || null, name: fc?.name || a.code, edrpou: String(a.code), price: "", note, contacts, added: now, at: now }];
+        const { data: upd, error } = await sbClient.from("my_requests").update({ carriers: list }).eq("id", r.id).select("*");
+        if (error) { alert(error.message); return; }
+        const saved = { ...(upd?.[0]?.id === r.id ? upd[0] : r), carriers: list };
+        ROWS = ROWS.map((y) => (y.id === r.id ? saved : y));
+        MS.r = saved;
+        render();
+        loadLinks().then(render).catch(() => {});
     }
 
     /* ---------- Підбір машин з «Черги»: хто зараз їде або щойно виїхав у бік завантаження ---------- */
@@ -471,6 +626,7 @@ const NB = (() => {
     const isEmptyQ = (x) => /порож/i.test(`${x.qtype} ${x.checkpoint}`);
     async function openQueueSuggest(r, auto) {
         st.sugFor = auto ? r.id : st.sugFor === r.id ? "" : r.id;
+        if (st.sugFor) st.mFor = ""; // одна панель за раз
         QS.r = r; QS.list = null; QS.err = ""; QS.allCps = null; QS.stage = "pick";
         if (!st.sugFor) return render();
         st.focus = r.id;
@@ -1254,6 +1410,10 @@ const NB = (() => {
             if (e.target.closest("[data-qgo]")) { QS.shown = 60; qReload(QS.r); return; }
             if (e.target.closest("[data-qmore]")) { QS.shown = (QS.shown || 60) + 60; render(); return; }
             if (e.target.closest("[data-qsug]")) { openQueueSuggest(ROWS.find((r) => r.id === rid)); return; }
+            if (e.target.closest("[data-msug]")) { openMatchSuggest(ROWS.find((r) => r.id === rid)); return; }
+            if (e.target.closest("[data-mmore]")) { MS.shown = (MS.shown || 60) + 60; render(); return; }
+            const ma = e.target.closest("[data-madd]");
+            if (ma) { ma.disabled = true; ma.textContent = "Додаю…"; addFromMatch(ROWS.find((r) => r.id === rid), ma.dataset.madd); return; }
             const qa = e.target.closest("[data-qadd]");
             if (qa) { qa.disabled = true; qa.textContent = "Додаю…"; addFromQueue(ROWS.find((r) => r.id === rid), qa.dataset.qadd); return; }
             const add = e.target.closest("[data-addc]");
@@ -1276,6 +1436,10 @@ const NB = (() => {
                 render();
                 return;
             }
+            const mi = e.target.dataset?.min;
+            if (mi && mi !== "q") { MS.opt[mi] = e.target.value; MS.shown = 60; render(); return; }
+            const mo = e.target.dataset?.mopt;
+            if (mo) { MS.opt[mo] = e.target.checked; MS.shown = 60; render(); return; }
             const qi = e.target.dataset?.qin;
             if (qi && qi !== "q") {
                 QS.opt[qi] = ["minN", "within"].includes(qi) ? Number(e.target.value) || 0 : e.target.value;
@@ -1296,6 +1460,17 @@ const NB = (() => {
                 render();
                 const inp = document.querySelector("[data-qcpq]");
                 if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }
+                return;
+            }
+            if (e.target.dataset?.min === "q") {
+                clearTimeout(qT);
+                const v = e.target.value;
+                qT = setTimeout(() => {
+                    MS.opt.q = v; MS.shown = 60;
+                    render();
+                    const inp = document.querySelector(".nb-mq");
+                    if (inp) { inp.focus(); inp.setSelectionRange(v.length, v.length); }
+                }, 300);
                 return;
             }
             if (e.target.dataset?.qin !== "q") return;

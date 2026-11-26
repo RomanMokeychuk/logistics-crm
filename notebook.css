@@ -391,3 +391,7 @@ textarea.nb-pop-note { resize: vertical; border-color: #f1ead9; background: #fbf
 .nb-mbtn { color: #1d4ed8; border-color: #bfdbfe; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .nb-mbtn:hover { background: #eff6ff; }
 .nb-mbtn span { font-size: 12px; }
+.nb-mbtn.on { background: #dbeafe; }
+.nb-mfull { margin-left: auto; font-size: 12px; color: #2563eb; text-decoration: none; font-weight: 600; }
+.nb-mfull:hover { text-decoration: underline; }
+.nb-mpanel .nb-qhead { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
