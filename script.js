@@ -703,6 +703,26 @@ function togglePreset(item, kind, val) {
     document.head.appendChild(st);
 })();
 
+// «Автопарк» у картці — завжди згорнутий: короткий підсумок, клік — увесь список
+function fleetHtml(v) {
+    const lines = String(v || "").replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2").split("\n").map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return "";
+    const head = lines.filter((l) => /^(Тягачів:|Автопарк Lardi)/i.test(l));
+    const sum = (head.length ? head : [lines[0]]).join(" · ");
+    const more = lines.length - head.length;
+    return `<details class="fleet-dt"><summary>${escapeHtml(sum)}${more > 0 ? ` <span class="fleet-more">▾ показати (${more})</span>` : ""}</summary><div class="fleet-body">${escapeHtml(lines.filter((l) => !head.includes(l)).join("\n"))}</div></details>`;
+}
+(() => {
+    const st = document.createElement("style");
+    st.textContent = `.fleet-dt summary{list-style:none;cursor:pointer;font-size:13px;line-height:1.45}
+.fleet-dt summary::-webkit-details-marker{display:none}
+.fleet-more{color:#2563eb;font-weight:600;font-size:12px;white-space:nowrap}
+.fleet-dt[open] .fleet-more{display:none}
+.fleet-dt[open] summary::after{content:" ▴ згорнути";color:#2563eb;font-weight:600;font-size:12px}
+.fleet-body{white-space:pre-line;font-size:12.5px;color:#475569;margin-top:4px;max-height:320px;overflow:auto}`;
+    document.head.appendChild(st);
+})();
+
 function cardRow(label, valueHtml, editKey, copyText) {
     const copy = copyText
         ? `<button type="button" class="qe-copy" data-copy="${escapeHtml(copyText)}" title="Копіювати"><i class='bx bx-copy'></i></button>`
@@ -877,7 +897,7 @@ function openCarrierCard(id) {
                 ${cardRow("Тип причепу:", presetChipsHtml(item, "trailer_type"), "trailer_type")}
                 ${cardRow("Об'єм:", presetChipsHtml(item, "volume"), "volume")}
                 ${cardRow("Тоннаж:", presetChipsHtml(item, "tonnage"), "tonnage")}
-                ${item.fleet_params ? cardRow("Автопарк:", `<div style="white-space:pre-line;font-size:13px;">${escapeHtml(String(item.fleet_params).replace(/([а-яіїєґa-z])([A-ZА-ЯІЇЄ]{2}\d{4}[A-ZА-ЯІЇЄ]{2})/g, "$1 · $2"))}</div>`) : ""}
+                ${item.fleet_params ? cardRow("Автопарк:", fleetHtml(item.fleet_params)) : ""}
                 ${cardRow("Додатково:", presetChipsHtml(item, "additional"), "additional")}
             </div>
 
