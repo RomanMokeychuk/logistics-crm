@@ -1652,7 +1652,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 return `<details class="ml-thread"${th.length <= 4 ? " open" : ""}><summary>🧵 У цьому ланцюжку ще ${th.length} ${th.length === 1 ? "лист" : th.length < 5 ? "листи" : "листів"}</summary>${th.map((x) => `<button type="button" class="ml-th-it ${x.seen ? "" : "unseen"}" data-uid="${x.uid}" data-fp="${escapeHtml(x.fp)}"><b>${escapeHtml(String(x.from || x.from_email || "").replace(/<.*>/, ""))}</b><span>${escapeHtml(when(x.date))}</span></button>`).join("")}</details>`;
             })()}
             ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
-            <iframe class="sa-mr-body" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer"></iframe>
+            <iframe class="sa-mr-body" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe>
             <div class="ml-conv" id="mlConv"></div>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
         const fr = $("mlRead").querySelector(".sa-mr-body");
@@ -1667,7 +1667,17 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ? `<base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;word-wrap:break-word}img{max-width:100%;height:auto}</style>${html}`
                 : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
         };
-        fr.onload = () => { try { fr.style.height = Math.max(300, fr.contentDocument.body.scrollHeight + 30) + "px"; } catch (_) { fr.style.height = "600px"; } };
+        // висота листа = уся його довжина (як в Outlook — гортаєте всю сторінку, без окремої прокрутки в рамці).
+        // Скрипти листа все одно не виконуються (sandbox без allow-scripts).
+        fr.onload = () => {
+            const fit = () => { try { const d = fr.contentDocument; fr.style.height = Math.max(200, Math.max(d.body.scrollHeight, d.documentElement.scrollHeight) + 24) + "px"; } catch (_) { fr.style.height = "600px"; fr.removeAttribute("scrolling"); } };
+            fit();
+            try {
+                const d = fr.contentDocument;
+                d.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", fit, { once: true }); });
+                new ResizeObserver(fit).observe(d.body);
+            } catch (_) { /* */ }
+        };
         loadConv(m, fp).catch(() => {}); // 🧵 увесь ланцюжок — під листом
         paint();
         if (m.html && m.inline?.length && !m._imgs) {
