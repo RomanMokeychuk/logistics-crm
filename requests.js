@@ -3430,7 +3430,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 
     // Кожну хвилину підтягуємо нові запити від Sales і оновлюємо таймери
-    setInterval(loadRequests, 60 * 1000);
+    // (лише коли вкладка на екрані — менше навантаження на базу; живий канал і так показує зміни)
+    setInterval(() => { if (!document.hidden) loadRequests(); }, 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) loadRequests(); });
 
     // Перехід з картки ліда: requests.html?new_client=Назва — одразу форма нового запиту
     const params = new URLSearchParams(location.search);

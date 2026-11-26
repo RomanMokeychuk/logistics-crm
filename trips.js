@@ -1060,6 +1060,7 @@ function toggleSidebar() {
 
     // Раз на хвилину оновлюємо «N хв тому» і попередження
     setInterval(async () => {
+        if (document.hidden) return; // вкладка у фоні — не навантажуємо базу
         await loadTrips();
         if (detail) renderDetailTextOnly();
     }, 60 * 1000);

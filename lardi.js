@@ -1133,6 +1133,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const ping = () => { if (document.visibilityState === "visible") sbClient.functions.invoke("fura-lardi", { body: { action: "activity" } }).catch(() => {}); };
     setTimeout(ping, 3000);
     setInterval(ping, 5 * 60000);
-    setInterval(load, 60000);
+    setInterval(() => { if (!document.hidden) load(); }, 60000);
     load().catch(() => {});
 })();
