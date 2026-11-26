@@ -2,8 +2,9 @@
 -- FURA · Пов'язані компанії = одна інформація
 -- Компанії однієї групи (🔗 Пов'язані компанії) мають спільні:
 --   напрямки (закордон і Україна), тип причепа, тоннаж, об'єм, «Додатково»,
---   контакти, нотатки, оцінку, позначку «пробито».
--- Окремими залишаються: назва, ЄДРПОУ, директор, область, місто, фото, профіль Lardi, автопарк (митні дані).
+--   контакти, нотатки, оцінку, позначку «пробито», фото (логотип).
+-- Окремими залишаються: назва, ЄДРПОУ, директор, область, місто, профіль Lardi, автопарк (митні дані).
+-- Фото: компанія без фото отримує фото пов'язаної; змінили фото в одній — змінюється в усіх.
 --  • При зв'язуванні — все об'єднується (нічого не губиться: напрямки, типи, контакти складаються).
 --  • Далі змінили в одній компанії — те саме поле змінюється в усіх пов'язаних.
 -- Supabase → SQL Editor → New query → вставити → Run (можна повторно).
@@ -81,6 +82,13 @@ begin
     if sets is null then return 0; end if;
     execute format('update public.carriers t set %s from jsonb_populate_record(null::public.carriers, $1) r where t.group_id = $2', sets)
         using merged, p_gid;
+    -- фото: у кого немає — беремо з пов'язаної компанії
+    if ms[1] ? 'logo_url' then
+        update public.carriers t
+           set logo_url = (select y->>'logo_url' from unnest(ms) y where coalesce(y->>'logo_url', '') <> '' limit 1)
+         where t.group_id = p_gid and coalesce(t.logo_url, '') = ''
+           and exists (select 1 from unnest(ms) y where coalesce(y->>'logo_url', '') <> '');
+    end if;
     return array_length(ms, 1);
 end $$;
 revoke all on function public.carriers_group_merge(text) from anon;
@@ -92,7 +100,7 @@ declare
     f text; sets text := ''; nj jsonb; oj jsonb;
     shared text[] := array['destinations', 'ukraine_directions', 'trailer_type', 'tonnage', 'volume', 'cap_auto_t', 'cap_auto_v',
                            'additional', 'contact_person_1', 'phone_1', 'contact_person_2', 'phone_2', 'extra_contacts',
-                           'notes', 'notes_updated_at', 'rating', 'checked_at', 'checked_by', 'checked_how'];
+                           'notes', 'notes_updated_at', 'rating', 'checked_at', 'checked_by', 'checked_how', 'logo_url'];
 begin
     if pg_trigger_depth() > 1 or new.group_id is null then return null; end if;
     if tg_op = 'INSERT' or old.group_id is distinct from new.group_id then
