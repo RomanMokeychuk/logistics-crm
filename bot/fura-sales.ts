@@ -1241,15 +1241,36 @@ async function readMessage(imap: Any, uid: number, peek: boolean) {
     const parts = { atts: [] as Any[] } as { text?: string; html?: string; atts: Any[] };
     walkParts(m.bodyStructure, parts);
     const dl = async (part: string) => new TextDecoder().decode(await streamBuf((await imap.download(String(uid), part, { uid: true })).content));
-    const html = parts.html ? await dl(parts.html) : "";
+    let html = parts.html ? clip(await dl(parts.html), 400000) : "";
+    // Картинки в тексті листа (підпис, логотип): <img src="cid:image001.jpg@…"> — вбудовуємо прямо в лист,
+    // і не показуємо їх окремими файлами-вкладеннями
+    const embedded = new Set<string>();
+    if (html && /cid:/i.test(html)) {
+        let budget = 2_500_000;
+        for (const a of parts.atts) {
+            const cid = String(a.cid || "").replace(/^<|>$/g, "").trim();
+            if (!cid) continue;
+            const esc = cid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const rx = new RegExp(`cid:(${esc}|${esc.replace(/@/g, "%40")})`, "gi");
+            if (!rx.test(html)) continue;
+            embedded.add(a.part);
+            if (!/^image\//i.test(a.type) || (a.size || 0) > 900_000 || (a.size || 0) > budget) continue;
+            try {
+                const buf = await streamBuf((await imap.download(String(uid), a.part, { uid: true })).content);
+                budget -= buf.length;
+                rx.lastIndex = 0;
+                html = html.replace(rx, `data:${a.type};base64,${b64e(buf)}`);
+            } catch (_) { /* не вдалося — лишиться без картинки */ }
+        }
+    }
     const text = parts.text ? await dl(parts.text) : "";
     if (!peek && !m.flags?.has?.("\\Seen")) await imap.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(() => {});
     const e = m.envelope || {};
     const addr = (list: Any[]) => (list || []).map((v: Any) => (v.name ? `${v.name} <${v.address}>` : v.address)).join(", ");
     return {
         uid, subject: e.subject || "(без теми)", from: addr(e.from), from_email: e.from?.[0]?.address || "", to: addr(e.to), cc: addr(e.cc),
-        date: e.date || null, text: clip(text, 60000), html: clip(html, 400000),
-        attachments: parts.atts.filter((a) => !(a.inline && a.cid && html.includes("cid:"))).map((a, i) => ({ i, part: a.part, name: a.name, type: a.type, size: a.size })),
+        date: e.date || null, text: clip(text, 60000), html, // уже обрізано до вбудовування картинок
+        attachments: parts.atts.filter((a) => !embedded.has(a.part)).map((a, i) => ({ i, part: a.part, name: a.name, type: a.type, size: a.size })),
         message_id: e.messageId || "",
     };
 }
