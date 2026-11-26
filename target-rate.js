@@ -27,7 +27,7 @@
     const MIN_LOGIST = 2; // скільки відповідей треба на рівні, щоб ним користуватися
     const MIN_LARDI = 3;
     const LEVEL = { 3: "та сама область / воєводство / квадрат", 2: "сусідні області / той самий округ", 1: "та сама частина країни", 0: "ті самі країни" };
-    const FRESH_DAYS = 30; // ціни швидко змінюються — спершу беремо свіжі
+    const FRESH_DAYS = 7; // ціна міняється щотижня — беремо останні 7 днів; старіші лише якщо свіжих немає (з ⚠)
 
     const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" })[c]);
     const num = (v) => {
@@ -148,7 +148,7 @@
         const sinceD = new Date(Date.now() - LARDI_DAYS * 864e5).toISOString();
         const a = ISO[String(r.load_country || "").toUpperCase()];
         const b = ISO[String(r.unload_country || "").toUpperCase()];
-        const [q1, q2, q3] = await Promise.all([
+        const [q1, q2, q3, q4] = await Promise.all([
             client
                 .from("requests")
                 .select("id, created_at, client, load_country, unload_country, load_address, unload_address, transport_type, weight, answers, offers, logistician, logistician_id, logist_notes, answered_at, chosen_offer")
@@ -180,8 +180,9 @@
                       .limit(300)
                       .then((x) => x, () => ({ data: [] }))
                 : Promise.resolve({ data: [] }),
+            client.from("lardi_runs").select("finished_at, kind").not("finished_at", "is", null).order("finished_at", { ascending: false }).limit(1).then((x) => x, () => ({ data: [] })),
         ]);
-        const res = { at: Date.now(), reqs: q1.data || [], lardi: q2.data || [], trucks: q3?.data || [] };
+        const res = { at: Date.now(), reqs: q1.data || [], lardi: q2.data || [], trucks: q3?.data || [], lardiAt: q4?.data?.[0]?.finished_at || null };
         cache.set(key, res);
         return res;
     }
@@ -235,7 +236,7 @@
 
     async function compute(r) {
         if (!r?.load_country || !r?.unload_country) return null;
-        const { reqs, lardi, trucks } = await fetchDir(r);
+        const { reqs, lardi, trucks, lardiAt } = await fetchDir(r);
         const ca = ISO[String(r.load_country || "").toUpperCase()], cb = ISO[String(r.unload_country || "").toUpperCase()];
         const lp = placeOfAddress(r.load_address, ca);
         const up = placeOfAddress(r.unload_address, cb);
@@ -307,7 +308,7 @@
             };
         };
 
-        const out = { cur: null, lp, up };
+        const out = { cur: null, lp, up, lardiAt };
         out.logist = summarize(lg, MIN_LOGIST);
         out.lardi = summarize(lardiRows(lardi), MIN_LARDI);
         out.trucks = summarize(lardiRows(trucks || []), 2);
@@ -331,7 +332,7 @@
     const srcLine = (s, label) =>
         s
             ? `<div class="tr-src"><span class="tr-src-name">${label}</span><b>${money(s.med, s.cur)}</b>
-               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${label === "Логісти" ? FRESH_DAYS : LARDI_DAYS} дн.` : ` · <span class="tr-old">⚠ є старі ціни (з ${dmy(s.oldest)})</span>`}</span>
+               <span class="tr-hint">${UNIT[label]}: ${s.n} · ${money(s.min)}–${money(s.max)} · ${LEVEL[s.level]}${s.wsame ? ` · вага ${W_LABEL[s.wsame]}` : ""}${s.same ? " · той самий кузов" : ""}${s.fresh ? ` · за ${FRESH_DAYS} дн.` : ` · <span class="tr-old">⚠ за 7 днів мало цін — взято старіші (з ${dmy(s.oldest)})</span>`}</span>
                ${s.types.length > 1 ? `<span class="tr-hint tr-types">${s.types.map((x) => `${esc(TYPE_SHORT[x.type] || x.type)}: <b>${money(x.med)}</b> (${x.n})`).join(" · ")}</span>` : ""}</div>`
             : `<div class="tr-src tr-none"><span class="tr-src-name">${label}</span><span class="tr-hint">немає цін за ${label === "Логісти" ? LOGIST_DAYS : LARDI_DAYS} днів</span></div>`;
 
@@ -372,6 +373,7 @@
                 <button type="button" class="tr-btn tr-save" data-tr="save">Зберегти</button>
             </div>
             ${t ? `<div class="tr-srcs">${srcLine(t.logist, "Логісти")}${srcLine(t.lardi, "Lardi вантажі")}${srcLine(t.trucks, "Lardi машини")}</div>` : ""}
+            ${t?.lardiAt ? `<div class="tr-hint tr-upd"><i class='bx bx-refresh'></i> Lardi оновлюється автоматично ~3 рази на день · останнє оновлення ${new Date(t.lardiAt).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>` : ""}
             ${t && (t.logist || t.lardi || t.trucks) ? `<details class="tr-more"><summary>Звідки ціни</summary>${listHtml(t)}</details>` : ""}
             <div class="tr-msg" role="status"></div>`;
     }
@@ -476,7 +478,7 @@
             .tr-d{color:#6b7280;font-size:12px}.tr-r{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
             .tr-lv{display:inline-block;width:8px;height:8px;border-radius:50%;background:#cbd5e1}
             .tr-lv3{background:#16a34a}.tr-lv2{background:#f59e0b}.tr-lv1{background:#60a5fa}.tr-old{color:#b45309}
-            .tr-stale{opacity:.55}.tr-tag{font-size:11px;background:#f1f5f9;color:#475569;border-radius:6px;padding:0 6px;margin-left:4px}.tr-tag-f{background:#dcfce7;color:#166534}.tr-types{flex-basis:100%}.tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+            .tr-stale{opacity:.55}.tr-upd{margin-top:6px}.tr-tag{font-size:11px;background:#f1f5f9;color:#475569;border-radius:6px;padding:0 6px;margin-left:4px}.tr-tag-f{background:#dcfce7;color:#166534}.tr-types{flex-basis:100%}.tr-legend{margin-top:6px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
             .tr-msg{font-size:12.5px;min-height:0}.tr-msg.bad{color:#b91c1c;margin-top:6px}
             .tr-answer-hint{margin:0 0 10px;padding:8px 12px;border-radius:10px;background:#fbf7ec;border:1px solid #efe3c2;font-size:13.5px}
             .tr-answer-hint:empty{display:none}
