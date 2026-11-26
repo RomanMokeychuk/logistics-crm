@@ -599,6 +599,12 @@ const EQ = (() => {
             after.insertAdjacentHTML("afterend", '<div class="eq-chkbar" id="eqChkBar"></div>');
             bar = document.getElementById("eqChkBar");
             bar.addEventListener("click", (e) => {
+                if (e.target.closest("[data-rep]")) { // «📋 Звіт» — розгорнути / згорнути
+                    const open = !bar.classList.contains("open");
+                    try { localStorage.setItem("fura_eq_report", open ? "1" : "0"); } catch (_) { /* */ }
+                    paintChkBar();
+                    return;
+                }
                 const b = e.target.closest("[data-chk]");
                 if (!b) return;
                 st.chk = st.chk === b.dataset.chk ? "" : b.dataset.chk;
@@ -619,7 +625,17 @@ const EQ = (() => {
         const btn = (k, t, title = "") => `<button type="button" data-chk="${esc(k)}" class="${st.chk === k ? "on" : ""}" title="${esc(title)}">${t}</button>`;
         const short = (n) => esc(String(n).split(/\s+/)[0]);
         const people = [...all.entries()].sort((a, b) => (today.get(b[0]) || 0) - (today.get(a[0]) || 0) || b[1] - a[1]);
-        bar.innerHTML = `<span class="eq-chkbar-l">✓ Пробиті:</span>` +
+        // Згорнуто за замовчуванням — лише непомітна кнопка «📋 Звіт»; розгорнули — увесь звіт
+        let open = false;
+        try { open = localStorage.getItem("fura_eq_report") === "1"; } catch (_) { /* */ }
+        bar.classList.toggle("open", open);
+        const todayN = [...today.values()].reduce((a, b) => a + b, 0);
+        if (!open) {
+            const act = st.chk ? `<button type="button" data-chk="${esc(st.chk)}" class="on" title="Натисніть, щоб зняти фільтр">${st.chk === "none" ? "❌ ще не пробиті" : st.chk === "me" ? "мною" : st.chk === "others" ? "колегами" : st.chk === "today" ? "сьогодні" : short(st.chk.slice(2))} ✕</button>` : "";
+            bar.innerHTML = `<button type="button" class="eq-rep-tgl" data-rep title="Хто скільки перевізників пробив через Lardi / відредагував">📋 Звіт${todayN ? ` · сьогодні ${todayN}` : ""} ▸</button>${act}`;
+            return;
+        }
+        bar.innerHTML = `<button type="button" class="eq-rep-tgl on" data-rep title="Згорнути звіт">📋 Звіт ▾</button>` +
             btn("none", "❌ ще не пробиті", "Перевізники, яких ще ніхто не перевіряв через Lardi і не редагував") +
             (ME ? btn("me", "мною", "Кого пробивали ви") : "") +
             btn("others", "колегами", "Кого пробивали колеги") +
