@@ -121,6 +121,24 @@
         if (saved) document.body.classList.add("sidebar-collapsed");
         syncIcon();
         // кнопка на кожній сторінці лише перемикає клас — ловимо зміну й запам'ятовуємо
+        // Згорнуте меню: навели мишку — розкривається поверх сторінки, прибрали — згортається
+        let peekT = 0;
+        const peek = (on) => {
+            clearTimeout(peekT);
+            peekT = setTimeout(() => {
+                if (on && !document.body.classList.contains("sidebar-collapsed")) return;
+                document.body.classList.toggle("sb-peek", on);
+            }, on ? 140 : 220);
+        };
+        document.addEventListener("mouseover", (e) => {
+            if (matchMedia("(max-width: 900px)").matches) return;
+            const inSide = e.target.closest?.(".fura-sidebar, #sidebarToggleBtn, .sidebar-toggle-btn");
+            if (inSide && document.body.classList.contains("sidebar-collapsed")) peek(true);
+            else if (!inSide && document.body.classList.contains("sb-peek")) peek(false);
+        }, true);
+        document.documentElement.addEventListener("mouseleave", () => peek(false));
+        // натиснули пункт меню або стрілку — прибираємо «підглядання»
+        document.addEventListener("click", (e) => { if (e.target.closest?.(".fura-sidebar a, #sidebarToggleBtn, .sidebar-toggle-btn")) { clearTimeout(peekT); document.body.classList.remove("sb-peek"); } }, true);
         new MutationObserver(() => {
             const collapsed = document.body.classList.contains("sidebar-collapsed");
             try { localStorage.setItem(KEY, collapsed ? "1" : "0"); } catch (e) { /* без збереження */ }

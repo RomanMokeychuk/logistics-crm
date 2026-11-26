@@ -975,26 +975,26 @@ body, html { background-attachment: scroll !important; }
 
 /* ===== Згорнуте меню: лишаються значки (як у Lardi), стрілка розгортає назад ===== */
 @media (min-width: 901px) {
-    body.sidebar-collapsed .sidebar.fura-sidebar {
+    body.sidebar-collapsed:not(.sb-peek) .sidebar.fura-sidebar {
         width: 76px !important; min-width: 76px !important; padding: 22px 10px 14px !important;
         opacity: 1 !important; overflow-x: hidden !important; overflow-y: auto !important;
     }
-    body.sidebar-collapsed aside.sidebar:not(.fura-sidebar) { width: 76px; min-width: 76px; }
-    body.sidebar-collapsed .fura-brand { justify-content: center; padding: 0; gap: 0; }
-    body.sidebar-collapsed .fura-brand-name,
-    body.sidebar-collapsed .fura-nav-item > span,
-    body.sidebar-collapsed .fura-user-text,
-    body.sidebar-collapsed .fura-logout,
-    body.sidebar-collapsed .fura-nav-caret { display: none !important; }
-    body.sidebar-collapsed .fura-nav-title { font-size: 0 !important; height: 1px; padding: 0 !important; margin: 4px 8px 10px; background: rgba(240, 205, 120, .25); }
-    body.sidebar-collapsed .fura-nav-group + .fura-nav-group { margin-top: 12px; }
-    body.sidebar-collapsed .fura-nav-item { justify-content: center; padding: 11px 0 !important; gap: 0; }
-    body.sidebar-collapsed .fura-nav-item > i, body.sidebar-collapsed .fura-nav-item > svg { font-size: 22px; margin: 0; }
-    body.sidebar-collapsed .fura-nav-badge {
+    body.sidebar-collapsed:not(.sb-peek) aside.sidebar:not(.fura-sidebar) { width: 76px; min-width: 76px; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-brand { justify-content: center; padding: 0; gap: 0; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-brand-name,
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-item > span,
+    body.sidebar-collapsed:not(.sb-peek) .fura-user-text,
+    body.sidebar-collapsed:not(.sb-peek) .fura-logout,
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-caret { display: none !important; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-title { font-size: 0 !important; height: 1px; padding: 0 !important; margin: 4px 8px 10px; background: rgba(240, 205, 120, .25); }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-group + .fura-nav-group { margin-top: 12px; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-item { justify-content: center; padding: 11px 0 !important; gap: 0; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-item > i, body.sidebar-collapsed:not(.sb-peek) .fura-nav-item > svg { font-size: 22px; margin: 0; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-badge {
         position: absolute; top: 3px; right: 3px; margin: 0; min-width: 18px; height: 17px; padding: 0 5px; font-size: 10.5px; line-height: 17px;
     }
-    body.sidebar-collapsed .fura-nav-badge.nb-green { top: auto; bottom: 3px; margin: 0 !important; }
-    body.sidebar-collapsed .fura-user { justify-content: center; padding-left: 0; padding-right: 0; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-nav-badge.nb-green { top: auto; bottom: 3px; margin: 0 !important; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-user { justify-content: center; padding-left: 0; padding-right: 0; }
     body.sidebar-collapsed .sidebar-toggle-btn, body.sidebar-collapsed #sidebarToggleBtn { left: 62px !important; }
     body.sidebar-collapsed:not([style*="visible"])::before { left: 76px; }
 }
@@ -1107,9 +1107,9 @@ body, html { background-attachment: scroll !important; }
 .fura-grp-closed > :not(.fura-nav-title) { display: none !important; }
 /* меню, згорнуте до значків, показує всі значки */
 @media (min-width: 901px) {
-    body.sidebar-collapsed .fura-grp-closed > a.fura-nav-item:not([hidden]) { display: flex !important; }
-    body.sidebar-collapsed .fura-grp-closed > .fura-nav-branch { display: block !important; }
-    body.sidebar-collapsed .fura-grp-caret { display: none; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-grp-closed > a.fura-nav-item:not([hidden]) { display: flex !important; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-grp-closed > .fura-nav-branch { display: block !important; }
+    body.sidebar-collapsed:not(.sb-peek) .fura-grp-caret { display: none; }
 }
 
 .card-lardi-badge { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 3px 9px; border-radius: 8px; background: #eef6f4; color: #2f5d55; font-size: 12.5px; font-weight: 600; text-decoration: none; white-space: nowrap; }
@@ -1177,3 +1177,15 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
 #carrierCardBody .cc-dirs .dest-blk-short { display: inline-block; margin-right: 4px; }
 #carrierCardBody .cc-dirs > .card-row:nth-child(3) .card-row-value { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-start; }
 #carrierCardBody .cc-dirs > .card-row:nth-child(3) .card-row-value > * { margin: 0 !important; }
+
+/* ===== Згорнуте меню: навели мишку — меню розкривається ПОВЕРХ сторінки (сторінка не зсувається) ===== */
+@media (min-width: 901px) {
+    body.sidebar-collapsed.sb-peek .sidebar.fura-sidebar {
+        width: 250px !important; min-width: 250px !important; margin-right: -174px !important;
+        opacity: 1 !important; padding: 22px 14px 14px !important;
+        z-index: 1200 !important; overflow-y: auto !important; overflow-x: hidden !important;
+        box-shadow: 18px 0 50px -10px rgba(15, 23, 42, .45), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
+        transition: width .16s ease, min-width .16s ease, margin-right .16s ease !important;
+    }
+    body.sidebar-collapsed.sb-peek .sidebar-toggle-btn, body.sidebar-collapsed.sb-peek #sidebarToggleBtn { z-index: 1201; left: 236px !important; }
+}
