@@ -1533,6 +1533,46 @@ document.addEventListener("DOMContentLoaded", async () => {
             }
         } catch (_) { /* не критично */ } finally { prefetching = false; }
     }
+    /* ---------- HTML листа в рамці на всю висоту (без власної прокрутки) ---------- */
+    const FRAME_CSS = "html,body{height:auto!important;min-height:0!important;max-height:none!important;overflow:hidden!important}body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:10px 12px;word-wrap:break-word}img{max-width:100%;height:auto}#__fw{overflow:hidden}";
+    const frameDoc = (inner, isHtml) => `<base target="_blank"><style>${FRAME_CSS}${isHtml ? "" : "#__fw{white-space:pre-wrap}"}</style><div id="__fw">${inner}</div>`;
+    function fitFrame(fr) {
+        let last = 0;
+        const fit = () => {
+            try {
+                const w = fr.contentDocument.getElementById("__fw") || fr.contentDocument.body;
+                const h = Math.ceil(w.getBoundingClientRect().height) + 24;
+                if (Math.abs(h - last) > 2) { last = h; fr.style.height = Math.max(40, h) + "px"; }
+            } catch (_) { fr.style.height = "600px"; fr.removeAttribute("scrolling"); }
+        };
+        fr.onload = () => {
+            fit();
+            try {
+                const d = fr.contentDocument;
+                d.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", fit, { once: true }); });
+                new ResizeObserver(fit).observe(d.getElementById("__fw") || d.body);
+            } catch (_) { /* */ }
+        };
+    }
+    // Відповідь без цитати попередніх листів (Outlook / Gmail / Apple Mail) — для стрічки переписки
+    function trimQuoteHtml(html) {
+        try {
+            const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+            const SEL = ["#divRplyFwdMsg", "#appendonsend", ".gmail_quote", "blockquote[type=cite]", ".moz-cite-prefix", "#mail-editor-reference-message-container", ".yahoo_quoted", "hr#stopSpelling"];
+            const cands = SEL.map((x) => doc.querySelector(x)).filter(Boolean);
+            doc.querySelectorAll("div[style*='border-top']").forEach((d) => { if (/^\s*(From|Від|От|Von|Od)\s*:/i.test(d.textContent || "")) cands.push(d); });
+            doc.querySelectorAll("p, div").forEach((d) => { if (!d.children.length || d.children.length < 4) { const t = (d.textContent || "").trim(); if (/^(From|Від|От|Von|Od)\s*:.{2,200}(Sent|Надіслано|Отправлено|Gesendet|Wysłano|Date)\s*:/is.test(t) && t.length < 800) cands.push(d); } });
+            let node = null;
+            for (const n of cands) if (!node || (n.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)) node = n;
+            if (node) {
+                let cur = node;
+                while (cur && cur !== doc.body) { let nx; while ((nx = cur.nextSibling)) nx.remove(); cur = cur.parentNode; }
+                node.remove();
+            }
+            doc.querySelectorAll("img[src^='cid:'], script").forEach((x) => x.remove());
+            return [...doc.head.querySelectorAll("style")].map((x) => x.outerHTML).join("") + doc.body.innerHTML;
+        } catch (_) { return ""; }
+    }
     /* ---------- 🧵 Увесь ланцюжок листа — вхідні й надіслані разом, як в Outlook ---------- */
     const CONV = new Map(); // тема → { at, items }
     const myEmail = () => (String(status?.mail_box || status?.from || "").match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i) || [""])[0].toLowerCase();
@@ -1579,10 +1619,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                             <span class="ml-conv-date">${escapeHtml(x.date ? new Date(x.date).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "")}</span>
                             ${cur ? '<span class="ml-conv-curtag">цей лист</span>' : `<button type="button" class="ml-conv-open" data-copen title="Відкрити окремо (відповісти, переслати)">↗</button>`}
                         </div>
-                        ${cur ? '<div class="ml-conv-body on sa-muted">↑ текст цього листа — вище</div>' : `<div class="ml-conv-body on">${full ? escapeHtml(cleanConv(stripQuote(full.text || plain(full)))) || '<span class="sa-muted">(без тексту)</span>' : '<span class="sa-muted">Завантажую…</span>'}</div>`}
+                        ${cur ? '<div class="ml-conv-body on sa-muted">↑ текст цього листа — вище</div>' : full ? (full.html ? `<iframe class="ml-conv-fr" data-cfr="${escapeHtml(x.fp + "|" + x.uid)}" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe>` : `<div class="ml-conv-body on">${escapeHtml(cleanConv(stripQuote(full.text || plain(full)))) || '<span class="sa-muted">(без тексту)</span>'}</div>`) : '<div class="ml-conv-body on sa-muted">Завантажую…</div>'}
                         ${atts.length ? `<div class="ml-conv-atts">${atts.map((a) => `<button type="button" class="ml-conv-att" data-catt="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}">📎 ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
                     </div>`;
                 }).join("");
+            box.querySelectorAll("iframe[data-cfr]").forEach((f) => {
+                const [f0, u0] = [f.dataset.cfr.slice(0, f.dataset.cfr.lastIndexOf("|")), Number(f.dataset.cfr.split("|").pop())];
+                const full = MCACHE.get(ck(f0, u0));
+                fitFrame(f);
+                f.srcdoc = frameDoc(trimQuoteHtml(full?.html) || escapeHtml(cleanConv(stripQuote(full?.text || ""))), true);
+            });
         };
         paint();
         // тексти всіх листів — пачками по папках (без позначки «прочитано»)
@@ -1665,21 +1711,11 @@ document.addEventListener("DOMContentLoaded", async () => {
                 const esc = cid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                 html = html.replace(new RegExp("cid:" + esc, "gi"), url).replace(new RegExp("cid:" + esc.replace(/@/g, "%40"), "gi"), url);
             }
-            fr.srcdoc = m.html
-                ? `<base target="_blank"><style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;word-wrap:break-word}img{max-width:100%;height:auto}</style>${html}`
-                : `<style>body{font-family:Arial,sans-serif;font-size:14px;color:#222;margin:12px;white-space:pre-wrap;word-wrap:break-word}</style>${escapeHtml(m.text || "")}`;
+            fr.srcdoc = m.html ? frameDoc(html, true) : frameDoc(escapeHtml(m.text || ""), false);
         };
         // висота листа = уся його довжина (як в Outlook — гортаєте всю сторінку, без окремої прокрутки в рамці).
         // Скрипти листа все одно не виконуються (sandbox без allow-scripts).
-        fr.onload = () => {
-            const fit = () => { try { const d = fr.contentDocument; fr.style.height = Math.max(200, Math.max(d.body.scrollHeight, d.documentElement.scrollHeight) + 24) + "px"; } catch (_) { fr.style.height = "600px"; fr.removeAttribute("scrolling"); } };
-            fit();
-            try {
-                const d = fr.contentDocument;
-                d.querySelectorAll("img").forEach((im) => { if (!im.complete) im.addEventListener("load", fit, { once: true }); });
-                new ResizeObserver(fit).observe(d.body);
-            } catch (_) { /* */ }
-        };
+        fitFrame(fr);
         loadConv(m, fp).catch(() => {}); // 🧵 увесь ланцюжок — під листом
         paint();
         if (m.html && m.inline?.length && !m._imgs) {
