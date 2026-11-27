@@ -444,7 +444,7 @@
         css.href = "mobile.css?v=202611261159";
         document.head.appendChild(css);
         addScript("mobile-ux.js?v=202611261159");
-        addScript("mobile-kit.js?v=202611261159");
+        addScript("mobile-kit.js?v=202611271350");
 
         const backdrop = document.createElement("div");
         backdrop.className = "fura-menu-backdrop";
