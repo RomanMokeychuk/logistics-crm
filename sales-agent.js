@@ -2230,9 +2230,18 @@ document.addEventListener("DOMContentLoaded", async () => {
                 f = { name: decodeURIComponent(res.headers.get("x-file-name") || "") || att.name, type: res.headers.get("x-file-type") || att.type };
             }
             let type = f.type || att.type || "application/octet-stream";
-            const k = typeOf(f.name, type);
+            let k = typeOf(f.name, type);
+            // назва без розширення або «application/octet-stream» (часто з Outlook на Windows) — визначаємо за вмістом
+            if (!k) {
+                const h = bin.subarray(0, 12), hx = Array.from(h.subarray(0, 4)).map((x) => x.toString(16).padStart(2, "0")).join("");
+                if (String.fromCharCode(...h.subarray(0, 4)) === "%PDF") k = "pdf";
+                else if (hx.startsWith("ffd8ff")) { k = "img"; type = "image/jpeg"; }
+                else if (hx === "89504e47") { k = "img"; type = "image/png"; }
+                else if (hx === "47494638") { k = "img"; type = "image/gif"; }
+                else if (hx === "52494646" && String.fromCharCode(...h.subarray(8, 12)) === "WEBP") { k = "img"; type = "image/webp"; }
+            }
             if (k === "pdf") type = "application/pdf";
-            if (k === "img" && !/^image\//.test(type)) type = "image/" + (String(f.name).split(".").pop().toLowerCase().replace("jpg", "jpeg"));
+            if (k === "img" && !/^image\//.test(type) && /\./.test(String(f.name))) type = "image/" + (String(f.name).split(".").pop().toLowerCase().replace("jpg", "jpeg"));
             if (k === "txt") type = "text/plain;charset=utf-8";
             FILES.set(key, { name: f.name || att.name, type, kind: k, url: URL.createObjectURL(new Blob([bin], { type })), size: bin.length });
         }
@@ -2319,8 +2328,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function preview(i, mm) {
         const m = mm || ML.open; if (!m?.uid) return;
         const att = (m.attachments || [])[i] || {};
-        // незнайомий формат (Word, Excel, архів) — одразу завантажити
-        if (!typeOf(att.name, att.type)) return download(await fileOf(m, i));
+        // Word, Excel, архів — одразу завантажити; невідомий тип (octet-stream без розширення) — спершу перевіримо вміст
+        if (!typeOf(att.name, att.type) && /\.(docx?|xlsx?|xlsm|csv|odt|ods|rtf|zip|rar|7z|pptx?|eml|msg)$/i.test(att.name || "")) return download(await fileOf(m, i));
         PV = { m, i, f: null, local: null };
         pv.hidden = false; document.body.classList.add("sa-pv-open");
         pv.querySelector(".sa-pv-name").textContent = att.name || "файл";
@@ -2345,7 +2354,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             else if (f.kind === "pdf" && window.furaPdfView) window.furaPdfView(body, f.url);
             else if (f.kind === "pdf") body.innerHTML = `<iframe src="${f.url}#view=FitH" title="PDF"></iframe>`;
             else if (f.kind === "txt") body.innerHTML = `<pre>${escapeHtml(await (await fetch(f.url)).text())}</pre>`;
-            else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут — натисніть «Завантажити».</p>`;
+            else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут.<br><button type="button" class="sa-pv-btn sa-pv-dl2">⬇ Завантажити</button></p>`, body.querySelector(".sa-pv-dl2").onclick = () => download(f);
             const img = body.querySelector("img");
             if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
         } catch (er) {
