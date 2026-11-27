@@ -1188,6 +1188,11 @@ tr.row-flash > td { animation: d-row-flash-gold 2.4s ease-out; }
         z-index: 1200 !important; overflow-y: auto !important; overflow-x: hidden !important;
         box-shadow: 18px 0 50px -10px rgba(15, 23, 42, .45), inset 0 1px 0 rgba(255, 255, 255, .08) !important;
         transition: width .16s ease, min-width .16s ease, margin-right .16s ease !important;
+        /* непрозорий фон — текст сторінки не просвічує крізь меню */
+        background:
+            radial-gradient(420px 320px at 0% 0%, rgba(240, 205, 120, .22), transparent 70%),
+            radial-gradient(360px 300px at 100% 100%, rgba(160, 172, 172, .25), transparent 70%),
+            linear-gradient(180deg, #485052, #282d2f) !important;
     }
     body.sidebar-collapsed:has(.fura-sidebar.sb-peek) .sidebar-toggle-btn, body.sidebar-collapsed:has(.fura-sidebar.sb-peek) #sidebarToggleBtn { z-index: 1201; left: 236px !important; }
 }
