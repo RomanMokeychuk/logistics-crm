@@ -1654,7 +1654,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                             ${cur ? '<span class="ml-conv-curtag">цей лист</span>' : `<button type="button" class="ml-conv-open" data-copen title="Відкрити окремо (відповісти, переслати)">↗</button>`}
                         </div>
                         ${cur ? '<div class="ml-conv-body on sa-muted">↑ текст цього листа — вище</div>' : full ? (full.html ? `<iframe class="ml-conv-fr" data-cfr="${escapeHtml(x.fp + "|" + x.uid)}" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe>` : `<div class="ml-conv-body on">${escapeHtml(cleanConv(stripQuote(full.text || plain(full)))) || '<span class="sa-muted">(без тексту)</span>'}</div>`) : '<div class="ml-conv-body on sa-muted">Завантажую…</div>'}
-                        ${atts.length ? `<div class="ml-conv-atts">${atts.map((a) => `<button type="button" class="ml-conv-att" data-catt="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}">📎 ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
+                        ${atts.length ? `<div class="ml-conv-atts">${atts.map((a) => `<button type="button" class="ml-conv-att" data-catt="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}">${mthHtml(x.fp, x.uid, a)} ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button>`).join("")}</div>` : ""}
                     </div>`;
                 }).join("");
             box.querySelectorAll("iframe[data-cfr]").forEach((f) => {
@@ -1733,7 +1733,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 if (!th.length) return "";
                 return `<details class="ml-thread"${th.length <= 4 ? " open" : ""}><summary>🧵 У цьому ланцюжку ще ${th.length} ${th.length === 1 ? "лист" : th.length < 5 ? "листи" : "листів"}</summary>${th.map((x) => `<button type="button" class="ml-th-it ${x.seen ? "" : "unseen"}" data-uid="${x.uid}" data-fp="${escapeHtml(x.fp)}"><b>${escapeHtml(String(x.from || x.from_email || "").replace(/<.*>/, ""))}</b><span>${escapeHtml(when(x.date))}</span></button>`).join("")}</details>`;
             })()}
-            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}"><i class="bx ${{ img: "bx-image", pdf: "bxs-file-pdf", txt: "bx-file" }[typeOf(a.name, a.type)] || "bx-paperclip"}"></i> ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
+            ${m.attachments?.length ? `<div class="sa-mr-atts">${m.attachments.map((a) => `<span class="sa-mr-attw"><button type="button" class="sa-mr-att" data-att="${a.i}" title="${typeOf(a.name, a.type) ? "Переглянути" : "Завантажити"}">${mthHtml(m.fp, m.uid, a)} ${escapeHtml(a.name)} <small>${Math.ceil((a.size || 0) / 1024)} КБ</small></button><button type="button" class="sa-mr-attdl" data-attcp="${a.i}" title="Скопіювати файл, щоб вкласти в інший лист"><i class="bx bx-copy"></i></button><button type="button" class="sa-mr-attdl" data-attdl="${a.i}" title="Завантажити"><i class="bx bx-download"></i></button></span>`).join("")}</div>` : ""}
             <iframe class="sa-mr-body" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" scrolling="no"></iframe>
             <div class="ml-conv" id="mlConv"></div>`;
         // HTML листа — в ізольованому вікні (без скриптів), посилання відкриваються в новій вкладці
@@ -2238,6 +2238,59 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         return FILES.get(key);
     }
+    /* ---------- Мініатюри вкладень у листі: фото — саме фото, PDF — перша сторінка ---------- */
+    // Файли до 8 МБ підвантажуються у фоні по 2 за раз; після цього й перегляд відкривається миттєво (файл уже в пам'яті).
+    const MTH_MAX = 8 * 1048576;
+    const MTHUMB = new Map(); // ключ файлу → картинка
+    function mthHtml(fp, uid, a) {
+        const k = typeOf(a.name, a.type);
+        const n = String(a.name || "").toLowerCase();
+        const [ic, col] = k === "pdf" ? ["bxs-file-pdf", "#dc2626"] : k === "img" ? ["bx-image", "#0891b2"] : /\.(docx?|rtf|odt)$/.test(n) ? ["bxs-file-doc", "#2563eb"] : /\.(xlsx?|csv|ods)$/.test(n) ? ["bxs-spreadsheet", "#16a34a"] : /\.(zip|rar|7z)$/.test(n) ? ["bxs-file-archive", "#a16207"] : ["bx-paperclip", "#6b7280"];
+        const key = `${fp}|${uid}|${a.part}`;
+        const ready = MTHUMB.get(key);
+        const want = (k === "img" || k === "pdf") && (Number(a.size) || 0) <= MTH_MAX;
+        return `<span class="sa-mth"${want && !ready ? ` data-mth="${escapeHtml(key)}" data-fp="${escapeHtml(fp)}" data-uid="${escapeHtml(uid)}" data-part="${escapeHtml(a.part)}" data-name="${escapeHtml(a.name || "")}" data-type="${escapeHtml(a.type || "")}"` : ""}>${ready ? `<img src="${ready}" alt="">` : `<i class="bx ${ic}" style="color:${col}"></i>`}</span>`;
+    }
+    async function pdfThumb(url) {
+        if (!window.furaPdfLib) return "";
+        const lib = await window.furaPdfLib();
+        const doc = await lib.getDocument({ data: new Uint8Array(await (await fetch(url)).arrayBuffer()) }).promise;
+        const pg = await doc.getPage(1);
+        const v0 = pg.getViewport({ scale: 1 });
+        const vp = pg.getViewport({ scale: 120 / v0.width });
+        const cv = document.createElement("canvas");
+        cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+        await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+        doc.destroy?.();
+        return cv.toDataURL("image/jpeg", 0.8);
+    }
+    const MQ = []; let mBusy = 0;
+    function mthPump() {
+        while (mBusy < 2 && MQ.length) {
+            const el = MQ.shift();
+            if (!el.isConnected) continue;
+            mBusy++;
+            const key = el.dataset.mth;
+            partFile(el.dataset.fp, el.dataset.uid, { part: el.dataset.part, name: el.dataset.name, type: el.dataset.type })
+                .then(async (f) => (f.kind === "img" ? f.url : f.kind === "pdf" ? await pdfThumb(f.url) : ""))
+                .then((url) => {
+                    if (!url) return;
+                    MTHUMB.set(key, url);
+                    document.querySelectorAll(`.sa-mth[data-mth="${CSS.escape(key)}"]`).forEach((x) => { x.innerHTML = `<img src="${url}" alt="">`; x.removeAttribute("data-mth"); });
+                })
+                .catch(() => {})
+                .finally(() => { mBusy--; mthPump(); });
+        }
+    }
+    let mthT = 0;
+    new MutationObserver(() => {
+        clearTimeout(mthT);
+        mthT = setTimeout(() => {
+            document.querySelectorAll(".sa-mth[data-mth]:not([data-q])").forEach((el) => { el.dataset.q = "1"; MQ.push(el); });
+            mthPump();
+        }, 150);
+    }).observe(document.body, { childList: true, subtree: true });
+
     // для вікна нового листа: вкладення з будь-якого листа → File
     window.furaMailFile = async (it) => { const f = await partFile(it.fp, it.uid, it); const b = await (await fetch(f.url)).blob(); return new File([b], f.name, { type: f.type }); };
     /* «Скопіювати файл» — щоб вкласти його в інший лист */
