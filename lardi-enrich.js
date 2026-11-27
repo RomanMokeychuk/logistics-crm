@@ -314,10 +314,15 @@
         if (dup2) ch.push({ field: "dup_phone_2", label: "Повтор телефону", old: `${c.contact_person_2 || ""} ${c.phone_2 || ""}`.trim(), new: "прибрати (той самий номер, що й Телефон 1)" });
         // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
         const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня|менеджер|логіст|ai\s*звіт|звіт|замовлення|повідомлення)?\s*(\(.*\))?\s*:?\s*$/i; // «Власник (ФОП)», «Офіс», порожній
+        // Ім'я біля телефону можна замінити на ім'я з Lardi, якщо зараз там загальне слово («Офіс»),
+        // ПІБ директора чи назва компанії (підставлені з реєстру) — це не та людина, що на телефоні.
+        const nrm = (v) => String(v || "").toLowerCase().replace(/[«»"'’.,()]/g, " ").replace(/\s+/g, " ").trim();
+        const notPerson = (nm) => GENERIC.test(nm) || (c.director && nrm(nm) === nrm(c.director)) || (c.name && nrm(nm) === nrm(c.name));
+        const sameMan = (a, b) => { const x = nrm(a), y = nrm(b); return !x || !y || x === y || x.includes(y) || y.includes(x); };
         const extras = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
         const renamed = extras.map((x) => {
             const k = digits(x?.phone).slice(-9);
-            const y = k && GENERIC.test(String(x?.name || "").trim()) && d.contacts.find((p) => p.name && !GENERIC.test(p.name) && digits(p.phone).slice(-9) === k);
+            const y = k && notPerson(String(x?.name || "").trim()) && d.contacts.find((p) => p.name && !GENERIC.test(p.name) && digits(p.phone).slice(-9) === k);
             return y ? { ...x, name: y.name } : x;
         });
         const nRen = renamed.filter((x, i) => x !== extras[i]);
@@ -325,9 +330,11 @@
         for (const n of dup2 ? [1] : [1, 2]) {
             const ph = digits(c[`phone_${n}`]).slice(-9);
             const nm = String(c[`contact_person_${n}`] || "").trim();
-            if (!ph || !GENERIC.test(nm)) continue;
-            const x = d.contacts.find((p) => p.name && digits(p.phone).slice(-9) === ph);
-            if (x && x.name !== nm) ch.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
+            if (!ph) continue;
+            const x = d.contacts.find((p) => p.name && !GENERIC.test(p.name) && digits(p.phone).slice(-9) === ph);
+            if (!x || sameMan(x.name, nm)) continue;
+            // директор / «Офіс» → одразу позначено; інше ім'я, яке ввели вручну, — пропонуємо, але без галочки
+            ch.push({ field: `contact_person_${n}`, label: `Ім'я до телефону ${c[`phone_${n}`]}`, old: nm, new: x.name, off: !notPerson(nm) });
         }
         // Автопарк → розкладаємо по полях «Техніки»: Тип причепу, Об'єм, Тоннаж, Додатково (ADR, ЕКМТ…)
         // беремо і щойно вставлене, і те, що вже записано в «Автопарк» картки
@@ -419,7 +426,7 @@
                 ? `<div class="le-phones">📞 Знайдено телефонів: <b>${d.contacts.length}</b> — ${d.contacts.map((x) => `${esc(x.name || "без імені")}: ${esc(x.phone)}${have.has(digits(x.phone).slice(-9)) ? ' <span class="le-have">✓ уже є в картці</span>' : ""}`).join("; ")}</div>`
                 : "";
             res.innerHTML = phonesInfo + (changes.length
-                ? `<div class="le-list">${changes.map((x) => `<label class="le-row"><input type="checkbox" data-f="${esc(x.field)}" checked><span class="le-lbl">${esc(x.label)}</span><span class="le-val">${x.old ? `<s>${esc(x.old)}</s> → ` : ""}${esc(x.new)}</span></label>`).join("")}</div>
+                ? `<div class="le-list">${changes.map((x) => `<label class="le-row"><input type="checkbox" data-f="${esc(x.field)}" ${x.off ? "" : "checked"}><span class="le-lbl">${esc(x.label)}</span><span class="le-val">${x.old ? `<s>${esc(x.old)}</s> → ` : ""}${esc(x.new)}</span></label>`).join("")}</div>
                    <div class="le-note">Заповнене вручну не перезаписується — лише порожні поля і нові телефони.</div>
                    <div class="le-acts"><button type="button" class="le-go" data-le="psave">Зберегти обране</button></div>`
                 : `<div class="le-ok">${!ta.value.trim() ? "" : /^\s*(https?:\/\/\S+\s*)+$/.test(ta.value) ? "Ви вставили лише посилання. Потрібен сам <b>текст сторінки</b>: відкрийте вкладку в Lardi, натисніть <b>Cmd+A</b>, потім <b>Cmd+C</b> — і вставте сюди." : (d.contacts.length ? "Усе з цього тексту вже є в картці." : "Нового в цьому тексті не знайшов. Перевірте, що скопіювали всю сторінку (Cmd+A).")}</div>`);

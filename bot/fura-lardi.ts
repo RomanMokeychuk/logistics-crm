@@ -1029,17 +1029,20 @@ async function carrierEnrich(body: Any, row: Any = null) {
     // телефон уже є, а підпису нема — підписуємо ім'ям з Lardi
     // підпис «Офіс» / «Власник» / порожній — замінюємо справжнім ім'ям з Lardi
     const GENERIC = /^(власник|офіс|офис|office|контакт|телефон|тел\.?|диспетчер|приймальня|менеджер|логіст|ai\s*звіт|звіт|замовлення|повідомлення)?\s*(\(.*\))?\s*:?\s*$/i; // «Власник (ФОП)», «Офіс», порожній
+    // ПІБ директора чи назва компанії біля телефону — теж не ім'я людини на телефоні
+    const nrm = (v: unknown) => String(v || "").toLowerCase().replace(/[«»"'’.,()]/g, " ").replace(/\s+/g, " ").trim();
+    const notPerson = (nm: string) => GENERIC.test(nm) || (!!c.director && nrm(nm) === nrm(c.director)) || (!!c.name && nrm(nm) === nrm(c.name));
     const extras: Any[] = Array.isArray(c.extra_contacts) ? c.extra_contacts : [];
     const renamed = extras.map((x: Any) => {
         const k = digitsOnly(x?.phone).slice(-9);
-        const y = k && GENERIC.test(String(x?.name || "").trim()) && phones.find((p) => p.name && !GENERIC.test(p.name) && digitsOnly(p.phone).slice(-9) === k);
+        const y = k && notPerson(String(x?.name || "").trim()) && phones.find((p) => p.name && !GENERIC.test(p.name) && digitsOnly(p.phone).slice(-9) === k);
         return y ? { ...x, name: y.name } : x;
     });
     if (renamed.some((x: Any, i: number) => x !== extras[i])) changes.push({ field: "extra_contacts", label: "Імена до телефонів", old: extras.map((x: Any) => `${x?.name || "—"}: ${x?.phone}`).join("; "), new: renamed.map((x: Any) => `${x?.name || "—"}: ${x?.phone}`).join("; "), value: renamed });
     for (const n of [1, 2]) {
         const ph = digitsOnly(c[`phone_${n}`]).slice(-9);
         const nm = String(c[`contact_person_${n}`] || "").trim();
-        if (!ph || !GENERIC.test(nm)) continue;
+        if (!ph || !notPerson(nm)) continue;
         const x = phones.find((p) => p.name && !GENERIC.test(p.name) && digitsOnly(p.phone).slice(-9) === ph);
         if (x && x.name !== nm) changes.push({ field: `contact_person_${n}`, label: `Підпис телефону ${n}`, old: nm, new: x.name });
     }
