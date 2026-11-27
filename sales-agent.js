@@ -2141,25 +2141,58 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (/^text\//.test(t) || /\.(txt|csv|log|xml|json)$/.test(n)) return "txt";
         return "";
     };
-    async function fileOf(m, i) { return partFile(m.fp, m.uid, (m.attachments || [])[i] || {}); }
-    async function partFile(fp, uid, att) {
+    async function fileOf(m, i, onProg) { return partFile(m.fp, m.uid, (m.attachments || [])[i] || {}, onProg); }
+    const LOADING = new Map(); // той самий файл не качаємо двічі паралельно
+    const mb = (n) => (n / 1048576).toFixed(1).replace(".", ",") + " МБ";
+    async function partFile(fp, uid, att, onProg) {
+        const key = `${fp}|${uid}|${att.part}`;
+        if (FILES.has(key)) return FILES.get(key);
+        if (!LOADING.has(key)) LOADING.set(key, partLoad(fp, uid, att, key, onProg).finally(() => LOADING.delete(key)));
+        return LOADING.get(key);
+    }
+    async function partLoad(fp, uid, att, key, onProg) {
         const m = { fp, uid };
-        const key = `${m.fp}|${m.uid}|${att.part}`;
-        if (!FILES.has(key)) {
-            // файл приходить одразу байтами (навіть 15–20 МБ), без перетворень
+        {
+            // файл приходить одразу байтами (навіть 15–20 МБ), без перетворень.
+            // Якщо пошта не віддає файл 2 хв — зупиняємось і кажемо про це, а не крутимо «Відкриваю…» вічно.
             const { data: { session } } = await sbClient.auth.getSession();
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/fura-sales`, {
-                method: "POST",
-                headers: { "content-type": "application/json", apikey: SUPABASE_KEY, authorization: `Bearer ${session?.access_token || SUPABASE_KEY}` },
-                body: JSON.stringify({ action: "mail_read", folder: m.fp, uid: m.uid, part: att.part, name: att.name, peek: true, raw: true }),
-            });
+            const ctl = new AbortController();
+            let timer = setTimeout(() => ctl.abort(), 120000);
+            let res;
+            try {
+                res = await fetch(`${SUPABASE_URL}/functions/v1/fura-sales`, {
+                    method: "POST",
+                    signal: ctl.signal,
+                    headers: { "content-type": "application/json", apikey: SUPABASE_KEY, authorization: `Bearer ${session?.access_token || SUPABASE_KEY}` },
+                    body: JSON.stringify({ action: "mail_read", folder: m.fp, uid: m.uid, part: att.part, name: att.name, peek: true, raw: true }),
+                });
+            } catch (er) {
+                clearTimeout(timer);
+                throw new Error(er.name === "AbortError" ? "Пошта не віддала файл за 2 хвилини. Спробуйте ще раз або відкрийте лист в Outlook." : "Немає зв'язку з сервером. Перевірте інтернет і спробуйте ще раз.");
+            }
             let f, bin;
-            if (!res.ok) { let msg = ""; try { msg = (await res.json()).error; } catch (_) { /* */ } throw new Error(msg || `Не вдалося відкрити файл (${res.status})`); }
+            if (!res.ok) { clearTimeout(timer); let msg = ""; try { msg = (await res.json()).error; } catch (_) { /* */ } throw new Error(msg || (res.status >= 500 ? `Сервер пошти не впорався з файлом (${res.status}). Спробуйте ще раз за хвилину.` : `Не вдалося відкрити файл (${res.status})`)); }
             if ((res.headers.get("content-type") || "").includes("application/json")) {
+                clearTimeout(timer);
                 f = (await res.json()).file; // стара версія сервера — base64
                 bin = Uint8Array.from(atob(f.data), (c) => c.charCodeAt(0));
             } else {
-                bin = new Uint8Array(await res.arrayBuffer());
+                // читаємо частинами — показуємо, скільки вже завантажено
+                const total = Number(res.headers.get("content-length")) || Number(att.size) || 0;
+                const parts = []; let got = 0;
+                try {
+                    const rd = res.body.getReader();
+                    for (;;) {
+                        const { done, value } = await rd.read();
+                        if (done) break;
+                        parts.push(value); got += value.length;
+                        clearTimeout(timer); timer = setTimeout(() => ctl.abort(), 60000); // дані йдуть — чекаємо далі
+                        onProg?.(got, total);
+                    }
+                } catch (er) { clearTimeout(timer); throw new Error(er.name === "AbortError" ? "Завантаження файлу зупинилось. Спробуйте ще раз." : "Зв'язок перервався під час завантаження. Спробуйте ще раз."); }
+                clearTimeout(timer);
+                bin = new Uint8Array(got); let o = 0;
+                for (const p of parts) { bin.set(p, o); o += p.length; }
                 f = { name: decodeURIComponent(res.headers.get("x-file-name") || "") || att.name, type: res.headers.get("x-file-type") || att.type };
             }
             let type = f.type || att.type || "application/octet-stream";
@@ -2206,9 +2239,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         pv.querySelector(".sa-pv-name").textContent = att.name || "файл";
         pv.querySelector(".sa-pv-n").textContent = (m.attachments.length > 1 ? `${i + 1} з ${m.attachments.length}` : "");
         const body = pv.querySelector(".sa-pv-body");
-        body.innerHTML = '<p class="sa-pv-load">Відкриваю…</p>';
+        body.innerHTML = `<p class="sa-pv-load">Відкриваю…${att.size ? ` <span class="sa-pv-sz">(${mb(att.size)})</span>` : ""}</p>`;
+        const t0 = Date.now();
+        const slow = setTimeout(() => { const l = body.querySelector(".sa-pv-load"); if (l && !l.dataset.p) l.innerHTML = "Пошта ще готує файл… великі файли можуть відкриватися до хвилини."; }, 8000);
         try {
-            const f = await fileOf(m, i);
+            const f = await fileOf(m, i, (got, total) => {
+                if (PV.m !== m || PV.i !== i) return;
+                const l = body.querySelector(".sa-pv-load"); if (!l) return;
+                l.dataset.p = 1;
+                l.textContent = total ? `Завантажую… ${Math.min(99, Math.round((got / total) * 100))}% (${mb(got)} з ${mb(total)})` : `Завантажую… ${mb(got)}`;
+            });
+            clearTimeout(slow);
+            if (Date.now() - t0 > 3000) console.info("FURA пошта: файл", att.name, Math.round((Date.now() - t0) / 1000) + " с");
             if (PV.m !== m || PV.i !== i) return;
             PV.f = f;
             if (f.kind === "img" && window.furaImgView) window.furaImgView(body, f.url);
@@ -2219,7 +2261,12 @@ document.addEventListener("DOMContentLoaded", async () => {
             else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут — натисніть «Завантажити».</p>`;
             const img = body.querySelector("img");
             if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
-        } catch (er) { body.innerHTML = `<p class="sa-pv-load">${escapeHtml(er.message)}</p>`; }
+        } catch (er) {
+            clearTimeout(slow);
+            if (PV.m !== m || PV.i !== i) return;
+            body.innerHTML = `<p class="sa-pv-load">${escapeHtml(er.message)}<br><button type="button" class="sa-pv-btn sa-pv-retry">↻ Спробувати ще раз</button></p>`;
+            body.querySelector(".sa-pv-retry").onclick = () => preview(i, m);
+        }
     }
     pv.addEventListener("click", async (e) => {
         const b = e.target.closest("[data-pv]"); if (!b) return;
