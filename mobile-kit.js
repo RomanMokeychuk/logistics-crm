@@ -568,6 +568,7 @@
         addEventListener("resize", () => { layout(); redrawVisible(); });
     }
     window.furaPdfView = pdfView;
+    window.furaPdfLib = loadPdfLib; // для мініатюр першої сторінки PDF (пошта)
 
     /* ---------------------------------------------------------------- *
      * 3. Нижня панель на телефоні                                      *

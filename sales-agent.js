@@ -910,8 +910,40 @@ document.addEventListener("DOMContentLoaded", async () => {
     })();
     $("saSig").addEventListener("input", () => { sigShow(true); sigCloudSave(); });
     $("saSigOn").addEventListener("change", () => { sigShow(true); sigCloudSave(); });
+    // Мініатюри вкладень: фото — саме фото, PDF — перша сторінка, інше — значок за типом файлу
+    const THUMB = new WeakMap();
+    const fkind = (f) => { const n = String(f?.name || "").toLowerCase(), t = String(f?.type || "").toLowerCase(); return /^image\//.test(t) || /\.(jpe?g|png|gif|webp|bmp|svg)$/.test(n) ? "img" : t === "application/pdf" || /\.pdf$/.test(n) ? "pdf" : ""; };
+    const ficon = (f) => { const n = String(f?.name || "").toLowerCase(); return /\.(docx?|rtf|odt)$/.test(n) ? ["bx bxs-file-doc", "#2563eb"] : /\.(xlsx?|csv|ods)$/.test(n) ? ["bx bxs-spreadsheet", "#16a34a"] : /\.(zip|rar|7z)$/.test(n) ? ["bx bxs-file-archive", "#a16207"] : /\.pdf$/.test(n) ? ["bx bxs-file-pdf", "#dc2626"] : ["bx bxs-file", "#6b7280"]; };
+    function thumbOf(f) {
+        if (THUMB.has(f)) return THUMB.get(f);
+        const k = fkind(f);
+        let p = Promise.resolve("");
+        if (k === "img") p = Promise.resolve(URL.createObjectURL(f));
+        else if (k === "pdf" && window.furaPdfLib && f.size < 40 * 1048576) p = (async () => {
+            const lib = await window.furaPdfLib();
+            const doc = await lib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+            const pg = await doc.getPage(1);
+            const v0 = pg.getViewport({ scale: 1 });
+            const vp = pg.getViewport({ scale: 120 / v0.width });
+            const cv = document.createElement("canvas");
+            cv.width = Math.ceil(vp.width); cv.height = Math.ceil(vp.height);
+            await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+            const url = cv.toDataURL("image/jpeg", 0.8);
+            doc.destroy?.();
+            return url;
+        })().catch(() => "");
+        THUMB.set(f, p);
+        return p;
+    }
     const showFiles = () => {
-        $("saCmpFileList").innerHTML = (typeof loadingFiles !== "undefined" && loadingFiles > 0 ? `<span class="sa-cmp-file">⏳ завантажую файли з листа (${loadingFiles})…</span> ` : "") + files.map((f, i) => `<span class="sa-cmp-file">${escapeHtml(f.name)} <small>${Math.ceil(f.size / 1024)} КБ</small> <button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`).join("");
+        $("saCmpFileList").innerHTML = (typeof loadingFiles !== "undefined" && loadingFiles > 0 ? `<span class="sa-cmp-file">⏳ завантажую файли з листа (${loadingFiles})…</span> ` : "") + files.map((f, i) => {
+            const [ic, col] = ficon(f);
+            return `<span class="sa-cmp-file sa-cmp-fth" data-pvf="${i}" title="Натисніть, щоб переглянути"><span class="sa-cmp-th" data-th="${i}"><i class="${ic}" style="color:${col}"></i></span><span class="sa-cmp-fn"><span class="sa-cmp-fname">${escapeHtml(f.name)}</span><small>${Math.ceil(f.size / 1024)} КБ</small></span><button type="button" data-rm="${i}" title="Прибрати">&times;</button></span>`;
+        }).join("");
+        files.forEach((f, i) => thumbOf(f).then((url) => {
+            const el = $("saCmpFileList").querySelector(`[data-th="${i}"]`);
+            if (url && el && files[i] === f) el.innerHTML = `<img src="${url}" alt="">`;
+        }));
     };
     // Чернетка: одразу в браузері + за кілька секунд — у папку «Чернетки» на пошті (видно і в Outlook)
     let draft = { uid: 0, folder: "" }, dirty = false, dT = 0, saving = Promise.resolve();
@@ -1193,7 +1225,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             close();
         }
         const rm = e.target.closest("[data-rm]");
-        if (rm) { files.splice(Number(rm.dataset.rm), 1); showFiles(); }
+        if (rm) { files.splice(Number(rm.dataset.rm), 1); showFiles(); return; }
+        const pf = e.target.closest("[data-pvf]");
+        if (pf && window.furaLocalPreview) window.furaLocalPreview(files, Number(pf.dataset.pvf));
     });
     form.addEventListener("input", saveDraft);
     // вставили адреси з Outlook ('Ім'я' <a@b.ua>; 'c@d.ua') — лишаємо тільки e-mail через кому
@@ -2234,7 +2268,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const att = (m.attachments || [])[i] || {};
         // незнайомий формат (Word, Excel, архів) — одразу завантажити
         if (!typeOf(att.name, att.type)) return download(await fileOf(m, i));
-        PV = { m, i, f: null };
+        PV = { m, i, f: null, local: null };
         pv.hidden = false; document.body.classList.add("sa-pv-open");
         pv.querySelector(".sa-pv-name").textContent = att.name || "файл";
         pv.querySelector(".sa-pv-n").textContent = (m.attachments.length > 1 ? `${i + 1} з ${m.attachments.length}` : "");
@@ -2268,8 +2302,34 @@ document.addEventListener("DOMContentLoaded", async () => {
             body.querySelector(".sa-pv-retry").onclick = () => preview(i, m);
         }
     }
+    // Перегляд файлів, які ви додаєте до нового листа (ще не надіслані)
+    const LOCALURL = new WeakMap();
+    function previewLocal(list, i) {
+        const file = list[i]; if (!file) return;
+        if (!LOCALURL.has(file)) LOCALURL.set(file, URL.createObjectURL(file));
+        const url = LOCALURL.get(file);
+        const kind = typeOf(file.name, file.type);
+        const f = { name: file.name, type: file.type, kind, url, size: file.size };
+        if (!kind) return download(f);
+        PV = { m: null, local: list, i, f };
+        pv.hidden = false; document.body.classList.add("sa-pv-open");
+        pv.querySelector(".sa-pv-name").textContent = file.name;
+        pv.querySelector(".sa-pv-n").textContent = list.length > 1 ? `${i + 1} з ${list.length}` : "";
+        const body = pv.querySelector(".sa-pv-body");
+        if (kind === "img" && window.furaImgView) window.furaImgView(body, url);
+        else if (kind === "img") body.innerHTML = `<img src="${url}" alt="">`;
+        else if (kind === "pdf" && window.furaPdfView) window.furaPdfView(body, url);
+        else if (kind === "pdf") body.innerHTML = `<iframe src="${url}#view=FitH" title="PDF"></iframe>`;
+        else file.text().then((t) => (body.innerHTML = `<pre>${escapeHtml(t)}</pre>`));
+    }
+    window.furaLocalPreview = previewLocal;
     pv.addEventListener("click", async (e) => {
         const b = e.target.closest("[data-pv]"); if (!b) return;
+        if (PV.local && (b.dataset.pv === "prev" || b.dataset.pv === "next")) {
+            const L = PV.local, n = L.length; let j = PV.i;
+            for (let t = 0; t < n; t++) { j = (j + (b.dataset.pv === "next" ? 1 : -1) + n) % n; if (typeOf(L[j].name, L[j].type)) break; }
+            return previewLocal(L, j);
+        }
         const k = b.dataset.pv, n = PV.m?.attachments?.length || 0;
         if (k === "close") { pv.hidden = true; document.body.classList.remove("sa-pv-open"); pv.querySelector(".sa-pv-body").innerHTML = ""; return; }
         if ((k === "prev" || k === "next") && n > 1) {
