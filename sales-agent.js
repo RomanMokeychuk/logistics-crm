@@ -2172,9 +2172,52 @@ document.addEventListener("DOMContentLoaded", async () => {
         const n = String(name || "").toLowerCase(), t = String(type || "").toLowerCase();
         if (/^image\//.test(t) || /\.(jpe?g|png|gif|webp|bmp|heic|svg)$/.test(n)) return "img";
         if (t === "application/pdf" || /\.pdf$/.test(n)) return "pdf";
-        if (/^text\//.test(t) || /\.(txt|csv|log|xml|json)$/.test(n)) return "txt";
+        if (/\.docx$/.test(n) || t === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") return "doc";
+        if (/\.(xlsx|xlsm|xls|ods|csv)$/.test(n) || /spreadsheetml|ms-excel/.test(t)) return "xls";
+        if (/^text\//.test(t) || /\.(txt|log|xml|json)$/.test(n)) return "txt";
         return "";
     };
+    /* ---------- Word (.docx) і Excel (.xlsx/.xls/.csv) — перегляд прямо в FURA ---------- */
+    // Бібліотеки вантажаться лише коли вперше відкривають такий файл. Вміст показується в «пісочниці» без скриптів.
+    const LIBS = {};
+    const loadLib = (src, name) => (LIBS[src] ||= new Promise((ok, no) => {
+        if (window[name]) return ok(window[name]);
+        const sc = document.createElement("script");
+        sc.src = src; sc.async = true;
+        sc.onload = () => (window[name] ? ok(window[name]) : no(new Error("lib")));
+        sc.onerror = () => { delete LIBS[src]; no(new Error("Не вдалося завантажити переглядач. Перевірте інтернет.")); };
+        document.head.appendChild(sc);
+    }));
+    const DOC_CSS = `body{font:14px/1.55 -apple-system,Segoe UI,Arial,sans-serif;color:#111827;margin:0;padding:28px 34px;background:#fff}
+        img{max-width:100%;height:auto}table{border-collapse:collapse;margin:8px 0}td,th{border:1px solid #d1d5db;padding:4px 8px;vertical-align:top}
+        p{margin:0 0 8px}h1,h2,h3{margin:14px 0 8px}.sh{font:600 13px sans-serif;color:#6b7280;margin:18px 0 6px;padding-top:10px;border-top:2px solid #e5e7eb}
+        .sh:first-child{border:0;margin-top:0;padding-top:0}.xl td{font-size:12.5px;white-space:nowrap}.xl tr:first-child td{background:#f3f4f6;font-weight:600}
+        @media(max-width:700px){body{padding:16px 12px;font-size:15px}}`;
+    async function officeHtml(buf, kind) {
+        if (kind === "doc") {
+            const m = await loadLib("https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js", "mammoth");
+            const r = await m.convertToHtml({ arrayBuffer: buf });
+            return r.value || "<p>(документ порожній)</p>";
+        }
+        const X = await loadLib("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js", "XLSX");
+        const wb = X.read(new Uint8Array(buf), { type: "array" });
+        return wb.SheetNames.map((nm) => {
+            const ws = wb.Sheets[nm];
+            const t = X.utils.sheet_to_html(ws, { header: "", footer: "" }).replace(/<table/, '<table class="xl"');
+            return `${wb.SheetNames.length > 1 ? `<div class="sh">Аркуш: ${escapeHtml(nm)}</div>` : ""}${t}`;
+        }).join("");
+    }
+    async function officeView(body, getBuf, kind) {
+        body.innerHTML = `<p class="sa-pv-load">${kind === "doc" ? "Відкриваю документ Word…" : "Відкриваю таблицю…"}</p>`;
+        const html = await officeHtml(await getBuf(), kind);
+        const fr = document.createElement("iframe");
+        fr.setAttribute("sandbox", ""); // без скриптів і переходів — вміст з чужого листа безпечний
+        fr.className = "sa-pv-doc";
+        fr.title = kind === "doc" ? "Word" : "Excel";
+        fr.srcdoc = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${DOC_CSS}</style><body>${html}</body>`;
+        body.innerHTML = "";
+        body.appendChild(fr);
+    }
     async function fileOf(m, i, onProg) { return partFile(m.fp, m.uid, (m.attachments || [])[i] || {}, onProg); }
     const LOADING = new Map(); // той самий файл не качаємо двічі паралельно
     const mb = (n) => (n / 1048576).toFixed(1).replace(".", ",") + " МБ";
@@ -2329,7 +2372,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const m = mm || ML.open; if (!m?.uid) return;
         const att = (m.attachments || [])[i] || {};
         // Word, Excel, архів — одразу завантажити; невідомий тип (octet-stream без розширення) — спершу перевіримо вміст
-        if (!typeOf(att.name, att.type) && /\.(docx?|xlsx?|xlsm|csv|odt|ods|rtf|zip|rar|7z|pptx?|eml|msg)$/i.test(att.name || "")) return download(await fileOf(m, i));
+        if (!typeOf(att.name, att.type) && /\.(doc|odt|rtf|zip|rar|7z|pptx?|eml|msg)$/i.test(att.name || "")) return download(await fileOf(m, i));
         PV = { m, i, f: null, local: null };
         pv.hidden = false; document.body.classList.add("sa-pv-open");
         pv.querySelector(".sa-pv-name").textContent = att.name || "файл";
@@ -2354,6 +2397,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             else if (f.kind === "pdf" && window.furaPdfView) window.furaPdfView(body, f.url);
             else if (f.kind === "pdf") body.innerHTML = `<iframe src="${f.url}#view=FitH" title="PDF"></iframe>`;
             else if (f.kind === "txt") body.innerHTML = `<pre>${escapeHtml(await (await fetch(f.url)).text())}</pre>`;
+            else if (f.kind === "doc" || f.kind === "xls") await officeView(body, async () => (await fetch(f.url)).arrayBuffer(), f.kind);
             else body.innerHTML = `<p class="sa-pv-load">Цей файл не можна переглянути тут.<br><button type="button" class="sa-pv-btn sa-pv-dl2">⬇ Завантажити</button></p>`, body.querySelector(".sa-pv-dl2").onclick = () => download(f);
             const img = body.querySelector("img");
             if (img) img.addEventListener("click", () => img.classList.toggle("zoom"));
@@ -2382,6 +2426,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         else if (kind === "img") body.innerHTML = `<img src="${url}" alt="">`;
         else if (kind === "pdf" && window.furaPdfView) window.furaPdfView(body, url);
         else if (kind === "pdf") body.innerHTML = `<iframe src="${url}#view=FitH" title="PDF"></iframe>`;
+        else if (kind === "doc" || kind === "xls") officeView(body, () => file.arrayBuffer(), kind).catch((er) => (body.innerHTML = `<p class="sa-pv-load">${escapeHtml(er.message || "Не вдалося відкрити файл")}</p>`));
         else file.text().then((t) => (body.innerHTML = `<pre>${escapeHtml(t)}</pre>`));
     }
     window.furaLocalPreview = previewLocal;

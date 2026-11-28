@@ -683,6 +683,7 @@ body.sa-only-mail .sa-mail-list, body.sa-only-mail .sa-mail-read { max-height: c
 .sa-pv-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; background: #fff; cursor: zoom-in; }
 .sa-pv-body img.zoom { max-width: none; max-height: none; cursor: zoom-out; }
 .sa-pv-body iframe { width: min(1100px, 100%); height: 100%; border: 0; border-radius: 6px; background: #fff; }
+.sa-pv-body iframe.sa-pv-doc { width: min(900px, 100%); align-self: stretch; height: auto; min-height: 100%; }
 .sa-pv-body pre { width: min(1000px, 100%); height: 100%; margin: 0; overflow: auto; background: #fff; color: #111827; border-radius: 6px; padding: 16px; font-size: 13px; white-space: pre-wrap; }
 .sa-pv-load { color: #e5e7eb; }
 body.sa-pv-open .fk, body.sa-pv-open [class^="fk-"], body.sa-pv-open .fh-fab, body.sa-pv-open [class*="furik"] { display: none !important; }
